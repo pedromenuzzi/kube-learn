@@ -1,0 +1,62 @@
+// @vitest-environment node
+// Compara o simulador com o kubectl de verdade: tests/golden/kind/ tem a saída real (scripts/capturar-golden.sh,
+// num kind v1.37) e tests/golden/cenario.js roda os mesmos passos no simulador.
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { rodarCenario } from './golden/cenario.js';
+import { normalizar } from './golden/normalizar.js';
+
+// Casos que não dá para comparar linha a linha, e por quê.
+const ESPECIAIS = {
+  // O kind tem DaemonSets (kindnet, kube-proxy) que o simulador ainda não tem: compara até a lista de pods.
+  'describe-node': { ate: 'Non-terminated Pods:' },
+  // Quantas vezes já caiu/tentou depende do ritmo exato do kubelet: compara sem as contagens.
+  'crash-get': { semContagem: true },
+  'pull-get': { semContagem: true },
+  'crash-describe': { ate: '    State:', eventos: true },
+  'pull-describe': { ate: '    State:', eventos: true },
+  'nopull-describe': { ate: '    State:', eventos: true },
+  'events': { conjunto: true },
+  // O rollout real espera o pull do nginx:1.28; o simulado é mais rápido. Começo e fim iguais.
+  'rollout-status': { pontas: true },
+  // As descrições do explain são em português (de propósito): compara só a estrutura e os campos.
+  'explain-deploy': { estrutura: true },
+  'explain-replicas': { estrutura: true },
+  'explain-containers': { estrutura: true },
+};
+
+const linhas = (t) => t.split('\n');
+const semContagem = (t) => t.replace(/\b\d+ \(<t> ago\)/g, 'N (<t> ago)').replace(/\(x\d+ over/g, '(xN over')
+  .replace(/\b(ErrImagePull|ImagePullBackOff)\b/g, '<pull>').replace(/\b(CrashLoopBackOff|Completed|Error)\b/g, '<crash>');
+
+function comparavel(texto, regra) {
+  let t = normalizar(texto);
+  if (regra.semContagem) t = semContagem(t);
+  if (regra.ate) {
+    const ls = linhas(t);
+    const i = ls.findIndex((l) => l.startsWith(normalizar(regra.ate).replace(/^ \| /, ' | ')) || l.startsWith(regra.ate.trim()) || l.replace(/^ \| /, '').startsWith(regra.ate.trim()));
+    const base = ls.slice(0, i === -1 ? undefined : i).join('\n');
+    if (!regra.eventos) return base;
+    const j = ls.findIndex((l) => l.startsWith('Events:'));
+    const eventos = ls.slice(j + 3).filter(Boolean).map((l) => semContagem(l).replace(/\| [^|]*\(xN over <t>\) \|/, '| <t> |')).sort();
+    return `${base}\n---\n${[...new Set(eventos)].join('\n')}`;
+  }
+  if (regra.conjunto) return [...new Set(linhas(semContagem(t)))].sort().join('\n');
+  if (regra.pontas) {
+    const ls = linhas(t).filter(Boolean);
+    return [ls[0], ...ls.slice(-2)].join('\n');
+  }
+  if (regra.estrutura) return linhas(t).filter((l) => /^(GROUP|KIND|VERSION|FIELD|DESCRIPTION|FIELDS|exit)|^ \| [a-zA-Z]+ \| </.test(l)).join('\n');
+  return t;
+}
+
+describe('saída igual à do kubectl de verdade (kind v1.37)', () => {
+  const { saidas } = rodarCenario();
+  for (const [nome, sim] of Object.entries(saidas)) {
+    it(nome, () => {
+      const real = readFileSync(new URL(`./golden/kind/${nome}.txt`, import.meta.url), 'utf8');
+      const regra = ESPECIAIS[nome] ?? {};
+      expect(comparavel(sim, regra)).toBe(comparavel(real, regra));
+    });
+  }
+});

@@ -1,0 +1,2 @@
+Error from server (BadRequest): container "pull" in pod "pull" is waiting to start: trying and failing to pull image
+exit=1

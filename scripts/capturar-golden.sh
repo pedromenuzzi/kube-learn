@@ -1,0 +1,257 @@
+#!/usr/bin/env bash
+# Captura a saída do kubectl de VERDADE (num cluster kind de 3 nodes) para os arquivos golden.
+# Uso: KUBECONFIG=... KUBECTL=kubectl scripts/capturar-golden.sh tests/golden/kind
+# O cluster: kind com control-plane + 2 workers (kindest/node v1.37). Os testes (tests/golden.test.js)
+# rodam os mesmos passos no simulador e comparam célula a célula, depois de normalizar nomes, IPs e idades.
+set -u
+OUT=${1:?pasta de saída}
+K=${KUBECTL:-kubectl}
+mkdir -p "$OUT"
+n=0
+cap() { # cap <nome> <comando...>  grava stdout+stderr e o código de saída
+  local nome=$1; shift
+  "$@" > "$OUT/$nome.txt" 2>&1; echo "exit=$?" >> "$OUT/$nome.txt"
+}
+kc() { $K "$@"; }
+
+cat > /tmp/kl-web.yaml <<'Y'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.27
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: web
+  ports:
+  - port: 80
+    targetPort: 80
+Y
+cat > /tmp/kl-errado.yaml <<'Y'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: errado
+spec:
+  replica: 2
+  selector:
+    matchLabels:
+      app: errado
+  template:
+    metadata:
+      labels:
+        app: errado
+    spec:
+      containers:
+      - name: c
+        imagem: nginx
+Y
+cat > /tmp/kl-seletor.yaml <<'Y'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seletor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: um
+  template:
+    metadata:
+      labels:
+        app: outro
+    spec:
+      containers:
+      - name: c
+        image: nginx:1.27
+Y
+cat > /tmp/kl-semimagem.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: semimagem
+spec:
+  containers:
+  - name: c
+Y
+printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: tab\nspec:\n\tcontainers: []\n' > /tmp/kl-tab.yaml
+cat > /tmp/kl-tipo.yaml <<'Y'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tipo
+spec:
+  replicas: "3"
+  selector:
+    matchLabels:
+      app: tipo
+  template:
+    metadata:
+      labels:
+        app: tipo
+    spec:
+      containers:
+      - name: c
+        image: nginx:1.27
+Y
+cat > /tmp/kl-kind.yaml <<'Y'
+apiVersion: v1
+kind: Deployment
+metadata:
+  name: kind-errado
+Y
+
+cap nodes kc get nodes
+cap nodes-wide kc get nodes -o wide
+cap pods-A kc get pods -A
+cap apply-web kc apply -f /tmp/kl-web.yaml
+kc rollout status deploy/web --timeout=180s >/dev/null 2>&1
+kc run dorminhoco --image=busybox:1.36 -- sleep 3600 >/dev/null 2>&1
+kc wait --for=condition=Ready pod/dorminhoco --timeout=120s >/dev/null 2>&1
+P=$(kc get pods -l app=web -o jsonpath='{.items[0].metadata.name}')
+cap get-pods kc get pods
+cap get-pods-wide kc get pods -o wide
+cap get-pods-labels kc get pods --show-labels
+cap get-pods-name kc get pods -l app=web -o name
+cap get-pods-jsonpath kc get pods -l app=web -o jsonpath='{.items[*].metadata.name}'
+cap get-deploy kc get deploy
+cap get-deploy-wide kc get deploy -o wide
+cap get-rs kc get rs
+cap get-rs-wide kc get rs -o wide
+cap get-svc kc get svc
+cap get-svc-wide kc get svc -o wide
+cap get-ep kc get endpoints web
+cap get-all kc get all
+cap get-deploy-svc kc get deploy,svc
+cap get-ns kc get ns
+cap get-pod-nao-existe kc get pod nao-existe
+cap get-tipo-errado kc get podz
+cap get-vazio kc get pods -n kube-public
+cap comando-errado kc gte pods
+cap flag-errada kc get pods --replicaz
+cap describe-pod kc describe pod "$P"
+cap describe-deploy kc describe deploy web
+cap describe-rs kc describe rs -l app=web
+cap describe-svc kc describe svc web
+cap describe-node kc describe node golden-worker
+cap describe-ns kc describe ns default
+cap yaml-deploy kc get deploy web -o yaml
+cap yaml-pod kc get pod "$P" -o yaml
+cap yaml-svc kc get svc web -o yaml
+cap json-svc kc get svc web -o json
+cap logs-web kc logs "$P"
+cap logs-deploy kc logs deploy/web
+cap exec-curl kc exec "$P" -- curl -s web
+cap exec-curl-codigo kc exec "$P" -- curl -s -o /dev/null -w '%{http_code}' http://web.default.svc.cluster.local
+cap exec-wget kc exec dorminhoco -- wget -qO- web
+cap exec-nslookup kc exec dorminhoco -- nslookup web
+cap exec-sem-curl kc exec dorminhoco -- curl web
+cap exec-hostname kc exec dorminhoco -- hostname
+cap exec-cat-resolv kc exec dorminhoco -- cat /etc/resolv.conf
+cap exec-conexao-recusada kc exec dorminhoco -- wget -qO- -T 2 http://web:8080
+cap exec-dns-errado kc exec dorminhoco -- wget -qO- -T 2 http://nao-existe
+
+kc run crash --image=busybox:1.36 >/dev/null 2>&1
+kc run pull --image=nginx:9.99 >/dev/null 2>&1
+kc run nopull --image=ngnix:1.27 >/dev/null 2>&1
+kc run grande --image=nginx:1.27 --overrides='{"spec":{"containers":[{"name":"grande","image":"nginx:1.27","resources":{"requests":{"cpu":"100"}}}]}}' >/dev/null 2>&1
+kc run falha --image=busybox:1.36 -- sh -c 'echo vou falhar; exit 3' >/dev/null 2>&1
+sleep 75
+cap crash-get kc get pod crash falha
+cap crash-describe kc describe pod crash
+cap crash-logs-previous kc logs falha --previous
+cap crash-logs kc logs falha
+cap pull-get kc get pod pull nopull
+cap pull-describe kc describe pod pull
+cap nopull-describe kc describe pod nopull
+cap pending-get kc get pod grande
+cap pending-describe kc describe pod grande
+cap logs-pull kc logs pull
+cap events kc get events --field-selector involvedObject.name=crash
+
+cap dry-deploy kc create deployment loja --image=nginx:1.27 --replicas=2 --port=80 --dry-run=client -o yaml
+cap dry-run-pod kc run teste --image=nginx:1.27 --port=80 --labels=app=teste --env=COR=azul --dry-run=client -o yaml
+cap dry-ns kc create namespace vendas --dry-run=client -o yaml
+cap dry-cm kc create configmap cfg --from-literal=cor=azul --dry-run=client -o yaml
+cap dry-secret kc create secret generic s --from-literal=senha=123 --dry-run=client -o yaml
+cap dry-svc kc create service clusterip loja --tcp=80:8080 --dry-run=client -o yaml
+
+cap apply-errado kc apply -f /tmp/kl-errado.yaml
+cap apply-seletor kc apply -f /tmp/kl-seletor.yaml
+cap apply-semimagem kc apply -f /tmp/kl-semimagem.yaml
+cap apply-tab kc apply -f /tmp/kl-tab.yaml
+cap apply-tipo kc apply -f /tmp/kl-tipo.yaml
+cap apply-kind kc apply -f /tmp/kl-kind.yaml
+cap apply-nao-existe kc apply -f /tmp/nao-existe.yaml
+cap apply-web-de-novo kc apply -f /tmp/kl-web.yaml
+cap create-web-de-novo kc create -f /tmp/kl-web.yaml
+cap delete-default kc delete ns default
+cap create-ns kc create namespace vendas
+cap apply-ns-errado kc apply -f /tmp/kl-web.yaml -n nao-existe
+
+cap create-cm kc create configmap cfg --from-literal=cor=azul --from-literal=tamanho=G
+cap get-cm kc get cm
+cap describe-cm kc describe cm cfg
+cap create-secret kc create secret generic s --from-literal=senha=123
+cap get-secret kc get secret
+cap describe-secret kc describe secret s
+cap yaml-secret kc get secret s -o yaml
+
+cap label kc label pod dorminhoco cor=azul
+cap label-sem-overwrite kc label pod dorminhoco cor=verde
+cap label-overwrite kc label pod dorminhoco cor=verde --overwrite
+cap label-remover kc label pod dorminhoco cor-
+cap annotate kc annotate deploy web kubernetes.io/change-cause='versao 1.28'
+
+cap set-image kc set image deployment/web nginx=nginx:1.28
+cap rollout-status kc rollout status deploy/web --timeout=180s
+cap rollout-history kc rollout history deploy/web
+cap rollout-history-rev kc rollout history deploy/web --revision=2
+cap get-rs-depois kc get rs
+cap describe-deploy-depois kc describe deploy web
+cap rollout-undo kc rollout undo deploy/web
+kc rollout status deploy/web --timeout=180s >/dev/null 2>&1
+cap rollout-history-undo kc rollout history deploy/web
+cap set-image-errado kc set image deployment/web naoexiste=nginx:1.28
+cap scale kc scale deploy web --replicas=5
+cap rollout-restart kc rollout restart deploy/web
+kc rollout status deploy/web --timeout=180s >/dev/null 2>&1
+cap scale-get kc get deploy web
+
+cap config-contexts kc config get-contexts
+cap config-current kc config current-context
+cap config-ns kc config set-context --current --namespace=vendas
+kc config set-context --current --namespace=default >/dev/null 2>&1
+cap api-resources kc api-resources
+cap version kc version
+cap cluster-info kc cluster-info
+cap explain-deploy kc explain deployment
+cap explain-replicas kc explain deployment.spec.replicas
+cap explain-containers kc explain pod.spec.containers
+
+cap delete-pod kc delete pod dorminhoco
+cap delete-deploy kc delete deploy web
+cap delete-f kc delete -f /tmp/kl-web.yaml
+cap delete-label kc delete pods -l run
+cap delete-nao-existe kc delete pod nao-existe

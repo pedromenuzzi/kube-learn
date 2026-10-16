@@ -1,0 +1,2 @@
+error: unable to find container named "naoexiste"
+exit=1

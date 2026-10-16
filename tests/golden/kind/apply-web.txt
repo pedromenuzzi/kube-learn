@@ -1,0 +1,3 @@
+deployment.apps/web created
+service/web created
+exit=0

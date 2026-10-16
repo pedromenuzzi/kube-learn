@@ -21,6 +21,13 @@ npm test        # Vitest
 npm run build   # gera dist/
 ```
 
+## O simulador
+
+O cluster roda em `src/k8s/`: API, controladores (Deployment, ReplicaSet, Endpoints, namespaces, coleta de
+lixo), scheduler, kubelet (pull, CrashLoopBackOff, logs), rede (DNS, Services) e um `kubectl` com saída igual à
+real. A fidelidade é conferida contra um cluster **kind** de verdade: `scripts/capturar-golden.sh` grava a saída
+real em `tests/golden/kind/` e `tests/golden.test.js` compara com o simulador.
+
 ## Publicação
 
 Todo PR roda o [CI](.github/workflows/ci.yml) (lint, testes e build). Cada push no `main` roda o CI e publica no

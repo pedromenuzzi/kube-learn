@@ -1,0 +1,4 @@
+NAME         TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE     SELECTOR
+kubernetes   ClusterIP   10.96.0.1      <none>        443/TCP   2m47s   <none>
+web          ClusterIP   10.96.91.178   <none>        80/TCP    31s     app=web
+exit=0

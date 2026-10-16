@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: loja
+  name: loja
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: loja
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: loja
+    spec:
+      containers:
+      - image: nginx:1.27
+        name: nginx
+        ports:
+        - containerPort: 80
+        resources: {}
+status: {}
+exit=0

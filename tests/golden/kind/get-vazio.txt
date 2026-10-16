@@ -1,0 +1,2 @@
+No resources found in kube-public namespace.
+exit=0

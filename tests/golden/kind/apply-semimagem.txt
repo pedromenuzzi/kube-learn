@@ -1,0 +1,2 @@
+The Pod "semimagem" is invalid: spec.containers[0].image: Required value
+exit=1

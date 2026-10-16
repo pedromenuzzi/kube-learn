@@ -1,0 +1,54 @@
+Name:             nopull
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             golden-worker/172.19.0.3
+Start Time:       Fri, 16 Oct 2026 16:55:00 -0300
+Labels:           run=nopull
+Annotations:      <none>
+Status:           Pending
+IP:               10.244.1.5
+IPs:
+  IP:  10.244.1.5
+Containers:
+  nopull:
+    Container ID:   
+    Image:          ngnix:1.27
+    Image ID:       
+    Port:           <none>
+    Host Port:      <none>
+    State:          Waiting
+      Reason:       ErrImagePull
+    Ready:          False
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-npmdz (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-npmdz:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age                From               Message
+  ----     ------     ----               ----               -------
+  Normal   Scheduled  79s                default-scheduler  Successfully assigned default/nopull to golden-worker
+  Normal   Pulling    26s (x3 over 78s)  kubelet            spec.containers{nopull}: Pulling image "ngnix:1.27"
+  Warning  Failed     25s (x3 over 71s)  kubelet            spec.containers{nopull}: Failed to pull image "ngnix:1.27": failed to pull and unpack image "docker.io/library/ngnix:1.27": failed to resolve reference "docker.io/library/ngnix:1.27": pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed
+  Warning  Failed     25s (x3 over 71s)  kubelet            spec.containers{nopull}: Error: ErrImagePull
+  Normal   BackOff    13s (x3 over 70s)  kubelet            spec.containers{nopull}: Back-off pulling image "ngnix:1.27"
+  Warning  Failed     13s (x3 over 70s)  kubelet            spec.containers{nopull}: Error: ImagePullBackOff
+exit=0

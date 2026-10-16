@@ -1,0 +1,5 @@
+error: unknown command "gte" for "kubectl"
+
+Did you mean this?
+	get
+exit=1

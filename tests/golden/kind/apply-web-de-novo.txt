@@ -1,0 +1,3 @@
+deployment.apps/web unchanged
+service/web unchanged
+exit=0

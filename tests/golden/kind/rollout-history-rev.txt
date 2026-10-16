@@ -1,0 +1,17 @@
+deployment.apps/web with revision #2
+Pod Template:
+  Labels:	app=web
+	pod-template-hash=6d8567df8
+  Annotations:	kubernetes.io/change-cause: versao 1.28
+  Containers:
+   nginx:
+    Image:	nginx:1.28
+    Port:	80/TCP
+    Host Port:	0/TCP
+    Environment:	<none>
+    Mounts:	<none>
+  Volumes:	<none>
+  Node-Selectors:	<none>
+  Tolerations:	<none>
+
+exit=0

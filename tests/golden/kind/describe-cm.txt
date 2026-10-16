@@ -1,0 +1,21 @@
+Name:         cfg
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Data
+====
+cor:
+----
+azul
+
+tamanho:
+----
+G
+
+
+BinaryData
+====
+
+Events:  <none>
+exit=0

@@ -1,0 +1,3 @@
+error: resource mapping not found for name: "kind-errado" namespace: "" from "/tmp/kl-kind.yaml": no matches for kind "Deployment" in version "v1"
+ensure CRDs are installed first
+exit=1

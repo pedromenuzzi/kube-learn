@@ -1,0 +1,31 @@
+Name:           web-557577df75
+Namespace:      default
+Selector:       app=web,pod-template-hash=557577df75
+Labels:         app=web
+                pod-template-hash=557577df75
+Annotations:    deployment.kubernetes.io/desired-replicas: 3
+                deployment.kubernetes.io/max-replicas: 4
+                deployment.kubernetes.io/revision: 1
+Controlled By:  Deployment/web
+Replicas:       3 current / 3 desired
+Pods Status:    3 Running / 0 Waiting / 0 Succeeded / 0 Failed
+Pod Template:
+  Labels:  app=web
+           pod-template-hash=557577df75
+  Containers:
+   nginx:
+    Image:         nginx:1.27
+    Port:          80/TCP
+    Host Port:     0/TCP
+    Environment:   <none>
+    Mounts:        <none>
+  Volumes:         <none>
+  Node-Selectors:  <none>
+  Tolerations:     <none>
+Events:
+  Type    Reason            Age   From                   Message
+  ----    ------            ----  ----                   -------
+  Normal  SuccessfulCreate  34s   replicaset-controller  Created pod: web-557577df75-r2fvx
+  Normal  SuccessfulCreate  34s   replicaset-controller  Created pod: web-557577df75-4t9fj
+  Normal  SuccessfulCreate  34s   replicaset-controller  Created pod: web-557577df75-2zptv
+exit=0

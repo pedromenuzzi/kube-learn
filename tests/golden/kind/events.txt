@@ -1,0 +1,9 @@
+LAST SEEN   TYPE      REASON      OBJECT      MESSAGE
+80s         Normal    Scheduled   pod/crash   Successfully assigned default/crash to golden-worker
+79s         Normal    Pulling     pod/crash   Pulling image "busybox:1.36"
+73s         Normal    Pulled      pod/crash   Successfully pulled image "busybox:1.36" in 5.145s (5.145s including waiting). Image size: 2217006 bytes.
+34s         Normal    Created     pod/crash   Container created
+34s         Normal    Started     pod/crash   Container started
+34s         Normal    Pulled      pod/crash   Container image "busybox:1.36" already present on machine and can be accessed by the pod
+34s         Warning   BackOff     pod/crash   Back-off restarting failed container crash in pod crash_default(fb8d3cca-3aed-4788-80fc-61cc64c90bef)
+exit=0

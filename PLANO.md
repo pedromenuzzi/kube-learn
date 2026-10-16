@@ -601,8 +601,8 @@ As estimativas são em sessões do Claude no esforço alto. Cada fase termina co
 
 | Fase | Entrega | Pronto quando | Sessões |
 |---|---|---|---|
-| **0. Repositório** | Vite, ESLint, Vitest, CI, deploy no Pages, LICENSE, README, `CLAUDE.md` e rotas vazias | O site está no ar via Actions | 1 |
-| **1. Motor v0** | Relógio, API, esquemas (Pod, Namespace, Deployment, ReplicaSet, Service, ConfigMap, Secret), controladores básicos, scheduler simples, kubelet (pull, running, crash, logs), imagens, DNS e Service, `kubectl` dos níveis 1 e 2 | Aplicar um Deployment e avançar o tempo dá um `get pods` igual ao golden | 3 |
+| **0. Repositório** ✅ | Vite, ESLint, Vitest, CI, deploy no Pages, LICENSE, README, `CLAUDE.md` e rotas vazias | O site está no ar via Actions | 1 |
+| **1. Motor v0** ✅ | Relógio, API, esquemas (Pod, Namespace, Deployment, ReplicaSet, Service, ConfigMap, Secret), controladores básicos, scheduler simples, kubelet (pull, running, crash, logs), imagens, DNS e Service, `kubectl` dos níveis 1 e 2 | Aplicar um Deployment e avançar o tempo dá um `get pods` igual ao golden | 3 |
 | **2. Tela do exercício** | Editor, terminal, painéis, abas, verificações, testes visíveis e ocultos, playground livre | Um exercício resolvido de ponta a ponta | 2 |
 | **3. Trilha e progresso** | Prédio em pixel art (motor `pixel.js` reaproveitado, sprites e fonte pixel), XP, 🔥, 70%, landing, página do glossário, acessibilidade básica, E2E com axe | O progresso fica salvo e o axe passa | 2 |
 | **4. Conteúdo MVP** | Níveis 0 a 3 (~13 lições e ~48 exercícios) e ~45 termos no glossário | A trilha inteira passa. **🚀 v0.1** | 4 |

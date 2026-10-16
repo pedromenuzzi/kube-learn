@@ -1,0 +1,15 @@
+NAMESPACE            NAME                                           READY   STATUS    RESTARTS   AGE
+kube-system          coredns-559f6c778d-9npn8                       1/1     Running   0          2m8s
+kube-system          coredns-559f6c778d-jgr9h                       1/1     Running   0          2m8s
+kube-system          etcd-golden-control-plane                      1/1     Running   0          2m16s
+kube-system          kindnet-4nlcs                                  1/1     Running   0          2m4s
+kube-system          kindnet-d5px5                                  1/1     Running   0          2m9s
+kube-system          kindnet-qvb7j                                  1/1     Running   0          2m4s
+kube-system          kube-apiserver-golden-control-plane            1/1     Running   0          2m16s
+kube-system          kube-controller-manager-golden-control-plane   1/1     Running   0          2m16s
+kube-system          kube-proxy-gjw89                               1/1     Running   0          2m4s
+kube-system          kube-proxy-sxwxb                               1/1     Running   0          2m9s
+kube-system          kube-proxy-tj85g                               1/1     Running   0          2m4s
+kube-system          kube-scheduler-golden-control-plane            1/1     Running   0          2m16s
+local-path-storage   local-path-provisioner-75f7fc7dc5-dkb5d        1/1     Running   0          2m8s
+exit=0

@@ -1,0 +1,2 @@
+error: 'cor' already has a value (azul), and --overwrite is false
+exit=1

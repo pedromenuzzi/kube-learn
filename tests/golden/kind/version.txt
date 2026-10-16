@@ -1,0 +1,4 @@
+Client Version: v1.37.1
+Kustomize Version: v5.8.1
+Server Version: v1.37.0
+exit=0
