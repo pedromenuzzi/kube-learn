@@ -1,0 +1,75 @@
+Name:               golden-worker
+Roles:              <none>
+Labels:             beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/os=linux
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=golden-worker
+                    kubernetes.io/os=linux
+Annotations:        node.alpha.kubernetes.io/ttl: 0
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Fri, 16 Oct 2026 16:52:17 -0300
+Taints:             <none>
+Unschedulable:      false
+Lease:
+  HolderIdentity:  golden-worker
+  AcquireTime:     <unset>
+  RenewTime:       Fri, 16 Oct 2026 16:54:55 -0300
+Conditions:
+  Type             Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
+  ----             ------  -----------------                 ------------------                ------                       -------
+  MemoryPressure   False   Fri, 16 Oct 2026 16:52:34 -0300   Fri, 16 Oct 2026 16:52:17 -0300   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure     False   Fri, 16 Oct 2026 16:52:34 -0300   Fri, 16 Oct 2026 16:52:17 -0300   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure      False   Fri, 16 Oct 2026 16:52:34 -0300   Fri, 16 Oct 2026 16:52:17 -0300   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready            True    Fri, 16 Oct 2026 16:52:34 -0300   Fri, 16 Oct 2026 16:52:34 -0300   KubeletReady                 kubelet is posting ready status
+Addresses:
+  InternalIP:  172.19.0.3
+  Hostname:    golden-worker
+Capacity:
+  cpu:                12
+  ephemeral-storage:  1081101176832
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             8131216Ki
+  pods:               110
+Allocatable:
+  cpu:                12
+  ephemeral-storage:  1081101176832
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             8131216Ki
+  pods:               110
+System Info:
+  Machine ID:                 8219247e7d1a4bb8add9e4ec651ad4da
+  System UUID:                8219247e7d1a4bb8add9e4ec651ad4da
+  Boot ID:                    8b641f74-80ac-429b-888e-33e908ddf902
+  Kernel Version:             6.18.33.2-microsoft-standard-WSL2
+  OS Image:                   Debian GNU/Linux 13 (trixie)
+  Operating System:           linux
+  Architecture:               amd64
+  Container Runtime Version:  containerd://2.3.4
+  Kubelet Version:            v1.37.0
+PodCIDR:                      10.244.1.0/24
+PodCIDRs:                     10.244.1.0/24
+ProviderID:                   kind://docker/golden/golden-worker
+Non-terminated Pods:          (4 in total)
+  Namespace                   Name                    CPU Requests  CPU Limits  Memory Requests  Memory Limits  Age
+  ---------                   ----                    ------------  ----------  ---------------  -------------  ---
+  default                     web-557577df75-2zptv    0 (0%)        0 (0%)      0 (0%)           0 (0%)         34s
+  default                     web-557577df75-r2fvx    0 (0%)        0 (0%)      0 (0%)           0 (0%)         34s
+  kube-system                 kindnet-qvb7j           100m (0%)     0 (0%)      50Mi (0%)        0 (0%)         2m38s
+  kube-system                 kube-proxy-tj85g        0 (0%)        0 (0%)      0 (0%)           0 (0%)         2m38s
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests   Limits
+  --------           --------   ------
+  cpu                100m (0%)  0 (0%)
+  memory             50Mi (0%)  0 (0%)
+  ephemeral-storage  0 (0%)     0 (0%)
+  hugepages-1Gi      0 (0%)     0 (0%)
+  hugepages-2Mi      0 (0%)     0 (0%)
+Events:
+  Type    Reason          Age    From             Message
+  ----    ------          ----   ----             -------
+  Normal  RegisteredNode  2m33s  node-controller  Node golden-worker event: Registered Node golden-worker in Controller
+  Normal  NodeReady       2m21s  kubelet          Node golden-worker status is now: NodeReady
+exit=0

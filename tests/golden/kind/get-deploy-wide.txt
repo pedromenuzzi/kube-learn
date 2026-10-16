@@ -1,0 +1,3 @@
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES       SELECTOR
+web    3/3     3            3           31s   nginx        nginx:1.27   app=web
+exit=0

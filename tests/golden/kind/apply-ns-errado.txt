@@ -1,0 +1,3 @@
+Error from server (NotFound): error when creating "/tmp/kl-web.yaml": namespaces "nao-existe" not found
+Error from server (NotFound): error when creating "/tmp/kl-web.yaml": namespaces "nao-existe" not found
+exit=1

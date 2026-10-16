@@ -1,0 +1,2 @@
+error: error parsing /tmp/kl-tab.yaml: error converting YAML to JSON: yaml: line 6: found character that cannot start any token
+exit=1

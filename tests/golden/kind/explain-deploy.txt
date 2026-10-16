@@ -1,0 +1,32 @@
+GROUP:      apps
+KIND:       Deployment
+VERSION:    v1
+
+DESCRIPTION:
+    Deployment enables declarative updates for Pods and ReplicaSets.
+    
+FIELDS:
+  apiVersion	<string>
+    APIVersion defines the versioned schema of this representation of an object.
+    Servers should convert recognized schemas to the latest internal value, and
+    may reject unrecognized values. More info:
+    https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+
+  kind	<string>
+    Kind is a string value representing the REST resource this object
+    represents. Servers may infer this from the endpoint the client submits
+    requests to. Cannot be updated. In CamelCase. More info:
+    https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+
+  metadata	<ObjectMeta>
+    Standard object's metadata. More info:
+    https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+
+  spec	<DeploymentSpec> -required-
+    Specification of the desired behavior of the Deployment.
+
+  status	<DeploymentStatus>
+    Most recently observed status of the Deployment.
+
+
+exit=0

@@ -1,0 +1,2 @@
+Error from server (BadRequest): error when creating "/tmp/kl-errado.yaml": Deployment in version "v1" cannot be handled as a Deployment: strict decoding error: unknown field "spec.replica", unknown field "spec.template.spec.containers[0].imagem"
+exit=1

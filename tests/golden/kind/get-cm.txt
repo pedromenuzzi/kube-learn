@@ -1,0 +1,4 @@
+NAME               DATA   AGE
+cfg                2      0s
+kube-root-ca.crt   1      4m12s
+exit=0

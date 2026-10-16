@@ -1,0 +1,2 @@
+namespace/vendas created
+exit=0

@@ -1,0 +1,6 @@
+deployment.apps/web 
+REVISION  CHANGE-CAUSE
+1         versao 1.28
+2         versao 1.28
+
+exit=0

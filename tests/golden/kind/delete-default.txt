@@ -1,0 +1,2 @@
+Error from server (Forbidden): namespaces "default" is forbidden: this namespace may not be deleted
+exit=1

@@ -1,0 +1,2 @@
+deployment.apps "web" deleted from default namespace
+exit=0

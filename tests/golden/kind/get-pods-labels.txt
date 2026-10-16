@@ -1,0 +1,6 @@
+NAME                   READY   STATUS    RESTARTS   AGE   LABELS
+dorminhoco             1/1     Running   0          7s    run=dorminhoco
+web-557577df75-2zptv   1/1     Running   0          30s   app=web,pod-template-hash=557577df75
+web-557577df75-4t9fj   1/1     Running   0          30s   app=web,pod-template-hash=557577df75
+web-557577df75-r2fvx   1/1     Running   0          30s   app=web,pod-template-hash=557577df75
+exit=0

@@ -1,0 +1,17 @@
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+** server can't find web.cluster.local: NXDOMAIN
+
+** server can't find web.cluster.local: NXDOMAIN
+
+
+Name:	web.default.svc.cluster.local
+Address: 10.96.91.178
+
+** server can't find web.svc.cluster.local: NXDOMAIN
+
+** server can't find web.svc.cluster.local: NXDOMAIN
+
+command terminated with exit code 1
+exit=1

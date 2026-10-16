@@ -1,0 +1,2 @@
+deployment.apps/web annotated
+exit=0

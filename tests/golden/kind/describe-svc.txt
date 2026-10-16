@@ -1,0 +1,17 @@
+Name:                     web
+Namespace:                default
+Labels:                   <none>
+Annotations:              <none>
+Selector:                 app=web
+Type:                     ClusterIP
+IP Family Policy:         SingleStack
+IP Families:              IPv4
+IP:                       10.96.91.178
+IPs:                      10.96.91.178
+Port:                     <unset>  80/TCP
+TargetPort:               80/TCP
+Endpoints:                10.244.2.2:80,10.244.1.3:80,10.244.1.2:80
+Session Affinity:         None
+Internal Traffic Policy:  Cluster
+Events:                   <none>
+exit=0

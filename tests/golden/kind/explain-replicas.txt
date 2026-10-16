@@ -1,0 +1,13 @@
+GROUP:      apps
+KIND:       Deployment
+VERSION:    v1
+
+FIELD: replicas <integer>
+
+
+DESCRIPTION:
+    Number of desired pods. This is a pointer to distinguish between explicit
+    zero and not specified. Defaults to 1.
+    
+
+exit=0

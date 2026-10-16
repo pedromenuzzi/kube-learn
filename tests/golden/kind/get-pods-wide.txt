@@ -1,0 +1,6 @@
+NAME                   READY   STATUS    RESTARTS   AGE   IP           NODE             NOMINATED NODE   READINESS GATES
+dorminhoco             1/1     Running   0          7s    10.244.2.3   golden-worker2   <none>           <none>
+web-557577df75-2zptv   1/1     Running   0          30s   10.244.1.3   golden-worker    <none>           <none>
+web-557577df75-4t9fj   1/1     Running   0          30s   10.244.2.2   golden-worker2   <none>           <none>
+web-557577df75-r2fvx   1/1     Running   0          30s   10.244.1.2   golden-worker    <none>           <none>
+exit=0

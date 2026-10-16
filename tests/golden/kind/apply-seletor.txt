@@ -1,0 +1,2 @@
+The Deployment "seletor" is invalid: spec.template.metadata.labels: Invalid value: {"app":"outro"}: `selector` does not match template `labels`
+exit=1

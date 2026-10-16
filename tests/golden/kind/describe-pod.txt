@@ -1,0 +1,55 @@
+Name:             web-557577df75-2zptv
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             golden-worker/172.19.0.3
+Start Time:       Fri, 16 Oct 2026 16:54:21 -0300
+Labels:           app=web
+                  pod-template-hash=557577df75
+Annotations:      <none>
+Status:           Running
+IP:               10.244.1.3
+IPs:
+  IP:           10.244.1.3
+Controlled By:  ReplicaSet/web-557577df75
+Containers:
+  nginx:
+    Container ID:   containerd://d5e7f3d82e3f9fb75bcab4f92af64bf4f789608628aaed2500b42fe272ce99ea
+    Image:          nginx:1.27
+    Image ID:       docker.io/library/nginx@sha256:6784fb0834aa7dbbe12e3d7471e69c290df3e6ba810dc38b34ae33d3c1c05f7d
+    Port:           80/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Fri, 16 Oct 2026 16:54:43 -0300
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-rhn59 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-rhn59:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  33s   default-scheduler  Successfully assigned default/web-557577df75-2zptv to golden-worker
+  Normal  Pulling    31s   kubelet            spec.containers{nginx}: Pulling image "nginx:1.27"
+  Normal  Pulled     11s   kubelet            spec.containers{nginx}: Successfully pulled image "nginx:1.27" in 18.933s (18.933s including waiting). Image size: 72406859 bytes.
+  Normal  Created    11s   kubelet            spec.containers{nginx}: Container created
+  Normal  Started    11s   kubelet            spec.containers{nginx}: Container started
+exit=0

@@ -1,0 +1,4 @@
+NAME    READY   STATUS      RESTARTS      AGE
+crash   0/1     Completed   3 (56s ago)   78s
+falha   0/1     Error       3 (62s ago)   78s
+exit=0

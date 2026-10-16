@@ -1,0 +1,4 @@
+NAME     READY   STATUS             RESTARTS   AGE
+pull     0/1     ImagePullBackOff   0          79s
+nopull   0/1     ErrImagePull       0          79s
+exit=0

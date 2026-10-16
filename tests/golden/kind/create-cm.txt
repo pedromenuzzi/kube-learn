@@ -1,0 +1,2 @@
+configmap/cfg created
+exit=0

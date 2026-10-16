@@ -1,0 +1,7 @@
+NAME                  READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/web   3/3     3            3           32s
+
+NAME                 TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
+service/kubernetes   ClusterIP   10.96.0.1      <none>        443/TCP   2m48s
+service/web          ClusterIP   10.96.91.178   <none>        80/TCP    32s
+exit=0

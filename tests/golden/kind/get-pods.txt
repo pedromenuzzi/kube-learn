@@ -1,0 +1,6 @@
+NAME                   READY   STATUS    RESTARTS   AGE
+dorminhoco             1/1     Running   0          7s
+web-557577df75-2zptv   1/1     Running   0          30s
+web-557577df75-4t9fj   1/1     Running   0          30s
+web-557577df75-r2fvx   1/1     Running   0          30s
+exit=0

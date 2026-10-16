@@ -1,0 +1,2 @@
+error: the server doesn't have a resource type "podz"
+exit=1

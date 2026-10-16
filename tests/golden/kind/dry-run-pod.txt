@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: teste
+  name: teste
+spec:
+  containers:
+  - env:
+    - name: COR
+      value: azul
+    image: nginx:1.27
+    name: teste
+    ports:
+    - containerPort: 80
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}
+exit=0

@@ -1,0 +1,6 @@
+pod "crash" deleted from default namespace
+pod "falha" deleted from default namespace
+pod "grande" deleted from default namespace
+pod "nopull" deleted from default namespace
+pod "pull" deleted from default namespace
+exit=0
