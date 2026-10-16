@@ -1,0 +1,39 @@
+# 🏗️ kube-learn
+
+Trilha gamificada para aprender **Kubernetes** no navegador. O cluster é **simulado**: você escreve YAML, usa o
+`kubectl` num terminal e vê os pods nascerem, quebrarem e se recuperarem, sem conta na nuvem, sem instalar nada e
+sem custo. Cada conceito vem com uma **comparação com a vida real** (e onde ela deixa de valer), e cada nível
+concluído ergue mais um andar do seu prédio em pixel art, até virar arranha-céu.
+
+**Acesse:** https://pedromenuzzi.github.io/kube-learn/
+
+> 🚧 Em obra. O plano completo está em [`PLANO.md`](PLANO.md); a versão 0.1 traz os níveis 0 a 3.
+
+## Desenvolvimento
+
+Precisa de Node 22.12 ou mais novo.
+
+```bash
+npm install
+npm run dev     # servidor local com recarga
+npm run lint    # ESLint
+npm test        # Vitest
+npm run build   # gera dist/
+```
+
+## Publicação
+
+Todo PR roda o [CI](.github/workflows/ci.yml) (lint, testes e build). Cada push no `main` roda o CI e publica no
+GitHub Pages pelo [deploy](.github/workflows/deploy.yml).
+
+## Créditos
+
+Inspirado no [DivergeTerraform](https://github.com/sertaoseracloud/terraform-playground), da Sertão será cloud.
+Os arquivos reaproveitados de lá trazem um comentário com a origem.
+
+## Licença
+
+- **Código:** [GNU AGPL-3.0-or-later](LICENSE).
+- **Conteúdo didático:** [CC BY-SA 4.0](LICENSE-CONTEUDO.md).
+
+Kubernetes é marca da The Linux Foundation. Este projeto é independente e não é afiliado nem endossado pela CNCF.

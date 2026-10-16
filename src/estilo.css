@@ -1,0 +1,100 @@
+:root {
+  --fundo: #f7f5f0;
+  --superficie: #ffffff;
+  --texto: #1f2328;
+  --suave: #57606a;
+  --destaque: #1f5fbf;
+  --obra: #8a5a00;
+  --borda: #d0d7de;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #12161c;
+    --superficie: #1b2129;
+    --texto: #e6edf3;
+    --suave: #9da7b3;
+    --destaque: #79b8ff;
+    --obra: #f2c14e;
+    --borda: #30363d;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { overflow-x: clip; }
+
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  font: 1.0625rem/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+a { color: var(--destaque); }
+
+:focus-visible { outline: 3px solid var(--destaque); outline-offset: 2px; }
+
+code { font-family: ui-monospace, 'Cascadia Code', Menlo, monospace; font-size: 0.95em; }
+
+.pular {
+  position: absolute;
+  left: 1rem;
+  top: -3rem;
+  background: var(--superficie);
+  padding: 0.5rem 1rem;
+  z-index: 10;
+}
+.pular:focus { top: 1rem; }
+
+.topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borda);
+}
+.marca { font-weight: 700; text-decoration: none; color: var(--texto); }
+.topo ul { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; list-style: none; margin: 0; padding: 0; }
+
+main {
+  flex: 1;
+  width: 100%;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+main:focus { outline: none; }
+
+.obra { color: var(--obra); font-weight: 600; }
+
+.botao {
+  display: inline-block;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  background: var(--destaque);
+  color: var(--fundo);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.rodape {
+  padding: 1rem;
+  color: var(--suave);
+  font-size: 0.875rem;
+  text-align: center;
+  border-top: 1px solid var(--borda);
+}
+.rodape p { margin: 0.25rem 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
