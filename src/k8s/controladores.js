@@ -1,7 +1,7 @@
 // Os controladores do kube-controller-manager: cada um compara o desejado (spec) com o real e corrige.
 // Rodam em laço até nada mudar (ver Cluster.reconciliar).
 import { hashTemplate, canonico } from './aleatorio.js';
-import { casaSeletor, estaPronto, portaAlvo } from './rede.js';
+import { casaSeletor, estaPronto, portaAlvo, classeDoIngress, IP_INGRESS } from './rede.js';
 import { iso } from './unidades.js';
 
 const clone = (o) => structuredClone(o);
@@ -16,7 +16,72 @@ export function rodarControladores(c) {
   deployments(c);
   replicasets(c);
   endpoints(c);
+  balanceadores(c);
+  ingresses(c);
+  gateways(c);
   coletorDeLixo(c);
+}
+
+const salvarStatus = (c, obj, status) => {
+  if (JSON.stringify(status) === JSON.stringify(obj.status)) return;
+  obj.status = status;
+  c.salvar(obj);
+};
+const cond = (tipo, motivo, mensagem, desde, status = 'True') => ({ lastTransitionTime: desde, message: mensagem, observedGeneration: 1, reason: motivo, status, type: tipo });
+
+// ---------- LoadBalancer: o "provedor de nuvem" do simulador dá um IP externo depois de uns segundos ----------
+function balanceadores(c) {
+  for (const s of c.listar('Service')) {
+    if (s.spec.type !== 'LoadBalancer' || s.status?.loadBalancer?.ingress?.length) continue;
+    if (c.agora - Date.parse(s.metadata.creationTimestamp) < 2000) continue;
+    salvarStatus(c, s, { loadBalancer: { ingress: [{ ip: c.alocarIpExterno(), ipMode: 'VIP' }] } });
+    c.evento(s, 'Normal', 'EnsuredLoadBalancer', 'Ensured load balancer', { componente: 'service-controller' });
+  }
+}
+
+// ---------- Ingress: o controlador da classe põe o endereço dele no status ----------
+function ingresses(c) {
+  for (const ing of c.listar('Ingress')) {
+    const classe = classeDoIngress(c, ing);
+    salvarStatus(c, ing, { loadBalancer: classe ? { ingress: [{ ip: IP_INGRESS }] } : {} });
+  }
+}
+
+// ---------- Gateway API ----------
+function gateways(c) {
+  for (const gc of c.listar('GatewayClass')) {
+    const desde = gc.status?.conditions?.[0]?.lastTransitionTime ?? iso(c.agora);
+    salvarStatus(c, gc, { conditions: [cond('Accepted', 'Accepted', 'Valid GatewayClass', desde)] });
+  }
+  for (const gw of c.listar('Gateway')) {
+    const classe = c.obter('GatewayClass', null, gw.spec.gatewayClassName);
+    const desde = gw.status?.conditions?.[0]?.lastTransitionTime ?? iso(c.agora);
+    const rotas = c.listar('HTTPRoute').filter((r) => (r.spec.parentRefs ?? []).some((p) => p.name === gw.metadata.name && (p.namespace ?? r.metadata.namespace) === gw.metadata.namespace));
+    const status = classe
+      ? {
+        addresses: [{ type: 'IPAddress', value: gw.status?.addresses?.[0]?.value ?? c.alocarIpExterno() }],
+        conditions: [cond('Accepted', 'Accepted', 'Resource accepted', desde), cond('Programmed', 'Programmed', 'Resource programmed', desde)],
+        listeners: gw.spec.listeners.map((l) => ({ attachedRoutes: rotas.length, name: l.name, supportedKinds: [{ group: 'gateway.networking.k8s.io', kind: 'HTTPRoute' }] })),
+      }
+      : { conditions: [cond('Accepted', 'NoResources', `GatewayClass "${gw.spec.gatewayClassName}" not found`, desde, 'False'), cond('Programmed', 'Pending', 'Waiting for controller', desde, 'False')] };
+    salvarStatus(c, gw, status);
+  }
+  for (const r of c.listar('HTTPRoute')) {
+    const desde = r.status?.parents?.[0]?.conditions?.[0]?.lastTransitionTime ?? iso(c.agora);
+    const parents = (r.spec.parentRefs ?? []).map((p) => {
+      const gw = c.obter('Gateway', p.namespace ?? r.metadata.namespace, p.name);
+      const faltam = (r.spec.rules ?? []).flatMap((x) => x.backendRefs ?? []).filter((b) => !c.obter('Service', b.namespace ?? r.metadata.namespace, b.name)).map((b) => b.name);
+      return {
+        conditions: [
+          gw ? cond('Accepted', 'Accepted', 'Route is accepted', desde) : cond('Accepted', 'NoMatchingParent', `Gateway "${p.name}" not found`, desde, 'False'),
+          faltam.length ? cond('ResolvedRefs', 'BackendNotFound', `Service "${faltam[0]}" not found`, desde, 'False') : cond('ResolvedRefs', 'ResolvedRefs', 'Resolved all the Object references for the Route', desde),
+        ],
+        controllerName: 'kube-learn.dev/gateway-controller',
+        parentRef: { group: 'gateway.networking.k8s.io', kind: 'Gateway', name: p.name },
+      };
+    });
+    salvarStatus(c, r, { parents });
+  }
 }
 
 // ---------- Namespace ----------

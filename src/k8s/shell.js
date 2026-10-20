@@ -226,12 +226,16 @@ function curl(args, ctx) {
   let descartar = false;
   let limite = null;
   let url = null;
+  let host;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '-o' || a === '--output') descartar = args[++i] === '/dev/null';
     else if (a === '-w' || a === '--write-out') formato = args[++i];
     else if (a === '-m' || a === '--max-time' || a === '--connect-timeout') limite = Number(args[++i]);
-    else if (a === '-X' || a === '-H' || a === '-d' || a === '--data') i++;
+    else if (a === '-H' || a === '--header') {
+      const m = (args[++i] ?? '').match(/^host:\s*(\S+)/i);
+      if (m) host = m[1];
+    } else if (a === '-X' || a === '-d' || a === '--data') i++;
     else if (a.startsWith('-') && !a.startsWith('--')) {
       if (a.includes('s')) silencioso = true;
       if (a.includes('S')) mostrarErro = true;
@@ -242,7 +246,7 @@ function curl(args, ctx) {
   }
   if (!url) return { saida: "curl: try 'curl --help' or 'curl --manual' for more information\n", codigo: 2 };
   const u = separarUrl(url);
-  const r = ctx.rede.http(u, { agente: 'curl/7.88.1', metodo: soCabecalho ? 'HEAD' : 'GET' });
+  const r = ctx.rede.http(u, { agente: ctx.agenteCurl ?? 'curl/7.88.1', metodo: soCabecalho ? 'HEAD' : 'GET', host });
   const falhar = (codigo, msg) => ({ saida: !silencioso || mostrarErro ? `curl: (${codigo}) ${msg}\n` : '', codigo });
   if (r.erro === 'dns') return falhar(6, `Could not resolve host: ${u.host}`);
   if (r.erro === 'recusada') return falhar(7, `Failed to connect to ${u.host} port ${u.porta} after 1 ms: Couldn't connect to server`);
@@ -294,8 +298,9 @@ function nslookup(args, ctx) {
   const r = ctx.rede.dns(nome);
   const cab = 'Server:\t\t10.96.0.10\nAddress:\t10.96.0.10:53\n\n';
   const nx = (n) => `** server can't find ${n}: NXDOMAIN\n\n`;
+  const enderecos = (x) => (x.ips ?? [x.ip]).map((ip) => `Name:\t${x.nome}\nAddress: ${ip}\n`).join('');
   if (nome.endsWith('.')) {
-    return r ? ok(`${cab}\nName:\t${r.nome}\nAddress: ${r.ip}\n\n`) : { saida: `${cab}${nx(nome.slice(0, -1))}${nx(nome.slice(0, -1))}`, codigo: 1 };
+    return r ? ok(`${cab}\n${enderecos(r)}\n`) : { saida: `${cab}${nx(nome.slice(0, -1))}${nx(nome.slice(0, -1))}`, codigo: 1 };
   }
   // O busybox pergunta por todos os domínios de busca (ndots:5) e mostra o que achou e o que não achou.
   const busca = (ctx.buscaDns ?? []).map((d) => `${nome}.${d}`);
@@ -304,7 +309,7 @@ function nslookup(args, ctx) {
   const [antes, ...depois] = outros.length ? [outros.at(-1), ...outros.slice(0, -1)] : [];
   let saida = cab;
   if (antes) saida += nx(antes) + nx(antes);
-  saida += `\nName:\t${r.nome}\nAddress: ${r.ip}\n\n`;
+  saida += `\n${enderecos(r)}\n`;
   for (const n of depois) saida += nx(n) + nx(n);
   return { saida, codigo: outros.length ? 1 : 0 };
 }

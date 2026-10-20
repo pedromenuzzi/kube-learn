@@ -473,6 +473,42 @@ const DESCRITORES = {
   },
 };
 
+// O describe genérico do kubectl (para os tipos sem describer próprio): metadados e o YAML do spec e do status.
+function generico(w, o, ctx) {
+  w.w(0, `Name:\t${o.metadata.name}\n`);
+  if (o.metadata.namespace) w.w(0, `Namespace:\t${o.metadata.namespace}\n`);
+  labels(w, 'Labels', o.metadata.labels);
+  anotacoes(w, 'Annotations', o.metadata.annotations);
+  w.w(0, `API Version:\t${o.apiVersion}\n`);
+  w.w(0, `Kind:\t${o.kind}\n`);
+  const bloco = (titulo, v, nivel) => {
+    if (v === undefined) return;
+    w.w(nivel, `${titulo}:\n`);
+    const escrever = (val, n) => {
+      if (Array.isArray(val)) {
+        for (const item of val) {
+          if (item && typeof item === 'object') {
+            const [[k0, v0], ...resto] = Object.entries(item);
+            if (v0 && typeof v0 === 'object') { w.w(n, `${cap(k0)}:\n`); escrever(v0, n + 1); } else w.w(n, `${cap(k0)}:\t${v0}\n`);
+            for (const [k, x] of resto) {
+              if (x && typeof x === 'object') { w.w(n + 1, `${cap(k)}:\n`); escrever(x, n + 2); } else w.w(n + 1, `${cap(k)}:\t${x}\n`);
+            }
+          } else w.w(n, `${item}\n`);
+        }
+        return;
+      }
+      for (const [k, x] of Object.entries(val ?? {})) {
+        if (x && typeof x === 'object') { w.w(n, `${cap(k)}:\n`); escrever(x, n + 1); } else w.w(n, `${cap(k)}:\t${x}\n`);
+      }
+    };
+    escrever(v, nivel + 1);
+  };
+  bloco('Spec', o.spec, 0);
+  bloco('Status', o.status, 0);
+  escreverEventos(w, ctx.eventos, ctx.agora);
+}
+const cap = (k) => k.replace(/^./, (x) => x.toUpperCase()).replace(/([a-z])([A-Z])/g, '$1 $2');
+
 const seletor = (sel) => Object.entries(sel?.matchLabels ?? {}).sort().map(([k, v]) => `${k}=${v}`).join(',');
 const cpuTexto = (m) => (m === 0 ? '0' : m % 1000 === 0 ? String(m / 1000) : `${m}m`);
 function memTexto(b) {
@@ -480,6 +516,30 @@ function memTexto(b) {
   for (const [suf, f] of [['Gi', 2 ** 30], ['Mi', 2 ** 20], ['Ki', 2 ** 10]]) if (b % f === 0) return `${b / f}${suf}`;
   return String(b);
 }
+
+DESCRITORES.Ingress = (w, ing, ctx) => {
+  w.w(0, `Name:\t${ing.metadata.name}\n`);
+  labels(w, 'Labels', ing.metadata.labels);
+  w.w(0, `Namespace:\t${ing.metadata.namespace}\n`);
+  w.w(0, `Address:\t${(ing.status?.loadBalancer?.ingress ?? []).map((x) => x.ip).join(',')}\n`);
+  w.w(0, `Ingress Class:\t${ing.spec.ingressClassName ?? '<none>'}\n`);
+  w.w(0, `Default backend:\t${ing.spec.defaultBackend?.service ? `${ing.spec.defaultBackend.service.name}:${ing.spec.defaultBackend.service.port?.number ?? ing.spec.defaultBackend.service.port?.name}` : '<default>'}\n`);
+  w.w(0, 'Rules:\n');
+  w.w(1, 'Host\tPath\tBackends\n');
+  w.w(1, '----\t----\t--------\n');
+  for (const r of ing.spec.rules ?? []) {
+    w.w(1, `${r.host ?? '*'}\t\n`);
+    for (const p of r.http?.paths ?? []) {
+      const s = p.backend.service;
+      const ep = ctx.cluster.obter('Endpoints', ing.metadata.namespace, s.name);
+      const ends = (ep?.subsets ?? []).flatMap((x) => (x.addresses ?? []).map((a) => `${a.ip}:${x.ports?.[0]?.port}`));
+      w.w(1, `\t${p.path ?? '/'}\t${s.name}:${s.port?.number ?? s.port?.name} (${ends.length ? ends.join(',') : '<error: endpoints "' + s.name + '" not found>'})\n`);
+    }
+  }
+  anotacoes(w, 'Annotations', ing.metadata.annotations);
+  escreverEventos(w, ctx.eventos, ctx.agora);
+};
+for (const k of ['IngressClass', 'GatewayClass', 'Gateway', 'HTTPRoute']) DESCRITORES[k] = generico;
 
 export const temDescritor = (kind) => kind in DESCRITORES;
 

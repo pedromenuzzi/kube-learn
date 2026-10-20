@@ -86,3 +86,29 @@ test('nível 1: o > grava a saída do kubectl num arquivo do editor', async ({ p
   await page.getByRole('button', { name: '⬆ Entregar' }).click();
   await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
 });
+
+test('nível 3: o curl do seu computador chega pela entrada do Ingress', async ({ page }) => {
+  await page.goto('#/ex/n3-ingress-caminho');
+  const entrada = page.getByRole('textbox', { name: /aluno@kube-learn/ });
+  await entrada.fill('curl http://praca.kube-learn.local/');
+  await entrada.press('Enter');
+  await expect(page.locator('.term-erro')).toContainText('Could not resolve host: praca.kube-learn.local');
+  await page.getByRole('button', { name: '▶ Aplicar' }).click();
+  await expect(page.locator('.term-saida')).toContainText('ingress.networking.k8s.io/praca created');
+  await entrada.fill('curl -s http://praca.kube-learn.local/');
+  await entrada.press('Enter');
+  await expect(page.locator('.term-saida')).toContainText('It works!');
+  await entrada.fill('curl http://loja');
+  await entrada.press('Enter');
+  await expect(page.locator('.term-erro').last()).toContainText('Could not resolve host: loja');
+  await page.getByRole('tab', { name: '💡 Solução' }).click();
+  await page.getByRole('button', { name: 'Ver a solução' }).click();
+  await page.getByRole('button', { name: 'Copiar para o editor' }).click();
+  await page.getByRole('button', { name: '▶ Aplicar' }).click();
+  await expect(page.locator('.term-saida')).toContainText('ingress.networking.k8s.io/praca configured');
+  await entrada.fill('curl -s http://praca.kube-learn.local/api');
+  await entrada.press('Enter');
+  await expect(page.locator('.term-saida')).toContainText('"app":"loja"');
+  await page.getByRole('button', { name: '⬆ Entregar' }).click();
+  await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
+});

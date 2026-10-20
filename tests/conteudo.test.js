@@ -19,8 +19,9 @@ function aluno(item, { resolvido }) {
   const historico = resolvido ? item.solucaoTerminal ?? [] : [];
   for (const linha of historico) rodarLinha(clusterDoAluno, linha, arquivos);
   clusterDoAluno.avancar('1m');
+  if (!resolvido) return { arquivos, clusterDoAluno, historico, resposta: '' };
   const certa = typeof item.respostaCerta === 'function' ? item.respostaCerta(clusterDoAluno) : item.respostaCerta;
-  return { arquivos, clusterDoAluno, historico, resposta: resolvido ? certa : '' };
+  return { arquivos, clusterDoAluno, historico, resposta: certa };
 }
 
 describe('a trilha inteira', () => {

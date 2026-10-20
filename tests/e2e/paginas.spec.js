@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-const PAGINAS = ['#/', '#/trilha', '#/glossario', '#/livre', '#/ex/deploy-rolling-sem-indisponibilidade', '#/ex/n0-imagem-e-conteiner', '#/ex/n0-quiz-latest', '#/ex/n1-diario'];
+const PAGINAS = ['#/', '#/trilha', '#/glossario', '#/livre', '#/ex/deploy-rolling-sem-indisponibilidade', '#/ex/n0-imagem-e-conteiner', '#/ex/n0-quiz-latest', '#/ex/n1-diario', '#/ex/n3-ingress-caminho'];
 const TEMAS = ['claro', 'escuro', 'contraste'];
 
 for (const tema of TEMAS) {
@@ -11,7 +11,7 @@ for (const tema of TEMAS) {
     for (const url of PAGINAS) {
       await page.goto(url);
       await page.waitForSelector('main#conteudo > *');
-      if (url.includes('deploy-') || url.includes('livre')) await page.waitForSelector('.cm-content');
+      if (url.includes('deploy-') || url.includes('livre') || url.includes('n3-')) await page.waitForSelector('.cm-content');
       // .cm-scroller fica de fora: o editor é alcançado pelo teclado pela caixa de texto dele (contenteditable),
       // que rola junto com o cursor; o axe não reconhece isso como conteúdo focável.
       const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).exclude('.cm-scroller').analyze();
@@ -54,7 +54,7 @@ test('resolver uma missão acende a janela: o andar mostra o progresso e o placa
   });
   await page.goto('#/trilha');
   await expect(page.locator('#andar-2')).toContainText('0 de 12 missões');
-  await expect(page.locator('#andar-3')).toContainText('Em obra');
+  await expect(page.locator('#andar-4')).toContainText('Em obra');
   await page.locator('#andar-2').getByRole('link', { name: /Atualizar sem derrubar ninguém/ }).click();
   await page.getByRole('tab', { name: '💡 Solução' }).click();
   await page.getByRole('button', { name: 'Ver a solução' }).click();

@@ -610,7 +610,7 @@ As estimativas são em sessões do Claude no esforço alto. Cada fase termina co
 | **1. Motor v0** ✅ | Relógio, API, esquemas (Pod, Namespace, Deployment, ReplicaSet, Service, ConfigMap, Secret), controladores básicos, scheduler simples, kubelet (pull, running, crash, logs), imagens, DNS e Service, `kubectl` dos níveis 1 e 2 | Aplicar um Deployment e avançar o tempo dá um `get pods` igual ao golden | 3 |
 | **2. Tela do exercício** ✅ | Editor, terminal, painéis, abas, verificações, testes visíveis e ocultos, playground livre | Um exercício resolvido de ponta a ponta | 2 |
 | **3. Trilha e progresso** ✅ | Prédio em pixel art (motor `pixel.js` reaproveitado, sprites e fonte pixel), XP, 🔥, 70%, landing, página do glossário, acessibilidade básica, E2E com axe | O progresso fica salvo e o axe passa | 2 |
-| **4. Conteúdo MVP** | Níveis 0 a 3 (~13 lições e ~48 exercícios) e ~45 termos no glossário | A trilha inteira passa. **🚀 v0.1** | 4 |
+| **4. Conteúdo MVP** ✅ | Níveis 0 a 3 (~13 lições e ~48 exercícios) e ~45 termos no glossário | A trilha inteira passa. **🚀 v0.1** | 4 |
 | **5. Revisão e certificados** | Revisão do dia, badges por andar, certificado final, desenho do cluster | **v0.2** | 2 |
 | **6. Níveis 4 a 6** | Motor (volumes, StatefulSet, Jobs, DaemonSet, probes, limits, HPA, quotas) e conteúdo | **v0.3** | 5 |
 | **7. Níveis 7 a 9** | Motor (scheduling avançado, drain, RBAC, NetworkPolicy, PSA) e os 20 incidentes | **v0.4** | 5 |
