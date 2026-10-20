@@ -39,4 +39,7 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
 npm run dev | npm run lint | npm test | npm run build
 ```
 
+E2E (Playwright, contra o build): `npm run test:e2e`. No WSL faltam bibliotecas do Chromium; rode no contêiner oficial:
+`docker run --rm --network host --ipc=host -e CI=1 -u $(id -u):$(id -g) -e HOME=/tmp -v $PWD:/work -w /work mcr.microsoft.com/playwright:v1.64.1-noble npx playwright test`
+
 Antes de terminar uma tarefa: `npm run lint && npm test && npm run build` tudo verde.

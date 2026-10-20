@@ -1,0 +1,317 @@
+// A tela do exercício (e do playground): missão, editor de arquivos, terminal ligado a um cluster simulado
+// que anda no tempo (1 segundo por segundo), painéis do cluster e os testes.
+import { montarCluster } from '../conteudo/clusters.js';
+import { XP } from '../conteudo/util.js';
+import { kubectl } from '../k8s/kubectl/index.js';
+import { explicar as explicarSaida } from '../k8s/explicacoes.js';
+import { explicar as explicarCampo } from '../k8s/esquema.js';
+import { RECURSOS, acharRecurso } from '../k8s/recursos.js';
+import { palavras } from '../k8s/kubectl/argv.js';
+import { rodarTestes } from '../verificacoes.js';
+import { ler, gravar, CHAVES, registrarResultado } from '../armazenamento.js';
+import { criarTerminal } from './terminal.js';
+import { criarEditor } from './editor.js';
+import { htmlCluster, htmlRecursos, htmlEventos } from './paineis.js';
+import { ativarAbas, htmlAbas, escapar } from './util.js';
+
+const DIFICULDADE = { facil: 'Fácil', medio: 'Médio', dificil: 'Difícil' };
+const SUBCOMANDOS = ['annotate', 'api-resources', 'apply', 'cluster-info', 'config', 'create', 'delete', 'describe', 'exec', 'explain', 'get', 'help', 'label', 'logs', 'rollout', 'run', 'scale', 'set', 'version'];
+const COM_TIPO = new Set(['get', 'describe', 'delete', 'label', 'annotate', 'scale', 'explain', 'edit']);
+const AJUDA = `Este terminal entende o kubectl (experimente: kubectl get pods) e alguns comandos simples:
+  ls            lista os arquivos do editor
+  cat ARQUIVO   mostra um arquivo
+  history       os comandos que você já digitou
+  clear         limpa a tela (ou Ctrl+L)
+O relógio do cluster anda sozinho; o botão ⏩ adianta 30 segundos.
+`;
+
+export function montarExercicio(raiz, item) {
+  const temArquivos = !(item.terminal && !Object.keys(item.inicial ?? {}).length);
+  const chaveArquivos = CHAVES.arquivos + item.id;
+  const estado = {
+    arquivos: { ...(ler(chaveArquivos) ?? item.inicial ?? {}) },
+    atual: null,
+    cluster: montarCluster(item.cluster, `${item.id}:aluno`),
+    resposta: '',
+  };
+  estado.atual = Object.keys(estado.arquivos)[0] ?? null;
+  const caixasVistas = new Set();
+
+  raiz.innerHTML = `
+    <div class="ex${temArquivos ? '' : ' ex-so-terminal'}">
+      <header class="ex-topo">
+        <a href="#/trilha">← Trilha</a>
+        <h1>${escapar(item.titulo)}</h1>
+        ${item.dificuldade ? `<span class="selo">${DIFICULDADE[item.dificuldade]} · ${XP[item.dificuldade]} XP</span>` : ''}
+      </header>
+      <section class="ex-lado" aria-label="Missão">
+        ${htmlAbas('lado', [
+    { id: 'missao', rotulo: '📝 Missão' },
+    ...(item.vidaReal ? [{ id: 'vida', rotulo: '🏠 Na vida real' }] : []),
+    ...(item.manual?.length ? [{ id: 'manual', rotulo: '📘 Manual' }] : []),
+    ...(item.solucao || item.solucaoTerminal ? [{ id: 'solucao', rotulo: '💡 Solução' }] : []),
+    ...(item.testes?.length ? [{ id: 'testes', rotulo: '🧪 Testes' }] : []),
+  ], 'Sobre a missão')}
+      </section>
+      <section class="ex-trabalho" aria-label="Área de trabalho">
+        ${temArquivos ? `
+        <div class="ex-arquivos">
+          <div role="tablist" aria-label="Arquivos" class="abas arquivos"></div>
+          <button type="button" class="mini" data-acao="novo-arquivo" aria-label="Novo arquivo">+ arquivo</button>
+        </div>
+        <div class="ex-editor"></div>` : ''}
+        <div class="ex-acoes">
+          ${temArquivos ? '<button type="button" class="botao" data-acao="aplicar" title="Ctrl+Enter">▶ Aplicar</button>' : '<button type="button" class="botao" data-acao="conferir" title="Ctrl+Enter">✔ Conferir</button>'}
+          <button type="button" data-acao="avancar">⏩ +30s</button>
+          ${item.testes?.length ? '<button type="button" class="botao-forte" data-acao="entregar" title="Ctrl+Shift+Enter">⬆ Entregar</button>' : ''}
+          <button type="button" data-acao="resetar">♻️ Resetar cluster</button>
+          <span class="relogio" aria-hidden="true"></span>
+        </div>
+        <p class="ex-aviso" role="status" aria-live="polite"></p>
+        <div class="ex-paineis">
+          ${htmlAbas('baixo', [
+    { id: 'terminal', rotulo: '🖥️ Terminal' },
+    { id: 'cluster', rotulo: '🗺️ Cluster' },
+    { id: 'recursos', rotulo: '🌳 Recursos' },
+    { id: 'eventos', rotulo: '📜 Eventos' },
+  ], 'Painéis do cluster')}
+        </div>
+      </section>
+    </div>`;
+
+  const $ = (s) => raiz.querySelector(s);
+  const aviso = $('.ex-aviso');
+
+  // ---------- lado: missão, vida real, manual, solução, testes ----------
+  $('#lado-missao').innerHTML = `
+    <div class="enunciado">${item.enunciado}</div>
+    ${item.comoSaber ? `<h2>✅ Como saber que deu certo</h2><p>${item.comoSaber}</p>` : ''}
+    ${item.dica ? `<details><summary>💡 Dica</summary><p><code>${escapar(item.dica)}</code></p></details>` : ''}`;
+  if (item.vidaReal) {
+    $('#lado-vida').innerHTML = `<p class="vida">${escapar(item.vidaReal)}</p>${item.limite ? `<h2>Onde a comparação quebra</h2><p>${escapar(item.limite)}</p>` : ''}`;
+  }
+  if (item.manual?.length) {
+    $('#lado-manual').innerHTML = item.manual.map((m) => {
+      const [tipo, ...cam] = m.split('.');
+      return `<pre class="manual">${escapar(explicarCampo(acharRecurso(tipo), cam).saida)}</pre>`;
+    }).join('') + '<p class="nota">No terminal, <code>kubectl explain</code> mostra o mesmo para qualquer campo.</p>';
+  }
+  if (item.solucao || item.solucaoTerminal) {
+    $('#lado-solucao').innerHTML = `<p>Tente antes! Se travar, a solução está aqui.</p>
+      <button type="button" data-acao="ver-solucao">Ver a solução</button><div class="solucao" hidden></div>`;
+  }
+  const abasLado = ativarAbas($('.ex-lado'));
+  ativarAbas($('.ex-paineis'), () => atualizarPaineis());
+
+  // ---------- arquivos e editor ----------
+  let editor = null;
+  const salvar = () => gravar(chaveArquivos, estado.arquivos);
+  const desenharArquivos = () => {
+    const lista = $('.ex-arquivos [role=tablist]');
+    lista.innerHTML = Object.keys(estado.arquivos).map((nome) => `
+      <span class="arquivo${nome === estado.atual ? ' atual' : ''}">
+        <button type="button" role="tab" aria-selected="${nome === estado.atual}" data-arquivo="${escapar(nome)}">${escapar(nome)}</button>
+        <button type="button" class="mini" data-apagar="${escapar(nome)}" aria-label="Apagar ${escapar(nome)}">×</button>
+      </span>`).join('');
+  };
+  if (temArquivos) {
+    editor = criarEditor($('.ex-editor'), {
+      texto: estado.arquivos[estado.atual] ?? '',
+      rotulo: `Editor: ${estado.atual ?? 'sem arquivo'}`,
+      aoMudar: (texto) => {
+        if (!estado.atual) return;
+        estado.arquivos[estado.atual] = texto;
+        salvar();
+      },
+    });
+    desenharArquivos();
+    $('.ex-arquivos').addEventListener('click', (e) => {
+      const abrir = e.target.closest('[data-arquivo]')?.dataset.arquivo;
+      const apagarNome = e.target.closest('[data-apagar]')?.dataset.apagar;
+      if (abrir) {
+        estado.atual = abrir;
+        editor.trocar(estado.arquivos[abrir], `Editor: ${abrir}`);
+        desenharArquivos();
+      } else if (apagarNome && confirm(`Apagar ${apagarNome}?`)) {
+        delete estado.arquivos[apagarNome];
+        estado.atual = Object.keys(estado.arquivos)[0] ?? null;
+        editor.trocar(estado.atual ? estado.arquivos[estado.atual] : '', `Editor: ${estado.atual ?? 'sem arquivo'}`);
+        salvar();
+        desenharArquivos();
+      } else if (e.target.closest('[data-acao=novo-arquivo]')) {
+        const nome = prompt('Nome do arquivo (termina em .yaml):', 'novo.yaml')?.trim();
+        if (!nome) return;
+        if (!/^[\w.-]+\.ya?ml$/.test(nome)) return alert('Use só letras, números, ponto, hífen e termine em .yaml.');
+        estado.arquivos[nome] ??= '';
+        estado.atual = nome;
+        editor.trocar(estado.arquivos[nome], `Editor: ${nome}`);
+        salvar();
+        desenharArquivos();
+        editor.focar();
+      }
+    });
+  }
+
+  // ---------- terminal ----------
+  function executar(linha) {
+    const [cmd, ...args] = palavras(linha);
+    if (cmd === 'clear') return { limpar: true };
+    if (cmd === 'help') return { saida: AJUDA };
+    if (cmd === 'history') return { saida: terminal.historico.map((l, i) => `  ${i + 1}  ${l}\n`).join('') };
+    if (cmd === 'ls') return { saida: `${Object.keys(estado.arquivos).join('  ')}\n` };
+    if (cmd === 'cat') {
+      const faltam = args.filter((a) => !(a in estado.arquivos));
+      if (faltam.length) return { saida: `cat: ${faltam[0]}: No such file or directory\n`, codigo: 1, partes: [{ fluxo: 'err', texto: `cat: ${faltam[0]}: No such file or directory\n` }] };
+      return { saida: args.map((a) => estado.arquivos[a]).join('') };
+    }
+    if (cmd !== 'kubectl' && cmd !== 'k') {
+      const texto = `bash: ${cmd}: command not found\n`;
+      return { saida: texto, codigo: 127, partes: [{ fluxo: 'err', texto }], caixas: [{ titulo: 'Aqui o terminal só fala kubectl', texto: 'Use <code>kubectl ...</code>, ou <code>help</code> para ver os outros comandos.' }] };
+    }
+    const r = kubectl(estado.cluster, linha, { arquivos: estado.arquivos });
+    const caixas = explicarSaida(r.saida, { falhou: r.codigo !== 0 }).filter((c) => r.codigo !== 0 || !caixasVistas.has(c.chave));
+    for (const c of caixas) caixasVistas.add(c.chave);
+    setTimeout(atualizarPaineis);
+    return { ...r, caixas };
+  }
+
+  function completar(linha) {
+    const ps = linha.split(/\s+/);
+    const ultimo = ps.at(-1);
+    const base = ps.slice(0, -1).join(' ');
+    const opcoes = (lista) => lista.filter((o) => o.startsWith(ultimo)).map((o) => `${base ? `${base} ` : ''}${o}`);
+    if (ps.length === 1) return opcoes(['kubectl', 'clear', 'help', 'ls', 'cat', 'history']);
+    if (ps[0] === 'cat' || ps.at(-2) === '-f') return opcoes(['.', ...Object.keys(estado.arquivos)]);
+    if (ps[0] !== 'kubectl') return [];
+    if (ps.length === 2) return opcoes(SUBCOMANDOS);
+    const sub = ps[1];
+    if (ultimo.includes('/')) {
+      const [tipo] = ultimo.split('/');
+      const r = acharRecurso(tipo);
+      return r ? opcoes(estado.cluster.listar(r.kind, r.namespaced ? estado.cluster.contexto.namespace : undefined).map((o) => `${tipo}/${o.metadata.name}`)) : [];
+    }
+    if (COM_TIPO.has(sub) && ps.length === 3) return opcoes(RECURSOS.map((r) => r.plural));
+    if (['logs', 'exec'].includes(sub)) return opcoes(estado.cluster.listar('Pod', estado.cluster.contexto.namespace).map((p) => p.metadata.name));
+    if (COM_TIPO.has(sub) && ps.length >= 4) {
+      const r = acharRecurso(ps[2]);
+      return r ? opcoes(estado.cluster.listar(r.kind, r.namespaced ? estado.cluster.contexto.namespace : undefined).map((o) => o.metadata.name)) : [];
+    }
+    return [];
+  }
+
+  const terminal = criarTerminal($('#baixo-terminal'), { executar, completar });
+  terminal.escrever(`Cluster pronto (1 control plane + 2 workers). Digite help para ajuda.${item.terminal ? ' Nesta missão, use o terminal.' : ''}`, 'term-info');
+
+  // ---------- painéis ----------
+  const atualizarPaineis = () => {
+    const visivel = (id) => !$(`#baixo-${id}`).hidden;
+    if (visivel('cluster')) $('#baixo-cluster').innerHTML = htmlCluster(estado.cluster);
+    if (visivel('recursos')) $('#baixo-recursos').innerHTML = htmlRecursos(estado.cluster);
+    if (visivel('eventos')) $('#baixo-eventos').innerHTML = htmlEventos(estado.cluster);
+    const seg = Math.floor((estado.cluster.agora - Date.UTC(2026, 9, 16, 12)) / 1000);
+    $('.relogio').textContent = `⏱ ${String(Math.floor(seg / 60)).padStart(2, '0')}:${String(seg % 60).padStart(2, '0')}`;
+  };
+
+  // ---------- testes ----------
+  function mostrarTestes(resultados, todos) {
+    const total = resultados.length;
+    const ok = resultados.filter((r) => r.ok).length;
+    const ocultosNaoRodados = !todos ? item.testes.filter((t) => t.oculto).length : 0;
+    $('#lado-testes').innerHTML = `
+      <p class="resumo ${ok === total ? 'ok' : 'falha'}">${ok} de ${total} teste${total > 1 ? 's' : ''} passou${ok === total ? ' ✅' : ''}</p>
+      <ol class="testes">${resultados.map((t) => `
+        <li class="${t.ok ? 'ok' : 'falha'}">
+          <p>${t.ok ? '✅' : '❌'} ${t.oculto ? '🔒 ' : ''}${escapar(t.descricao)}</p>
+          <ul>${t.regras.filter((r) => !t.oculto || !r.ok).map((r) => `<li>${r.ok ? '✔' : '✘'} ${escapar(r.mensagem)}${!r.ok && !t.oculto && r.detalhe ? ` <span class="detalhe">(${escapar(r.detalhe)})</span>` : ''}</li>`).join('')}</ul>
+        </li>`).join('')}</ol>
+      ${ocultosNaoRodados ? `<p class="nota">🔒 Mais ${ocultosNaoRodados} teste${ocultosNaoRodados > 1 ? 's' : ''} oculto${ocultosNaoRodados > 1 ? 's' : ''} roda${ocultosNaoRodados > 1 ? 'm' : ''} quando você clicar em ⬆ Entregar.</p>` : ''}`;
+    return { ok, total };
+  }
+
+  function testar(todos) {
+    aviso.textContent = todos ? 'Rodando todos os testes, inclusive os ocultos…' : 'Rodando os testes visíveis…';
+    setTimeout(() => {
+      const resultados = rodarTestes(item, {
+        arquivos: estado.arquivos, historico: terminal.historico, resposta: estado.resposta, clusterDoAluno: estado.cluster,
+      }, { todos });
+      const { ok, total } = mostrarTestes(resultados, todos);
+      if (todos) {
+        const resolvido = ok === total;
+        registrarResultado(item.id, resolvido);
+        aviso.textContent = resolvido
+          ? `🎉 Missão cumprida! +${XP[item.dificuldade] ?? 0} XP.`
+          : `${ok} de ${total} testes passaram. Veja o que faltou na aba 🧪 Testes.`;
+      } else {
+        aviso.textContent = `Testes visíveis: ${ok} de ${total} passaram${ok === total ? ' ✅ Agora é com o ⬆ Entregar.' : '. Veja a aba 🧪 Testes.'}`;
+      }
+      abasLado.selecionar('testes');
+    }, 30);
+  }
+
+  // ---------- botões e atalhos ----------
+  const acoes = {
+    aplicar() {
+      terminal.rodar('kubectl apply -f .');
+      if (item.testes?.some((t) => !t.oculto)) testar(false);
+    },
+    conferir: () => testar(false),
+    entregar: () => testar(true),
+    avancar() {
+      estado.cluster.avancar('30s');
+      terminal.tique();
+      atualizarPaineis();
+      aviso.textContent = 'O relógio do cluster andou 30 segundos.';
+    },
+    resetar() {
+      if (!confirm('Voltar o cluster para o começo da missão? (Seus arquivos ficam.)')) return;
+      estado.cluster = montarCluster(item.cluster, `${item.id}:aluno`);
+      caixasVistas.clear();
+      terminal.limpar();
+      terminal.escrever('Cluster recriado do zero.', 'term-info');
+      atualizarPaineis();
+    },
+    'ver-solucao'() {
+      const div = $('.solucao');
+      div.hidden = false;
+      div.innerHTML = item.solucaoTerminal
+        ? `<pre>${escapar(item.solucaoTerminal.join('\n'))}</pre>`
+        : Object.entries(item.solucao).map(([n, t]) => `<h3>${escapar(n)}</h3><pre>${escapar(t)}</pre>`).join('') + '<button type="button" data-acao="usar-solucao">Copiar para o editor</button>';
+    },
+    'usar-solucao'() {
+      if (!confirm('Trocar seus arquivos pela solução?')) return;
+      estado.arquivos = { ...item.solucao };
+      estado.atual = Object.keys(estado.arquivos)[0];
+      editor.trocar(estado.arquivos[estado.atual], `Editor: ${estado.atual}`);
+      salvar();
+      desenharArquivos();
+    },
+  };
+  raiz.addEventListener('click', (e) => {
+    const acao = e.target.closest('[data-acao]')?.dataset.acao;
+    if (acoes[acao]) acoes[acao]();
+  });
+  const teclas = (e) => {
+    if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    if (e.shiftKey && item.testes?.length) acoes.entregar();
+    else if (!e.shiftKey) (temArquivos ? acoes.aplicar : acoes.conferir)();
+  };
+  document.addEventListener('keydown', teclas);
+
+  // ---------- relógio: 1 segundo do cluster por segundo de verdade ----------
+  const relogio = setInterval(() => {
+    if (document.hidden) return;
+    estado.cluster.avancar(1000);
+    terminal.tique();
+    atualizarPaineis();
+  }, 1000);
+  atualizarPaineis();
+
+  return {
+    destruir() {
+      clearInterval(relogio);
+      document.removeEventListener('keydown', teclas);
+      editor?.destruir();
+    },
+  };
+}
