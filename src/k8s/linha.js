@@ -1,10 +1,12 @@
 // Uma linha do terminal do aluno: o kubectl (com redirecionamento para arquivo, `... > pod.yaml`, que grava a
 // saída no editor) e o curl do computador do aluno (fora do cluster: port-forward, NodePort, LoadBalancer,
-// Ingress e Gateway). Usado pela tela do exercício e pelo teste da trilha (as soluções de terminal).
+// Ingress e Gateway), o echo e o `| base64` (para ver o que um Secret guarda). Usado pela tela do exercício e
+// pelo teste da trilha (as soluções de terminal).
 import { kubectl } from './kubectl/index.js';
 import { palavras } from './kubectl/argv.js';
 import { executarComando } from './shell.js';
 import { httpDeFora } from './rede.js';
+import { atobUtf8, btoaUtf8 } from './esquema.js';
 
 const NOME = /^[\w.-]+\.(ya?ml|json|txt)$/;
 
@@ -23,8 +25,28 @@ function curlDeFora(cluster, linha) {
   return r.codigo === 0 ? resultado(0, r.saida ?? '', '') : resultado(r.codigo, '', r.saida ?? '');
 }
 
+function eco(linha) {
+  const args = palavras(linha).slice(1);
+  const semQuebra = args[0] === '-n';
+  return resultado(0, `${(semQuebra ? args.slice(1) : args).join(' ')}${semQuebra ? '' : '\n'}`, '');
+}
+
+/** "... | base64" codifica a saída; "... | base64 -d" decodifica (é assim que se lê um Secret). */
+function base64(r, decodificar) {
+  if (r.codigo) return r;
+  if (!decodificar) return resultado(0, `${btoaUtf8(r.stdout)}\n`, r.stderr);
+  try {
+    return resultado(0, atobUtf8(r.stdout.trim()), r.stderr);
+  } catch {
+    return resultado(1, '', `${r.stderr}base64: invalid input\n`);
+  }
+}
+
 /** → resultado do kubectl/curl (com `arquivoGravado` quando houve `>`), ou um erro se o nome do arquivo não serve. */
 export function rodarLinha(cluster, linha, arquivos) {
+  const cano = linha.match(/^(.*\S)\s*\|\s*base64(\s+(?:-d|--decode))?\s*$/);
+  if (cano) return base64(rodarLinha(cluster, cano[1], arquivos), !!cano[2]);
+  if (/^\s*echo\b/.test(linha)) return eco(linha);
   const m = linha.match(/^(.*?)\s+(>>?)\s*(\S+)\s*$/);
   const comando = m ? m[1] : linha;
   const ehCurl = /^\s*curl\b/.test(comando);

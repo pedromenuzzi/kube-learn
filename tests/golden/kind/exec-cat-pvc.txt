@@ -1,0 +1,2 @@
+primeira nota
+exit=0

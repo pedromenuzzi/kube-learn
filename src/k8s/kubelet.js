@@ -5,11 +5,14 @@ import { analisar, rodar, executarComando, rodarAteOFim } from './shell.js';
 import { resolvConf, buscaDns, http, resolver } from './rede.js';
 import { iso } from './unidades.js';
 import { atobUtf8 } from './esquema.js';
+import { SistemaDeArquivos } from './discos.js';
 
 const BACKOFF_INICIAL = 10_000;
 const BACKOFF_MAXIMO = 300_000;
 const SINCRONIA = 2000; // o kubelet só percebe a queda e reinicia na próxima sincronização
 const WRAPPERS = new Set(['/docker-entrypoint.sh', 'docker-entrypoint.sh']);
+const ATRASO_CONFIG = 60_000; // o kubelet leva até um minuto para atualizar um ConfigMap montado como volume
+const sem = (caminho) => `/${caminho.split('/').filter(Boolean).join('/')}`;
 
 /** Duração no formato do Go: 3.214s, 520ms. */
 const duracaoGo = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(3).replace(/\.?0+$/, '')}s` : `${ms}ms`);
@@ -48,7 +51,7 @@ export class Kubelet {
     const node = c.obter('Node', null, pod.spec.nodeName);
     if (!e) {
       e = {
-        ip: pod.spec.hostNetwork ? c.ipDoNode(node) : c.alocarIpPod(node),
+        ip: null, // o IP vem com a "sandbox" do pod, depois que os volumes montam
         conteineres: new Map(),
         condicoes: {},
         inicio: c.agora,
@@ -62,13 +65,110 @@ export class Kubelet {
       this.terminar(pod, e);
       return;
     }
-    for (const ct of pod.spec.containers) this.passo(pod, ct, e.conteineres.get(ct.name));
+    if (this.montarVolumes(pod, e)) {
+      e.ip ??= pod.spec.hostNetwork ? c.ipDoNode(node) : c.alocarIpPod(node);
+      for (const ct of pod.spec.containers) this.passo(pod, ct, e.conteineres.get(ct.name));
+    }
     this.escreverStatus(pod, e);
   }
 
   // ---------- eventos ----------
   evento(pod, ct, tipo, motivo, mensagem) {
     this.c.evento(pod, tipo, motivo, mensagem, { componente: 'kubelet', campo: `spec.containers{${ct.name}}`, host: pod.spec.nodeName });
+  }
+
+  // ---------- volumes ----------
+  /** Os dados de um ConfigMap ou Secret como arquivos (um por chave, ou só os `items`). */
+  dadosDaFonte(fonte, obj) {
+    const dados = Object.entries(obj?.data ?? {}).map(([k, v]) => [k, fonte.tipo === 'Secret' ? atobUtf8(v) : v]);
+    if (!fonte.items) return new Map(dados);
+    const mapa = Object.fromEntries(dados);
+    return new Map(fonte.items.filter((i) => i.key in mapa).map((i) => [i.path, mapa[i.key]]));
+  }
+
+  /** Prepara os volumes do pod antes dos contêineres. Falta o ConfigMap ou o Secret: FailedMount, e espera. */
+  montarVolumes(pod, e) {
+    const c = this.c;
+    const ns = pod.metadata.namespace;
+    if (e.volumes) {
+      this.atualizarVolumes(pod, e);
+      return true;
+    }
+    const fontes = (pod.spec.volumes ?? []).map((v) => [v, v.configMap ? { tipo: 'ConfigMap', rotulo: 'configmap', nome: v.configMap.name, items: v.configMap.items, opcional: v.configMap.optional }
+      : v.secret ? { tipo: 'Secret', rotulo: 'secret', nome: v.secret.secretName, items: v.secret.items, opcional: v.secret.optional } : null]);
+    const falta = fontes.find(([, f]) => f && !f.opcional && !c.obter(f.tipo, ns, f.nome));
+    if (falta) {
+      if (c.agora >= (e.proximaMontagem ?? 0)) { // tenta de novo com espera crescente (0,5s, 1s, 2s... até 2 min)
+        e.esperaMontagem = Math.min((e.esperaMontagem ?? 250) * 2, 122_000);
+        e.proximaMontagem = c.agora + e.esperaMontagem;
+        const [v, f] = falta;
+        c.evento(pod, 'Warning', 'FailedMount', `MountVolume.SetUp failed for volume "${v.name}" : ${f.rotulo} "${f.nome}" not found`, { componente: 'kubelet', host: pod.spec.nodeName });
+      }
+      return false;
+    }
+    e.volumes = new Map();
+    for (const [v, f] of fontes) {
+      if (f) {
+        const obj = c.obter(f.tipo, ns, f.nome);
+        e.volumes.set(v.name, { loja: this.dadosDaFonte(f, obj), somenteLeitura: true, fonte: { ...f, assinatura: JSON.stringify(obj?.data ?? null) } });
+      } else if (v.emptyDir) e.volumes.set(v.name, { loja: new Map() });
+      else if (v.persistentVolumeClaim) {
+        const pvc = c.obter('PersistentVolumeClaim', ns, v.persistentVolumeClaim.claimName);
+        const chave = pvc?.spec.volumeName ?? `pvc:${ns}/${v.persistentVolumeClaim.claimName}`;
+        if (!c.discos.has(chave)) c.discos.set(chave, new Map());
+        e.volumes.set(v.name, { loja: c.discos.get(chave), somenteLeitura: !!v.persistentVolumeClaim.readOnly });
+      } else if (v.hostPath) {
+        const chave = `host:${pod.spec.nodeName}:${sem(v.hostPath.path)}`;
+        if (!c.discos.has(chave)) c.discos.set(chave, new Map());
+        e.volumes.set(v.name, { loja: c.discos.get(chave) });
+      }
+    }
+    return true;
+  }
+
+  /** ConfigMap ou Secret mudou: o arquivo montado acompanha, mas só depois de um tempo (as variáveis de ambiente, nunca). */
+  atualizarVolumes(pod, e) {
+    const c = this.c;
+    for (const vol of e.volumes.values()) {
+      const f = vol.fonte;
+      if (!f) continue;
+      const obj = c.obter(f.tipo, pod.metadata.namespace, f.nome);
+      const assinatura = JSON.stringify(obj?.data ?? null);
+      if (!obj || assinatura === f.assinatura) {
+        f.mudouEm = null;
+        continue;
+      }
+      f.mudouEm ??= c.agora;
+      if (c.agora - f.mudouEm < ATRASO_CONFIG) continue;
+      vol.loja.clear();
+      for (const [k, v] of this.dadosDaFonte(f, obj)) vol.loja.set(k, v);
+      f.assinatura = assinatura;
+      f.mudouEm = null;
+    }
+  }
+
+  /** O sistema de arquivos que o contêiner enxerga (a imagem, a camada gravável e os volumes montados). */
+  fs(pod, ct, est) {
+    const e = this.pods.get(pod.metadata.uid);
+    const montagens = (ct.volumeMounts ?? []).flatMap((m) => {
+      const vol = e?.volumes?.get(m.name);
+      if (!vol) return [];
+      let { loja } = vol;
+      if (m.subPath) { // só um arquivo (ou uma pasta) de dentro do volume
+        const sub = m.subPath.replace(/^\/+|\/+$/g, '');
+        loja = loja.has(sub) ? new Map([['', loja.get(sub)]]) : new Map([...loja].filter(([k]) => k.startsWith(`${sub}/`)).map(([k, v]) => [k.slice(sub.length + 1), v]));
+      }
+      return [{ caminho: sem(m.mountPath), loja, somenteLeitura: !!vol.somenteLeitura || !!m.readOnly }];
+    });
+    est.camada ??= new Map();
+    return new SistemaDeArquivos(this.arquivos(pod, est), est.camada, montagens);
+  }
+
+  /** O sistema de arquivos de um contêiner pelo nome (para o servidor da imagem ler os arquivos dele). */
+  fsDe(pod, nome) {
+    const ct = pod.spec.containers.find((x) => x.name === nome);
+    const est = this.estado(pod, nome);
+    return ct && est ? this.fs(pod, ct, est) : null;
   }
 
   // ---------- máquina de estados de um contêiner ----------
@@ -205,6 +305,7 @@ export class Kubelet {
     est.ouvindo = false;
     est.logsAnteriores = est.logs;
     est.logs = [];
+    est.camada = new Map(); // contêiner novo, camada gravável nova (o que não estava num volume se perde)
 
     const comp = r.comportamento;
     // Como o Docker: command substitui o ENTRYPOINT; args substitui o CMD.
@@ -380,9 +481,9 @@ export class Kubelet {
     const ip = this.pods.get(pod.metadata.uid)?.ip;
     const ns = pod.metadata.namespace;
     return {
-      '/etc/hostname': `${pod.metadata.name}\n`,
+      '/etc/hostname': `${pod.spec.hostname ?? pod.metadata.name}\n`,
       '/etc/resolv.conf': resolvConf(ns),
-      '/etc/hosts': `# Kubernetes-managed hosts file.\n127.0.0.1\tlocalhost\n::1\tlocalhost ip6-localhost ip6-loopback\nfe00::0\tip6-localnet\nfe00::0\tip6-mcastprefix\nfe00::1\tip6-allnodes\nfe00::2\tip6-allrouters\n${ip}\t${pod.metadata.name}\n`,
+      '/etc/hosts': `# Kubernetes-managed hosts file.\n127.0.0.1\tlocalhost\n::1\tlocalhost ip6-localhost ip6-loopback\nfe00::0\tip6-localnet\nfe00::0\tip6-mcastprefix\nfe00::1\tip6-allnodes\nfe00::2\tip6-allrouters\n${ip}\t${pod.spec.subdomain ? `${pod.spec.hostname ?? pod.metadata.name}.${pod.spec.subdomain}.${ns}.svc.cluster.local\t` : ''}${pod.spec.hostname ?? pod.metadata.name}\n`,
       '/var/run/secrets/kubernetes.io/serviceaccount/namespace': ns,
       '/var/run/secrets/kubernetes.io/serviceaccount/token': 'eyJhbGciOiJSUzI1NiIsImtpZCI6Imt1YmUtbGVhcm4ifQ.simulado.assinatura',
       '/var/run/secrets/kubernetes.io/serviceaccount/ca.crt': '-----BEGIN CERTIFICATE-----\nMIIC/jCCAeagAwIBAgIBADANBgkqhkiG9w0BAQsFADAVMRMwEQYDVQQDEwprdWJl\n-----END CERTIFICATE-----\n',
@@ -399,7 +500,7 @@ export class Kubelet {
       busybox: !!est.comportamento.busybox,
       buscaDns: buscaDns(pod.metadata.namespace),
       get agora() { return c.agora; },
-      arquivos: this.arquivos(pod, est),
+      fs: this.fs(pod, ct, est),
       saida,
       comandos: executarComando,
       rede: {
@@ -440,7 +541,7 @@ export class Kubelet {
       return { erro: `error: Internal error occurred: Internal error occurred: error executing command in container: failed to exec in container: failed to start exec "${this.c.aleatorio.hex(64)}": OCI runtime exec failed: exec failed: unable to start container process: exec: "${bin}": executable file not found in $PATH` };
     }
     let saida = '';
-    const ctx = this.contexto(pod, { name: conteiner }, est, (t) => { saida += t; });
+    const ctx = this.contexto(pod, pod.spec.containers.find((x) => x.name === conteiner), est, (t) => { saida += t; });
     ctx.env = { ...est.env };
     const base = bin.split('/').pop();
     if ((base === 'sh' || base === 'bash') && argv[1] === '-c') {
@@ -449,7 +550,7 @@ export class Kubelet {
     }
     if (base === 'sh' || base === 'bash') return { saida: '', codigo: 0, shell: true, ctx };
     const r = executarComando(argv, ctx);
-    return { saida: r.saida ?? '', codigo: r.codigo };
+    return { saida: (r.saida ?? '') + (r.erro ?? ''), codigo: r.codigo };
   }
 
   // ---------- status ----------
@@ -473,7 +574,7 @@ export class Kubelet {
     const encerrado = fase === 'Succeeded' || fase === 'Failed';
     const status = {
       conditions: [
-        condicao('PodReadyToStartContainers', encerrado ? 'False' : 'True'),
+        condicao('PodReadyToStartContainers', encerrado || !e.ip ? 'False' : 'True'),
         condicao('Initialized', 'True'),
         condicao('Ready', prontos ? 'True' : 'False', prontos ? {} : motivoNaoPronto),
         condicao('ContainersReady', prontos ? 'True' : 'False', prontos ? {} : motivoNaoPronto),
@@ -484,8 +585,7 @@ export class Kubelet {
       hostIPs: [{ ip: c.ipDoNode(c.obter('Node', null, pod.spec.nodeName)) }],
       observedGeneration: 1,
       phase: fase,
-      podIP: e.ip,
-      podIPs: [{ ip: e.ip }],
+      ...(e.ip ? { podIP: e.ip, podIPs: [{ ip: e.ip }] } : {}),
       qosClass: qos(pod),
       resources: {},
       startTime: iso(e.inicio),

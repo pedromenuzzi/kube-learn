@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  annotations:
+    local.path.provisioner/selected-node: golden-worker2
+    pv.kubernetes.io/provisioned-by: rancher.io/local-path
+  creationTimestamp: "2026-10-20T16:20:06Z"
+  finalizers:
+  - kubernetes.io/pv-protection
+  name: pvc-c7e57d91-2ef8-4b8e-b299-1c1c1f7d2508
+  resourceVersion: "2391"
+  uid: e7934aa8-a729-4466-93a8-0dc6d29fc684
+spec:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 1Gi
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: dados
+    namespace: default
+    resourceVersion: "2369"
+    uid: c7e57d91-2ef8-4b8e-b299-1c1c1f7d2508
+  hostPath:
+    path: /var/local-path-provisioner/pvc-c7e57d91-2ef8-4b8e-b299-1c1c1f7d2508_default_dados
+    type: DirectoryOrCreate
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - golden-worker2
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: standard
+  volumeMode: Filesystem
+status:
+  lastPhaseTransitionTime: "2026-10-20T16:20:06Z"
+  phase: Bound
+exit=0

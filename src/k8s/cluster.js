@@ -49,6 +49,8 @@ export class Cluster {
     this.proximoIp = new Map();
     this.proximoIpExterno = 200; // pool dos LoadBalancers: 172.18.255.200 em diante
     this.encaminhamentos = []; // kubectl port-forward ativos: { local, ns, pod, remota }
+    this.discos = new Map(); // o conteúdo de cada disco: nome do PV (ou "emptydir:<uid do pod>:<volume>") → Map(arquivo → texto)
+    this.provisionamentos = new Map(); // uid do PVC → { inicio, avisado, esperando }
     this.contexto = { nome: contexto, namespace: 'default' };
     this.kubelet = new Kubelet(this);
     // Como no kubeadm/kind: o control plane sobe primeiro (o DNS nasce nele) e os workers entram depois.
@@ -107,7 +109,7 @@ export class Cluster {
     obj.metadata = {
       ...m,
       creationTimestamp: iso(this.agora),
-      ...(['Pod', 'Deployment', 'ReplicaSet'].includes(obj.kind) ? { generation: 1 } : {}),
+      ...(['Pod', 'Deployment', 'ReplicaSet', 'StatefulSet'].includes(obj.kind) ? { generation: 1 } : {}),
       resourceVersion: String(++this.rv),
       uid: this.aleatorio.uuid(),
     };
@@ -117,6 +119,7 @@ export class Cluster {
     this.objetos.set(this.chave(obj.kind, obj.metadata.namespace, obj.metadata.name), obj);
     this.porUid.set(obj.metadata.uid, obj);
     this.registrar('ADDED', obj);
+    if (['PersistentVolumeClaim', 'PersistentVolume', 'StorageClass'].includes(obj.kind)) this.mudancasDeCapacidade++; // o scheduler tenta de novo quem esperava disco
     return obj;
   }
 
@@ -146,6 +149,15 @@ export class Cluster {
       }
       obj.status = { phase: 'Pending', qosClass: qos(obj) };
     }
+    if (obj.kind === 'PersistentVolumeClaim') {
+      // A classe padrão entra quando o pedido não diz nenhuma ("" é "sem classe", de propósito).
+      if (obj.spec.storageClassName === undefined) {
+        const padrao = this.listar('StorageClass').find((sc) => sc.metadata.annotations?.['storageclass.kubernetes.io/is-default-class'] === 'true');
+        if (padrao) obj.spec.storageClassName = padrao.metadata.name;
+      }
+      obj.metadata.finalizers = [...new Set([...(obj.metadata.finalizers ?? []), 'kubernetes.io/pvc-protection'])];
+    }
+    if (obj.kind === 'PersistentVolume') obj.metadata.finalizers = [...new Set([...(obj.metadata.finalizers ?? []), 'kubernetes.io/pv-protection'])];
     if (obj.kind === 'Service') {
       const s = obj.spec;
       if (s.type !== 'ExternalName' && !s.clusterIP) {
@@ -214,6 +226,12 @@ export class Cluster {
       this.salvar(obj);
       return obj;
     }
+    if (obj.kind === 'PersistentVolumeClaim' || obj.kind === 'PersistentVolume') { // as proteções seguram até ninguém usar
+      obj.metadata.deletionTimestamp = iso(this.agora);
+      obj.metadata.deletionGracePeriodSeconds = 0;
+      this.salvar(obj);
+      return obj;
+    }
     if (obj.kind === 'Namespace') {
       obj.metadata.deletionTimestamp = iso(this.agora);
       obj.status = { ...obj.status, phase: 'Terminating' };
@@ -237,6 +255,7 @@ export class Cluster {
       this.mudancasDeCapacidade++;
     }
     if (obj.kind === 'Service') this.ipsServico.delete(obj.spec.clusterIP);
+    if (obj.kind === 'PersistentVolumeClaim') this.provisionamentos.delete(obj.metadata.uid);
     if (obj.kind === 'Namespace') this.eventos = this.eventos.filter((e) => e.metadata.namespace !== obj.metadata.name);
   }
 
@@ -396,6 +415,11 @@ export class Cluster {
     const imagens = ['registry.k8s.io/etcd:3.6.4-0', 'registry.k8s.io/kube-apiserver:v1.37.0', 'registry.k8s.io/kube-controller-manager:v1.37.0', 'registry.k8s.io/kube-scheduler:v1.37.0', 'registry.k8s.io/coredns/coredns:v1.12.4'];
     for (const n of nodes) for (const img of imagens) this.kubelet.guardarImagem(n.metadata.name, img);
 
+    // O disco padrão do kind: o local-path, que cria a pasta no node do primeiro pod que usar o PVC.
+    const classe = { apiVersion: 'storage.k8s.io/v1', kind: 'StorageClass', metadata: { annotations: { 'storageclass.kubernetes.io/is-default-class': 'true' }, name: 'standard' }, provisioner: 'rancher.io/local-path', reclaimPolicy: 'Delete', volumeBindingMode: 'WaitForFirstConsumer' };
+    classe.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = `${JSON.stringify(classe)}\n`;
+    this.criar(classe);
+    this.idProvisionador = `rancher.io/local-path_local-path-provisioner-${this.aleatorio.sufixo(10)}-${this.aleatorio.sufixo(5)}_${this.aleatorio.uuid()}`;
     this.criar({
       apiVersion: 'v1', kind: 'Service',
       metadata: { name: 'kubernetes', namespace: 'default', labels: { component: 'apiserver', provider: 'kubernetes' } },

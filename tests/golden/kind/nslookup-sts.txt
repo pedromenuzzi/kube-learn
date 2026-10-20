@@ -1,0 +1,8 @@
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+
+Name:	db-0.db.default.svc.cluster.local
+Address: 10.244.1.7
+
+exit=0

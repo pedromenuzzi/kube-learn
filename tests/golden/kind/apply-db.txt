@@ -1,0 +1,3 @@
+service/db created
+statefulset.apps/db created
+exit=0

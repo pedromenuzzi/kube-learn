@@ -148,7 +148,7 @@ function selecionar(cluster, posicionais, flags, { exigirNome = false } = {}) {
     }
     return { grupos, erros, nomeado: true };
   }
-  const tipos = posicionais[0].split(',').flatMap((t) => (t === 'all' ? ['pods', 'services', 'deployments', 'replicasets'] : [t])).map(recurso);
+  const tipos = posicionais[0].split(',').flatMap((t) => (t === 'all' ? ['pods', 'services', 'deployments', 'replicasets', 'statefulsets'] : [t])).map(recurso);
   const nomes = posicionais.slice(1);
   if (nomes.length) {
     for (const r of tipos) for (const n of nomes) buscar(r, n);
@@ -836,7 +836,7 @@ function scale(cluster, a, s) {
   const alvo = alvoUnico(cluster, a, s, 'scale');
   if (!alvo) return;
   const { r, obj } = alvo;
-  if (!['Deployment', 'ReplicaSet'].includes(obj.kind)) return s.falha('Error from server (NotFound): the server could not find the requested resource');
+  if (!['Deployment', 'ReplicaSet', 'StatefulSet'].includes(obj.kind)) return s.falha('Error from server (NotFound): the server could not find the requested resource');
   if (a.flags.replicas < 0) return s.falha('error: The --replicas=COUNT flag is required, and COUNT must be greater than or equal to 0');
   obj.spec.replicas = a.flags.replicas;
   cluster.salvar(obj, { spec: true });
@@ -858,6 +858,17 @@ function statusRollout(d) {
   return { msg: `deployment "${n}" successfully rolled out\n`, pronto: true };
 }
 
+/** O que o `rollout status` diz de um StatefulSet (o statusViewer do kubectl). */
+function statusRolloutSts(sts) {
+  const st = sts.status ?? {};
+  if (sts.spec.updateStrategy?.type !== 'RollingUpdate') return { erro: 'error: rollout status is only available for RollingUpdate strategy type' };
+  if (!st.observedGeneration || sts.metadata.generation > st.observedGeneration) return { msg: 'Waiting for statefulset spec update to be observed...\n' };
+  if ((st.readyReplicas ?? 0) < sts.spec.replicas) return { msg: `Waiting for ${sts.spec.replicas - (st.readyReplicas ?? 0)} pods to be ready...\n` };
+  const particao = sts.spec.updateStrategy.rollingUpdate?.partition ?? 0;
+  if ((st.updatedReplicas ?? 0) < sts.spec.replicas - particao) return { msg: `Waiting for partitioned roll out to finish: ${st.updatedReplicas ?? 0} out of ${sts.spec.replicas - particao} new pods have been updated...\n` };
+  return { msg: `partitioned roll out complete: ${st.updatedReplicas ?? 0} new pods have been updated...\n`, pronto: true };
+}
+
 function rollout(cluster, a, s) {
   const [sub, ...resto] = a.posicionais;
   const subs = ['history', 'pause', 'restart', 'resume', 'status', 'undo'];
@@ -868,14 +879,15 @@ function rollout(cluster, a, s) {
   if (!alvo) return;
   const { r, obj: d } = alvo;
   const id = `${nomeQualificado(r)}/${d.metadata.name}`;
-  if (d.kind !== 'Deployment') return s.falha(`error: no ${sub === 'history' ? 'history viewer' : sub === 'status' ? 'status viewer' : 'rollbacker'} has been implemented for "${d.kind}"`);
+  const sts = d.kind === 'StatefulSet' && ['status', 'restart'].includes(sub);
+  if (d.kind !== 'Deployment' && !sts) return s.falha(`error: no ${sub === 'history' ? 'history viewer' : sub === 'status' ? 'status viewer' : 'rollbacker'} has been implemented for "${d.kind}"`);
   switch (sub) {
     case 'status': {
       const limite = a.flags.timeout ? parseDuracao(a.flags.timeout) : 20 * 60_000;
       const fim = cluster.agora + limite;
       let rvAnterior = null;
       for (;;) {
-        const st = statusRollout(d);
+        const st = d.kind === 'StatefulSet' ? statusRolloutSts(d) : statusRollout(d);
         if (st.erro) return s.falha(st.erro);
         if (d.metadata.resourceVersion !== rvAnterior || st.pronto) s.out(st.msg);
         rvAnterior = d.metadata.resourceVersion;

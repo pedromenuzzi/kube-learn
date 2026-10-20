@@ -1,5 +1,6 @@
 // Os mesmos passos de scripts/capturar-golden.sh, rodados no simulador. Mantenha os dois em sincronia:
 // mudou um passo lá, mude aqui (e capture de novo no kind).
+import { readFileSync } from 'node:fs';
 import { criarCluster } from '../../src/k8s/cluster.js';
 import { kubectl } from '../../src/k8s/kubectl/index.js';
 
@@ -108,6 +109,10 @@ metadata:
   name: kind-errado
 `,
 };
+
+// Os manifestos das fases novas vêm direto do script (os blocos "cat > /tmp/... <<'Y'"), para não divergirem.
+const SCRIPT = readFileSync(new URL('../../scripts/capturar-golden.sh', import.meta.url), 'utf8');
+for (const [, caminho, texto] of SCRIPT.matchAll(/cat > (\/tmp\/[\w.-]+) <<'Y'\n([\s\S]*?)\nY\n/g)) ARQUIVOS[caminho] ??= `${texto}\n`;
 
 /** Roda o cenário e devolve { nome: saída + "exit=N\n" }, como os arquivos capturados. */
 export function rodarCenario() {
@@ -265,5 +270,57 @@ export function rodarCenario() {
   cap('delete-f', 'kubectl delete -f /tmp/kl-web.yaml');
   cap('delete-label', 'kubectl delete pods -l run');
   cap('delete-nao-existe', 'kubectl delete pod nao-existe');
+
+  // Fase 6 · nível 4: volumes, PVC, PV, StorageClass e StatefulSet
+  const podPronto = (nome) => () => c.obter('Pod', 'default', nome)?.status?.conditions?.some((x) => x.type === 'Ready' && x.status === 'True');
+  cap('get-sc', 'kubectl get sc');
+  cap('describe-sc', 'kubectl describe sc standard');
+  cap('apply-dados', 'kubectl apply -f /tmp/kl-dados.yaml');
+  cap('pvc-pendente', 'kubectl get pvc dados');
+  c.avancarAte(podPronto('caderno'), '2m');
+  const PV = c.obter('PersistentVolumeClaim', 'default', 'dados').spec.volumeName;
+  cap('get-pvc', 'kubectl get pvc');
+  cap('get-pvc-wide', 'kubectl get pvc -o wide');
+  cap('get-pv', 'kubectl get pv');
+  cap('describe-pvc', 'kubectl describe pvc dados');
+  cap('yaml-pvc', 'kubectl get pvc dados -o yaml');
+  cap('describe-pv', `kubectl describe pv ${PV}`);
+  cap('yaml-pv', `kubectl get pv ${PV} -o yaml`);
+  cap('exec-cat-pvc', 'kubectl exec caderno -- cat /dados/notas.txt');
+  cap('describe-pod-pvc', 'kubectl describe pod caderno');
+  cap('apply-volume-errado', 'kubectl apply -f /tmp/kl-volume-errado.yaml');
+  cap('apply-pvc-incompleto', 'kubectl apply -f /tmp/kl-pvc-incompleto.yaml');
+  cap('apply-sem-fonte', 'kubectl apply -f /tmp/kl-sem-fonte.yaml');
+  c.avancar('20s');
+  cap('sem-fonte-get', 'kubectl get pod sem-cm usa-rapido');
+  cap('sem-cm-describe', 'kubectl describe pod sem-cm');
+  cap('rapido-describe', 'kubectl describe pod usa-rapido');
+  cap('rapido-pvc', 'kubectl describe pvc rapido');
+  cap('apply-vitrine', 'kubectl apply -f /tmp/kl-vitrine.yaml');
+  c.avancarAte(podPronto('vitrine'), '2m');
+  cap('exec-ls-cm', 'kubectl exec vitrine -c nginx -- ls /usr/share/nginx/html');
+  cap('exec-cat-secret', 'kubectl exec vitrine -c nginx -- cat /etc/segredo/senha');
+  cap('exec-curl-cm', 'kubectl exec vitrine -c nginx -- curl -s localhost');
+  cap('exec-somente-leitura', "kubectl exec vitrine -c nginx -- sh -c 'echo x > /etc/segredo/y'");
+  cap('exec-emptydir', "kubectl exec vitrine -c escritor -- sh -c 'echo y >> /compartilhado/msg; cat /compartilhado/msg'");
+  cap('exec-cat-nao-existe', 'kubectl exec vitrine -c escritor -- cat /nao/existe');
+  cap('describe-pod-volumes', 'kubectl describe pod vitrine');
+  cap('apply-db', 'kubectl apply -f /tmp/kl-db.yaml');
+  cap('rollout-sts', 'kubectl rollout status sts/db --timeout=180s');
+  cap('get-sts', 'kubectl get sts');
+  cap('get-sts-wide', 'kubectl get sts -o wide');
+  cap('describe-sts', 'kubectl describe sts db');
+  cap('yaml-sts', 'kubectl get sts db -o yaml');
+  cap('get-pods-sts', 'kubectl get pods -l app=db');
+  cap('get-pvc-sts', 'kubectl get pvc -l app=db');
+  cap('exec-hosts-sts', 'kubectl exec db-1 -- cat /etc/hosts');
+  k('kubectl run cliente --image=busybox:1.36 -- sleep 3600');
+  c.avancarAte(podPronto('cliente'), '2m');
+  cap('nslookup-sts-curto', 'kubectl exec cliente -- nslookup db-0.db');
+  cap('nslookup-sts', 'kubectl exec cliente -- nslookup db-0.db.default.svc.cluster.local');
+  cap('scale-sts', 'kubectl scale sts db --replicas=1');
+  c.avancar('10s');
+  cap('scale-sts-get', 'kubectl get pods -l app=db');
+  cap('scale-sts-pvc', 'kubectl get pvc -l app=db');
   return { saidas, cluster: c };
 }

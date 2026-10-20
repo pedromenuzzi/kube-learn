@@ -255,3 +255,245 @@ cap delete-deploy kc delete deploy web
 cap delete-f kc delete -f /tmp/kl-web.yaml
 cap delete-label kc delete pods -l run
 cap delete-nao-existe kc delete pod nao-existe
+
+# ---------- Fase 6 · nível 4: volumes, PVC, PV, StorageClass e StatefulSet ----------
+cat > /tmp/kl-dados.yaml <<'Y'
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dados
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: caderno
+spec:
+  containers:
+  - name: caderno
+    image: busybox:1.36
+    command: ["sh", "-c", "echo primeira nota >> /dados/notas.txt; sleep 3600"]
+    volumeMounts:
+    - name: dados
+      mountPath: /dados
+  volumes:
+  - name: dados
+    persistentVolumeClaim:
+      claimName: dados
+Y
+cat > /tmp/kl-volume-errado.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: montagem-errada
+spec:
+  containers:
+  - name: c
+    image: busybox:1.36
+    volumeMounts:
+    - name: dado
+      mountPath: /d
+  volumes:
+  - name: dados
+    emptyDir: {}
+Y
+cat > /tmp/kl-pvc-incompleto.yaml <<'Y'
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: incompleto
+spec:
+  storageClassName: standard
+Y
+cat > /tmp/kl-sem-fonte.yaml <<'Y'
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rapido
+spec:
+  storageClassName: rapido
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: usa-rapido
+spec:
+  containers:
+  - name: c
+    image: busybox:1.36
+    command: ["sleep", "3600"]
+    volumeMounts:
+    - name: d
+      mountPath: /d
+  volumes:
+  - name: d
+    persistentVolumeClaim:
+      claimName: rapido
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sem-cm
+spec:
+  containers:
+  - name: c
+    image: busybox:1.36
+    command: ["sleep", "3600"]
+    volumeMounts:
+    - name: cfg
+      mountPath: /cfg
+  volumes:
+  - name: cfg
+    configMap:
+      name: nao-existe
+Y
+cat > /tmp/kl-vitrine.yaml <<'Y'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vitrine
+data:
+  index.html: |
+    <h1>Promoção de tijolos!</h1>
+  cor: azul
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cofre
+stringData:
+  senha: tijolo-azul-42
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vitrine
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.27
+    volumeMounts:
+    - name: html
+      mountPath: /usr/share/nginx/html
+    - name: segredo
+      mountPath: /etc/segredo
+      readOnly: true
+  - name: escritor
+    image: busybox:1.36
+    command: ["sh", "-c", "echo oi > /compartilhado/msg; sleep 3600"]
+    volumeMounts:
+    - name: compartilhado
+      mountPath: /compartilhado
+  volumes:
+  - name: html
+    configMap:
+      name: vitrine
+  - name: segredo
+    secret:
+      secretName: cofre
+  - name: compartilhado
+    emptyDir: {}
+Y
+cat > /tmp/kl-db.yaml <<'Y'
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+spec:
+  clusterIP: None
+  selector:
+    app: db
+  ports:
+  - port: 6379
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+spec:
+  serviceName: db
+  replicas: 2
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+      - name: redis
+        image: redis:7
+        ports:
+        - containerPort: 6379
+        volumeMounts:
+        - name: dados
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: dados
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 1Gi
+Y
+
+cap get-sc kc get sc
+cap describe-sc kc describe sc standard
+cap apply-dados kc apply -f /tmp/kl-dados.yaml
+cap pvc-pendente kc get pvc dados
+kc wait --for=condition=Ready pod/caderno --timeout=120s >/dev/null 2>&1
+PV=$(kc get pvc dados -o jsonpath='{.spec.volumeName}')
+cap get-pvc kc get pvc
+cap get-pvc-wide kc get pvc -o wide
+cap get-pv kc get pv
+cap describe-pvc kc describe pvc dados
+cap yaml-pvc kc get pvc dados -o yaml
+cap describe-pv kc describe pv "$PV"
+cap yaml-pv kc get pv "$PV" -o yaml
+cap exec-cat-pvc kc exec caderno -- cat /dados/notas.txt
+cap describe-pod-pvc kc describe pod caderno
+cap apply-volume-errado kc apply -f /tmp/kl-volume-errado.yaml
+cap apply-pvc-incompleto kc apply -f /tmp/kl-pvc-incompleto.yaml
+cap apply-sem-fonte kc apply -f /tmp/kl-sem-fonte.yaml
+sleep 20
+cap sem-fonte-get kc get pod sem-cm usa-rapido
+cap sem-cm-describe kc describe pod sem-cm
+cap rapido-describe kc describe pod usa-rapido
+cap rapido-pvc kc describe pvc rapido
+cap apply-vitrine kc apply -f /tmp/kl-vitrine.yaml
+kc wait --for=condition=Ready pod/vitrine --timeout=120s >/dev/null 2>&1
+cap exec-ls-cm kc exec vitrine -c nginx -- ls /usr/share/nginx/html
+cap exec-cat-secret kc exec vitrine -c nginx -- cat /etc/segredo/senha
+cap exec-curl-cm kc exec vitrine -c nginx -- curl -s localhost
+cap exec-somente-leitura kc exec vitrine -c nginx -- sh -c 'echo x > /etc/segredo/y'
+cap exec-emptydir kc exec vitrine -c escritor -- sh -c 'echo y >> /compartilhado/msg; cat /compartilhado/msg'
+cap exec-cat-nao-existe kc exec vitrine -c escritor -- cat /nao/existe
+cap describe-pod-volumes kc describe pod vitrine
+cap apply-db kc apply -f /tmp/kl-db.yaml
+cap rollout-sts kc rollout status sts/db --timeout=180s
+cap get-sts kc get sts
+cap get-sts-wide kc get sts -o wide
+cap describe-sts kc describe sts db
+cap yaml-sts kc get sts db -o yaml
+cap get-pods-sts kc get pods -l app=db
+cap get-pvc-sts kc get pvc -l app=db
+cap exec-hosts-sts kc exec db-1 -- cat /etc/hosts
+kc run cliente --image=busybox:1.36 -- sleep 3600 >/dev/null 2>&1
+kc wait --for=condition=Ready pod/cliente --timeout=120s >/dev/null 2>&1
+cap nslookup-sts-curto kc exec cliente -- nslookup db-0.db
+cap nslookup-sts kc exec cliente -- nslookup db-0.db.default.svc.cluster.local
+cap scale-sts kc scale sts db --replicas=1
+sleep 10
+cap scale-sts-get kc get pods -l app=db
+cap scale-sts-pvc kc get pvc -l app=db

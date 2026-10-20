@@ -28,6 +28,13 @@ export const podsProntos = (cluster, svc) => cluster.listar('Pod', svc.metadata.
  */
 export function resolver(cluster, nome, ns) {
   const tentar = (fqdn) => {
+    // O nome de um pod de StatefulSet: db-0.db.default.svc.cluster.local (hostname.serviço-headless.namespace).
+    const mp = fqdn.match(new RegExp(`^([a-z0-9-]+)\\.([a-z0-9-]+)\\.([a-z0-9-]+)\\.svc\\.${DOMINIO.replace('.', '\\.')}$`));
+    if (mp) {
+      const svc = cluster.obter('Service', mp[3], mp[2]);
+      const pod = svc?.spec.clusterIP === 'None' && cluster.listar('Pod', mp[3]).find((p) => p.spec.hostname === mp[1] && p.spec.subdomain === mp[2] && p.status?.podIP && (estaPronto(p) || svc.spec.publishNotReadyAddresses));
+      return pod ? { nome: fqdn, ip: pod.status.podIP, ips: [pod.status.podIP] } : null;
+    }
     const m = fqdn.match(new RegExp(`^([a-z0-9-]+)\\.([a-z0-9-]+)\\.svc\\.${DOMINIO.replace('.', '\\.')}$`));
     if (!m) return null;
     const svc = cluster.obter('Service', m[2], m[1]);
@@ -66,7 +73,8 @@ function noPod(cluster, pod, porta, url, { origemIp = '10.244.0.1', metodo = 'GE
   if (!ouvindo) return { erro: 'recusada', ip };
   const { comportamento, conteiner } = ouvindo;
   if (!comportamento.servidor.http) return { erro: 'vazia', ip };
-  const r = comportamento.servidor.http(url.caminho, { hostname: pod.metadata.name });
+  const fs = cluster.kubelet.fsDe(pod, conteiner);
+  const r = comportamento.servidor.http(url.caminho, { hostname: pod.metadata.name, ler: (c) => fs?.ler(c), env: cluster.kubelet.estado(pod, conteiner)?.env });
   const tamanho = new TextEncoder().encode(r.corpo).length;
   if (comportamento.servidor.acesso) {
     cluster.kubelet.log(pod, conteiner, comportamento.servidor.acesso({ agora: cluster.agora, ip: origemIp, metodo, caminho: url.caminho, status: r.status, tamanho, agente }));
@@ -107,6 +115,7 @@ function noServico(cluster, svc, portaServico, url, opcoes) {
 export function http(cluster, origem, url, opcoes = {}) {
   const ns = origem?.metadata.namespace ?? 'default';
   const op = { ...opcoes, origemIp: origem?.status?.podIP ?? '10.244.0.1' };
+  if (origem && (url.host === 'localhost' || url.host === '127.0.0.1')) return noPod(cluster, origem, url.porta, url, op); // o próprio pod
   let ip = url.host;
   if (!ehIp(ip)) {
     const r = resolver(cluster, ip, ns);

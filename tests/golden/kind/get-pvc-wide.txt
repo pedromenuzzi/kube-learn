@@ -1,0 +1,3 @@
+NAME    STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE   VOLUMEMODE
+dados   Bound    pvc-c7e57d91-2ef8-4b8e-b299-1c1c1f7d2508   1Gi        RWO            standard       <unset>                 5s    Filesystem
+exit=0

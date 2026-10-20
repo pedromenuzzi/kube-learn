@@ -1,0 +1,17 @@
+Name:          rapido
+Namespace:     default
+StorageClass:  rapido
+Status:        Pending
+Volume:        
+Labels:        <none>
+Annotations:   <none>
+Finalizers:    [kubernetes.io/pvc-protection]
+Capacity:      
+Access Modes:  
+VolumeMode:    Filesystem
+Used By:       usa-rapido
+Events:
+  Type     Reason              Age                From                         Message
+  ----     ------              ----               ----                         -------
+  Warning  ProvisioningFailed  14s (x2 over 23s)  persistentvolume-controller  storageclass.storage.k8s.io "rapido" not found
+exit=0

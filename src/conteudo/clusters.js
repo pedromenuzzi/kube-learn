@@ -130,6 +130,161 @@ const GATEWAY = yaml`
 `;
 const juntar = (...docs) => docs.map((d) => d.trim()).join('\n---\n');
 
+// ---------- nível 4 ----------
+const CM = (nome, dados) => `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${nome}
+data:
+${Object.entries(dados).map(([k, v]) => (v.includes('\n') ? `  ${k}: |\n${v.trimEnd().split('\n').map((l) => `    ${l}`).join('\n')}` : `  ${k}: ${JSON.stringify(v)}`)).join('\n')}
+`;
+const SECRET = (nome, dados) => `apiVersion: v1
+kind: Secret
+metadata:
+  name: ${nome}
+stringData:
+${Object.entries(dados).map(([k, v]) => `  ${k}: ${JSON.stringify(v)}`).join('\n')}
+`;
+/** A loja lendo a COR de um ConfigMap (o "quadro de avisos"). */
+const LOJA_COM_COR = LOJA_DEP(2).replace(/^( +)ports:/m, (_, r) => `${r}env:
+${r}- name: COR
+${r}  valueFrom:
+${r}    configMapKeyRef:
+${r}      name: loja-config
+${r}      key: COR
+${r}ports:`);
+/** O banco (postgres), com ou sem a senha vinda de um Secret. */
+export const BANCO = ({ chave } = {}) => yaml`
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: banco
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: banco
+    template:
+      metadata:
+        labels:
+          app: banco
+      spec:
+        containers:
+        - name: postgres
+          image: postgres:17
+${chave ? `          env:
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: banco-senha
+                key: ${chave}
+` : ''}`;
+/** O caderno: anota numa pasta /dados que, sem volume, nem existe. */
+export const CADERNO = (volume = '') => yaml`
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: caderno
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: caderno
+    template:
+      metadata:
+        labels:
+          app: caderno
+      spec:
+        containers:
+        - name: caderno
+          image: busybox:1.36
+          command: ["sh", "-c", "echo nota >> /dados/notas.txt; sleep 3600"]
+${volume}`;
+export const PVC = (nome, classe, tamanho = '1Gi') => yaml`
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: ${nome}
+  spec:
+${classe ? `    storageClassName: ${classe}\n` : ''}    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: ${tamanho}
+`;
+const GALERIA = yaml`
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: galeria
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: galeria
+    template:
+      metadata:
+        labels:
+          app: galeria
+      spec:
+        containers:
+        - name: galeria
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+          volumeMounts:
+          - name: fotos
+            mountPath: /fotos
+        volumes:
+        - name: fotos
+          persistentVolumeClaim:
+            claimName: fotos
+`;
+/** O banco com identidade: o Service headless e o StatefulSet (cada pod com o seu disco). */
+export const DB = (replicas = 3) => yaml`
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: db
+  spec:
+    clusterIP: None
+    selector:
+      app: db
+    ports:
+    - port: 6379
+  ---
+  apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    name: db
+  spec:
+    serviceName: db
+    replicas: ${replicas}
+    selector:
+      matchLabels:
+        app: db
+    template:
+      metadata:
+        labels:
+          app: db
+      spec:
+        containers:
+        - name: redis
+          image: redis:7
+          ports:
+          - containerPort: 6379
+          volumeMounts:
+          - name: dados
+            mountPath: /data
+    volumeClaimTemplates:
+    - metadata:
+        name: dados
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+`;
+
 export const CLUSTERS = {
   vazio: {},
   'loja-3-replicas': { manifestos: LOJA(3, '1.0') },
@@ -183,6 +338,17 @@ export const CLUSTERS = {
   praca: { manifestos: juntar(INGRESS_CLASS, LOJA_DEP(2), SVC('loja', 80, 8080), DEP('blog', 'httpd:2.4', 2, 80), SVC('blog', 80, 80)) },
   'condominio-gateway': { manifestos: juntar(GATEWAY, LOJA_DEP(2), SVC('loja', 80, 8080)) },
   canario: { manifestos: juntar(GATEWAY, LOJA_DEP(3), SVC('loja', 80, 8080), LOJA_DEP(1, '1.1', 'loja-v2'), SVC('loja-v2', 80, 8080)) },
+  // Nível 4
+  'loja-sem-config': { manifestos: juntar(LOJA_DEP(2), SVC('loja', 80, 8080)) },
+  'loja-com-config': { manifestos: juntar(CM('loja-config', { COR: 'azul' }), LOJA_COM_COR, SVC('loja', 80, 8080)) },
+  'banco-sem-senha': { manifestos: BANCO() },
+  'senha-errada': { manifestos: juntar(SECRET('banco-senha', { senha: 'concreto-armado' }), BANCO({ chave: 'password' })) },
+  'cofre-secreto': { manifestos: SECRET('wifi', { senha: 'argamassa-forte-7' }) },
+  vitrine: { manifestos: juntar(CM('vitrine-html', { 'index.html': '<h1>Promoção de tijolos: leve 3, pague 2!</h1>\n' }), DEP('vitrine', 'nginx:1.27', 2, 80), SVC('vitrine', 80, 80)) },
+  placa: { manifestos: SVC('placa', 80, 80) },
+  caderno: { manifestos: CADERNO() },
+  'pvc-rapido': { manifestos: juntar(PVC('fotos', 'rapido'), GALERIA) },
+  'db-pronto': { manifestos: juntar(DB(3), pod('cliente', 'busybox:1.36', { comando: ['sleep', '3600'] })) },
 };
 
 /** Monta o cluster de partida (sempre igual para a mesma semente). */

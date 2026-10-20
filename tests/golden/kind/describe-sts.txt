@@ -1,0 +1,44 @@
+Name:                   db
+Namespace:              default
+CreationTimestamp:      Tue, 20 Oct 2026 13:20:51 -0300
+Selector:               app=db
+Labels:                 <none>
+Annotations:            <none>
+Service Name:           db
+Pod Management Policy:  OrderedReady
+Replicas:               2 desired | 2 total
+Update Strategy:        RollingUpdate
+  Partition:            0
+  MaxUnavailable:       1
+Persistent Volume Claim Retention Policy:
+  WhenDeleted:  Retain
+  WhenScaled:   Retain
+Pods Status:    2 Running / 0 Waiting / 0 Succeeded / 0 Failed
+Pod Template:
+  Labels:  app=db
+  Containers:
+   redis:
+    Image:        redis:7
+    Port:         6379/TCP
+    Host Port:    0/TCP
+    Environment:  <none>
+    Mounts:
+      /data from dados (rw)
+  Volumes:         <none>
+  Node-Selectors:  <none>
+  Tolerations:     <none>
+Volume Claims:
+  Name:          dados
+  StorageClass:  
+  Labels:        <none>
+  Annotations:   <none>
+  Capacity:      1Gi
+  Access Modes:  [ReadWriteOnce]
+Events:
+  Type    Reason            Age   From                    Message
+  ----    ------            ----  ----                    -------
+  Normal  SuccessfulCreate  16s   statefulset-controller  Create Claim dados-db-0 Pod db-0 in StatefulSet db success
+  Normal  SuccessfulCreate  16s   statefulset-controller  Create Pod db-0 in StatefulSet db successful
+  Normal  SuccessfulCreate  11s   statefulset-controller  Create Claim dados-db-1 Pod db-1 in StatefulSet db success
+  Normal  SuccessfulCreate  10s   statefulset-controller  Create Pod db-1 in StatefulSet db successful
+exit=0

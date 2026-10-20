@@ -75,6 +75,8 @@ export function htmlRecursos(c, ns = 'default') {
     ...c.listar('Deployment', ns).map((d) => `<li><span class="tipo">deployment</span> ${escapar(d.metadata.name)} (${d.status?.readyReplicas ?? 0}/${d.spec.replicas})
       <ul>${filhos(d.metadata.uid, 'ReplicaSet').filter((r) => r.spec.replicas || r.status?.replicas).map(rs).join('')}</ul></li>`),
     ...c.listar('ReplicaSet', ns).filter((r) => !dono(r)).map(rs),
+    ...c.listar('StatefulSet', ns).map((st) => `<li><span class="tipo">statefulset</span> ${escapar(st.metadata.name)} (${st.status?.readyReplicas ?? 0}/${st.spec.replicas})
+      <ul>${filhos(st.metadata.uid, 'Pod').map(pod).join('')}</ul></li>`),
     ...c.listar('Pod', ns).filter((p) => !dono(p)).map(pod),
     ...c.listar('Service', ns).map((s) => {
       const ep = c.obter('Endpoints', ns, s.metadata.name);
@@ -82,6 +84,7 @@ export function htmlRecursos(c, ns = 'default') {
     }),
     ...c.listar('ConfigMap', ns).filter((m) => m.metadata.name !== 'kube-root-ca.crt').map((m) => `<li><span class="tipo">configmap</span> ${escapar(m.metadata.name)}</li>`),
     ...c.listar('Secret', ns).map((s) => `<li><span class="tipo">secret</span> ${escapar(s.metadata.name)}</li>`),
+    ...c.listar('PersistentVolumeClaim', ns).map((v) => `<li><span class="tipo">pvc</span> ${escapar(v.metadata.name)} <span class="${v.status?.phase === 'Bound' ? 'pod-ok' : 'pod-espera'}">${escapar(v.metadata.deletionTimestamp ? 'Terminating' : v.status?.phase ?? 'Pending')}</span>${v.status?.capacity?.storage ? ` ${escapar(v.status.capacity.storage)}` : ''}</li>`),
   ];
   return itens.length ? `<ul class="arvore">${itens.join('')}</ul>` : `<p class="vazio">Nada no namespace ${ns} ainda.</p>`;
 }
