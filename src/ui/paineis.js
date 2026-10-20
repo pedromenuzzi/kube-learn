@@ -2,27 +2,63 @@
 import { escapar } from './util.js';
 import { resumoPod, enderecosEndpoints } from '../k8s/kubectl/tabelas.js';
 import { kubectl } from '../k8s/kubectl/index.js';
-import { nodePronto } from '../k8s/scheduler.js';
+import { nodePronto, usoDoNode } from '../k8s/scheduler.js';
+import { cpuMili, bytes } from '../k8s/unidades.js';
 
 const CLASSE = (status) => (status === 'Running' ? 'ok' : /Completed|Succeeded/.test(status) ? 'fim' : /Pending|ContainerCreating|Terminating/.test(status) ? 'espera' : 'ruim');
+const ICONE = (status) => ({ Running: '✅', Pending: '⏳', ContainerCreating: '⏳', Terminating: '🚚', Completed: '🏁', Succeeded: '🏁', CrashLoopBackOff: '💥', ImagePullBackOff: '📦', ErrImagePull: '📦', Error: '❌', CreateContainerConfigError: '✉️' }[status] ?? '⚠️');
 
-/** Mapa: um bloco por node, com os pods de cada namespace de aplicação (o kube-system fica de lado). */
+/** A legenda fixa do mapa (fica fora da parte que se redesenha a cada segundo). */
+export const htmlLegendaMapa = (sistema) => `
+  <p class="mapa-legenda">🏢 cada node é um prédio, cada pod um apartamento.
+    <span>✅ rodando</span> <span>⏳ subindo</span> <span>💥 caindo</span> <span>📦 imagem não veio</span> <span>🚚 saindo</span> <span>🏁 terminou</span></p>
+  <p><label><input type="checkbox" name="sistema"${sistema ? ' checked' : ''}> Mostrar a administração (kube-system)</label></p>`;
+
+const barra = (rotulo, usado, total, texto) => {
+  const pct = total ? Math.min(100, Math.round((usado / total) * 100)) : 0;
+  return `<div class="uso"><span>${rotulo}</span><span class="uso-barra" aria-hidden="true"><span style="width:${pct}%" class="${pct > 85 ? 'uso-alto' : ''}"></span></span><span>${texto} (${pct}%)</span></div>`;
+};
+const cpuTxt = (m) => (m % 1000 === 0 ? `${m / 1000}` : `${m}m`);
+const memTxt = (b) => (b >= 2 ** 30 ? `${(b / 2 ** 30).toFixed(1)}Gi` : `${Math.round(b / 2 ** 20)}Mi`);
+
+/** Mapa: um prédio por node (com o quanto já foi reservado), os pods dentro, e os ramais (Services) e portarias. */
 export function htmlCluster(c, { sistema = false } = {}) {
   const pods = c.listar('Pod').filter((p) => sistema || p.metadata.namespace !== 'kube-system');
   const semNode = pods.filter((p) => !p.spec.nodeName);
-  const bloco = (titulo, lista, extra = '') => `
-    <li class="node">
-      <h4>${titulo}${extra}</h4>
-      ${lista.length ? `<ul class="pods">${lista.map((p) => {
+  const apto = (p) => {
     const r = resumoPod(p, c.agora);
-    return `<li class="pod pod-${CLASSE(r.status)}"><span class="pod-nome">${escapar(p.metadata.name)}</span> <span class="pod-status">${escapar(r.status)}</span>${p.metadata.namespace !== 'default' ? ` <span class="pod-ns">${escapar(p.metadata.namespace)}</span>` : ''}</li>`;
-  }).join('')}</ul>` : '<p class="vazio">nenhum pod</p>'}
+    return `<li class="pod pod-${CLASSE(r.status)}"><span aria-hidden="true">${ICONE(r.status)}</span> <span class="pod-nome">${escapar(p.metadata.name)}</span>
+      <span class="pod-status">${escapar(r.status)}</span> <span class="pod-ns">${r.pronto}${r.reinicios !== '0' ? ` · ${escapar(r.reinicios)} reinícios` : ''}${p.metadata.namespace !== 'default' ? ` · ${escapar(p.metadata.namespace)}` : ''}</span></li>`;
+  };
+  const predio = (n) => {
+    const uso = usoDoNode(c, n.metadata.name);
+    const cap = n.status.allocatable;
+    const meus = pods.filter((p) => p.spec.nodeName === n.metadata.name);
+    const cp = n.metadata.labels['node-role.kubernetes.io/control-plane'] !== undefined;
+    return `<li class="node${nodePronto(n) ? '' : ' node-caido'}">
+      <h4>🏢 ${escapar(n.metadata.name)} <span class="node-status">${nodePronto(n) ? 'Ready' : 'NotReady'}${cp ? ' · administração' : ''}${n.spec.unschedulable ? ' · interditado' : ''}</span></h4>
+      ${barra('CPU', uso.cpu, cpuMili(cap.cpu), `${cpuTxt(uso.cpu)} de ${cap.cpu}`)}
+      ${barra('Memória', uso.memoria, bytes(cap.memory), `${memTxt(uso.memoria)} de ${memTxt(bytes(cap.memory))}`)}
+      ${meus.length ? `<ul class="pods">${meus.map(apto).join('')}</ul>` : '<p class="vazio">nenhum pod</p>'}
     </li>`;
+  };
+  const servicos = c.listar('Service').filter((s) => sistema || s.metadata.namespace !== 'kube-system').filter((s) => s.metadata.name !== 'kubernetes');
+  const ramal = (s) => {
+    const ep = c.obter('Endpoints', s.metadata.namespace, s.metadata.name);
+    const n = (ep?.subsets ?? []).reduce((t, x) => t + (x.addresses?.length ?? 0), 0);
+    const externo = s.status?.loadBalancer?.ingress?.[0]?.ip;
+    return `<li class="${n ? '' : 'pod-ruim'}">📞 <b>${escapar(s.metadata.name)}</b>${s.metadata.namespace !== 'default' ? ` (${escapar(s.metadata.namespace)})` : ''}
+      <span class="pod-ns">${escapar(s.spec.type)} · ${escapar(s.spec.clusterIP)}${externo ? ` · externo ${externo}` : ''}</span> → ${n ? `${n} pod${n > 1 ? 's' : ''} pronto${n > 1 ? 's' : ''}` : 'ninguém atende'}</li>`;
+  };
+  const portarias = [
+    ...c.listar('Ingress').map((i) => `<li>🚪 <b>${escapar(i.metadata.name)}</b> (Ingress) <span class="pod-ns">${escapar((i.spec.rules ?? []).map((r) => r.host ?? '*').join(', '))} · ${escapar(i.status?.loadBalancer?.ingress?.[0]?.ip ?? 'sem endereço')}</span></li>`),
+    ...c.listar('Gateway').map((g) => `<li>🚪 <b>${escapar(g.metadata.name)}</b> (Gateway) <span class="pod-ns">${escapar(g.status?.addresses?.[0]?.value ?? 'sem endereço')}</span></li>`),
+  ];
   return `<ul class="mapa">
-    ${c.listar('Node').map((n) => bloco(`🏢 ${escapar(n.metadata.name)}`, pods.filter((p) => p.spec.nodeName === n.metadata.name),
-    `<span class="node-status">${nodePronto(n) ? 'Ready' : 'NotReady'}${n.metadata.labels['node-role.kubernetes.io/control-plane'] !== undefined ? ' · control-plane' : ''}</span>`)).join('')}
-    ${semNode.length ? bloco('⏳ esperando lugar (Pending)', semNode) : ''}
-  </ul>`;
+      ${c.listar('Node').map(predio).join('')}
+      ${semNode.length ? `<li class="node node-lobby"><h4>⏳ esperando lugar no lobby (Pending)</h4><ul class="pods">${semNode.map(apto).join('')}</ul></li>` : ''}
+    </ul>
+    ${servicos.length || portarias.length ? `<h4 class="mapa-sub">Ramais e portarias</h4><ul class="ramais">${[...portarias, ...servicos.map(ramal)].join('')}</ul>` : ''}`;
 }
 
 /** Árvore: Deployment → ReplicaSet → Pods, Service → endpoints, e o que mais existir no namespace default. */

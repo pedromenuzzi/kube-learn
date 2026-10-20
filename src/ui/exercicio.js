@@ -12,7 +12,7 @@ import { ler, gravar, CHAVES, registrarResultado, registrarDia } from '../armaze
 import { hojeLocal } from '../jogo/gamificacao.js';
 import { criarTerminal } from './terminal.js';
 import { criarEditor } from './editor.js';
-import { htmlCluster, htmlRecursos, htmlEventos } from './paineis.js';
+import { htmlCluster, htmlRecursos, htmlEventos, htmlLegendaMapa } from './paineis.js';
 import { ativarAbas, htmlAbas, escapar } from './util.js';
 import { montarJanelas } from './janelas.js';
 
@@ -122,6 +122,12 @@ export function montarExercicio(raiz, item) {
   }
   const abasLado = ativarAbas(corpos.missao.corpo);
   const abasBaixo = ativarAbas(corpos.paineis.corpo, () => atualizarPaineis());
+  $('#baixo-cluster').innerHTML = `${htmlLegendaMapa(false)}<div class="mapa-conteudo"></div>`;
+  $('#baixo-cluster').addEventListener('change', (e) => {
+    if (e.target.name !== 'sistema') return;
+    estado.verSistema = e.target.checked;
+    atualizarPaineis();
+  });
 
   // ---------- arquivos e editor ----------
   let editor = null;
@@ -231,7 +237,7 @@ export function montarExercicio(raiz, item) {
   // ---------- painéis ----------
   const atualizarPaineis = () => {
     const visivel = (id) => !$(`#baixo-${id}`).hidden;
-    if (visivel('cluster')) $('#baixo-cluster').innerHTML = htmlCluster(estado.cluster);
+    if (visivel('cluster')) $('#baixo-cluster .mapa-conteudo').innerHTML = htmlCluster(estado.cluster, { sistema: estado.verSistema });
     if (visivel('recursos')) $('#baixo-recursos').innerHTML = htmlRecursos(estado.cluster);
     if (visivel('eventos')) $('#baixo-eventos').innerHTML = htmlEventos(estado.cluster);
     const seg = Math.floor((estado.cluster.agora - Date.UTC(2026, 9, 16, 12)) / 1000);
@@ -266,7 +272,7 @@ export function montarExercicio(raiz, item) {
         const resolvido = ok === total;
         registrarResultado(item.id, resolvido);
         aviso.textContent = resolvido
-          ? `🎉 Missão cumprida! +${XP[item.dificuldade] ?? 0} XP. A janela da missão acendeu no prédio.`
+          ? `🎉 Missão cumprida! +${XP[item.dificuldade] ?? 0} XP. Mais um contêiner embarcado no seu navio.`
           : `${ok} de ${total} testes passaram. Veja o que faltou na aba 🧪 Testes.`;
       } else {
         aviso.textContent = `Testes visíveis: ${ok} de ${total} passaram${ok === total ? ' ✅ Agora é com o ⬆ Entregar.' : '. Veja a aba 🧪 Testes.'}`;

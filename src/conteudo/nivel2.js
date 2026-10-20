@@ -55,7 +55,7 @@ export const NIVEL2 = [
     vidaReal: 'Um contrato que diz "sempre 3 apartamentos ocupados pela equipe de suporte": se um esvazia, a administração ocupa outro.',
     limite: 'O contrato confere só a etiqueta da porta (as labels): um apartamento estranho com a mesma etiqueta conta como "da equipe".',
     conteudo: `
-      <p>Um pod solto (como os do andar de baixo) <b>não volta</b> se for apagado ou se o node dele cair: ninguém pediu
+      <p>Um pod solto (como os do nível anterior) <b>não volta</b> se for apagado ou se o node dele cair: ninguém pediu
          para ele existir de novo. Para isso existe o <b>ReplicaSet</b>: um contrato que diz "quero sempre N pods iguais".</p>
       <p>Ele tem três partes no <code>spec</code>:</p>
       <ul>

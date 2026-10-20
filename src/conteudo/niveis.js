@@ -1,5 +1,5 @@
-// Os 12 níveis da trilha. Cada nível é um andar do prédio: o térreo é o nível 0 e o arranha-céu fica pronto
-// no 11. Nível sem itens ainda aparece "em obra" e não segura o desbloqueio do seguinte.
+// Os 12 níveis da trilha. Cada item resolvido embarca um contêiner no navio, com a cor do nível; com os 12
+// lacrados, o navio está carregado. Nível sem itens ainda aparece "em breve" e não segura o desbloqueio do seguinte.
 import { NIVEL0 } from './nivel0.js';
 import { NIVEL1 } from './nivel1.js';
 import { NIVEL2 } from './nivel2.js';
@@ -19,7 +19,7 @@ export const NIVEIS = [
   nivel(8, '🔐', 'Segurança', 'Crachás (RBAC) e catracas (NetworkPolicy).'),
   nivel(9, '🚒', 'Troubleshooting', 'Incidentes de verdade num cluster quebrado.'),
   nivel(10, '📦', 'Helm, Kustomize e GitOps', 'O projeto padrão da construtora.'),
-  nivel(11, '🏙️', 'Projetos finais', 'Tudo junto: o arranha-céu fica pronto.'),
+  nivel(11, '⚓', 'Projetos finais', 'Tudo junto: o navio zarpa carregado.'),
 ];
 
 for (const n of NIVEIS) for (const i of n.itens) i.nivel = n.numero;

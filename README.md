@@ -2,14 +2,16 @@
 
 Trilha gamificada para aprender **Kubernetes** no navegador. O cluster é **simulado**: você escreve YAML, usa o
 `kubectl` num terminal e vê os pods nascerem, quebrarem e se recuperarem, sem conta na nuvem, sem instalar nada e
-sem custo. Cada conceito vem com uma **comparação com a vida real** (e onde ela deixa de valer), e cada nível
-concluído ergue mais um andar do seu prédio em pixel art, até virar arranha-céu.
+sem custo. Cada conceito vem com uma **comparação com a vida real** (e onde ela deixa de valer), e cada
+missão resolvida embarca mais um contêiner no seu navio em pixel art, e a pilha só sobe.
 
 **Acesse:** https://pedromenuzzi.github.io/kube-learn/
 
-**Versão 0.1:** os níveis 0 a 3 (contêineres; cluster, kubectl e Pods; Deployments; Services, Ingress e Gateway
-API), com 13 lições, 8 quizzes e 56 missões, um glossário de 63 termos e o prédio em pixel art. O plano completo
-está em [`PLANO.md`](PLANO.md).
+**Versão 0.2:** os níveis 0 a 3 (contêineres; cluster, kubectl e Pods; Deployments; Services, Ingress e Gateway
+API), com 13 lições, 8 quizzes e 56 missões, um glossário de 63 termos e o navio em pixel art. Agora com a
+**revisão do dia** (cartões do glossário em repetição espaçada), um **lacre** por nível concluído, o
+**certificado final**, o mapa do cluster desenhado como prédios e uma página de privacidade para baixar ou apagar
+seus dados. O plano completo está em [`PLANO.md`](PLANO.md).
 
 ## Desenvolvimento
 

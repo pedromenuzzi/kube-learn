@@ -1,4 +1,4 @@
-// Todos os itens da trilha, na ordem dos níveis (andares).
+// Todos os itens da trilha, na ordem dos níveis.
 import { NIVEIS } from './niveis.js';
 
 export { NIVEIS };

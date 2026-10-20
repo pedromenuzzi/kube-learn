@@ -1,4 +1,4 @@
-// Nível 0 (térreo): contêineres, antes do Kubernetes. Só lições e quizzes, sem cluster.
+// Nível 0: contêineres, antes do Kubernetes. Só lições e quizzes, sem cluster.
 import { licao, quiz } from './util.js';
 
 export const NIVEL0 = [
@@ -108,7 +108,7 @@ registry   repositório    tag</code></pre>
       <p>Você não manda o Kubernetes "subir um contêiner". Você <b>declara</b>: "quero 3 cópias da loja na versão 1.1". O
          Kubernetes compara o que você quer com o que existe e age para os dois ficarem iguais. E fica comparando para sempre.
          Essa ideia (desejado × real, corrige a diferença) aparece em <b>todo</b> o resto da trilha.</p>
-      <p>No próximo andar você conhece o condomínio por dentro: a administração, os prédios e os apartamentos.</p>`,
+      <p>No próximo nível você conhece o condomínio por dentro: a administração, os prédios e os apartamentos.</p>`,
   }),
 
   quiz({

@@ -10,7 +10,37 @@ export const CHAVES = {
   dias: 'dias', // ['AAAA-MM-DD', ...]: os dias em que o aluno estudou (para a sequência 🔥)
   janelas: 'janelas', // a arrumação das janelas da tela do exercício
   preferencias: 'preferencias', // { tema, texto, movimento }
+  revisao: 'revisao', // { [idDoTermo]: { caixa, proxima } }: os cartões da revisão do dia
+  nome: 'nome', // o nome que vai no certificado (só se você escrever)
 };
+
+/** O que cada chave guarda, em português (a página de privacidade mostra esta lista). */
+export const DESCRICOES = {
+  progresso: 'Quais missões você resolveu ou tentou, e quando.',
+  'arquivos:': 'Os arquivos que você escreveu em cada missão.',
+  dias: 'Os dias em que você estudou (para a sequência 🔥).',
+  janelas: 'Onde você deixou as janelas da tela do exercício.',
+  preferencias: 'Tema, tamanho do texto e reduzir movimento.',
+  revisao: 'Em que caixa está cada cartão da revisão e quando ele volta.',
+  nome: 'O nome que você escreveu para o certificado.',
+};
+
+/** Todas as chaves do site neste navegador. */
+export function todasAsChaves() {
+  try {
+    return Object.keys(localStorage).filter((k) => k.startsWith(PREFIXO));
+  } catch {
+    return [];
+  }
+}
+
+export function exportarTudo() {
+  return Object.fromEntries(todasAsChaves().map((k) => [k.slice(PREFIXO.length), ler(k.slice(PREFIXO.length))]));
+}
+
+export function apagarTudo() {
+  for (const k of todasAsChaves()) apagar(k.slice(PREFIXO.length));
+}
 
 /** Marca hoje como dia de estudo (para a sequência de dias). */
 export function registrarDia(hoje) {

@@ -24,7 +24,7 @@ export function montarLeitura(raiz, item) {
   const jaFeito = ler(CHAVES.progresso, {})[item.id]?.status === 'resolvido';
   raiz.innerHTML = `
     <article class="leitura">
-      <p><a href="#/trilha">← Prédio</a></p>
+      <p><a href="#/trilha">← Trilha</a></p>
       <header class="ex-topo">
         <h1>${escapar(item.titulo)}</h1>
         <span class="selo">${item.tipo === 'quiz' ? 'Quiz' : 'Lição'} · ${XP[item.tipo]} XP</span>
@@ -65,7 +65,7 @@ export function montarLeitura(raiz, item) {
     e.target.textContent = '✅ Lida';
     e.target.disabled = true;
     retorno.className = 'quiz-retorno ok';
-    retorno.innerHTML = `<p><b>+${XP.licao} XP.</b> Uma janela a mais acesa no prédio.</p>`;
+    retorno.innerHTML = `<p><b>+${XP.licao} XP.</b> Mais um contêiner embarcado.</p>`;
   });
   return {};
 }
