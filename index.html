@@ -5,32 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>kube-learn: aprenda Kubernetes contêiner por contêiner</title>
     <meta name="description" content="Trilha gamificada de Kubernetes no navegador: cluster simulado, kubectl de verdade e comparações com a vida real. Sem conta na nuvem e sem custo." />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚢</text></svg>" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 11' shape-rendering='crispEdges'><rect x='2' y='2' width='3' height='5' fill='%23f1f1f1'/><rect x='3' y='0' width='1.5' height='2' fill='%23326ce5'/><rect x='6' y='5' width='8' height='2' fill='%23e67e22'/><rect x='7' y='3' width='6' height='2' fill='%2327ae60'/><rect x='0' y='7' width='16' height='2' fill='%231d3557'/><rect x='1' y='9' width='14' height='2' fill='%23b23a48'/></svg>" />
+    <meta name="theme-color" content="#0f1b2d" />
     <link rel="stylesheet" href="./src/estilo.css" />
   </head>
   <body>
     <a class="pular" href="#conteudo">Pular para o conteúdo</a>
-    <header class="topo">
-      <a class="marca pixel" href="#/">🚢 kube-learn</a>
-      <nav aria-label="Principal">
-        <ul>
-          <li><a href="#/trilha">Trilha</a></li>
-          <li><a href="#/livre">Playground</a></li>
-          <li><a href="#/glossario">Glossário</a></li>
-          <li><a href="#/revisao">Revisão</a></li>
-          <li><button type="button" id="botao-preferencias" class="mini" aria-haspopup="dialog">Aa Acessibilidade</button></li>
-        </ul>
-      </nav>
-    </header>
+    <header class="topo"></header>
     <main id="conteudo" tabindex="-1"></main>
     <footer class="rodape">
-      <p>
-        Código <a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL-3.0</a> · conteúdo
-        <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.pt-br">CC BY-SA 4.0</a> ·
-        <a href="https://github.com/pedromenuzzi/kube-learn">GitHub</a> ·
-        <a href="#/privacidade">Privacidade</a>
-      </p>
-      <p>Kubernetes é marca da The Linux Foundation. Projeto independente, sem afiliação com a CNCF.</p>
+      <div class="rodape-dentro">
+        <p class="rodape-marca"><b>kube-learn</b> · Kubernetes contêiner por contêiner, no seu navegador.</p>
+        <p class="rodape-links">
+          <a href="https://github.com/pedromenuzzi/kube-learn">GitHub</a>
+          <a href="#/privacidade">Privacidade</a>
+          <a href="https://www.gnu.org/licenses/agpl-3.0.html">Código AGPL-3.0</a>
+          <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.pt-br">Conteúdo CC BY-SA 4.0</a>
+        </p>
+        <p class="rodape-nota">Kubernetes é marca da The Linux Foundation. Projeto independente, sem afiliação com a CNCF.</p>
+      </div>
     </footer>
     <script type="module" src="./src/main.js"></script>
   </body>

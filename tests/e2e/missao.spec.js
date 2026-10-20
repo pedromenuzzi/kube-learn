@@ -10,16 +10,16 @@ test('missão de YAML: copia a solução, aplica, passa nos visíveis e entrega'
   await expect(page.getByRole('heading', { name: 'Atualizar sem derrubar ninguém' })).toBeVisible();
   await expect(page.locator('.cm-content')).toContainText('kubelearn/loja:1.0');
 
-  await page.getByRole('tab', { name: '💡 Solução' }).click();
+  await page.getByRole('tab', { name: 'Solução' }).click();
   await page.getByRole('button', { name: 'Ver a solução' }).click();
   await page.getByRole('button', { name: 'Copiar para o editor' }).click();
   await expect(page.locator('.cm-content')).toContainText('maxUnavailable: 0');
 
-  await page.getByRole('button', { name: '▶ Aplicar' }).click();
+  await page.getByRole('button', { name: 'Aplicar' }).click();
   await expect(page.locator('.term-saida')).toContainText('deployment.apps/loja configured');
   await expect(page.locator('.ex-aviso')).toContainText('Testes visíveis: 1 de 1 passaram');
 
-  await page.getByRole('button', { name: '⬆ Entregar' }).click();
+  await page.getByRole('button', { name: 'Entregar' }).click();
   await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
   await expect(page.locator('#lado-testes')).toContainText('2 de 2 testes passou');
 
@@ -38,8 +38,8 @@ test('missão de terminal: escala pelo kubectl e entrega', async ({ page }) => {
   await entrada.fill('kubectl scale deployment loja --replicas=5');
   await entrada.press('Enter');
   await expect(page.locator('.term-saida')).toContainText('deployment.apps/loja scaled');
-  await page.getByRole('button', { name: '⏩ +30s' }).click();
-  await page.getByRole('button', { name: '⬆ Entregar' }).click();
+  await page.getByRole('button', { name: '+30s' }).click();
+  await page.getByRole('button', { name: 'Entregar' }).click();
   await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
 });
 
@@ -58,7 +58,7 @@ test('terminal: erro com a caixa "Na vida real", Tab completa e painel do cluste
   await entrada.press('Enter');
   await expect(page.locator('.term-saida')).toContainText('deployment.apps/nginx created');
 
-  await page.getByRole('tab', { name: '🗺️ Mapa' }).click();
+  await page.getByRole('tab', { name: 'Mapa' }).click();
   await expect(page.locator('.mapa .pod-ok')).toHaveCount(2, { timeout: 15_000 });
 });
 
@@ -69,7 +69,7 @@ test('nível 1: ler o log, guardar a resposta e conferir', async ({ page }) => {
   await entrada.press('Enter');
   await expect(page.locator('.term-saida')).toContainText('a senha do Wi-Fi da obra é: tijolo-azul-42');
   await page.getByLabel('A senha').fill('tijolo-azul-42');
-  await page.getByRole('button', { name: '✔ Conferir' }).click();
+  await page.getByRole('button', { name: 'Conferir' }).click();
   await expect(page.locator('#lado-testes')).toContainText('1 de 1 teste passou');
 });
 
@@ -83,7 +83,7 @@ test('nível 1: o > grava a saída do kubectl num arquivo do editor', async ({ p
   await entrada.fill('kubectl apply -f rascunho.yaml');
   await entrada.press('Enter');
   await expect(page.locator('.term-saida')).toContainText('pod/rascunho created');
-  await page.getByRole('button', { name: '⬆ Entregar' }).click();
+  await page.getByRole('button', { name: 'Entregar' }).click();
   await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
 });
 
@@ -93,7 +93,7 @@ test('nível 3: o curl do seu computador chega pela entrada do Ingress', async (
   await entrada.fill('curl http://praca.kube-learn.local/');
   await entrada.press('Enter');
   await expect(page.locator('.term-erro')).toContainText('Could not resolve host: praca.kube-learn.local');
-  await page.getByRole('button', { name: '▶ Aplicar' }).click();
+  await page.getByRole('button', { name: 'Aplicar' }).click();
   await expect(page.locator('.term-saida')).toContainText('ingress.networking.k8s.io/praca created');
   await entrada.fill('curl -s http://praca.kube-learn.local/');
   await entrada.press('Enter');
@@ -101,14 +101,14 @@ test('nível 3: o curl do seu computador chega pela entrada do Ingress', async (
   await entrada.fill('curl http://loja');
   await entrada.press('Enter');
   await expect(page.locator('.term-erro').last()).toContainText('Could not resolve host: loja');
-  await page.getByRole('tab', { name: '💡 Solução' }).click();
+  await page.getByRole('tab', { name: 'Solução' }).click();
   await page.getByRole('button', { name: 'Ver a solução' }).click();
   await page.getByRole('button', { name: 'Copiar para o editor' }).click();
-  await page.getByRole('button', { name: '▶ Aplicar' }).click();
+  await page.getByRole('button', { name: 'Aplicar' }).click();
   await expect(page.locator('.term-saida')).toContainText('ingress.networking.k8s.io/praca configured');
   await entrada.fill('curl -s http://praca.kube-learn.local/api');
   await entrada.press('Enter');
   await expect(page.locator('.term-saida')).toContainText('"app":"loja"');
-  await page.getByRole('button', { name: '⬆ Entregar' }).click();
+  await page.getByRole('button', { name: 'Entregar' }).click();
   await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
 });

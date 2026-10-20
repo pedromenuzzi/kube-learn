@@ -11,6 +11,8 @@ for (const tema of TEMAS) {
     for (const url of PAGINAS) {
       await page.goto(url);
       await page.waitForSelector('main#conteudo > *');
+      // O contraste é medido depois do fade de entrada da página.
+      await page.waitForFunction(() => document.getAnimations().every((x) => x.playState !== 'running'));
       if (url.includes('deploy-') || url.includes('livre') || url.includes('n3-')) await page.waitForSelector('.cm-content');
       // .cm-scroller fica de fora: o editor é alcançado pelo teclado pela caixa de texto dele (contenteditable),
       // que rola junto com o cursor; o axe não reconhece isso como conteúdo focável.
@@ -25,7 +27,7 @@ test('nível 0: lição lida e quiz certo contam na trilha', async ({ page }) =>
   await page.goto('#/trilha');
   await expect(page.locator('#nivel-2')).toContainText('Bloqueado');
   await page.locator('#nivel-0').getByRole('link', { name: /Funciona na minha máquina/ }).click();
-  await page.getByRole('button', { name: '✅ Marquei como lida' }).click();
+  await page.getByRole('button', { name: 'Marquei como lida' }).click();
   await expect(page.getByRole('status')).toContainText('+5 XP');
   await page.goto('#/ex/n0-quiz-latest');
   await page.getByLabel(/a versão mais nova publicada/).check();
@@ -56,15 +58,15 @@ test('resolver uma missão embarca um contêiner: o nível mostra o progresso e 
   await expect(page.locator('#nivel-2')).toContainText('0 de 12 missões');
   await expect(page.locator('#nivel-11')).toContainText('Em breve');
   await page.locator('#nivel-2').getByRole('link', { name: /Atualizar sem derrubar ninguém/ }).click();
-  await page.getByRole('tab', { name: '💡 Solução' }).click();
+  await page.getByRole('tab', { name: 'Solução' }).click();
   await page.getByRole('button', { name: 'Ver a solução' }).click();
   await page.getByRole('button', { name: 'Copiar para o editor' }).click();
-  await page.getByRole('button', { name: '⬆ Entregar' }).click();
+  await page.getByRole('button', { name: 'Entregar' }).click();
   await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
-  await page.getByRole('link', { name: '← Trilha' }).click();
+  await page.getByRole('link', { name: 'Voltar à Trilha' }).click();
   await expect(page.locator('#nivel-2')).toContainText('1 de 12 missões (8%)');
 
-  await expect(page.locator('.placar')).toContainText('🔥 Dias seguidos');
+  await expect(page.locator('.placar')).toContainText('Dias seguidos');
   await expect(page.locator('#nivel-2').getByRole('link', { name: /resolvida/ })).toHaveCount(1);
   await expect(page.locator('canvas.navio')).toBeVisible();
 });
@@ -80,7 +82,7 @@ test('glossário: a busca filtra (sem precisar de acento)', async ({ page }) => 
 
 test('preferências: tema e tamanho do texto ficam salvos', async ({ page }) => {
   await page.goto('#/');
-  await page.getByRole('button', { name: 'Aa Acessibilidade' }).click();
+  await page.getByRole('button', { name: 'Acessibilidade' }).click();
   await page.getByLabel('Alto contraste').check();
   await page.getByLabel('Tamanho do texto').selectOption('125');
   await page.getByRole('button', { name: 'Fechar' }).click();
