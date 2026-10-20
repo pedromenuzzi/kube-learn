@@ -1,0 +1,198 @@
+// Os testes dos exercícios. Cada teste monta um cluster novo (ou usa o do aluno, nos exercícios de terminal),
+// roda os passos e confere as regras. Cada regra é um objeto com uma das chaves abaixo (e `msg` opcional):
+//
+//   { semErros: true }                                 todos os comandos do teste deram certo
+//   { erro: 'texto' }                                  algum comando falhou com esse texto
+//   { objeto: 'deployment/loja', ns, campo: 'spec.replicas', igual | contem | regex | existe }
+//   { pods: 'app=loja', ns, quantidade, prontos, fase, imagem, node, reinicios: { max } }
+//   { status: 'pod/x' | 'app=x', motivo: 'CrashLoopBackOff' }   motivo atual (ou o último término)
+//   { endpoints: 'svc/loja', quantidade }              quantos pods prontos atrás do Service
+//   { requisicao: { url, de: 'pod/x', status: 200 | 'recusada' | 'timeout' | 'dns', corpo: 'regex' } }
+//   { rollout: 'deployment/loja', minDisponivel: 3 }   nunca ficou com menos pods prontos durante o teste
+//   { evento: { motivo, objeto } }                     aconteceu um evento com esse motivo
+//   { env: { pods: 'app=x', nome, igual } }            a variável de ambiente dentro do contêiner
+//   { comando: 'regex' }                               o aluno usou esse comando no terminal
+//   { resposta: 'texto' | /regex/ }                    a resposta que o aluno digitou
+//
+// Passos (`passos`): { comando: 'kubectl ...' } e { avancar: '30s' }.
+// Sem `passos`: kubectl apply -f . e 1 minuto de relógio.
+import { montarCluster } from './conteudo/clusters.js';
+import { kubectl, seletorDeLabels } from './k8s/kubectl/index.js';
+import { acharRecurso, pluralQualificado } from './k8s/recursos.js';
+import { estaPronto, http } from './k8s/rede.js';
+import { resumoPod } from './k8s/kubectl/tabelas.js';
+import { canonico } from './k8s/aleatorio.js';
+import { parseDuracao } from './k8s/unidades.js';
+
+const PASSOS_PADRAO = [{ comando: 'kubectl apply -f .' }, { avancar: '1m' }];
+const mostrar = (v) => (v === undefined ? 'nada' : JSON.stringify(v));
+
+/** Lê um caminho como 'spec.template.spec.containers[0].image'. */
+export function ler(obj, caminho) {
+  return caminho.replace(/\[(\d+)\]/g, '.$1').split('.').reduce((v, k) => (v === undefined || v === null ? undefined : v[k]), obj);
+}
+
+function separar(alvo, padrao = 'pod') {
+  const [tipo, nome] = alvo.includes('/') ? alvo.split('/') : [padrao, alvo];
+  return { recurso: acharRecurso(tipo), nome };
+}
+
+const podsDo = (c, seletor, ns = 'default') => {
+  const casa = seletorDeLabels(seletor);
+  return c.listar('Pod', ns).filter((p) => !p.metadata.deletionTimestamp && casa(p.metadata.labels));
+};
+
+function comparar(valor, regra, rotulo) {
+  if ('igual' in regra) return [canonico(valor) === canonico(regra.igual), `${rotulo} = ${mostrar(regra.igual)}`, `veio ${mostrar(valor)}`];
+  if ('contem' in regra) {
+    const ok = Array.isArray(valor) ? valor.includes(regra.contem) : String(valor ?? '').includes(regra.contem);
+    return [ok, `${rotulo} contém ${mostrar(regra.contem)}`, `veio ${mostrar(valor)}`];
+  }
+  if ('regex' in regra) return [new RegExp(regra.regex).test(String(valor ?? '')), `${rotulo} combina com /${regra.regex}/`, `veio ${mostrar(valor)}`];
+  const deveExistir = regra.existe ?? true;
+  return [(valor !== undefined) === deveExistir, `${rotulo} ${deveExistir ? 'existe' : 'não existe'}`, `veio ${mostrar(valor)}`];
+}
+
+const REGRAS = {
+  semErros(r, ctx) {
+    const falhou = ctx.resultados.find((x) => x.codigo !== 0);
+    return [!falhou, 'os comandos rodaram sem erro', falhou ? falhou.saida.trim().split('\n')[0] : ''];
+  },
+  erro(r, ctx) {
+    const ok = ctx.resultados.some((x) => x.codigo !== 0 && x.saida.includes(r.erro));
+    return [ok, `o comando falha com "${r.erro}"`, 'nenhum comando falhou com esse texto'];
+  },
+  objeto(r, ctx) {
+    const { recurso, nome } = separar(r.objeto);
+    const obj = recurso && ctx.cluster.obter(recurso.kind, recurso.namespaced ? r.ns ?? 'default' : null, nome);
+    if (!obj) return [false, `${r.objeto}${r.campo ? `: ${r.campo}` : ''} existe`, `${pluralQualificado(recurso ?? { plural: r.objeto, grupo: '' })} "${nome}" não existe`];
+    if (!r.campo) return [true, `${r.objeto} existe`];
+    return comparar(ler(obj, r.campo), r, `${r.objeto}: ${r.campo}`);
+  },
+  pods(r, ctx) {
+    const lista = podsDo(ctx.cluster, r.pods, r.ns);
+    const prontos = lista.filter(estaPronto);
+    const partes = [];
+    let ok = true;
+    let detalhe = '';
+    const conferir = (cond, texto, d) => {
+      partes.push(texto);
+      if (!cond && ok) {
+        ok = false;
+        detalhe = d;
+      }
+    };
+    if (r.quantidade !== undefined) conferir(lista.length === r.quantidade, `${r.quantidade} pods`, `há ${lista.length}`);
+    if (r.prontos !== undefined) conferir(prontos.length === r.prontos, `${r.prontos} prontos`, `${prontos.length} prontos de ${lista.length}`);
+    if (r.fase) conferir(lista.length > 0 && lista.every((p) => p.status?.phase === r.fase), `fase ${r.fase}`, lista.map((p) => `${p.metadata.name}: ${p.status?.phase}`).join(', ') || 'nenhum pod');
+    if (r.imagem) {
+      const outras = lista.filter((p) => p.spec.containers[0].image !== r.imagem);
+      conferir(lista.length > 0 && !outras.length, `com a imagem ${r.imagem}`, outras.length ? `${outras[0].metadata.name} usa ${outras[0].spec.containers[0].image}` : 'nenhum pod');
+    }
+    if (r.node) conferir(lista.length > 0 && lista.every((p) => p.spec.nodeName === r.node), `no node ${r.node}`, lista.map((p) => `${p.metadata.name}: ${p.spec.nodeName ?? 'sem node'}`).join(', '));
+    if (r.reinicios?.max !== undefined) {
+      const muito = lista.find((p) => (p.status?.containerStatuses ?? []).some((s) => s.restartCount > r.reinicios.max));
+      conferir(!muito, `até ${r.reinicios.max} reinícios`, muito ? `${muito.metadata.name} reiniciou mais` : '');
+    }
+    return [ok, `pods ${r.pods}: ${partes.join(', ')}`, detalhe];
+  },
+  status(r, ctx) {
+    const lista = r.status.includes('=') ? podsDo(ctx.cluster, r.status, r.ns) : [ctx.cluster.obter('Pod', r.ns ?? 'default', separar(r.status).nome)].filter(Boolean);
+    const motivos = lista.map((p) => resumoPod(p, ctx.cluster.agora).status);
+    const ultimos = lista.flatMap((p) => (p.status?.containerStatuses ?? []).map((s) => s.lastState?.terminated?.reason)).filter(Boolean);
+    return [motivos.includes(r.motivo) || ultimos.includes(r.motivo), `${r.status} mostra ${r.motivo}`, motivos.length ? `está ${motivos.join(', ')}` : 'pod não encontrado'];
+  },
+  endpoints(r, ctx) {
+    const { nome } = separar(r.endpoints, 'svc');
+    const ep = ctx.cluster.obter('Endpoints', r.ns ?? 'default', nome);
+    const n = (ep?.subsets ?? []).reduce((s, x) => s + (x.addresses?.length ?? 0), 0);
+    return [n === r.quantidade, `o Service ${nome} tem ${r.quantidade} pods prontos atrás dele`, `tem ${n}`];
+  },
+  requisicao(r, ctx) {
+    const q = r.requisicao;
+    const origem = q.de ? ctx.cluster.obter('Pod', q.ns ?? 'default', separar(q.de).nome) : null;
+    const m = q.url.match(/^(?:https?:\/\/)?([^/:]+)(?::(\d+))?(\/.*)?$/);
+    const res = http(ctx.cluster, origem, { host: m[1], porta: Number(m[2] ?? 80), caminho: m[3] ?? '/' });
+    const obtido = res.erro ?? res.status;
+    let ok = obtido === (q.status ?? 200);
+    if (ok && q.corpo) ok = new RegExp(q.corpo).test(res.corpo);
+    return [ok, `${q.url} responde ${q.status ?? 200}${q.corpo ? ` com /${q.corpo}/` : ''}`, `veio ${obtido}`];
+  },
+  rollout(r, ctx) {
+    const { nome } = separar(r.rollout, 'deployment');
+    const min = ctx.minimos.get(nome);
+    return [min !== undefined && min >= r.minDisponivel, `deployment/${nome} nunca ficou com menos de ${r.minDisponivel} pods prontos`, `chegou a ${min ?? '?'}`];
+  },
+  evento(r, ctx) {
+    const ok = ctx.cluster.eventos.some((e) => e.reason === r.evento.motivo && (!r.evento.objeto || `${e.involvedObject.kind.toLowerCase()}/${e.involvedObject.name}` === r.evento.objeto));
+    return [ok, `aconteceu um evento ${r.evento.motivo}`, 'não aconteceu'];
+  },
+  env(r, ctx) {
+    const q = r.env;
+    const lista = podsDo(ctx.cluster, q.pods, q.ns).filter(estaPronto);
+    const valores = lista.map((p) => ctx.cluster.kubelet.estado(p, p.spec.containers[0].name)?.env?.[q.nome]);
+    return [lista.length > 0 && valores.every((v) => v === q.igual), `${q.nome}=${q.igual} dentro dos pods ${q.pods}`, lista.length ? `veio ${mostrar(valores[0])}` : 'nenhum pod pronto'];
+  },
+  comando(r, ctx) {
+    const re = new RegExp(r.comando);
+    return [ctx.historico.some((l) => re.test(l.trim())), `você usou um comando que combina com /${r.comando}/`, 'nenhum comando parecido no histórico'];
+  },
+  resposta(r, ctx) {
+    const dada = String(ctx.resposta ?? '').trim();
+    const ok = r.resposta instanceof RegExp ? r.resposta.test(dada) : dada.toLowerCase() === String(r.resposta).toLowerCase();
+    return [ok, 'a resposta está certa', dada ? 'não é essa' : 'você ainda não respondeu'];
+  },
+};
+
+export const TIPOS_DE_REGRA = Object.keys(REGRAS);
+
+/** Confere uma regra. → { ok, mensagem, detalhe } */
+export function conferir(regra, ctx) {
+  const tipo = TIPOS_DE_REGRA.find((t) => t in regra);
+  if (!tipo) throw new Error(`regra desconhecida: ${JSON.stringify(regra)}`);
+  const [ok, mensagem, detalhe] = REGRAS[tipo](regra, ctx);
+  return { ok, mensagem: regra.msg ?? mensagem, detalhe: ok ? '' : detalhe };
+}
+
+/** Pods prontos de cada Deployment agora (para a regra rollout). */
+function amostrar(cluster, minimos) {
+  for (const d of cluster.listar('Deployment', 'default')) {
+    const n = podsDo(cluster, Object.entries(d.spec.selector.matchLabels ?? {}).map(([k, v]) => `${k}=${v}`).join(',')).filter(estaPronto).length;
+    minimos.set(d.metadata.name, Math.min(minimos.get(d.metadata.name) ?? Infinity, n));
+  }
+}
+
+/**
+ * Roda um teste. ctx: { arquivos, historico, resposta, clusterDoAluno }.
+ * → { descricao, oculto, ok, regras: [{ ok, mensagem, detalhe }] }
+ */
+export function rodarTeste(item, teste, indice, { arquivos = {}, historico = [], resposta, clusterDoAluno } = {}) {
+  const ctx = { resultados: [], historico, resposta, minimos: new Map() };
+  if (teste.noClusterDoAluno) {
+    ctx.cluster = clusterDoAluno;
+  } else {
+    ctx.cluster = montarCluster(item.cluster, `${item.id}#${indice}`);
+    for (const passo of teste.passos ?? PASSOS_PADRAO) {
+      if (passo.comando) {
+        ctx.resultados.push(kubectl(ctx.cluster, passo.comando, { arquivos }));
+        amostrar(ctx.cluster, ctx.minimos);
+      } else if (passo.avancar) {
+        const fim = ctx.cluster.agora + parseDuracao(passo.avancar);
+        while (ctx.cluster.agora < fim) {
+          ctx.cluster.avancar(1000);
+          amostrar(ctx.cluster, ctx.minimos);
+        }
+      }
+    }
+  }
+  const regras = ctx.cluster ? teste.regras.map((r) => conferir(r, ctx)) : [{ ok: false, mensagem: 'o cluster do terminal', detalhe: 'abra o exercício e use o terminal' }];
+  return { descricao: teste.descricao, oculto: !!teste.oculto, ok: regras.every((r) => r.ok), regras };
+}
+
+/** Roda os testes do item (os ocultos só com `todos`). */
+export function rodarTestes(item, opcoes = {}, { todos = false } = {}) {
+  return item.testes
+    .map((t, i) => [t, i])
+    .filter(([t]) => todos || !t.oculto)
+    .map(([t, i]) => rodarTeste(item, t, i, opcoes));
+}

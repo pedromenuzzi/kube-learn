@@ -21,3 +21,15 @@ jobs:
       - run: npm run lint -- --max-warnings 0
       - run: npm test
       - run: npm run build
+
+  e2e:
+    needs: qualidade
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
+    steps:
+      - uses: actions/checkout@v7
+      - run: npm ci
+      - run: npx playwright test --reporter=line
+        env:
+          CI: '1'
+          HOME: /root
