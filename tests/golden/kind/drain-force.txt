@@ -1,0 +1,6 @@
+node/golden-worker already cordoned
+Warning: deleting Pods that declare no controller: default/avulso
+evicting pod default/avulso
+pod/avulso evicted
+node/golden-worker drained
+exit=0

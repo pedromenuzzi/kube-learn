@@ -1,0 +1,4 @@
+node/golden-worker already cordoned
+Warning: ignoring DaemonSet-managed Pods: kube-system/kube-proxy-tll9s
+node/golden-worker drained
+exit=0

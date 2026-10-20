@@ -1,0 +1,2 @@
+node/golden-worker cordoned
+exit=0

@@ -826,3 +826,240 @@ kc rollout status deploy/php --timeout=120s >/dev/null 2>&1
 sleep 60
 cap get-hpa kc get hpa
 cap describe-hpa-sem-requests kc describe hpa sem-requests
+
+# ---------- Fase 7 · nível 7: nodeSelector, anti-afinidade, espalhamento, taints, cordon, drain, PDB, prioridade e node caindo ----------
+cat > /tmp/kl-agenda.yaml <<'Y'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gerador
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gerador
+  template:
+    metadata:
+      labels:
+        app: gerador
+    spec:
+      nodeSelector:
+        energia: gerador
+      containers:
+      - name: c
+        image: nginx:1.27
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backup
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backup
+  template:
+    metadata:
+      labels:
+        app: backup
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: backup
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - name: c
+        image: nginx:1.27
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: espalha
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: espalha
+  template:
+    metadata:
+      labels:
+        app: espalha
+    spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: espalha
+      containers:
+      - name: c
+        image: nginx:1.27
+Y
+cat > /tmp/kl-restrito.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: restrito
+spec:
+  nodeSelector:
+    dedicado: gpu
+  containers:
+  - name: c
+    image: nginx:1.27
+Y
+cat > /tmp/kl-pdb.yaml <<'Y'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cofre
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: cofre
+  template:
+    metadata:
+      labels:
+        app: cofre
+    spec:
+      containers:
+      - name: c
+        image: nginx:1.27
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cofre
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: cofre
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: avulso
+  labels:
+    solto: "sim"
+spec:
+  containers:
+  - name: c
+    image: nginx:1.27
+Y
+cat > /tmp/kl-prioridade.yaml <<'Y'
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: critico
+value: 1000000
+description: "Pagamentos: passam na frente."
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: urgente
+spec:
+  priorityClassName: critico
+  containers:
+  - name: c
+    image: nginx:1.27
+Y
+cat > /tmp/kl-caiu.yaml <<'Y'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plantao
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: plantao
+  template:
+    metadata:
+      labels:
+        app: plantao
+        caiu: "sim"
+    spec:
+      containers:
+      - name: c
+        image: nginx:1.27
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sozinho
+  labels:
+    caiu: "sim"
+spec:
+  containers:
+  - name: c
+    image: nginx:1.27
+Y
+
+cap label-node kc label node golden-worker energia=gerador
+cap apply-agenda kc apply -f /tmp/kl-agenda.yaml
+kc rollout status deploy/gerador --timeout=120s >/dev/null 2>&1
+sleep 5
+cap get-pods-gerador kc get pods -l app=gerador -o wide
+cap get-pods-backup kc get pods -l app=backup -o wide
+cap describe-backup-pendente kc describe "$(kc get pods -l app=backup --field-selector=status.phase=Pending -o name | head -1)"
+cap get-pods-espalha kc get pods -l app=espalha -o wide
+cap describe-espalha-pendente kc describe "$(kc get pods -l app=espalha --field-selector=status.phase=Pending -o name | head -1)"
+cap taint-node kc taint nodes golden-worker2 dedicado=gpu:NoSchedule
+cap taint-repetido kc taint nodes golden-worker2 dedicado=gpu:NoSchedule
+kc label node golden-worker2 dedicado=gpu >/dev/null 2>&1
+cap apply-restrito kc apply -f /tmp/kl-restrito.yaml
+sleep 3
+cap describe-restrito kc describe pod restrito
+cap describe-node-taint kc describe node golden-worker2
+cap taint-remover kc taint nodes golden-worker2 dedicado=gpu:NoSchedule-
+cap taint-remover-ausente kc taint nodes golden-worker2 dedicado-
+kc wait --for=condition=Ready pod/restrito --timeout=60s >/dev/null 2>&1
+cap get-pod-restrito kc get pod restrito -o wide
+cap cordon kc cordon golden-worker
+cap cordon-de-novo kc cordon golden-worker
+cap get-nodes-cordon kc get nodes
+cap uncordon kc uncordon golden-worker
+cap uncordon-de-novo kc uncordon golden-worker
+kc cordon golden-worker2 >/dev/null 2>&1
+cap apply-pdb kc apply -f /tmp/kl-pdb.yaml
+kc rollout status deploy/cofre --timeout=120s >/dev/null 2>&1
+kc wait --for=condition=Ready pod/avulso --timeout=60s >/dev/null 2>&1
+kc uncordon golden-worker2 >/dev/null 2>&1
+sleep 2
+cap get-pdb kc get pdb
+cap describe-pdb kc describe pdb cofre
+cap yaml-pdb kc get pdb cofre -o yaml
+cap drain-ds kc drain golden-worker --pod-selector=k8s-app=kube-proxy
+cap drain-ds-ok kc drain golden-worker --pod-selector=k8s-app=kube-proxy --ignore-daemonsets
+cap drain-solto kc drain golden-worker --pod-selector=solto=sim --ignore-daemonsets
+cap drain-pdb kc drain golden-worker --pod-selector=app=cofre --ignore-daemonsets --timeout=90s
+cap drain-force kc drain golden-worker --pod-selector=solto=sim --ignore-daemonsets --force
+cap get-nodes-drain kc get nodes
+cap get-pods-cofre kc get pods -l app=cofre -o wide
+cap uncordon-drain kc uncordon golden-worker
+cap apply-prioridade kc apply -f /tmp/kl-prioridade.yaml
+cap get-priorityclass kc get priorityclass
+cap describe-priorityclass kc describe priorityclass critico
+cap prioridade-pod kc get pod urgente -o jsonpath='{.spec.priority} {.spec.preemptionPolicy} {.spec.priorityClassName}'
+cap run-classe-inexistente kc run sem-classe --image=nginx:1.27 --overrides='{"spec":{"priorityClassName":"nao-existe"}}'
+# O prédio cai: o plantão e o sozinho moram no golden-worker2, e o "kubelet" dele para (docker stop).
+kc cordon golden-worker >/dev/null 2>&1
+kc apply -f /tmp/kl-caiu.yaml >/dev/null 2>&1
+kc rollout status deploy/plantao --timeout=120s >/dev/null 2>&1
+kc wait --for=condition=Ready pod/sozinho --timeout=60s >/dev/null 2>&1
+kc uncordon golden-worker >/dev/null 2>&1
+docker stop golden-worker2 >/dev/null
+until kc get node golden-worker2 | grep -q NotReady; do sleep 2; done
+sleep 5
+cap get-nodes-caido kc get nodes
+cap describe-node-caido kc describe node golden-worker2
+cap get-pods-caido-antes kc get pods -l caiu=sim -o wide
+sleep 320
+cap get-pods-caido kc get pods -l caiu=sim -o wide
+cap describe-sozinho-caido kc describe pod sozinho

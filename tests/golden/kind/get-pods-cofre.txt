@@ -1,0 +1,5 @@
+NAME                     READY   STATUS    RESTARTS   AGE   IP           NODE             NOMINATED NODE   READINESS GATES
+cofre-65694879d4-8j4n5   1/1     Running   0          15s   10.244.2.5   golden-worker2   <none>           <none>
+cofre-65694879d4-sh6mx   1/1     Running   0          4s    10.244.2.7   golden-worker2   <none>           <none>
+cofre-65694879d4-wjx78   1/1     Running   0          10s   10.244.2.6   golden-worker2   <none>           <none>
+exit=0

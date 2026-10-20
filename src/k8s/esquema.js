@@ -176,6 +176,54 @@ const toleration = objeto('v1.Toleration', 'Uma tolerância a um taint.', {
   tolerationSeconds: int64('Quanto tempo tolera um taint NoExecute.'),
 });
 
+const exigencia = (go, desc) => objeto(go, desc, {
+  key: texto('A chave da label.', { obrigatorio: true }),
+  operator: texto('In, NotIn, Exists, DoesNotExist, Gt ou Lt.', { obrigatorio: true }),
+  values: lista(texto(''), 'Os valores (para In e NotIn).'),
+});
+const termoDeNode = objeto('v1.NodeSelectorTerm', 'Um termo: todas as regras dele precisam valer.', {
+  matchExpressions: lista(exigencia('v1.NodeSelectorRequirement', 'Uma regra sobre uma label do node.'), 'Regras sobre as labels do node.'),
+  matchFields: lista(exigencia('v1.NodeSelectorRequirement', 'Uma regra sobre um campo do node.'), 'Regras sobre campos do node (só metadata.name).'),
+});
+const termoDePod = objeto('v1.PodAffinityTerm', 'Quais pods procurar (labelSelector) e o que é "perto" (topologyKey).', {
+  labelSelector: { ...labelSelector, desc: 'Os pods que contam (pelas labels).' },
+  namespaces: lista(texto(''), 'Em que namespaces procurar. Padrão: o do próprio pod.'),
+  namespaceSelector: qualquer('Namespaces escolhidos pelas labels.'),
+  topologyKey: texto('A label do node que define a vizinhança: kubernetes.io/hostname (o mesmo node) ou topology.kubernetes.io/zone (a mesma zona).', { obrigatorio: true }),
+  matchLabelKeys: lista(texto(''), ''),
+  mismatchLabelKeys: lista(texto(''), ''),
+});
+const afinidadeDePods = (go, desc) => objeto(go, desc, {
+  requiredDuringSchedulingIgnoredDuringExecution: lista(termoDePod, 'Obrigatório: sem node que cumpra, o pod fica Pending. Não tira quem já está rodando.'),
+  preferredDuringSchedulingIgnoredDuringExecution: lista(objeto('v1.WeightedPodAffinityTerm', 'Uma preferência com peso.', {
+    weight: inteiro('O peso (1 a 100) na nota do node.', { obrigatorio: true }),
+    podAffinityTerm: { ...termoDePod, obrigatorio: true },
+  }), 'Preferência: o scheduler tenta, mas não espera por ela.'),
+});
+const afinidade = objeto('v1.Affinity', 'Regras de afinidade: com nodes (onde morar) e com outros pods (perto ou longe de quem).', {
+  nodeAffinity: objeto('v1.NodeAffinity', 'Em que nodes o pod pode (ou prefere) morar, pelas labels do node. Um nodeSelector com mais recursos.', {
+    requiredDuringSchedulingIgnoredDuringExecution: objeto('v1.NodeSelector', 'Obrigatório: sem node que cumpra, o pod fica Pending.', {
+      nodeSelectorTerms: lista(termoDeNode, 'Os termos: basta um valer.', { obrigatorio: true }),
+    }),
+    preferredDuringSchedulingIgnoredDuringExecution: lista(objeto('v1.PreferredSchedulingTerm', 'Uma preferência com peso.', {
+      weight: inteiro('O peso (1 a 100) na nota do node.', { obrigatorio: true }),
+      preference: { ...termoDeNode, obrigatorio: true },
+    }), 'Preferência: o scheduler tenta, mas, se não der, o pod vai para outro node.'),
+  }),
+  podAffinity: afinidadeDePods('v1.PodAffinity', 'Perto de quem o pod quer morar (ex.: a API no mesmo node do cache).'),
+  podAntiAffinity: afinidadeDePods('v1.PodAntiAffinity', 'Longe de quem o pod quer morar (ex.: as réplicas em nodes diferentes).'),
+});
+const espalhamento = objeto('v1.TopologySpreadConstraint', 'Uma regra de espalhamento.', {
+  maxSkew: inteiro('A maior diferença aceita entre o domínio com mais pods e o com menos.', { obrigatorio: true }),
+  topologyKey: texto('A label do node que separa os domínios: kubernetes.io/hostname (cada node) ou topology.kubernetes.io/zone (cada zona).', { obrigatorio: true }),
+  whenUnsatisfiable: texto('DoNotSchedule (o pod espera, Pending) ou ScheduleAnyway (vai assim mesmo, só prefere espalhar).', { obrigatorio: true }),
+  labelSelector: { ...labelSelector, desc: 'Os pods que contam no espalhamento (normalmente, os do próprio grupo).' },
+  minDomains: inteiro(''),
+  nodeAffinityPolicy: texto(''),
+  nodeTaintsPolicy: texto(''),
+  matchLabelKeys: lista(texto(''), ''),
+});
+
 const podSpec = objeto('v1.PodSpec', 'A especificação do pod: os contêineres e como eles rodam.', {
   containers: lista(container, 'A lista de contêineres do pod. Precisa ter pelo menos um.', { obrigatorio: true }),
   initContainers: lista(container, 'Contêineres que rodam (em ordem, até terminar) antes dos principais.'),
@@ -198,18 +246,18 @@ const podSpec = objeto('v1.PodSpec', 'A especificação do pod: os contêineres 
   imagePullSecrets: qualquer('Secrets para baixar imagens de registries privados.'),
   hostname: texto(''),
   subdomain: texto(''),
-  affinity: qualquer('Regras de afinidade com nodes e com outros pods.'),
+  affinity: afinidade,
   schedulerName: texto(''),
   tolerations: lista(toleration, 'As tolerâncias do pod: deixam o pod ir para nodes com taints.'),
   hostAliases: qualquer(''),
-  priorityClassName: texto(''),
-  priority: inteiro(''),
-  preemptionPolicy: texto(''),
+  priorityClassName: texto('A PriorityClass do pod: a importância dele quando falta espaço.'),
+  priority: inteiro('O número da prioridade. Preenchido a partir da priorityClassName.'),
+  preemptionPolicy: texto('PreemptLowerPriority (pode tirar pods menos importantes) ou Never.'),
   readinessGates: qualquer(''),
   runtimeClassName: texto(''),
   enableServiceLinks: booleano(''),
   overhead: qualquer(''),
-  topologySpreadConstraints: qualquer('Como espalhar os pods entre zonas e nodes.'),
+  topologySpreadConstraints: lista(espalhamento, 'Como espalhar os pods entre nodes ou zonas.'),
   setHostnameAsFQDN: booleano(''),
   os: qualquer(''),
   hostUsers: booleano(''),
@@ -543,6 +591,21 @@ export const ESQUEMAS = {
       }), 'As regras.', { obrigatorio: true }),
     }),
   }),
+  PodDisruptionBudget: raiz('PodDisruptionBudget', 'O PodDisruptionBudget (PDB) diz quantos pods de um grupo podem sair ao mesmo tempo numa manutenção (kubectl drain): "pelo menos 2 elevadores funcionando".', {
+    spec: objeto('v1.PodDisruptionBudgetSpec', 'A regra do PDB.', {
+      minAvailable: intOuTexto('Quantos pods precisam continuar prontos (número ou porcentagem, ex.: 2 ou "50%").'),
+      maxUnavailable: intOuTexto('Quantos pods podem ficar fora ao mesmo tempo (número ou porcentagem). Use este ou o minAvailable.'),
+      selector: { ...labelSelector, desc: 'Os pods que o PDB protege.' },
+      unhealthyPodEvictionPolicy: texto('IfHealthyBudget (padrão) ou AlwaysAllow: se pods que não estão prontos podem sair mesmo sem folga.'),
+    }),
+    status: status('PodDisruptionBudget'),
+  }),
+  PriorityClass: raiz('PriorityClass', 'A PriorityClass dá um número de importância aos pods: quando falta espaço, o scheduler pode tirar pods de prioridade menor para pôr os de maior (preempção).', {
+    value: inteiro('A prioridade: quanto maior, mais importante. Até 1 bilhão nas suas classes (acima disso, só as do sistema).', { obrigatorio: true }),
+    globalDefault: booleano('Se vale para os pods que não dizem nenhuma classe. Só uma classe pode ser a padrão.'),
+    description: texto('Para que serve a classe (só texto).'),
+    preemptionPolicy: texto('PreemptLowerPriority (padrão: pode tirar pods menos importantes) ou Never (espera, sem tirar ninguém).'),
+  }),
   Node: raiz('Node', 'O Node é uma máquina do cluster, onde os pods rodam.', { spec: qualquer('', { go: 'NodeSpec' }), status: status('Node') }),
   Endpoints: raiz('Endpoints', 'A lista de IPs e portas dos pods atrás de um Service.', { subsets: qualquer('') }),
   Event: raiz('Event', 'Uma ocorrência registrada no cluster.', {}),
@@ -664,6 +727,17 @@ function validarPodSpec(spec, base, erros, volumesExtras = []) {
   if (politica && !['Always', 'OnFailure', 'Never'].includes(politica)) {
     erros.push(`${base}.restartPolicy: Unsupported value: ${JSON.stringify(politica)}: supported values: "Always", "OnFailure", "Never"`);
   }
+  for (const tipo of ['podAffinity', 'podAntiAffinity']) {
+    (spec.affinity?.[tipo]?.requiredDuringSchedulingIgnoredDuringExecution ?? []).forEach((t, i) => {
+      if (!t.topologyKey) erros.push(`${base}.affinity.${tipo}.requiredDuringSchedulingIgnoredDuringExecution[${i}].topologyKey: Required value: can not be empty`);
+    });
+  }
+  (spec.topologySpreadConstraints ?? []).forEach((k, i) => {
+    const cam = `${base}.topologySpreadConstraints[${i}]`;
+    if (!(k.maxSkew > 0)) erros.push(invalido(`${cam}.maxSkew`, k.maxSkew ?? 0, 'must be greater than zero'));
+    if (!k.topologyKey) erros.push(`${cam}.topologyKey: Required value: can not be empty`);
+    if (!['DoNotSchedule', 'ScheduleAnyway'].includes(k.whenUnsatisfiable)) erros.push(`${cam}.whenUnsatisfiable: Unsupported value: ${JSON.stringify(k.whenUnsatisfiable ?? '')}: supported values: "DoNotSchedule", "ScheduleAnyway"`);
+  });
 }
 
 function validarJob(spec, base, erros) {
@@ -971,6 +1045,9 @@ export function aplicarPadroes(obj) {
       s.persistentVolumeReclaimPolicy ??= 'Retain';
       s.volumeMode ??= 'Filesystem';
       obj.status ??= { phase: 'Pending' };
+      break;
+    case 'PriorityClass':
+      obj.preemptionPolicy ??= 'PreemptLowerPriority';
       break;
     case 'StorageClass':
       obj.reclaimPolicy ??= 'Delete';

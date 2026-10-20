@@ -1,0 +1,15 @@
+node/golden-worker already cordoned
+evicting pod default/cofre-65694879d4-zjvqd
+evicting pod default/cofre-65694879d4-bm6gq
+evicting pod default/cofre-65694879d4-fj86n
+error when evicting pods/"cofre-65694879d4-bm6gq" -n "default" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+error when evicting pods/"cofre-65694879d4-fj86n" -n "default" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+pod/cofre-65694879d4-zjvqd evicted
+evicting pod default/cofre-65694879d4-bm6gq
+evicting pod default/cofre-65694879d4-fj86n
+error when evicting pods/"cofre-65694879d4-fj86n" -n "default" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+pod/cofre-65694879d4-bm6gq evicted
+evicting pod default/cofre-65694879d4-fj86n
+pod/cofre-65694879d4-fj86n evicted
+node/golden-worker drained
+exit=0

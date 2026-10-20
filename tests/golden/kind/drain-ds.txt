@@ -1,0 +1,6 @@
+node/golden-worker cordoned
+error: unable to drain node "golden-worker" due to error: cannot delete DaemonSet-managed Pods (use --ignore-daemonsets to ignore): kube-system/kube-proxy-tll9s, continuing command...
+There are pending nodes to be drained:
+ golden-worker
+cannot delete DaemonSet-managed Pods (use --ignore-daemonsets to ignore): kube-system/kube-proxy-tll9s
+exit=1

@@ -1,0 +1,3 @@
+priorityclass.scheduling.k8s.io/critico created
+pod/urgente created
+exit=0

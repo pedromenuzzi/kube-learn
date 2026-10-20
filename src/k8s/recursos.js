@@ -25,6 +25,8 @@ export const RECURSOS = [
   { kind: 'GatewayClass', plural: 'gatewayclasses', singular: 'gatewayclass', curtos: ['gc'], grupo: 'gateway.networking.k8s.io', versao: 'v1', namespaced: false },
   { kind: 'Gateway', plural: 'gateways', singular: 'gateway', curtos: ['gtw'], grupo: 'gateway.networking.k8s.io', versao: 'v1', namespaced: true },
   { kind: 'HTTPRoute', plural: 'httproutes', singular: 'httproute', curtos: [], grupo: 'gateway.networking.k8s.io', versao: 'v1', namespaced: true },
+  { kind: 'PodDisruptionBudget', plural: 'poddisruptionbudgets', singular: 'poddisruptionbudget', curtos: ['pdb'], grupo: 'policy', versao: 'v1', namespaced: true },
+  { kind: 'PriorityClass', plural: 'priorityclasses', singular: 'priorityclass', curtos: ['pc'], grupo: 'scheduling.k8s.io', versao: 'v1', namespaced: false },
   { kind: 'StorageClass', plural: 'storageclasses', singular: 'storageclass', curtos: ['sc'], grupo: 'storage.k8s.io', versao: 'v1', namespaced: false },
 ];
 

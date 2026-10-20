@@ -1,0 +1,6 @@
+node/golden-worker already cordoned
+error: unable to drain node "golden-worker" due to error: cannot delete Pods that declare no controller (use --force to override): default/avulso, continuing command...
+There are pending nodes to be drained:
+ golden-worker
+cannot delete Pods that declare no controller (use --force to override): default/avulso
+exit=1

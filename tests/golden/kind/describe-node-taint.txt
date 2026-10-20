@@ -1,0 +1,76 @@
+Name:               golden-worker2
+Roles:              <none>
+Labels:             beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/os=linux
+                    dedicado=gpu
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=golden-worker2
+                    kubernetes.io/os=linux
+Annotations:        node.alpha.kubernetes.io/ttl: 0
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Tue, 20 Oct 2026 16:16:54 -0300
+Taints:             dedicado=gpu:NoSchedule
+Unschedulable:      false
+Lease:
+  HolderIdentity:  golden-worker2
+  AcquireTime:     <unset>
+  RenewTime:       Tue, 20 Oct 2026 16:18:13 -0300
+Conditions:
+  Type             Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
+  ----             ------  -----------------                 ------------------                ------                       -------
+  MemoryPressure   False   Tue, 20 Oct 2026 16:18:00 -0300   Tue, 20 Oct 2026 16:16:54 -0300   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure     False   Tue, 20 Oct 2026 16:18:00 -0300   Tue, 20 Oct 2026 16:16:54 -0300   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure      False   Tue, 20 Oct 2026 16:18:00 -0300   Tue, 20 Oct 2026 16:16:54 -0300   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready            True    Tue, 20 Oct 2026 16:18:00 -0300   Tue, 20 Oct 2026 16:17:23 -0300   KubeletReady                 kubelet is posting ready status
+Addresses:
+  InternalIP:  172.19.0.4
+  Hostname:    golden-worker2
+Capacity:
+  cpu:                12
+  ephemeral-storage:  1081101176832
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             8131216Ki
+  pods:               110
+Allocatable:
+  cpu:                12
+  ephemeral-storage:  1081101176832
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             8131216Ki
+  pods:               110
+System Info:
+  Machine ID:                 d86bfe0d30fe403dbf138677398ca57a
+  System UUID:                d86bfe0d30fe403dbf138677398ca57a
+  Boot ID:                    98bd8c8f-ae43-47d1-a5dc-64abe5772065
+  Kernel Version:             6.18.33.2-microsoft-standard-WSL2
+  OS Image:                   Debian GNU/Linux 13 (trixie)
+  Operating System:           linux
+  Architecture:               amd64
+  Container Runtime Version:  containerd://2.3.4
+  Kubelet Version:            v1.37.0
+PodCIDR:                      10.244.2.0/24
+PodCIDRs:                     10.244.2.0/24
+ProviderID:                   kind://docker/golden/golden-worker2
+Non-terminated Pods:          (4 in total)
+  Namespace                   Name                       CPU Requests  CPU Limits  Memory Requests  Memory Limits  Age
+  ---------                   ----                       ------------  ----------  ---------------  -------------  ---
+  default                     backup-74f5454987-4jk56    0 (0%)        0 (0%)      0 (0%)           0 (0%)         57s
+  default                     espalha-68c59b777-jktnp    0 (0%)        0 (0%)      0 (0%)           0 (0%)         57s
+  kube-system                 kindnet-ltmrj              100m (0%)     0 (0%)      50Mi (0%)        0 (0%)         82s
+  kube-system                 kube-proxy-qd5bb           0 (0%)        0 (0%)      0 (0%)           0 (0%)         82s
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests   Limits
+  --------           --------   ------
+  cpu                100m (0%)  0 (0%)
+  memory             50Mi (0%)  0 (0%)
+  ephemeral-storage  0 (0%)     0 (0%)
+  hugepages-1Gi      0 (0%)     0 (0%)
+  hugepages-2Mi      0 (0%)     0 (0%)
+Events:
+  Type    Reason          Age   From             Message
+  ----    ------          ----  ----             -------
+  Normal  RegisteredNode  80s   node-controller  Node golden-worker2 event: Registered Node golden-worker2 in Controller
+  Normal  NodeReady       53s   kubelet          Node golden-worker2 status is now: NodeReady
+exit=0

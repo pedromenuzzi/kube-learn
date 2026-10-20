@@ -1,0 +1,5 @@
+NAME                      READY   STATUS    RESTARTS   AGE   IP           NODE             NOMINATED NODE   READINESS GATES
+backup-74f5454987-4jk56   1/1     Running   0          50s   10.244.2.2   golden-worker2   <none>           <none>
+backup-74f5454987-dtl6b   0/1     Pending   0          50s   <none>       <none>           <none>           <none>
+backup-74f5454987-gcgmw   1/1     Running   0          50s   10.244.1.3   golden-worker    <none>           <none>
+exit=0

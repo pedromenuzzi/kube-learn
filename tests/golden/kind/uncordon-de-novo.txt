@@ -1,0 +1,2 @@
+node/golden-worker already uncordoned
+exit=0

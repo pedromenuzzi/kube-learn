@@ -1,0 +1,4 @@
+deployment.apps/cofre created
+poddisruptionbudget.policy/cofre created
+pod/avulso created
+exit=0

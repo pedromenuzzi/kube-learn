@@ -13,6 +13,7 @@ import { ErroApi, VERSAO_SERVIDOR } from '../cluster.js';
 import { portaAlvo } from '../rede.js';
 import { canonico } from '../aleatorio.js';
 import { iso, parseDuracao, cpuMili as cpuMiliDe, bytes as bytesDe } from '../unidades.js';
+import { cordon, taint, drain } from './manutencao.js';
 
 export const VERSAO_CLIENTE = 'v1.37.1';
 const PROTEGIDOS = new Set(['default', 'kube-system', 'kube-public']);
@@ -1414,6 +1415,13 @@ const COMANDOS = {
   version: { flags: { ...SAIDA, client: { tipo: 'bool' } }, rodar: (c, a, s) => s.out(`Client Version: ${VERSAO_CLIENTE}\nKustomize Version: v5.8.1\n${a.flags.client ? '' : `Server Version: ${VERSAO_SERVIDOR}\n`}`) },
   'cluster-info': { flags: {}, rodar: (c, a, s) => s.out('Kubernetes control plane is running at https://127.0.0.1:6443\nCoreDNS is running at https://127.0.0.1:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy\n\nTo further debug and diagnose cluster problems, use \'kubectl cluster-info dump\'.\n') },
   top: { flags: { ...SELETOR, 'all-namespaces': { curto: 'A', tipo: 'bool' }, containers: { tipo: 'bool' }, 'sort-by': { tipo: 'string' }, 'no-headers': { tipo: 'bool' } }, rodar: top },
+  cordon: { flags: {}, rodar: (c, a, s) => cordon(c, a, s, true) },
+  uncordon: { flags: {}, rodar: (c, a, s) => cordon(c, a, s, false) },
+  taint: { flags: { overwrite: { tipo: 'bool' } }, rodar: taint },
+  drain: {
+    flags: { 'ignore-daemonsets': { tipo: 'bool' }, force: { tipo: 'bool' }, 'delete-emptydir-data': { tipo: 'bool' }, 'pod-selector': { tipo: 'string' }, timeout: { tipo: 'string' }, 'grace-period': { tipo: 'int' } },
+    rodar: drain,
+  },
   help: { flags: {}, rodar: (c, a, s) => s.out(AJUDA) },
 };
 
@@ -1464,7 +1472,7 @@ export function kubectl(cluster, linha, { arquivos = {} } = {}) {
     return s.resultado();
   }
   if (lidos.flags.help) {
-    s.out(`Use "kubectl ${nome} --help" no terminal de verdade para ver todas as opções. Aqui, o 📘 Manual da missão explica as que você vai usar.\n`);
+    s.out(`Use "kubectl ${nome} --help" no terminal de verdade para ver todas as opções. Aqui, a aba Manual da missão explica as que você vai usar.\n`);
     return s.resultado();
   }
   try {

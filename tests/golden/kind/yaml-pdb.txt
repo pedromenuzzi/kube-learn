@@ -1,0 +1,31 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"policy/v1","kind":"PodDisruptionBudget","metadata":{"annotations":{},"name":"cofre","namespace":"default"},"spec":{"minAvailable":2,"selector":{"matchLabels":{"app":"cofre"}}}}
+  creationTimestamp: "2026-10-20T19:18:21Z"
+  generation: 1
+  name: cofre
+  namespace: default
+  resourceVersion: "991"
+  uid: 17248583-385a-41ca-843d-244246527f55
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: cofre
+status:
+  conditions:
+  - lastTransitionTime: "2026-10-20T19:18:23Z"
+    message: ""
+    observedGeneration: 1
+    reason: SufficientPods
+    status: "True"
+    type: DisruptionAllowed
+  currentHealthy: 3
+  desiredHealthy: 2
+  disruptionsAllowed: 1
+  expectedPods: 3
+  observedGeneration: 1
+exit=0
