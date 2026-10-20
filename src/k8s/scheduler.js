@@ -70,7 +70,7 @@ export function agendar(c) {
         conta(motivos, 'node(s) had volume node affinity conflict'); conta(preempcao, 'Preemption is not helpful for scheduling'); continue;
       }
       const sel = pod.spec.nodeSelector ?? {};
-      if (Object.entries(sel).some(([k, v]) => node.metadata.labels?.[k] !== v)) {
+      if (Object.entries(sel).some(([k, v]) => node.metadata.labels?.[k] !== v) || !casaAfinidade(pod, node)) {
         conta(motivos, "node(s) didn't match Pod's node affinity/selector"); conta(preempcao, 'Preemption is not helpful for scheduling'); continue;
       }
       const uso = usoDoNode(c, node.metadata.name);
@@ -117,6 +117,17 @@ export function agendar(c) {
       ? `0/${nodes.length} nodes are available: ${lista(motivos)}. preemption: 0/${nodes.length} nodes are available: ${lista(preempcao)}.`
       : 'no nodes available to schedule pods');
   }
+}
+
+/** A afinidade obrigatória com nodes (requiredDuringScheduling): basta um dos termos casar. */
+function casaAfinidade(pod, node) {
+  const termos = pod.spec.affinity?.nodeAffinity?.requiredDuringSchedulingIgnoredDuringExecution?.nodeSelectorTerms;
+  if (!termos?.length) return true;
+  const confere = (valor, e) => ({
+    In: () => e.values?.includes(valor), NotIn: () => !e.values?.includes(valor), Exists: () => valor !== undefined, DoesNotExist: () => valor === undefined,
+  }[e.operator]?.() ?? false);
+  return termos.some((t) => (t.matchExpressions ?? []).every((e) => confere(node.metadata.labels?.[e.key], e))
+    && (t.matchFields ?? []).every((e) => confere(e.key === 'metadata.name' ? node.metadata.name : undefined, e)));
 }
 
 /** O pod não coube em nenhum node: condição PodScheduled=False, evento FailedScheduling e nova tentativa mais tarde. */

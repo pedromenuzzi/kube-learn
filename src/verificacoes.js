@@ -20,7 +20,7 @@
 //                                                      (a última forma compara com um campo do cluster do aluno)
 //   { contexto: { namespace } }                        o namespace padrão do kubectl (kubectl config set-context)
 //
-// Passos (`passos`): { comando: 'kubectl ...' } e { avancar: '30s' }.
+// Passos (`passos`): { comando: 'kubectl ...' }, { avancar: '30s' } e { adicionarNode: 'node-3' } (um prédio novo no condomínio).
 // Sem `passos`: kubectl apply -f . e 1 minuto de relógio.
 import { montarCluster } from './conteudo/clusters.js';
 import { kubectl, seletorDeLabels } from './k8s/kubectl/index.js';
@@ -231,6 +231,9 @@ export function rodarTeste(item, teste, indice, { arquivos = {}, historico = [],
       if (passo.comando) {
         ctx.resultados.push(kubectl(ctx.cluster, passo.comando, { arquivos }));
         amostrar(ctx.cluster, ctx);
+      } else if (passo.adicionarNode) {
+        ctx.cluster.criarNodes([{ nome: passo.adicionarNode }], ctx.cluster.listar('Node').length);
+        ctx.cluster.reconciliar();
       } else if (passo.avancar) {
         const fim = ctx.cluster.agora + parseDuracao(passo.avancar);
         while (ctx.cluster.agora < fim) {

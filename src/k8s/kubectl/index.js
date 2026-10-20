@@ -148,7 +148,7 @@ function selecionar(cluster, posicionais, flags, { exigirNome = false } = {}) {
     }
     return { grupos, erros, nomeado: true };
   }
-  const tipos = posicionais[0].split(',').flatMap((t) => (t === 'all' ? ['pods', 'services', 'deployments', 'replicasets', 'statefulsets'] : [t])).map(recurso);
+  const tipos = posicionais[0].split(',').flatMap((t) => (t === 'all' ? ['pods', 'services', 'daemonsets', 'deployments', 'replicasets', 'statefulsets', 'cronjobs', 'jobs'] : [t])).map(recurso);
   const nomes = posicionais.slice(1);
   if (nomes.length) {
     for (const r of tipos) for (const n of nomes) buscar(r, n);
@@ -560,8 +560,47 @@ function create(cluster, a, s) {
         status: { loadBalancer: {} },
       });
     }
+    case 'job': {
+      if (precisaNome()) return;
+      if (a.flags.from) { // um Job agora, a partir do molde de um CronJob (para testar sem esperar o horário)
+        const [tipo, nomeCj] = a.flags.from.split('/');
+        if (!['cronjob', 'cronjobs', 'cj'].includes(tipo) || !nomeCj) return s.falha(`error: from must be an existing cronjob`);
+        const cj = cluster.obter('CronJob', namespaceDe(cluster, a.flags), nomeCj);
+        if (!cj) return s.falha(`error: failed to retrieve cronjob: cronjobs.batch "${nomeCj}" not found`);
+        const molde = structuredClone(cj.spec.jobTemplate);
+        return criarGerado(cluster, a, s, {
+          apiVersion: 'batch/v1', kind: 'Job',
+          metadata: { annotations: { 'cronjob.kubernetes.io/instantiate': 'manual', ...(molde.metadata?.annotations ?? {}) }, ...(molde.metadata?.labels ? { labels: molde.metadata.labels } : {}), name: nome, ownerReferences: [{ apiVersion: 'batch/v1', controller: true, kind: 'CronJob', name: cj.metadata.name, uid: cj.metadata.uid }] },
+          spec: molde.spec,
+        });
+      }
+      const imagem = a.flags.image?.[0];
+      if (!imagem) return s.falha('error: required flag(s) "image" not set');
+      return criarGerado(cluster, a, s, {
+        apiVersion: 'batch/v1', kind: 'Job',
+        metadata: { name: nome },
+        spec: { template: { metadata: {}, spec: { containers: [{ ...(a.depois?.length ? { command: a.depois } : {}), image: imagem, name: nome, resources: {} }], restartPolicy: 'Never' } } },
+        status: {},
+      });
+    }
+    case 'cronjob':
+    case 'cj': {
+      if (precisaNome()) return;
+      const imagem = a.flags.image?.[0];
+      if (!imagem) return s.falha('error: required flag(s) "image" not set');
+      if (!a.flags.schedule) return s.falha('error: required flag(s) "schedule" not set');
+      return criarGerado(cluster, a, s, {
+        apiVersion: 'batch/v1', kind: 'CronJob',
+        metadata: { name: nome },
+        spec: {
+          jobTemplate: { metadata: { name: nome }, spec: { template: { metadata: {}, spec: { containers: [{ ...(a.depois?.length ? { command: a.depois } : {}), image: imagem, name: nome, resources: {} }], restartPolicy: a.flags.restart ?? 'OnFailure' } } } },
+          schedule: a.flags.schedule,
+        },
+        status: {},
+      });
+    }
     default:
-      return s.falha(`error: unknown command "${sub}" for "kubectl create"\n\nDid you mean this?\n\t${['deployment', 'namespace', 'configmap', 'secret', 'service'].sort((x, y) => distancia(sub, x) - distancia(sub, y))[0]}\n`);
+      return s.falha(`error: unknown command "${sub}" for "kubectl create"\n\nDid you mean this?\n\t${['deployment', 'namespace', 'configmap', 'secret', 'service', 'job', 'cronjob'].sort((x, y) => distancia(sub, x) - distancia(sub, y))[0]}\n`);
   }
 }
 
@@ -679,7 +718,7 @@ function podDoAlvo(cluster, alvo, ns, s, { avisar = true } = {}) {
 
 function escolherConteiner(pod, nome, s) {
   if (nome) {
-    if (!pod.spec.containers.some((c) => c.name === nome)) {
+    if (![...(pod.spec.initContainers ?? []), ...pod.spec.containers].some((c) => c.name === nome)) {
       s.falha(`Error from server (BadRequest): container ${nome} is not valid for pod ${pod.metadata.name}`);
       return null;
     }
@@ -728,7 +767,7 @@ function logs(cluster, a, s) {
       fontes.push({ pod, nome, linhas: () => cluster.kubelet.estado(pod, nome)?.logs ?? est.logs });
     }
   }
-  const formatar = (fonte, l) => `${f.prefix || (f.selector && pods.length > 1) ? `[pod/${fonte.pod.metadata.name}/${fonte.nome}] ` : ''}${f.timestamps ? `${RFC3339NANO(l.t)} ` : ''}${l.linha}\n`;
+  const formatar = (fonte, l) => `${f.prefix ? `[pod/${fonte.pod.metadata.name}/${fonte.nome}] ` : ''}${f.timestamps ? `${RFC3339NANO(l.t)} ` : ''}${l.linha}\n`;
   const vistos = new Map();
   for (const fonte of fontes) {
     let ls = fonte.linhas();
@@ -869,6 +908,16 @@ function statusRolloutSts(sts) {
   return { msg: `partitioned roll out complete: ${st.updatedReplicas ?? 0} new pods have been updated...\n`, pronto: true };
 }
 
+/** O que o `rollout status` diz de um DaemonSet. */
+function statusRolloutDs(ds) {
+  const st = ds.status ?? {};
+  if (ds.spec.updateStrategy?.type !== 'RollingUpdate') return { erro: 'error: rollout status is only available for RollingUpdate strategy type' };
+  if (ds.metadata.generation > (st.observedGeneration ?? 0)) return { msg: 'Waiting for daemon set spec update to be observed...\n' };
+  if ((st.updatedNumberScheduled ?? 0) < (st.desiredNumberScheduled ?? 0)) return { msg: `Waiting for daemon set "${ds.metadata.name}" rollout to finish: ${st.updatedNumberScheduled ?? 0} out of ${st.desiredNumberScheduled} new pods have been updated...\n` };
+  if ((st.numberAvailable ?? 0) < (st.desiredNumberScheduled ?? 0)) return { msg: `Waiting for daemon set "${ds.metadata.name}" rollout to finish: ${st.numberAvailable ?? 0} of ${st.desiredNumberScheduled} updated pods are available...\n` };
+  return { msg: `daemon set "${ds.metadata.name}" successfully rolled out\n`, pronto: true };
+}
+
 function rollout(cluster, a, s) {
   const [sub, ...resto] = a.posicionais;
   const subs = ['history', 'pause', 'restart', 'resume', 'status', 'undo'];
@@ -879,7 +928,7 @@ function rollout(cluster, a, s) {
   if (!alvo) return;
   const { r, obj: d } = alvo;
   const id = `${nomeQualificado(r)}/${d.metadata.name}`;
-  const sts = d.kind === 'StatefulSet' && ['status', 'restart'].includes(sub);
+  const sts = ['StatefulSet', 'DaemonSet'].includes(d.kind) && ['status', 'restart'].includes(sub);
   if (d.kind !== 'Deployment' && !sts) return s.falha(`error: no ${sub === 'history' ? 'history viewer' : sub === 'status' ? 'status viewer' : 'rollbacker'} has been implemented for "${d.kind}"`);
   switch (sub) {
     case 'status': {
@@ -887,7 +936,7 @@ function rollout(cluster, a, s) {
       const fim = cluster.agora + limite;
       let rvAnterior = null;
       for (;;) {
-        const st = d.kind === 'StatefulSet' ? statusRolloutSts(d) : statusRollout(d);
+        const st = d.kind === 'StatefulSet' ? statusRolloutSts(d) : d.kind === 'DaemonSet' ? statusRolloutDs(d) : statusRollout(d);
         if (st.erro) return s.falha(st.erro);
         if (d.metadata.resourceVersion !== rvAnterior || st.pronto) s.out(st.msg);
         rvAnterior = d.metadata.resourceVersion;
@@ -965,6 +1014,27 @@ function set(cluster, a, s) {
   cluster.salvar(obj, { spec: obj.kind !== 'Pod' });
   s.out(`${nomeQualificado(r)}/${obj.metadata.name} image updated\n`);
   cluster.reconciliar();
+}
+
+// ---------- wait ----------
+/** kubectl wait --for=condition=complete job/x (ou Ready, ou delete): o relógio anda até valer ou dar o timeout. */
+function wait(cluster, a, s) {
+  const para = a.flags.for;
+  if (!para) return s.falha("error: --for must be specified\nSee 'kubectl wait -h' for help and examples");
+  const m = para.match(/^condition=([\w.-]+)(?:=(\w+))?$/i);
+  if (!m && para !== 'delete') return s.falha(`error: unrecognized condition: "${para}"`);
+  const sel = selecionar(cluster, a.posicionais, a.flags);
+  for (const e of sel.erros) s.falha(e);
+  const alvos = sel.grupos.flatMap((g) => g.objetos.map((o) => ({ o, r: g.recurso })));
+  if (!alvos.length && !sel.erros.length) return s.falha('error: no matching resources found');
+  const valeu = ({ o }) => (para === 'delete'
+    ? !cluster.porUid.has(o.metadata.uid)
+    : (o.status?.conditions ?? []).some((c) => c.type.toLowerCase() === m[1].toLowerCase() && c.status.toLowerCase() === (m[2] ?? 'True').toLowerCase()));
+  cluster.avancarAte(() => alvos.every(valeu), a.flags.timeout ?? '30s');
+  for (const x of alvos) {
+    if (valeu(x)) s.out(`${nomeQualificado(x.r)}/${x.o.metadata.name} condition met\n`);
+    else s.falha(`error: timed out waiting for the condition on ${pluralQualificado(x.r)}/${x.o.metadata.name}`);
+  }
 }
 
 // ---------- expose / port-forward ----------
@@ -1186,6 +1256,7 @@ Troubleshooting and Debugging Commands:
 
 Advanced Commands:
   apply           Apply a configuration to a resource by file name or stdin
+  wait            Experimental: Wait for a specific condition on one or many resources
 
 Settings Commands:
   label           Update the labels on a resource
@@ -1215,7 +1286,7 @@ const COMANDOS = {
   describe: { flags: { ...SELETOR, 'all-namespaces': { curto: 'A', tipo: 'bool' } }, rodar: describe },
   apply: { flags: { ...ARQUIVOS, ...SAIDA, ...DRY, 'server-side': { tipo: 'bool' }, validate: { tipo: 'string' } }, rodar: apply },
   create: {
-    flags: { ...ARQUIVOS, ...SAIDA, ...DRY, image: { tipo: 'lista' }, replicas: { curto: 'r', tipo: 'int' }, port: { tipo: 'string' }, 'from-literal': { tipo: 'lista' }, 'from-file': { tipo: 'lista' }, tcp: { tipo: 'lista' }, type: { tipo: 'string' }, 'save-config': { tipo: 'bool' }, validate: { tipo: 'string' } },
+    flags: { ...ARQUIVOS, ...SAIDA, ...DRY, image: { tipo: 'lista' }, replicas: { curto: 'r', tipo: 'int' }, port: { tipo: 'string' }, 'from-literal': { tipo: 'lista' }, 'from-file': { tipo: 'lista' }, tcp: { tipo: 'lista' }, type: { tipo: 'string' }, 'save-config': { tipo: 'bool' }, validate: { tipo: 'string' }, schedule: { tipo: 'string' }, from: { tipo: 'string' }, restart: { tipo: 'string' } },
     rodar: create,
   },
   run: {
@@ -1236,6 +1307,7 @@ const COMANDOS = {
   set: { flags: {}, rodar: set },
   expose: { flags: { ...SAIDA, ...DRY, port: { tipo: 'string' }, 'target-port': { tipo: 'string' }, type: { tipo: 'string' }, name: { tipo: 'string' }, protocol: { tipo: 'string' } }, rodar: expose },
   'port-forward': { flags: { address: { tipo: 'string' } }, rodar: portForward },
+  wait: { flags: { ...SELETOR, for: { tipo: 'string' }, timeout: { tipo: 'string' }, all: { tipo: 'bool' } }, rodar: wait },
   label: { flags: { overwrite: { tipo: 'bool' }, ...SELETOR, all: { tipo: 'bool' } }, rodar: (c, a, s) => etiquetar(c, a, s, 'labels') },
   annotate: { flags: { overwrite: { tipo: 'bool' }, ...SELETOR, all: { tipo: 'bool' } }, rodar: (c, a, s) => etiquetar(c, a, s, 'annotations') },
   config: { flags: { current: { tipo: 'bool' } }, rodar: config },

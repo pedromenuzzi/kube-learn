@@ -150,6 +150,12 @@ export const GLOSSARIO = [
   t('init-container', 5, 'Init container', 'Um contêiner que roda e termina antes dos principais começarem.',
     'A equipe de pintura que prepara o apartamento antes da mudança.',
     'Se ele falhar, o pod não sai do Init: os principais nem começam.', 'initContainers: [espera-banco]'),
+  t('sidecar-nativo', 5, 'Sidecar nativo', 'Um init container com restartPolicy: Always: sobe antes do app, fica rodando ao lado dele e sai quando o app termina.',
+    'O porteiro que trabalha junto com o morador: chega antes, fica o dia inteiro e vai embora quando o morador sai.',
+    'Sidecar escrito como contêiner comum nunca termina, e um Job com ele nunca fica Complete.', 'initContainers: [{ name: logs, restartPolicy: Always }]'),
+  t('backofflimit', 5, 'backoffLimit', 'Quantas falhas um Job aceita antes de desistir. Entre uma tentativa e outra, a espera dobra (10s, 20s, 40s...).',
+    'O pedreiro volta para tentar de novo, cada vez um pouco mais tarde, até o contrato dizer "chega".',
+    'Tentar de novo não conserta erro no comando: leia o log antes de aumentar o limite.', 'backoffLimit: 2'),
 
   // ---------- 6 · Saúde e recursos ----------
   t('liveness', 6, 'Liveness probe', 'Teste periódico de "o programa está vivo?". Se falhar, o kubelet reinicia o contêiner.',

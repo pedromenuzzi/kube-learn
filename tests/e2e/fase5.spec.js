@@ -50,8 +50,8 @@ test('mapa do cluster: prédios com uso, ramais e a administração escondida', 
   await expect(page.locator('.mapa .node')).toHaveCount(3);
   await expect(page.locator('.mapa').first()).toContainText('CPU');
   await expect(page.locator('.mapa .pod')).toHaveCount(3);
-  await page.getByLabel('Mostrar a administração (kube-system)').check();
-  await expect(page.locator('.mapa .pod')).toHaveCount(9);
+  await page.getByLabel(/Mostrar a administração/).check();
+  await expect(page.locator('.mapa .pod')).toHaveCount(16);
   await page.getByRole('button', { name: '▶ Aplicar' }).click();
   await page.getByRole('tab', { name: '🗺️ Mapa' }).click();
   await expect(page.locator('.ramais')).toContainText('loja');

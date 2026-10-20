@@ -1,0 +1,76 @@
+Name:             com-init
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             golden-worker2/172.19.0.3
+Start Time:       Tue, 20 Oct 2026 13:58:56 -0300
+Labels:           <none>
+Annotations:      <none>
+Status:           Running
+IP:               10.244.2.30
+IPs:
+  IP:  10.244.2.30
+Init Containers:
+  espera:
+    Container ID:  containerd://2f44acb4791d36c7756fd7526f0082e58ae83b7bb55963a3756a1bd1c9d443d6
+    Image:         busybox:1.36
+    Image ID:      docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      echo esperando o banco; sleep 8
+    State:          Terminated
+      Reason:       Completed
+      Exit Code:    0
+      Started:      Tue, 20 Oct 2026 13:58:57 -0300
+      Finished:     Tue, 20 Oct 2026 13:59:07 -0300
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-k7s6s (ro)
+Containers:
+  app:
+    Container ID:   containerd://c0646d5f0c6490f81d8a88bd1f1df4b6ad4c46d4e95848eabee3566721f32196
+    Image:          nginx:1.27
+    Image ID:       docker.io/library/nginx@sha256:6784fb0834aa7dbbe12e3d7471e69c290df3e6ba810dc38b34ae33d3c1c05f7d
+    Port:           <none>
+    Host Port:      <none>
+    State:          Running
+      Started:      Tue, 20 Oct 2026 13:59:08 -0300
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-k7s6s (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-k7s6s:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  12s   default-scheduler  Successfully assigned default/com-init to golden-worker2
+  Normal  Pulled     11s   kubelet            spec.initContainers{espera}: Container image "busybox:1.36" already present on machine and can be accessed by the pod
+  Normal  Created    11s   kubelet            spec.initContainers{espera}: Container created
+  Normal  Started    11s   kubelet            spec.initContainers{espera}: Container started
+  Normal  Pulled     0s    kubelet            spec.containers{app}: Container image "nginx:1.27" already present on machine and can be accessed by the pod
+  Normal  Created    0s    kubelet            spec.containers{app}: Container created
+  Normal  Started    0s    kubelet            spec.containers{app}: Container started
+exit=0

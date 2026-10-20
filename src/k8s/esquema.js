@@ -3,6 +3,7 @@
 // O motor só cresce com o conteúdo: um campo entra aqui quando algum exercício precisa dele. Subárvores
 // que ainda não simulamos ficam como `qualquer` (aceitas sem conferir), para não recusar YAML válido.
 import { canonico } from './aleatorio.js';
+import { lerCron } from './cron.js';
 
 // ---------- construtores ----------
 const campo = (tipo, desc = '', extra = {}) => ({ tipo, desc, ...extra });
@@ -205,6 +206,25 @@ const podTemplate = objeto('v1.PodTemplateSpec', 'O molde dos pods que serão cr
 });
 
 const status = (kind) => qualquer('O estado atual, preenchido pelo sistema. Não se escreve à mão.', { go: `${kind}Status` });
+
+const jobSpec = objeto('v1.JobSpec', 'A especificação do Job: quantas vezes o trabalho precisa dar certo e quantas tentativas cabem.', {
+  completions: inteiro('Quantos pods precisam terminar com sucesso. Padrão: 1.'),
+  parallelism: inteiro('Quantos pods podem rodar ao mesmo tempo. Padrão: 1.'),
+  backoffLimit: inteiro('Quantas falhas aceitar antes de desistir do Job. Padrão: 6.'),
+  activeDeadlineSeconds: int64('Tempo máximo do Job inteiro; passou, ele falha (DeadlineExceeded).'),
+  ttlSecondsAfterFinished: inteiro('Segundos para apagar o Job (e os pods) depois que ele termina.'),
+  completionMode: texto('NonIndexed (padrão) ou Indexed (cada pod recebe um número).'),
+  suspend: booleano('Pausa o Job (não cria pods).'),
+  selector: labelSelector,
+  manualSelector: booleano(''),
+  template: { ...podTemplate, desc: 'O molde dos pods do Job. O restartPolicy precisa ser OnFailure ou Never.', obrigatorio: true },
+  podFailurePolicy: qualquer(''),
+  successPolicy: qualquer(''),
+  backoffLimitPerIndex: inteiro(''),
+  maxFailedIndexes: inteiro(''),
+  podReplacementPolicy: texto(''),
+  managedBy: texto(''),
+});
 
 const pvcSpec = objeto('v1.PersistentVolumeClaimSpec', 'O pedido: tamanho, modo de acesso e classe.', {
   accessModes: lista(texto(''), 'Como o disco vai ser montado: ReadWriteOnce (um node por vez), ReadOnlyMany, ReadWriteMany ou ReadWriteOncePod.'),
@@ -437,6 +457,36 @@ export const ESQUEMAS = {
     }, { obrigatorio: true }),
     status: status('StatefulSet'),
   }),
+  Job: raiz('Job', 'O Job roda um trabalho até o fim: cria pods até o número pedido terminar com sucesso, e tenta de novo (com espera crescente) quando um falha.', {
+    spec: { ...jobSpec, obrigatorio: true },
+    status: status('Job'),
+  }),
+  CronJob: raiz('CronJob', 'O CronJob cria um Job em horários marcados, com a mesma sintaxe do cron do Linux (minuto hora dia mês dia-da-semana).', {
+    spec: objeto('v1.CronJobSpec', 'A especificação do CronJob.', {
+      schedule: texto('Quando rodar, no formato do cron: "*/5 * * * *" = a cada 5 minutos; "0 3 * * *" = todo dia às 3h.', { obrigatorio: true }),
+      timeZone: texto('O fuso do horário (padrão: o do controlador, UTC).'),
+      jobTemplate: objeto('v1.JobTemplateSpec', 'O molde dos Jobs criados.', { metadata, spec: jobSpec }, { obrigatorio: true }),
+      concurrencyPolicy: texto('Allow (padrão), Forbid (pula se o anterior ainda roda) ou Replace (troca o anterior pelo novo).'),
+      suspend: booleano('Pausa os agendamentos.'),
+      startingDeadlineSeconds: int64('Quanto atraso tolerar para começar um agendamento perdido.'),
+      successfulJobsHistoryLimit: inteiro('Quantos Jobs que deram certo guardar. Padrão: 3.'),
+      failedJobsHistoryLimit: inteiro('Quantos Jobs que falharam guardar. Padrão: 1.'),
+    }, { obrigatorio: true }),
+    status: status('CronJob'),
+  }),
+  DaemonSet: raiz('DaemonSet', 'O DaemonSet põe um pod em cada node (ou em cada node escolhido): quando um node entra no cluster, ganha o pod; quando sai, o pod vai junto.', {
+    spec: objeto('v1.DaemonSetSpec', 'A especificação do DaemonSet.', {
+      selector: { ...labelSelector, desc: 'Como o DaemonSet acha os pods dele. Precisa bater com as labels do template.', obrigatorio: true },
+      template: { ...podTemplate, obrigatorio: true },
+      updateStrategy: objeto('v1.DaemonSetUpdateStrategy', 'Como trocar os pods quando o template muda.', {
+        type: texto('RollingUpdate (padrão) ou OnDelete.'),
+        rollingUpdate: objeto('v1.RollingUpdateDaemonSet', '', { maxUnavailable: intOuTexto('Quantos nodes podem ficar sem o pod durante a troca. Padrão: 1.'), maxSurge: intOuTexto('') }),
+      }),
+      minReadySeconds: inteiro(''),
+      revisionHistoryLimit: inteiro('Quantas revisões antigas guardar. Padrão: 10.'),
+    }, { obrigatorio: true }),
+    status: status('DaemonSet'),
+  }),
   Node: raiz('Node', 'O Node é uma máquina do cluster, onde os pods rodam.', { spec: qualquer('', { go: 'NodeSpec' }), status: status('Node') }),
   Endpoints: raiz('Endpoints', 'A lista de IPs e portas dos pods atrás de um Service.', { subsets: qualquer('') }),
   Event: raiz('Event', 'Uma ocorrência registrada no cluster.', {}),
@@ -560,6 +610,20 @@ function validarPodSpec(spec, base, erros, volumesExtras = []) {
   }
 }
 
+function validarJob(spec, base, erros) {
+  validarPodSpec(spec?.template?.spec, `${base}.template.spec`, erros);
+  const politica = spec?.template?.spec?.restartPolicy;
+  if (politica !== 'OnFailure' && politica !== 'Never') erros.push(`${base}.template.spec.restartPolicy: Required value: valid values: "OnFailure", "Never"`);
+  for (const k of ['completions', 'parallelism', 'backoffLimit']) if (spec?.[k] < 0) erros.push(invalido(`${base}.${k}`, spec[k], 'must be greater than or equal to 0'));
+}
+
+/** O template do Job sem as labels que o próprio Job põe (para comparar o que o aluno mudou). */
+const semControle = (t) => {
+  const c = structuredClone(t ?? {});
+  for (const k of ['batch.kubernetes.io/controller-uid', 'batch.kubernetes.io/job-name', 'controller-uid', 'job-name']) delete c.metadata?.labels?.[k];
+  return c;
+};
+
 function validarPvcSpec(spec, base, erros) {
   if (!spec?.accessModes?.length) erros.push(`${base}.accessModes: Required value: at least 1 access mode is required`);
   else {
@@ -663,6 +727,35 @@ export function validar(obj, antigo) {
       }
       break;
     }
+    case 'Job':
+      validarJob(s, 'spec', erros);
+      if (antigo && !erros.length && canonico(semControle(antigo.spec.template)) !== canonico(semControle(s.template))) {
+        erros.push(invalido('spec.template', s.template, 'field is immutable'));
+      }
+      break;
+    case 'CronJob': {
+      const horario = s?.schedule === undefined ? null : lerCron(String(s.schedule));
+      if (!s?.schedule) erros.push(obrigatorio('spec.schedule'));
+      else if (horario.erro) erros.push(invalido('spec.schedule', s.schedule, horario.erro));
+      if (!s?.jobTemplate) erros.push(obrigatorio('spec.jobTemplate'));
+      else validarJob(s.jobTemplate.spec, 'spec.jobTemplate.spec', erros);
+      if (s?.concurrencyPolicy && !['Allow', 'Forbid', 'Replace'].includes(s.concurrencyPolicy)) {
+        erros.push(`spec.concurrencyPolicy: Unsupported value: ${JSON.stringify(s.concurrencyPolicy)}: supported values: "Allow", "Forbid", "Replace"`);
+      }
+      break;
+    }
+    case 'DaemonSet': {
+      const ml = s?.selector?.matchLabels;
+      if (!s?.selector || (!ml && !s.selector.matchExpressions)) erros.push(obrigatorio('spec.selector'));
+      const labels = s?.template?.metadata?.labels;
+      if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? {}, '`selector` does not match template `labels`'));
+      validarPodSpec(s?.template?.spec, 'spec.template.spec', erros);
+      if (s?.template?.spec?.restartPolicy && s.template.spec.restartPolicy !== 'Always') {
+        erros.push(`spec.template.spec.restartPolicy: Unsupported value: ${JSON.stringify(s.template.spec.restartPolicy)}: supported values: "Always"`);
+      }
+      if (antigo && JSON.stringify(antigo.spec.selector) !== JSON.stringify(s.selector)) erros.push(invalido('spec.selector', s.selector, 'field is immutable'));
+      break;
+    }
     case 'PersistentVolumeClaim':
       validarPvcSpec(s, 'spec', erros);
       if (antigo && !erros.length) {
@@ -693,6 +786,19 @@ export function validar(obj, antigo) {
 
 // ---------- padrões ----------
 const ehLatest = (imagem) => !/:[^/]+$/.test(imagem.split('@')[0]) || imagem.endsWith(':latest');
+
+/** Os padrões de um Job (os do CronJob ficam para quando ele criar o Job). */
+export function padroesJob(s) {
+  s.backoffLimit ??= 6;
+  s.completionMode ??= 'NonIndexed';
+  if (s.completions === undefined && s.parallelism === undefined) s.completions = 1;
+  s.parallelism ??= 1;
+  s.manualSelector ??= false;
+  s.podReplacementPolicy ??= 'TerminatingOrFailed';
+  s.suspend ??= false;
+  s.template.metadata ??= {};
+  padroesPodSpec(s.template.spec);
+}
 
 /** Os padrões de um volumeClaimTemplate do StatefulSet. */
 function padroesMolde(t) {
@@ -767,6 +873,25 @@ export function aplicarPadroes(obj) {
       s.template.metadata ??= {};
       padroesPodSpec(s.template.spec);
       for (const t of s.volumeClaimTemplates ?? []) padroesMolde(t);
+      break;
+    case 'Job':
+      padroesJob(s);
+      break;
+    case 'CronJob':
+      s.concurrencyPolicy ??= 'Allow';
+      s.suspend ??= false;
+      s.successfulJobsHistoryLimit ??= 3;
+      s.failedJobsHistoryLimit ??= 1;
+      s.jobTemplate.spec.template.metadata ??= {};
+      padroesPodSpec(s.jobTemplate.spec.template.spec);
+      break;
+    case 'DaemonSet':
+      s.revisionHistoryLimit ??= 10;
+      s.updateStrategy ??= {};
+      s.updateStrategy.type ??= 'RollingUpdate';
+      if (s.updateStrategy.type === 'RollingUpdate') s.updateStrategy.rollingUpdate = { maxSurge: 0, maxUnavailable: 1, ...(s.updateStrategy.rollingUpdate ?? {}) };
+      s.template.metadata ??= {};
+      padroesPodSpec(s.template.spec);
       break;
     case 'PersistentVolumeClaim':
       s.volumeMode ??= 'Filesystem';

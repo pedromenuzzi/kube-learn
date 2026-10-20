@@ -51,6 +51,7 @@ export class Cluster {
     this.encaminhamentos = []; // kubectl port-forward ativos: { local, ns, pod, remota }
     this.discos = new Map(); // o conteúdo de cada disco: nome do PV (ou "emptydir:<uid do pod>:<volume>") → Map(arquivo → texto)
     this.provisionamentos = new Map(); // uid do PVC → { inicio, avisado, esperando }
+    this.jobsVistos = new Set(); // Jobs de CronJob que já terminaram e foram anotados (SawCompletedJob)
     this.contexto = { nome: contexto, namespace: 'default' };
     this.kubelet = new Kubelet(this);
     // Como no kubeadm/kind: o control plane sobe primeiro (o DNS nasce nele) e os workers entram depois.
@@ -109,7 +110,7 @@ export class Cluster {
     obj.metadata = {
       ...m,
       creationTimestamp: iso(this.agora),
-      ...(['Pod', 'Deployment', 'ReplicaSet', 'StatefulSet'].includes(obj.kind) ? { generation: 1 } : {}),
+      ...(['Pod', 'Deployment', 'ReplicaSet', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob'].includes(obj.kind) ? { generation: 1 } : {}),
       resourceVersion: String(++this.rv),
       uid: this.aleatorio.uuid(),
     };
@@ -140,7 +141,7 @@ export class Cluster {
             ],
           },
         }];
-        for (const ct of s.containers) ct.volumeMounts = [...(ct.volumeMounts ?? []), { mountPath: '/var/run/secrets/kubernetes.io/serviceaccount', name: nome, readOnly: true }];
+        for (const ct of [...(s.initContainers ?? []), ...s.containers]) ct.volumeMounts = [...(ct.volumeMounts ?? []), { mountPath: '/var/run/secrets/kubernetes.io/serviceaccount', name: nome, readOnly: true }];
       }
       const padrao = ['node.kubernetes.io/not-ready', 'node.kubernetes.io/unreachable'];
       s.tolerations = [...(s.tolerations ?? [])];
@@ -149,6 +150,14 @@ export class Cluster {
       }
       obj.status = { phase: 'Pending', qosClass: qos(obj) };
     }
+    if (obj.kind === 'Job' && !obj.spec.manualSelector) {
+      // O Job ganha um seletor só dele, pelo uid, e as labels que acham os pods dele.
+      const { uid, name } = obj.metadata;
+      obj.spec.selector = { matchLabels: { 'batch.kubernetes.io/controller-uid': uid } };
+      obj.spec.template.metadata.labels = { ...(obj.spec.template.metadata.labels ?? {}), 'batch.kubernetes.io/controller-uid': uid, 'batch.kubernetes.io/job-name': name, 'controller-uid': uid, 'job-name': name };
+      if (!Object.keys(obj.metadata.labels ?? {}).length) obj.metadata.labels = { ...obj.spec.template.metadata.labels };
+    }
+    if (obj.kind === 'DaemonSet') obj.metadata.annotations = { ...(obj.metadata.annotations ?? {}), 'deprecated.daemonset.template.generation': '1' };
     if (obj.kind === 'PersistentVolumeClaim') {
       // A classe padrão entra quando o pedido não diz nenhuma ("" é "sem classe", de propósito).
       if (obj.spec.storageClassName === undefined) {
@@ -402,6 +411,7 @@ export class Cluster {
           },
         },
       });
+      for (const img of this.imagensDoSistema ?? []) this.kubelet.guardarImagem(cfg.nome, img); // o kind já vem com as imagens do sistema
       this.evento(node, 'Normal', 'RegisteredNode', `Node ${cfg.nome} event: Registered Node ${cfg.nome} in Controller`, { componente: 'node-controller' });
       this.evento(node, 'Normal', 'NodeReady', `Node ${cfg.nome} status is now: NodeReady`, { componente: 'kubelet', host: cfg.nome });
     });
@@ -409,11 +419,12 @@ export class Cluster {
 
   /** Namespaces do sistema, o Service `kubernetes`, o DNS e os pods do control plane. */
   criarSistema() {
-    for (const nome of ['default', 'kube-node-lease', 'kube-public', 'kube-system']) this.criar({ apiVersion: 'v1', kind: 'Namespace', metadata: { name: nome } });
+    for (const nome of ['default', 'kube-node-lease', 'kube-public', 'kube-system', 'local-path-storage']) this.criar({ apiVersion: 'v1', kind: 'Namespace', metadata: { name: nome } });
     const nodes = this.listar('Node');
     const cp = nodes.find((n) => n.metadata.labels['node-role.kubernetes.io/control-plane'] !== undefined) ?? nodes[0];
     const imagens = ['registry.k8s.io/etcd:3.6.4-0', 'registry.k8s.io/kube-apiserver:v1.37.0', 'registry.k8s.io/kube-controller-manager:v1.37.0', 'registry.k8s.io/kube-scheduler:v1.37.0', 'registry.k8s.io/coredns/coredns:v1.12.4'];
-    for (const n of nodes) for (const img of imagens) this.kubelet.guardarImagem(n.metadata.name, img);
+    this.imagensDoSistema = [...imagens, 'registry.k8s.io/kube-proxy:v1.37.0', 'docker.io/kindest/kindnetd:v20260820-69b56db7', 'docker.io/kindest/local-path-provisioner:v20260820-69b56db7'];
+    for (const n of nodes) for (const img of this.imagensDoSistema) this.kubelet.guardarImagem(n.metadata.name, img);
 
     // O disco padrão do kind: o local-path, que cria a pasta no node do primeiro pod que usar o PVC.
     const classe = { apiVersion: 'storage.k8s.io/v1', kind: 'StorageClass', metadata: { annotations: { 'storageclass.kubernetes.io/is-default-class': 'true' }, name: 'standard' }, provisioner: 'rancher.io/local-path', reclaimPolicy: 'Delete', volumeBindingMode: 'WaitForFirstConsumer' };
@@ -460,6 +471,7 @@ export class Cluster {
       ports: [{ containerPort: 53, name: 'dns', protocol: 'UDP' }, { containerPort: 53, name: 'dns-tcp', protocol: 'TCP' }, { containerPort: 9153, name: 'metrics', protocol: 'TCP' }],
       resources: { limits: { memory: '170Mi' }, requests: { cpu: '100m', memory: '70Mi' } },
     };
+    this.criarDaemonSetsDoKind(cp);
     this.criar({
       apiVersion: 'apps/v1', kind: 'Deployment',
       metadata: { name: 'coredns', namespace: 'kube-system', labels: { 'k8s-app': 'kube-dns' } },
@@ -478,5 +490,90 @@ export class Cluster {
     });
   }
 }
+
+/** A rede (kindnet) e o kube-proxy, um pod em cada node; e o local-path, que cria os discos da StorageClass standard. */
+Cluster.prototype.criarDaemonSetsDoKind = function criarDaemonSetsDoKind(cp) {
+  const sistema = { nodeSelector: { 'kubernetes.io/os': 'linux' }, priorityClassName: 'system-node-critical', tolerations: [{ operator: 'Exists' }], hostNetwork: true };
+  const hostPath = (name, path, type) => ({ name, hostPath: { path, ...(type ? { type } : {}) } });
+  this.criar({
+    apiVersion: 'v1', kind: 'ConfigMap',
+    metadata: { name: 'kube-proxy', namespace: 'kube-system', labels: { app: 'kube-proxy' } },
+    data: { 'config.conf': 'apiVersion: kubeproxy.config.k8s.io/v1alpha1\nkind: KubeProxyConfiguration\nmode: iptables\n', 'kubeconfig.conf': 'apiVersion: v1\nkind: Config\n' },
+  });
+  this.criar({
+    apiVersion: 'apps/v1', kind: 'DaemonSet',
+    metadata: { name: 'kindnet', namespace: 'kube-system', labels: { app: 'kindnet', 'k8s-app': 'kindnet', tier: 'node' } },
+    spec: {
+      selector: { matchLabels: { app: 'kindnet' } },
+      template: {
+        metadata: { labels: { app: 'kindnet', 'k8s-app': 'kindnet', tier: 'node' } },
+        spec: {
+          ...sistema, serviceAccountName: 'kindnet',
+          containers: [{
+            name: 'kindnet-cni', image: 'docker.io/kindest/kindnetd:v20260820-69b56db7',
+            env: [
+              { name: 'HOST_IP', valueFrom: { fieldRef: { apiVersion: 'v1', fieldPath: 'status.hostIP' } } },
+              { name: 'POD_IP', valueFrom: { fieldRef: { apiVersion: 'v1', fieldPath: 'status.podIP' } } },
+              { name: 'POD_SUBNET', value: '10.244.0.0/16' },
+              { name: 'CONTROL_PLANE_ENDPOINT', value: `${cp.metadata.name}:6443` },
+            ],
+            resources: { requests: { cpu: '100m', memory: '50Mi' } },
+            volumeMounts: [{ mountPath: '/etc/cni/net.d', name: 'cni-cfg' }, { mountPath: '/run/xtables.lock', name: 'xtables-lock' }, { mountPath: '/lib/modules', name: 'lib-modules', readOnly: true }, { mountPath: '/var/run/nri', name: 'nri-plugin' }],
+          }],
+          volumes: [hostPath('cni-cfg', '/etc/cni/net.d'), hostPath('xtables-lock', '/run/xtables.lock', 'FileOrCreate'), hostPath('lib-modules', '/lib/modules'), hostPath('nri-plugin', '/var/run/nri')],
+        },
+      },
+    },
+  });
+  this.criar({
+    apiVersion: 'apps/v1', kind: 'DaemonSet',
+    metadata: { name: 'kube-proxy', namespace: 'kube-system', labels: { 'k8s-app': 'kube-proxy' } },
+    spec: {
+      selector: { matchLabels: { 'k8s-app': 'kube-proxy' } },
+      template: {
+        metadata: { labels: { 'k8s-app': 'kube-proxy' } },
+        spec: {
+          ...sistema, serviceAccountName: 'kube-proxy',
+          containers: [{
+            name: 'kube-proxy', image: 'registry.k8s.io/kube-proxy:v1.37.0',
+            command: ['/usr/local/bin/kube-proxy', '--config=/var/lib/kube-proxy/config.conf', '--hostname-override=$(NODE_NAME)'],
+            env: [{ name: 'NODE_NAME', valueFrom: { fieldRef: { apiVersion: 'v1', fieldPath: 'spec.nodeName' } } }],
+            securityContext: { privileged: true },
+            volumeMounts: [{ mountPath: '/var/lib/kube-proxy', name: 'kube-proxy' }, { mountPath: '/run/xtables.lock', name: 'xtables-lock' }, { mountPath: '/lib/modules', name: 'lib-modules', readOnly: true }],
+          }],
+          volumes: [{ name: 'kube-proxy', configMap: { name: 'kube-proxy' } }, hostPath('xtables-lock', '/run/xtables.lock', 'FileOrCreate'), hostPath('lib-modules', '/lib/modules')],
+        },
+      },
+    },
+  });
+  this.criar({
+    apiVersion: 'v1', kind: 'ConfigMap',
+    metadata: { name: 'local-path-config', namespace: 'local-path-storage' },
+    data: { 'config.json': '{"nodePathMap":[{"node":"DEFAULT_PATH_FOR_NON_LISTED_NODES","paths":["/var/local-path-provisioner"]}]}', 'helperPod.yaml': 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: helper-pod\n', setup: '#!/bin/sh\nset -eu\nmkdir -m 0777 -p "$VOL_DIR"\n', teardown: '#!/bin/sh\nset -eu\nrm -rf "$VOL_DIR"\n' },
+  });
+  this.criar({
+    apiVersion: 'apps/v1', kind: 'Deployment',
+    metadata: { name: 'local-path-provisioner', namespace: 'local-path-storage' },
+    spec: {
+      replicas: 1,
+      selector: { matchLabels: { app: 'local-path-provisioner' } },
+      template: {
+        metadata: { labels: { app: 'local-path-provisioner' } },
+        spec: {
+          containers: [{
+            name: 'local-path-provisioner', image: 'docker.io/kindest/local-path-provisioner:v20260820-69b56db7',
+            command: ['local-path-provisioner', '--debug', 'start', '--helper-image', 'docker.io/kindest/local-path-helper:v20260131-7181c60a', '--config', '/etc/config/config.json'],
+            env: [{ name: 'POD_NAMESPACE', valueFrom: { fieldRef: { apiVersion: 'v1', fieldPath: 'metadata.namespace' } } }, { name: 'CONFIG_MOUNT_PATH', value: '/etc/config/' }],
+            volumeMounts: [{ mountPath: '/etc/config/', name: 'config-volume' }],
+          }],
+          nodeSelector: { 'kubernetes.io/os': 'linux' },
+          serviceAccountName: 'local-path-provisioner-service-account',
+          tolerations: [{ effect: 'NoSchedule', key: 'node-role.kubernetes.io/control-plane', operator: 'Equal' }, { effect: 'NoSchedule', key: 'node-role.kubernetes.io/master', operator: 'Equal' }],
+          volumes: [{ name: 'config-volume', configMap: { name: 'local-path-config' } }],
+        },
+      },
+    },
+  });
+};
 
 export const criarCluster = (opcoes) => new Cluster(opcoes);

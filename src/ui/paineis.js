@@ -12,7 +12,7 @@ const ICONE = (status) => ({ Running: '✅', Pending: '⏳', ContainerCreating: 
 export const htmlLegendaMapa = (sistema) => `
   <p class="mapa-legenda">🏢 cada node é um prédio, cada pod um apartamento.
     <span>✅ rodando</span> <span>⏳ subindo</span> <span>💥 caindo</span> <span>📦 imagem não veio</span> <span>🚚 saindo</span> <span>🏁 terminou</span></p>
-  <p><label><input type="checkbox" name="sistema"${sistema ? ' checked' : ''}> Mostrar a administração (kube-system)</label></p>`;
+  <p><label><input type="checkbox" name="sistema"${sistema ? ' checked' : ''}> Mostrar a administração (kube-system e local-path-storage)</label></p>`;
 
 const barra = (rotulo, usado, total, texto) => {
   const pct = total ? Math.min(100, Math.round((usado / total) * 100)) : 0;
@@ -23,7 +23,8 @@ const memTxt = (b) => (b >= 2 ** 30 ? `${(b / 2 ** 30).toFixed(1)}Gi` : `${Math.
 
 /** Mapa: um prédio por node (com o quanto já foi reservado), os pods dentro, e os ramais (Services) e portarias. */
 export function htmlCluster(c, { sistema = false } = {}) {
-  const pods = c.listar('Pod').filter((p) => sistema || p.metadata.namespace !== 'kube-system');
+  const SISTEMA = ['kube-system', 'local-path-storage'];
+  const pods = c.listar('Pod').filter((p) => sistema || !SISTEMA.includes(p.metadata.namespace));
   const semNode = pods.filter((p) => !p.spec.nodeName);
   const apto = (p) => {
     const r = resumoPod(p, c.agora);
@@ -69,12 +70,22 @@ export function htmlRecursos(c, ns = 'default') {
     const r = resumoPod(p, c.agora);
     return `<li><span class="tipo">pod</span> ${escapar(p.metadata.name)} <span class="pod-${CLASSE(r.status)}">${escapar(r.status)}</span></li>`;
   };
+  const job = (j) => {
+    const fim = j.status?.conditions?.find((x) => (x.type === 'Complete' || x.type === 'Failed') && x.status === 'True')?.type;
+    return `<li><span class="tipo">job</span> ${escapar(j.metadata.name)} <span class="${fim === 'Complete' ? 'pod-ok' : fim === 'Failed' ? 'pod-ruim' : 'pod-espera'}">${fim ?? 'Running'}</span> (${j.status?.succeeded ?? 0}/${j.spec.completions ?? 1})
+      <ul>${filhos(j.metadata.uid, 'Pod').map(pod).join('')}</ul></li>`;
+  };
   const rs = (r) => `<li><span class="tipo">replicaset</span> ${escapar(r.metadata.name)} (${r.status?.readyReplicas ?? 0}/${r.spec.replicas})
     <ul>${filhos(r.metadata.uid, 'Pod').map(pod).join('')}</ul></li>`;
   const itens = [
     ...c.listar('Deployment', ns).map((d) => `<li><span class="tipo">deployment</span> ${escapar(d.metadata.name)} (${d.status?.readyReplicas ?? 0}/${d.spec.replicas})
       <ul>${filhos(d.metadata.uid, 'ReplicaSet').filter((r) => r.spec.replicas || r.status?.replicas).map(rs).join('')}</ul></li>`),
     ...c.listar('ReplicaSet', ns).filter((r) => !dono(r)).map(rs),
+    ...c.listar('DaemonSet', ns).map((d) => `<li><span class="tipo">daemonset</span> ${escapar(d.metadata.name)} (${d.status?.numberReady ?? 0}/${d.status?.desiredNumberScheduled ?? 0})
+      <ul>${filhos(d.metadata.uid, 'Pod').map(pod).join('')}</ul></li>`),
+    ...c.listar('CronJob', ns).map((cj) => `<li><span class="tipo">cronjob</span> ${escapar(cj.metadata.name)} <code>${escapar(cj.spec.schedule)}</code>
+      <ul>${filhos(cj.metadata.uid, 'Job').map(job).join('')}</ul></li>`),
+    ...c.listar('Job', ns).filter((j) => !dono(j)).map(job),
     ...c.listar('StatefulSet', ns).map((st) => `<li><span class="tipo">statefulset</span> ${escapar(st.metadata.name)} (${st.status?.readyReplicas ?? 0}/${st.spec.replicas})
       <ul>${filhos(st.metadata.uid, 'Pod').map(pod).join('')}</ul></li>`),
     ...c.listar('Pod', ns).filter((p) => !dono(p)).map(pod),

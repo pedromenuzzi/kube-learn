@@ -2,6 +2,7 @@
 import { criarCluster } from '../k8s/cluster.js';
 import { kubectl } from '../k8s/kubectl/index.js';
 import { yaml } from './util.js';
+import { PARTIDA5 } from './nivel5.js';
 
 const LOJA = (replicas, versao) => yaml`
   apiVersion: apps/v1
@@ -349,6 +350,11 @@ export const CLUSTERS = {
   caderno: { manifestos: CADERNO() },
   'pvc-rapido': { manifestos: juntar(PVC('fotos', 'rapido'), GALERIA) },
   'db-pronto': { manifestos: juntar(DB(3), pod('cliente', 'busybox:1.36', { comando: ['sleep', '3600'] })) },
+  // Nível 5
+  'job-quebrado': { manifestos: PARTIDA5.migracao },
+  'backup-noturno': { manifestos: PARTIDA5.backup },
+  extintor: { manifestos: PARTIDA5.extintor },
+  painel: { manifestos: PARTIDA5.painel },
 };
 
 /** Monta o cluster de partida (sempre igual para a mesma semente). */

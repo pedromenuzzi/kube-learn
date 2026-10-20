@@ -1,0 +1,2 @@
+esperando o banco
+exit=0

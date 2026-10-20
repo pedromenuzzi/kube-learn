@@ -7,30 +7,60 @@ const desde = (agora, ts) => (ts ? idade(agora - Date.parse(ts)) : '<unknown>');
 export const labelsTexto = (labels) => (labels && Object.keys(labels).length ? Object.keys(labels).sort().map((k) => `${k}=${labels[k]}`).join(',') : '<none>');
 const seletorTexto = (sel) => labelsTexto(sel);
 
-/** STATUS e READY do pod (a mesma lógica do printPod do kubectl). */
+/** STATUS e READY do pod (a mesma lógica do printPod do kubectl, com init containers e sidecars). */
 export function resumoPod(pod, agora) {
   const sts = pod.status?.containerStatuses ?? [];
+  const inits = pod.status?.initContainerStatuses ?? [];
+  const specInit = Object.fromEntries((pod.spec.initContainers ?? []).map((c) => [c.name, c]));
+  const sidecar = (nome) => specInit[nome]?.restartPolicy === 'Always';
   let motivo = pod.status?.reason || pod.status?.phase || 'Pending';
   let prontos = 0;
   let reinicios = 0;
   let ultimoReinicio = 0;
+  let reiniciosSidecar = 0;
+  let ultimoSidecar = 0;
   let algumRodando = false;
-  for (let i = sts.length - 1; i >= 0; i--) {
-    const s = sts[i];
+  let inicializando = false;
+  const fimDe = (s) => (s.lastState?.terminated?.finishedAt ? Date.parse(s.lastState.terminated.finishedAt) : 0);
+  for (let i = 0; i < inits.length; i++) {
+    const s = inits[i];
     reinicios += s.restartCount;
-    const fim = s.lastState?.terminated?.finishedAt;
-    if (fim && Date.parse(fim) > ultimoReinicio) ultimoReinicio = Date.parse(fim);
-    if (s.state.waiting?.reason) motivo = s.state.waiting.reason;
-    else if (s.state.terminated?.reason) motivo = s.state.terminated.reason;
-    else if (s.state.terminated) motivo = s.state.terminated.signal ? `Signal:${s.state.terminated.signal}` : `ExitCode:${s.state.terminated.exitCode}`;
-    else if (s.ready && s.state.running) {
-      algumRodando = true;
-      prontos++;
+    ultimoReinicio = Math.max(ultimoReinicio, fimDe(s));
+    if (sidecar(s.name)) {
+      reiniciosSidecar += s.restartCount;
+      ultimoSidecar = Math.max(ultimoSidecar, fimDe(s));
     }
+    if (s.state.terminated && s.state.terminated.exitCode === 0) continue;
+    if (sidecar(s.name) && s.started) {
+      if (s.ready) prontos++;
+      continue;
+    }
+    if (s.state.terminated) motivo = s.state.terminated.reason ? `Init:${s.state.terminated.reason}` : s.state.terminated.signal ? `Init:Signal:${s.state.terminated.signal}` : `Init:ExitCode:${s.state.terminated.exitCode}`;
+    else if (s.state.waiting?.reason && s.state.waiting.reason !== 'PodInitializing') motivo = `Init:${s.state.waiting.reason}`;
+    else motivo = `Init:${i}/${(pod.spec.initContainers ?? []).length}`;
+    inicializando = true;
+    break;
   }
-  if (motivo === 'Completed' && algumRodando) motivo = estaPronto(pod) ? 'Running' : 'NotReady';
+  const inicializado = pod.status?.conditions?.some((c) => c.type === 'Initialized' && c.status === 'True');
+  if (!inicializando || inicializado) {
+    reinicios = reiniciosSidecar;
+    ultimoReinicio = ultimoSidecar;
+    for (let i = sts.length - 1; i >= 0; i--) {
+      const s = sts[i];
+      reinicios += s.restartCount;
+      ultimoReinicio = Math.max(ultimoReinicio, fimDe(s));
+      if (s.state.waiting?.reason) motivo = s.state.waiting.reason;
+      else if (s.state.terminated?.reason) motivo = s.state.terminated.reason;
+      else if (s.state.terminated) motivo = s.state.terminated.signal ? `Signal:${s.state.terminated.signal}` : `ExitCode:${s.state.terminated.exitCode}`;
+      else if (s.ready && s.state.running) {
+        algumRodando = true;
+        prontos++;
+      }
+    }
+    if (motivo === 'Completed' && algumRodando) motivo = estaPronto(pod) ? 'Running' : 'NotReady';
+  }
   if (pod.metadata.deletionTimestamp && !['Succeeded', 'Failed'].includes(pod.status?.phase)) motivo = 'Terminating';
-  const total = pod.spec.containers.length;
+  const total = pod.spec.containers.length + (pod.spec.initContainers ?? []).filter((c) => c.restartPolicy === 'Always').length;
   return {
     pronto: `${prontos}/${total}`,
     status: motivo,
@@ -127,6 +157,36 @@ export const TABELAS = {
       `${n.status.nodeInfo.kernelVersion} (${n.status.nodeInfo.architecture})`,
       n.status.nodeInfo.containerRuntimeVersion,
     ],
+  },
+  DaemonSet: {
+    colunas: ['NAME', 'DESIRED', 'CURRENT', 'READY', 'UP-TO-DATE', 'AVAILABLE', 'NODE SELECTOR', 'AGE'],
+    linha: (d, agora) => {
+      const st = d.status ?? {};
+      return [d.metadata.name, String(st.desiredNumberScheduled ?? 0), String(st.currentNumberScheduled ?? 0), String(st.numberReady ?? 0), String(st.updatedNumberScheduled ?? 0), String(st.numberAvailable ?? 0), labelsTexto(d.spec.template.spec.nodeSelector), desde(agora, d.metadata.creationTimestamp)];
+    },
+    largas: ['CONTAINERS', 'IMAGES', 'SELECTOR'],
+    linhaLarga: (d) => [conteineres(d.spec.template.spec), imagens(d.spec.template.spec), seletorTexto(d.spec.selector.matchLabels)],
+  },
+  Job: {
+    colunas: ['NAME', 'STATUS', 'COMPLETIONS', 'DURATION', 'AGE'],
+    linha: (j, agora) => {
+      const st = j.status ?? {};
+      const tem = (tipo) => st.conditions?.some((c) => c.type === tipo && c.status === 'True');
+      const status = tem('Complete') ? 'Complete' : tem('Failed') ? 'Failed' : j.metadata.deletionTimestamp ? 'Terminating' : tem('Suspended') ? 'Suspended' : tem('FailureTarget') ? 'FailureTarget' : tem('SuccessCriteriaMet') ? 'SuccessCriteriaMet' : 'Running';
+      const feitos = st.succeeded ?? 0;
+      const conclusoes = j.spec.completions !== undefined ? `${feitos}/${j.spec.completions}` : (j.spec.parallelism ?? 0) > 1 ? `${feitos}/1 of ${j.spec.parallelism}` : `${feitos}/1`;
+      const inicio = st.startTime ? Date.parse(st.startTime) : null;
+      const duracao = inicio === null ? '' : idade((st.completionTime ? Date.parse(st.completionTime) : agora) - inicio);
+      return [j.metadata.name, status, conclusoes, duracao, desde(agora, j.metadata.creationTimestamp)];
+    },
+    largas: ['CONTAINERS', 'IMAGES', 'SELECTOR'],
+    linhaLarga: (j) => [conteineres(j.spec.template.spec), imagens(j.spec.template.spec), seletorTexto(j.spec.selector?.matchLabels)],
+  },
+  CronJob: {
+    colunas: ['NAME', 'SCHEDULE', 'TIMEZONE', 'SUSPEND', 'ACTIVE', 'LAST SCHEDULE', 'AGE'],
+    linha: (c, agora) => [c.metadata.name, c.spec.schedule, c.spec.timeZone ?? '<none>', c.spec.suspend ? 'True' : 'False', String(c.status?.active?.length ?? 0), c.status?.lastScheduleTime ? desde(agora, c.status.lastScheduleTime) : '<none>', desde(agora, c.metadata.creationTimestamp)],
+    largas: ['CONTAINERS', 'IMAGES', 'SELECTOR'],
+    linhaLarga: (c) => [conteineres(c.spec.jobTemplate.spec.template.spec), imagens(c.spec.jobTemplate.spec.template.spec), seletorTexto(c.spec.jobTemplate.spec.selector?.matchLabels)],
   },
   StatefulSet: {
     colunas: ['NAME', 'READY', 'AGE'],

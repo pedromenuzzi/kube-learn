@@ -201,6 +201,18 @@ export const IMAGENS = {
       }),
     },
   },
+  // O painel da obra: só abre depois que a preparação deixou o arquivo /config/pronto (é a missão do init container).
+  'docker.io/kubelearn/painel': {
+    tamanho: 8412331, puxaEm: 1200, digest: 'ba1ae1000ba1ae1000ba1ae1000ba1ae1000ba1ae1000ba1ae1000ba1ae10001',
+    tags: {
+      '1.0': loja('1.0', {
+        exigeArquivo: '/config/pronto',
+        semArquivo: { codigo: 1, log: ['{"level":"fatal","msg":"/config/pronto não existe: a preparação ainda não rodou"}'] },
+        logs: () => ['{"level":"info","msg":"painel da obra ouvindo na porta 8080"}'],
+        servidor: { portas: [8080], http: (caminho, { hostname }) => ({ status: 200, corpo: `${JSON.stringify({ app: 'painel', obra: 'em dia', pod: hostname })}\n`, tipo: 'application/json' }) },
+      }),
+    },
+  },
   // Imagens didáticas (busybox por baixo): um diário com uma senha no log e um cofre com um arquivo dentro.
   'docker.io/kubelearn/diario': {
     tamanho: 2217006, puxaEm: 1000, digest: 'd1a71000d1a71000d1a71000d1a71000d1a71000d1a71000d1a71000d1a71000',
@@ -222,10 +234,10 @@ export const IMAGENS = {
     },
   },
   // Componentes do control plane e do DNS (para o `get pods -A` parecer um cluster de verdade).
-  ...Object.fromEntries(['etcd:3.6.4-0', 'kube-apiserver:v1.37.0', 'kube-controller-manager:v1.37.0', 'kube-scheduler:v1.37.0', 'coredns/coredns:v1.12.4']
+  ...Object.fromEntries(['etcd:3.6.4-0', 'kube-apiserver:v1.37.0', 'kube-controller-manager:v1.37.0', 'kube-scheduler:v1.37.0', 'coredns/coredns:v1.12.4', 'kube-proxy:v1.37.0', 'docker.io/kindest/kindnetd:v20260820-69b56db7', 'docker.io/kindest/local-path-provisioner:v20260820-69b56db7']
     .map((ref) => {
       const [repo, tag] = ref.split(':');
-      return [`registry.k8s.io/${repo}`, {
+      return [repo.startsWith('docker.io/') ? repo : `registry.k8s.io/${repo}`, {
         tamanho: 20_000_000, puxaEm: 1000, digest: 'a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5',
         tags: { [tag]: { env: {}, entrypoint: [repo.split('/').pop()], comando: [repo.split('/').pop()], binarios: [repo.split('/').pop()], servidor: { portas: repo.includes('coredns') ? [53, 9153] : [] }, logs: () => [], paraEm: 0 } },
       }];

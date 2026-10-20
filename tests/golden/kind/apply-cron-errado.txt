@@ -1,0 +1,2 @@
+The CronJob "hora-errada" is invalid: spec.schedule: Invalid value: "a cada 5 minutos": expected exactly 5 fields, found 4: [a cada 5 minutos]
+exit=1

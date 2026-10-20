@@ -1,0 +1,5 @@
+NAME              READY   STATUS      RESTARTS   AGE
+relatorio-pgnzz   0/1     Completed   0          8s
+relatorio-v6ddp   0/1     Completed   0          16s
+relatorio-xrnl4   0/1     Completed   0          16s
+exit=0
