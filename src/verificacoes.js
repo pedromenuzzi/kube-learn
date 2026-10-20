@@ -29,9 +29,10 @@ import { parseDuracao } from './k8s/unidades.js';
 const PASSOS_PADRAO = [{ comando: 'kubectl apply -f .' }, { avancar: '1m' }];
 const mostrar = (v) => (v === undefined ? 'nada' : JSON.stringify(v));
 
-/** Lê um caminho como 'spec.template.spec.containers[0].image'. */
+/** Lê um caminho como 'spec.template.spec.containers[0].image' ou 'metadata.annotations["kubernetes.io/change-cause"]'. */
 export function ler(obj, caminho) {
-  return caminho.replace(/\[(\d+)\]/g, '.$1').split('.').reduce((v, k) => (v === undefined || v === null ? undefined : v[k]), obj);
+  const partes = [...caminho.matchAll(/\["([^"]+)"\]|\[(\d+)\]|([^.[\]]+)/g)].map((m) => m[1] ?? m[2] ?? m[3]);
+  return partes.reduce((v, k) => (v === undefined || v === null ? undefined : v[k]), obj);
 }
 
 function separar(alvo, padrao = 'pod') {
@@ -124,6 +125,10 @@ const REGRAS = {
   },
   rollout(r, ctx) {
     const { nome } = separar(r.rollout, 'deployment');
+    if (r.semMistura) {
+      const max = ctx.versoes.get(nome) ?? 0;
+      return [max <= 1, `deployment/${nome} nunca rodou duas versões ao mesmo tempo`, `chegou a ${max} versões juntas`];
+    }
     const min = ctx.minimos.get(nome);
     return [min !== undefined && min >= r.minDisponivel, `deployment/${nome} nunca ficou com menos de ${r.minDisponivel} pods prontos`, `chegou a ${min ?? '?'}`];
   },
@@ -168,11 +173,16 @@ export function conferir(regra, ctx) {
   return { ok, mensagem: regra.msg ?? mensagem, detalhe: ok ? '' : detalhe };
 }
 
-/** Pods prontos de cada Deployment agora (para a regra rollout). */
-function amostrar(cluster, minimos) {
+/** Pods prontos e versões rodando de cada Deployment agora (para a regra rollout). */
+function amostrar(cluster, ctx) {
   for (const d of cluster.listar('Deployment', 'default')) {
-    const n = podsDo(cluster, Object.entries(d.spec.selector.matchLabels ?? {}).map(([k, v]) => `${k}=${v}`).join(',')).filter(estaPronto).length;
-    minimos.set(d.metadata.name, Math.min(minimos.get(d.metadata.name) ?? Infinity, n));
+    const sel = Object.entries(d.spec.selector.matchLabels ?? {}).map(([k, v]) => `${k}=${v}`).join(',');
+    const pods = podsDo(cluster, sel);
+    const nome = d.metadata.name;
+    ctx.minimos.set(nome, Math.min(ctx.minimos.get(nome) ?? Infinity, pods.filter(estaPronto).length));
+    // Contam também os pods ainda terminando: eles continuam atendendo.
+    const vivos = cluster.listar('Pod', 'default').filter((p) => seletorDeLabels(sel)(p.metadata.labels) && p.status?.phase === 'Running');
+    ctx.versoes.set(nome, Math.max(ctx.versoes.get(nome) ?? 0, new Set(vivos.map((p) => p.spec.containers[0].image)).size));
   }
 }
 
@@ -181,7 +191,7 @@ function amostrar(cluster, minimos) {
  * → { descricao, oculto, ok, regras: [{ ok, mensagem, detalhe }] }
  */
 export function rodarTeste(item, teste, indice, { arquivos = {}, historico = [], resposta, clusterDoAluno } = {}) {
-  const ctx = { resultados: [], historico, resposta, minimos: new Map() };
+  const ctx = { resultados: [], historico, resposta, minimos: new Map(), versoes: new Map() };
   if (teste.noClusterDoAluno) {
     ctx.cluster = clusterDoAluno;
   } else {
@@ -189,12 +199,12 @@ export function rodarTeste(item, teste, indice, { arquivos = {}, historico = [],
     for (const passo of teste.passos ?? PASSOS_PADRAO) {
       if (passo.comando) {
         ctx.resultados.push(kubectl(ctx.cluster, passo.comando, { arquivos }));
-        amostrar(ctx.cluster, ctx.minimos);
+        amostrar(ctx.cluster, ctx);
       } else if (passo.avancar) {
         const fim = ctx.cluster.agora + parseDuracao(passo.avancar);
         while (ctx.cluster.agora < fim) {
           ctx.cluster.avancar(1000);
-          amostrar(ctx.cluster, ctx.minimos);
+          amostrar(ctx.cluster, ctx);
         }
       }
     }

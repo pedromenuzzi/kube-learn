@@ -140,7 +140,8 @@ export function rodarCenario() {
   cap('apply-web', 'kubectl apply -f /tmp/kl-web.yaml');
   c.avancarAte(deploymentPronto('web'));
   k('kubectl run dorminhoco --image=busybox:1.36 -- sleep 3600');
-  c.avancarAte(() => c.obter('Pod', 'default', 'dorminhoco')?.status?.phase === 'Running');
+  // Como o script: kubectl wait --for=condition=Ready pod/dorminhoco
+  c.avancarAte(() => c.obter('Pod', 'default', 'dorminhoco')?.status?.conditions?.some((x) => x.type === 'Ready' && x.status === 'True'));
   const P = k("kubectl get pods -l app=web -o jsonpath='{.items[0].metadata.name}'").saida;
   cap('get-pods', 'kubectl get pods');
   cap('get-pods-wide', 'kubectl get pods -o wide');

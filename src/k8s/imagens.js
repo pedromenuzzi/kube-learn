@@ -110,6 +110,7 @@ const loja = (versao, extra = {}) => ({
     acesso: ({ caminho, status }) => `{"level":"info","msg":"request","path":"${caminho}","status":${status}}`,
   },
   logs: () => [`{"level":"info","msg":"loja ${versao} ouvindo na porta 8080"}`],
+  prontoApos: 2000,
   paraEm: 0,
   ...extra,
 });
