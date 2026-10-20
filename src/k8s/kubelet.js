@@ -226,6 +226,8 @@ export class Kubelet {
 
     this.evento(pod, ct, 'Normal', 'Started', 'Container started');
     est.fase = 'rodando';
+    // Entre o "Started" e o "Ready" passa um tempo (o programa abrindo, o kubelet relatando o status).
+    est.prontoEm = c.agora + (comp.prontoApos ?? 1000);
     est.jaRodou = true;
     est.final = false;
     const saida = (texto) => {
@@ -459,13 +461,14 @@ export class Kubelet {
     let fase = 'Pending';
     if (finais) fase = ests.every(([, est]) => est.atual.exitCode === 0) ? 'Succeeded' : 'Failed';
     else if (todosJaRodaram) fase = 'Running';
-    const prontos = ests.every(([, est]) => est.fase === 'rodando');
+    const pronto = (est) => est.fase === 'rodando' && c.agora >= (est.prontoEm ?? 0);
+    const prontos = ests.every(([, est]) => pronto(est));
     const condicao = (tipo, status, extra = {}) => {
       const anterior = e.condicoes[tipo];
       if (!anterior || anterior.status !== status) e.condicoes[tipo] = { status, desde: c.agora };
       return { lastProbeTime: null, lastTransitionTime: iso(e.condicoes[tipo].desde), observedGeneration: 1, status, type: tipo, ...extra };
     };
-    const naoProntos = ests.filter(([, est]) => est.fase !== 'rodando').map(([ct]) => ct.name);
+    const naoProntos = ests.filter(([, est]) => !pronto(est)).map(([ct]) => ct.name);
     const motivoNaoPronto = fase === 'Succeeded' ? { reason: 'PodCompleted' } : { message: `containers with unready status: [${naoProntos.join(' ')}]`, reason: 'ContainersNotReady' };
     const encerrado = fase === 'Succeeded' || fase === 'Failed';
     const status = {
@@ -503,7 +506,7 @@ export class Kubelet {
     }
     s.lastState = est.ultimoTermino ? { terminated: est.ultimoTermino } : {};
     s.name = ct.name;
-    s.ready = est.fase === 'rodando';
+    s.ready = est.fase === 'rodando' && this.c.agora >= (est.prontoEm ?? 0);
     s.restartCount = est.reinicios;
     s.started = est.fase === 'rodando';
     switch (est.fase) {

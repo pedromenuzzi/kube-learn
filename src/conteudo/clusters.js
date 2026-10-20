@@ -67,6 +67,41 @@ const NIVEL1 = [
 export const CLUSTERS = {
   vazio: {},
   'loja-3-replicas': { manifestos: LOJA(3, '1.0') },
+  'loja-4-replicas': { manifestos: LOJA(4, '1.0') },
+  relatorio: {
+    manifestos: yaml`
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: relatorio
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: relatorio
+        template:
+          metadata:
+            labels:
+              app: relatorio
+          spec:
+            containers:
+            - name: relatorio
+              image: nginx:1.27
+    `,
+  },
+  // A loja foi para a 2.0, que cai na subida: o rollout travou (os 3 pods da 1.0 seguram as pontas).
+  'loja-bugada': { manifestos: LOJA(3, '1.0'), comandos: ['kubectl set image deployment/loja loja=kubelearn/loja:2.0-bugada'] },
+  // Três revisões, cada uma com o motivo anotado.
+  'loja-historico': {
+    manifestos: LOJA(3, '1.0'),
+    comandos: [
+      "kubectl annotate deployment loja kubernetes.io/change-cause='versao 1.0: abertura da loja'",
+      'kubectl set image deployment/loja loja=kubelearn/loja:1.1',
+      "kubectl annotate deployment loja kubernetes.io/change-cause='versao 1.1: carrinho novo' --overwrite",
+      'kubectl set image deployment/loja loja=kubelearn/loja:2.0',
+      "kubectl annotate deployment loja kubernetes.io/change-cause='versao 2.0: tudo novo (e o cliente reclamou)' --overwrite",
+    ],
+  },
   nivel1: { manifestos: NIVEL1 },
 };
 
@@ -78,6 +113,12 @@ export function montarCluster(nome = 'vazio', semente = nome) {
   if (def.manifestos) {
     const r = kubectl(c, 'kubectl apply -f inicial.yaml', { arquivos: { 'inicial.yaml': def.manifestos } });
     if (r.codigo) throw new Error(`cluster ${nome}: ${r.saida}`);
+    c.avancar('1m');
+  }
+  // Comandos que "alguém" rodou antes do aluno chegar (cada um seguido de 1 minuto).
+  for (const linha of def.comandos ?? []) {
+    const r = kubectl(c, linha);
+    if (r.codigo) throw new Error(`cluster ${nome}: ${linha}: ${r.saida}`);
     c.avancar('1m');
   }
   return c;

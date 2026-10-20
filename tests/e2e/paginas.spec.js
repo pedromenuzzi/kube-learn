@@ -53,7 +53,7 @@ test('resolver uma missão acende a janela: o andar mostra o progresso e o placa
     localStorage.setItem('kube-learn:progresso', JSON.stringify(Object.fromEntries(ids.map((i) => [i, { status: 'resolvido', em: '2026-10-20' }]))));
   });
   await page.goto('#/trilha');
-  await expect(page.locator('#andar-2')).toContainText('0 de 2 missões');
+  await expect(page.locator('#andar-2')).toContainText('0 de 12 missões');
   await expect(page.locator('#andar-3')).toContainText('Em obra');
   await page.locator('#andar-2').getByRole('link', { name: /Atualizar sem derrubar ninguém/ }).click();
   await page.getByRole('tab', { name: '💡 Solução' }).click();
@@ -62,7 +62,7 @@ test('resolver uma missão acende a janela: o andar mostra o progresso e o placa
   await page.getByRole('button', { name: '⬆ Entregar' }).click();
   await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
   await page.getByRole('link', { name: '← Trilha' }).click();
-  await expect(page.locator('#andar-2')).toContainText('1 de 2 missões (50%)');
+  await expect(page.locator('#andar-2')).toContainText('1 de 12 missões (8%)');
 
   await expect(page.locator('.placar')).toContainText('🔥 Dias seguidos');
   await expect(page.locator('#andar-2').getByRole('link', { name: /resolvida/ })).toHaveCount(1);
