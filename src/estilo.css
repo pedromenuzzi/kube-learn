@@ -374,3 +374,7 @@ dialog.preferencias fieldset { border: 1px solid var(--borda); border-radius: 6p
 .quiz-retorno.falha { color: var(--ruim); }
 .quiz-retorno p { color: var(--texto); }
 .leitura-acoes { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-top: 1.5rem; }
+.tabela-simples { border-collapse: collapse; margin: 0.75rem 0; font-size: 0.95rem; }
+.tabela-simples th, .tabela-simples td { border: 1px solid var(--borda); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+.tabela-simples th { background: var(--superficie); }
+.resposta-aluno input { font: inherit; padding: 0.3rem 0.5rem; border: 1px solid var(--borda); border-radius: 6px; background: var(--superficie); color: var(--texto); }

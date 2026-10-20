@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { ITENS } from '../src/conteudo/index.js';
 import { montarCluster, CLUSTERS } from '../src/conteudo/clusters.js';
 import { rodarTestes, TIPOS_DE_REGRA } from '../src/verificacoes.js';
-import { kubectl } from '../src/k8s/kubectl/index.js';
+import { rodarLinha } from '../src/k8s/linha.js';
 import { explicar } from '../src/k8s/esquema.js';
 import { acharRecurso } from '../src/k8s/recursos.js';
 import { GLOSSARIO } from '../src/conteudo/glossario.js';
@@ -17,9 +17,10 @@ function aluno(item, { resolvido }) {
   const arquivos = { ...(resolvido ? item.solucao : item.inicial) };
   const clusterDoAluno = montarCluster(item.cluster, item.id);
   const historico = resolvido ? item.solucaoTerminal ?? [] : [];
-  for (const linha of historico) kubectl(clusterDoAluno, linha, { arquivos });
+  for (const linha of historico) rodarLinha(clusterDoAluno, linha, arquivos);
   clusterDoAluno.avancar('1m');
-  return { arquivos, clusterDoAluno, historico, resposta: resolvido ? item.resposta : '' };
+  const certa = typeof item.respostaCerta === 'function' ? item.respostaCerta(clusterDoAluno) : item.respostaCerta;
+  return { arquivos, clusterDoAluno, historico, resposta: resolvido ? certa : '' };
 }
 
 describe('a trilha inteira', () => {

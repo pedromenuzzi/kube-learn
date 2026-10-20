@@ -2,7 +2,7 @@
 // que anda no tempo (1 segundo por segundo), painéis do cluster e os testes.
 import { montarCluster } from '../conteudo/clusters.js';
 import { XP } from '../conteudo/util.js';
-import { kubectl } from '../k8s/kubectl/index.js';
+import { rodarLinha } from '../k8s/linha.js';
 import { explicar as explicarSaida } from '../k8s/explicacoes.js';
 import { explicar as explicarCampo } from '../k8s/esquema.js';
 import { RECURSOS, acharRecurso } from '../k8s/recursos.js';
@@ -28,7 +28,8 @@ O relógio do cluster anda sozinho; o botão ⏩ adianta 30 segundos.
 `;
 
 export function montarExercicio(raiz, item) {
-  const temArquivos = !(item.terminal && !Object.keys(item.inicial ?? {}).length);
+  const temArquivos = !item.terminal || !!item.comArquivos || Object.keys(item.inicial ?? {}).length > 0;
+  const pedeResposta = item.testes?.some((t) => t.regras.some((r) => 'resposta' in r));
   const chaveArquivos = CHAVES.arquivos + item.id;
   const estado = {
     arquivos: { ...(ler(chaveArquivos) ?? item.inicial ?? {}) },
@@ -96,7 +97,15 @@ export function montarExercicio(raiz, item) {
   $('#lado-missao').innerHTML = `
     <div class="enunciado">${item.enunciado}</div>
     ${item.comoSaber ? `<h2>✅ Como saber que deu certo</h2><p>${item.comoSaber}</p>` : ''}
+    ${pedeResposta ? `<form class="resposta-aluno"><p><label for="resposta-aluno">${escapar(item.rotuloResposta ?? 'Sua resposta')}</label><br>
+      <input id="resposta-aluno" name="resposta" autocomplete="off" spellcheck="false"> <button type="submit">Guardar resposta</button></p></form>` : ''}
     ${item.dica ? `<details><summary>💡 Dica</summary><p><code>${escapar(item.dica)}</code></p></details>` : ''}`;
+  $('.resposta-aluno')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    estado.resposta = e.target.resposta.value;
+    aviso.textContent = 'Resposta guardada. Agora clique em ✔ Conferir.';
+  });
+  $('#resposta-aluno')?.addEventListener('input', (e) => { estado.resposta = e.target.value; });
   if (item.vidaReal) {
     $('#lado-vida').innerHTML = `<p class="vida">${escapar(item.vidaReal)}</p>${item.limite ? `<h2>Onde a comparação quebra</h2><p>${escapar(item.limite)}</p>` : ''}`;
   }
@@ -178,7 +187,13 @@ export function montarExercicio(raiz, item) {
       const texto = `bash: ${cmd}: command not found\n`;
       return { saida: texto, codigo: 127, partes: [{ fluxo: 'err', texto }], caixas: [{ titulo: 'Aqui o terminal só fala kubectl', texto: 'Use <code>kubectl ...</code>, ou <code>help</code> para ver os outros comandos.' }] };
     }
-    const r = kubectl(estado.cluster, linha, { arquivos: estado.arquivos });
+    const r = rodarLinha(estado.cluster, linha, estado.arquivos);
+    if (r.arquivoGravado && editor) {
+      estado.atual = r.arquivoGravado;
+      editor.trocar(estado.arquivos[estado.atual], `Editor: ${estado.atual}`);
+      salvar();
+      desenharArquivos();
+    }
     const caixas = explicarSaida(r.saida, { falhou: r.codigo !== 0 }).filter((c) => r.codigo !== 0 || !caixasVistas.has(c.chave));
     for (const c of caixas) caixasVistas.add(c.chave);
     setTimeout(atualizarPaineis);

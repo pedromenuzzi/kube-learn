@@ -38,9 +38,36 @@ const LOJA = (replicas, versao) => yaml`
       targetPort: 8080
 `;
 
+const pod = (nome, imagem, { labels = { app: nome }, ns, comando } = {}) => yaml`
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: ${nome}
+${ns ? `    namespace: ${ns}\n` : ''}    labels:
+${Object.entries(labels).map(([k, v]) => `      ${k}: ${v}`).join('\n')}
+  spec:
+    containers:
+    - name: ${nome}
+      image: ${imagem}
+${comando ? `      command: ${JSON.stringify(comando)}\n` : ''}`;
+
+/** O prédio de investigação do nível 1: um pouco de tudo para o aluno achar com o kubectl. */
+const NIVEL1 = [
+  'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: vendas\n',
+  pod('caixa', 'busybox:1.36', { ns: 'vendas', comando: ['sleep', '3600'] }),
+  pod('misterio', 'nginx:1.27'),
+  pod('diario', 'kubelearn/diario:1.0'),
+  pod('cofre', 'kubelearn/cofre:1.0'),
+  ...['suporte-1', 'suporte-2', 'suporte-3'].map((n) => pod(n, 'busybox:1.36', { labels: { equipe: 'suporte' }, comando: ['sleep', '3600'] })),
+  ...['vendas-1', 'vendas-2'].map((n) => pod(n, 'busybox:1.36', { labels: { equipe: 'vendas' }, comando: ['sleep', '3600'] })),
+  pod('intruso', 'busybox:1.36', { comando: ['sleep', '3600'] }),
+  pod('vitrine', 'ngnix:1.27'),
+].join('---\n');
+
 export const CLUSTERS = {
   vazio: {},
   'loja-3-replicas': { manifestos: LOJA(3, '1.0') },
+  nivel1: { manifestos: NIVEL1 },
 };
 
 /** Monta o cluster de partida (sempre igual para a mesma semente). */

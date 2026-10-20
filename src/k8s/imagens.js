@@ -192,6 +192,26 @@ export const IMAGENS = {
       }),
     },
   },
+  // Imagens didáticas (busybox por baixo): um diário com uma senha no log e um cofre com um arquivo dentro.
+  'docker.io/kubelearn/diario': {
+    tamanho: 2217006, puxaEm: 1000, digest: 'd1a71000d1a71000d1a71000d1a71000d1a71000d1a71000d1a71000d1a71000',
+    tags: {
+      '1.0': {
+        ...busybox,
+        comando: ['sh', '-c', 'echo "[diário de obra] 07:00 chegou o caminhão de areia"; echo "[diário de obra] 07:30 a equipe de pintura começou no 3º andar"; echo "[diário de obra] 08:00 a senha do Wi-Fi da obra é: tijolo-azul-42"; echo "[diário de obra] 08:15 o elevador de carga parou de novo"; sleep infinity'],
+      },
+    },
+  },
+  'docker.io/kubelearn/cofre': {
+    tamanho: 2217006, puxaEm: 1000, digest: 'c0f4e000c0f4e000c0f4e000c0f4e000c0f4e000c0f4e000c0f4e000c0f4e000',
+    tags: {
+      '1.0': {
+        ...busybox,
+        comando: ['sleep', 'infinity'],
+        arquivos: { '/cofre/LEIA-ME.txt': 'A combinação do cofre está no outro arquivo desta pasta.\n', '/cofre/combinacao.txt': '7-3-9\n' },
+      },
+    },
+  },
   // Componentes do control plane e do DNS (para o `get pods -A` parecer um cluster de verdade).
   ...Object.fromEntries(['etcd:3.6.4-0', 'kube-apiserver:v1.37.0', 'kube-controller-manager:v1.37.0', 'kube-scheduler:v1.37.0', 'coredns/coredns:v1.12.4']
     .map((ref) => {

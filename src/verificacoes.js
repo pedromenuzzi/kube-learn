@@ -12,7 +12,9 @@
 //   { evento: { motivo, objeto } }                     aconteceu um evento com esse motivo
 //   { env: { pods: 'app=x', nome, igual } }            a variável de ambiente dentro do contêiner
 //   { comando: 'regex' }                               o aluno usou esse comando no terminal
-//   { resposta: 'texto' | /regex/ }                    a resposta que o aluno digitou
+//   { resposta: 'texto' | /regex/ | { de: 'pod/x', campo: 'spec.nodeName' } }   a resposta que o aluno digitou
+//                                                      (a última forma compara com um campo do cluster do aluno)
+//   { contexto: { namespace } }                        o namespace padrão do kubectl (kubectl config set-context)
 //
 // Passos (`passos`): { comando: 'kubectl ...' } e { avancar: '30s' }.
 // Sem `passos`: kubectl apply -f . e 1 minuto de relógio.
@@ -65,6 +67,8 @@ const REGRAS = {
   objeto(r, ctx) {
     const { recurso, nome } = separar(r.objeto);
     const obj = recurso && ctx.cluster.obter(recurso.kind, recurso.namespaced ? r.ns ?? 'default' : null, nome);
+    if (!obj && r.existe === false && !r.campo) return [true, `${r.objeto} não existe`];
+    if (obj && r.existe === false && !r.campo) return [false, `${r.objeto} não existe`, 'ainda existe'];
     if (!obj) return [false, `${r.objeto}${r.campo ? `: ${r.campo}` : ''} existe`, `${pluralQualificado(recurso ?? { plural: r.objeto, grupo: '' })} "${nome}" não existe`];
     if (!r.campo) return [true, `${r.objeto} existe`];
     return comparar(ler(obj, r.campo), r, `${r.objeto}: ${r.campo}`);
@@ -139,8 +143,18 @@ const REGRAS = {
   },
   resposta(r, ctx) {
     const dada = String(ctx.resposta ?? '').trim();
-    const ok = r.resposta instanceof RegExp ? r.resposta.test(dada) : dada.toLowerCase() === String(r.resposta).toLowerCase();
-    return [ok, 'a resposta está certa', dada ? 'não é essa' : 'você ainda não respondeu'];
+    let ok;
+    if (r.resposta instanceof RegExp) ok = r.resposta.test(dada.toLowerCase());
+    else if (typeof r.resposta === 'object') {
+      const { recurso, nome } = separar(r.resposta.de);
+      const obj = ctx.cluster?.obter(recurso.kind, recurso.namespaced ? r.resposta.ns ?? 'default' : null, nome);
+      ok = !!obj && dada.toLowerCase() === String(ler(obj, r.resposta.campo)).toLowerCase();
+    } else ok = dada.toLowerCase() === String(r.resposta).toLowerCase();
+    return [ok, 'a resposta está certa', dada ? 'não é essa' : 'você ainda não respondeu (o campo fica na aba 📝 Missão)'];
+  },
+  contexto(r, ctx) {
+    const atual = ctx.cluster.contexto.namespace;
+    return [atual === r.contexto.namespace, `o namespace padrão do kubectl é ${r.contexto.namespace}`, `está ${atual}`];
   },
 };
 
