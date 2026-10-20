@@ -1,0 +1,10 @@
+Name:            cota
+Namespace:       time-a
+Resource         Used   Hard
+--------         ----   ----
+limits.cpu       1500m  2
+limits.memory    768Mi  2Gi
+pods             3      3
+requests.cpu     300m   1
+requests.memory  384Mi  1Gi
+exit=0

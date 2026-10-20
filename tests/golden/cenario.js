@@ -126,6 +126,7 @@ export function rodarCenario() {
       { nome: 'golden-worker2', cpu: '12', memoria: '8131216Ki', disco: '1081101176832' },
     ],
     uptime: '2m',
+    metricas: true, // o kind do golden tem o metrics-server (para o nível 6)
   });
   const saidas = {};
   const k = (cmd) => kubectl(c, cmd, { arquivos: ARQUIVOS });
@@ -357,5 +358,38 @@ export function rodarCenario() {
   c.avancar('8s');
   cap('get-cronjob', 'kubectl get cronjob');
   cap('describe-cronjob', 'kubectl describe cronjob limpeza');
+
+  // Fase 6 · nível 6: probes, recursos, cotas e HPA
+  cap('apply-probes', 'kubectl apply -f /tmp/kl-probes.yaml');
+  c.avancar('25s');
+  cap('get-pods-probes', 'kubectl get pod pronto vivo');
+  cap('yaml-probe', "kubectl get pod pronto -o jsonpath='{.spec.containers[0].readinessProbe}'");
+  cap('describe-pod-readiness', 'kubectl describe pod pronto');
+  cap('describe-pod-liveness', 'kubectl describe pod vivo');
+  cap('apply-cota', 'kubectl apply -f /tmp/kl-cota.yaml');
+  c.avancar('2s');
+  cap('run-limitrange', 'kubectl run sem-nada --image=nginx:1.27 -n time-a');
+  cap('resources-limitrange', "kubectl get pod sem-nada -n time-a -o jsonpath='{.spec.containers[0].resources}'");
+  cap('anotacao-limitrange', "kubectl get pod sem-nada -n time-a -o jsonpath='{.metadata.annotations}'");
+  cap('run-max-limitrange', `kubectl run grandao --image=nginx:1.27 -n time-a --overrides='{"spec":{"containers":[{"name":"grandao","image":"nginx:1.27","resources":{"limits":{"memory":"1Gi"}}}]}}'`);
+  cap('run-cota-estourada', `kubectl run guloso --image=nginx:1.27 -n time-a --overrides='{"spec":{"containers":[{"name":"guloso","image":"nginx:1.27","resources":{"requests":{"cpu":"2"},"limits":{"cpu":"2"}}}]}}'`);
+  k('kubectl create deployment muitos --image=nginx:1.27 --replicas=5 -n time-a');
+  c.avancar('8s');
+  cap('get-quota', 'kubectl get quota -n time-a');
+  cap('describe-quota', 'kubectl describe quota cota -n time-a');
+  cap('get-limitrange', 'kubectl get limitrange -n time-a');
+  cap('describe-limitrange', 'kubectl describe limitrange limites -n time-a');
+  cap('describe-ns-cota', 'kubectl describe ns time-a');
+  cap('apply-cota-b', 'kubectl apply -f /tmp/kl-cota-b.yaml');
+  c.avancar('2s');
+  cap('run-cota-sem-requests', 'kubectl run x --image=nginx:1.27 -n time-b');
+  cap('apply-hpa', 'kubectl apply -f /tmp/kl-hpa.yaml');
+  cap('autoscale', 'kubectl autoscale deployment php --cpu=50% --min=1 --max=5');
+  cap('autoscale-sem-requests', 'kubectl autoscale deployment sem-requests --cpu=50% --min=1 --max=3');
+  cap('dry-autoscale', 'kubectl autoscale deployment php --cpu-percent=50 --min=1 --max=5 --dry-run=client -o yaml');
+  c.avancarAte(deploymentPronto('php'), '2m');
+  c.avancar('60s');
+  cap('get-hpa', 'kubectl get hpa');
+  cap('describe-hpa-sem-requests', 'kubectl describe hpa sem-requests');
   return { saidas, cluster: c };
 }

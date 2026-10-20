@@ -23,9 +23,12 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
 
 - `cluster.js` (API, eventos, relógio, laço de reconciliação) → `controladores.js`, `scheduler.js`, `kubelet.js`,
   `rede.js`, `discos.js` (PV, PVC, o provisionador local-path do kind e o sistema de arquivos de cada contêiner,
-  com volumes), `cron.js` (o horário dos CronJobs); `imagens.js` é o catálogo de imagens falsas (o comportamento de cada uma); `shell.js` roda o
+  com volumes), `cron.js` (o horário dos CronJobs), `cotas.js` (ResourceQuota e LimitRange); `imagens.js` é o catálogo de imagens falsas (o comportamento de cada uma); `shell.js` roda o
   `sh -c` dos contêineres e o `kubectl exec`; `esquema.js` tem os campos de cada kind (decodificação estrita,
   validação, padrões, explain); `kubectl/` é a linha de comando.
+- O cluster sobe com o que o kind tem (kindnet, kube-proxy, local-path-provisioner, StorageClass standard);
+  `criarCluster({ metricas: true })` instala também o metrics-server (`kubectl top` e HPA). No `clusters.js`, use
+  `metricas: true` no cluster de partida.
 - `kubectl(cluster, 'kubectl get pods', { arquivos })` → `{ saida, stdout, stderr, codigo, observar?, sessao? }`.
   O kubectl não avança o relógio sozinho (só `delete` e `rollout status`, que esperam como o real); quem chama
   usa `cluster.avancar('30s')`.

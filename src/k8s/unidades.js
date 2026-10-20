@@ -84,3 +84,13 @@ export function bytes(q) {
 
 /** Uma quantidade é válida? (o formato que o apiserver aceita, sem notação exponencial). */
 export const quantidadeValida = (q) => /^[+]?(\d+(\.\d*)?|\.\d+)([KMGTPE]i|[mkMGTPE])?$/.test(String(q));
+
+/** Milicores como o Kubernetes escreve: 1500 → '1500m', 2000 → '2', 0 → '0'. */
+export const textoCpu = (m) => (m === 0 ? '0' : m % 1000 === 0 ? String(m / 1000) : `${m}m`);
+
+/** Bytes como o Kubernetes escreve: na maior unidade exata (Gi, Mi, Ki). */
+export function textoMemoria(b) {
+  if (b === 0) return '0';
+  for (const [suf, f] of [['Gi', 2 ** 30], ['Mi', 2 ** 20], ['Ki', 2 ** 10]]) if (b % f === 0) return `${b / f}${suf}`;
+  return String(b);
+}

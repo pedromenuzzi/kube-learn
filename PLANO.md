@@ -250,7 +250,8 @@ do curso, que é o que o teclado e o leitor de tela usam. "Reduzir movimento" pa
   - liveness, readiness e startup probes;
   - requests e limits, OOMKilled e throttling;
   - QoS, ResourceQuota e LimitRange;
-  - HPA com carga simulada, PDB e `kubectl top`.
+  - HPA com carga simulada (um busybox com `wget` em laço) e `kubectl top` (os clusters do nível trazem o
+    metrics-server, que o kind não tem). O PDB foi para o nível 7, junto do `drain`.
 - **7 · Scheduling:**
   - nodeSelector, affinity e anti-affinity, topology spread;
   - taints e tolerations, PriorityClass;
@@ -607,7 +608,7 @@ As estimativas são em sessões do Claude no esforço alto. Cada fase termina co
 | **3. Trilha e progresso** ✅ | Prédio em pixel art (navio desde a Fase 5) (motor `pixel.js` reaproveitado, sprites e fonte pixel), XP, 🔥, 70%, landing, página do glossário, acessibilidade básica, E2E com axe | O progresso fica salvo e o axe passa | 2 |
 | **4. Conteúdo MVP** ✅ | Níveis 0 a 3 (~13 lições e ~48 exercícios) e ~45 termos no glossário | A trilha inteira passa. **🚀 v0.1** | 4 |
 | **5. Revisão e certificados** ✅ | Revisão do dia, o navio no lugar do prédio, lacre por nível, certificado final, mapa do cluster, página de privacidade | **v0.2** | 2 |
-| **6. Níveis 4 a 6** | Motor (volumes, StatefulSet, Jobs, DaemonSet, probes, limits, HPA, quotas) e conteúdo | **v0.3** | 5 |
+| **6. Níveis 4 a 6** ✅ | Motor (volumes, StatefulSet, Jobs, DaemonSet, probes, limits, HPA, quotas) e conteúdo; o mar se mexe na página inicial | **v0.3** | 5 |
 | **7. Níveis 7 a 9** | Motor (scheduling avançado, drain, RBAC, NetworkPolicy, PSA) e os 20 incidentes | **v0.4** | 5 |
 | **8. Níveis 10 e 11** | Helm e Kustomize simulados, CRD, os 8 projetos, lição do kind | **v1.0 🏙️** | 4 |
 

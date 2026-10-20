@@ -1,6 +1,6 @@
 // Os painéis que mostram o cluster por dentro: o mapa (nodes com os pods dentro), a árvore de recursos e os eventos.
 import { escapar } from './util.js';
-import { resumoPod, enderecosEndpoints } from '../k8s/kubectl/tabelas.js';
+import { resumoPod, enderecosEndpoints, alvosHpa } from '../k8s/kubectl/tabelas.js';
 import { kubectl } from '../k8s/kubectl/index.js';
 import { nodePronto, usoDoNode } from '../k8s/scheduler.js';
 import { cpuMili, bytes } from '../k8s/unidades.js';
@@ -93,6 +93,8 @@ export function htmlRecursos(c, ns = 'default') {
       const ep = c.obter('Endpoints', ns, s.metadata.name);
       return `<li><span class="tipo">service</span> ${escapar(s.metadata.name)} ${escapar(s.spec.clusterIP ?? '')} → <span class="${ep && enderecosEndpoints(ep) !== '<none>' ? '' : 'pod-ruim'}">${escapar(ep ? enderecosEndpoints(ep) : '<none>')}</span></li>`;
     }),
+    ...c.listar('HorizontalPodAutoscaler', ns).map((h) => `<li><span class="tipo">hpa</span> ${escapar(h.metadata.name)} → ${escapar(h.spec.scaleTargetRef.name)} <span class="pod-ns">${escapar(alvosHpa(h))} · ${h.status?.currentReplicas ?? 0} réplicas</span></li>`),
+    ...c.listar('ResourceQuota', ns).map((q) => `<li><span class="tipo">quota</span> ${escapar(q.metadata.name)} <span class="pod-ns">${escapar(Object.keys(q.spec.hard ?? {}).sort().map((k) => `${k}: ${q.status?.used?.[k] ?? 0}/${q.spec.hard[k]}`).join(', '))}</span></li>`),
     ...c.listar('ConfigMap', ns).filter((m) => m.metadata.name !== 'kube-root-ca.crt').map((m) => `<li><span class="tipo">configmap</span> ${escapar(m.metadata.name)}</li>`),
     ...c.listar('Secret', ns).map((s) => `<li><span class="tipo">secret</span> ${escapar(s.metadata.name)}</li>`),
     ...c.listar('PersistentVolumeClaim', ns).map((v) => `<li><span class="tipo">pvc</span> ${escapar(v.metadata.name)} <span class="${v.status?.phase === 'Bound' ? 'pod-ok' : 'pod-espera'}">${escapar(v.metadata.deletionTimestamp ? 'Terminating' : v.status?.phase ?? 'Pending')}</span>${v.status?.capacity?.storage ? ` ${escapar(v.status.capacity.storage)}` : ''}</li>`),

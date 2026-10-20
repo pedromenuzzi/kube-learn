@@ -16,6 +16,8 @@
 //   { env: { pods: 'app=x', nome, igual } }            a variável de ambiente dentro do contêiner
 //   { comando: 'regex' }                               o aluno usou esse comando no terminal
 //   { saida: 'regex' }                                 a saída de algum comando dos passos do teste combina
+//   { vigia: { maxFalhas: 0 } }                        com `vigiar: 'http://loja'` no teste: um cliente pediu a URL a
+//                                                      cada segundo dos passos, e no máximo tantas deram erro
 //   { resposta: 'texto' | /regex/ | { de: 'pod/x', campo: 'spec.nodeName' } }   a resposta que o aluno digitou
 //                                                      (a última forma compara com um campo do cluster do aluno)
 //   { contexto: { namespace } }                        o namespace padrão do kubectl (kubectl config set-context)
@@ -173,6 +175,10 @@ const REGRAS = {
     const re = new RegExp(r.saida);
     return [ctx.resultados.some((x) => re.test(x.saida)), `a saída de um comando do teste combina com /${r.saida}/`, ctx.resultados.length ? `veio ${mostrar(ctx.resultados.at(-1).saida.trim().split('\n')[0])}` : 'nenhum comando rodou'];
   },
+  vigia(r, ctx) {
+    const { falhas, total } = ctx.vigia ?? { falhas: 0, total: 0 };
+    return [total > 0 && falhas <= r.vigia.maxFalhas, `um cliente pedindo ${ctx.urlVigiada} a cada segundo teve no máximo ${r.vigia.maxFalhas} erro${r.vigia.maxFalhas === 1 ? '' : 's'}`, `teve ${falhas} erros em ${total} pedidos`];
+  },
   comando(r, ctx) {
     const re = new RegExp(r.comando);
     return [ctx.historico.some((l) => re.test(l.trim())), `você usou um comando que combina com /${r.comando}/`, 'nenhum comando parecido no histórico'];
@@ -204,8 +210,12 @@ export function conferir(regra, ctx) {
   return { ok, mensagem: regra.msg ?? mensagem, detalhe: ok ? '' : detalhe };
 }
 
-/** Pods prontos e versões rodando de cada Deployment agora (para a regra rollout). */
+/** Pods prontos e versões rodando de cada Deployment agora (para a regra rollout), e o cliente vigiando a URL. */
 function amostrar(cluster, ctx) {
+  if (ctx.urlVigiada) {
+    ctx.vigia.total++;
+    if (pedir(cluster, { url: ctx.urlVigiada }).status !== 200) ctx.vigia.falhas++;
+  }
   for (const d of cluster.listar('Deployment', 'default')) {
     const sel = Object.entries(d.spec.selector.matchLabels ?? {}).map(([k, v]) => `${k}=${v}`).join(',');
     const pods = podsDo(cluster, sel);
@@ -222,7 +232,7 @@ function amostrar(cluster, ctx) {
  * → { descricao, oculto, ok, regras: [{ ok, mensagem, detalhe }] }
  */
 export function rodarTeste(item, teste, indice, { arquivos = {}, historico = [], resposta, clusterDoAluno } = {}) {
-  const ctx = { resultados: [], historico, resposta, minimos: new Map(), versoes: new Map() };
+  const ctx = { resultados: [], historico, resposta, minimos: new Map(), versoes: new Map(), urlVigiada: teste.vigiar, vigia: { falhas: 0, total: 0 } };
   if (teste.noClusterDoAluno) {
     ctx.cluster = clusterDoAluno;
   } else {

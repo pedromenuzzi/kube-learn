@@ -107,6 +107,25 @@ const volume = objeto('v1.Volume', 'Um volume: uma pasta que os contêineres do 
   image: qualquer('', { go: 'ImageVolumeSource' }),
 });
 
+const sonda = (desc) => objeto('v1.Probe', desc, {
+  httpGet: objeto('v1.HTTPGetAction', 'Um GET HTTP no contêiner: respostas de 200 a 399 contam como sucesso.', {
+    path: texto('O caminho (ex.: /healthz).'),
+    port: { ...intOuTexto('A porta (número ou nome).'), obrigatorio: true },
+    host: texto(''),
+    scheme: texto('HTTP (padrão) ou HTTPS.'),
+    httpHeaders: qualquer(''),
+  }),
+  tcpSocket: objeto('v1.TCPSocketAction', 'Abrir uma conexão TCP na porta: conectou, deu certo.', { port: { ...intOuTexto('A porta.'), obrigatorio: true }, host: texto('') }),
+  exec: objeto('v1.ExecAction', 'Rodar um comando dentro do contêiner: código 0 é sucesso.', { command: lista(texto(''), 'O comando (não roda num shell).') }),
+  grpc: qualquer(''),
+  initialDelaySeconds: inteiro('Segundos de espera depois que o contêiner sobe, antes do primeiro teste. Padrão: 0.'),
+  periodSeconds: inteiro('De quanto em quanto tempo testar. Padrão: 10.'),
+  timeoutSeconds: inteiro('Quanto esperar a resposta. Padrão: 1.'),
+  successThreshold: inteiro('Quantos sucessos seguidos para voltar a contar como bom. Padrão: 1.'),
+  failureThreshold: inteiro('Quantas falhas seguidas para agir (reiniciar ou tirar do Service). Padrão: 3.'),
+  terminationGracePeriodSeconds: int64(''),
+});
+
 const container = objeto('v1.Container', 'Um contêiner: o programa que roda dentro do pod, a partir de uma imagem.', {
   name: texto('O nome do contêiner, único no pod.', { obrigatorio: true }),
   image: texto('A imagem do contêiner, no formato registry/repositório:tag (ex.: nginx:1.27).'),
@@ -133,9 +152,9 @@ const container = objeto('v1.Container', 'Um contêiner: o programa que roda den
   }),
   volumeMounts: lista(volumeMount, 'Volumes do pod montados neste contêiner.'),
   volumeDevices: lista(qualquer('', { go: 'VolumeDevice' }), ''),
-  livenessProbe: qualquer('Teste periódico de "está vivo?". Se falhar, o contêiner é reiniciado.', { go: 'Probe' }),
-  readinessProbe: qualquer('Teste periódico de "pode receber tráfego?". Se falhar, o pod sai dos endpoints do Service.', { go: 'Probe' }),
-  startupProbe: qualquer('Teste de "já terminou de subir?". Enquanto não passa, os outros testes esperam.', { go: 'Probe' }),
+  livenessProbe: sonda('Teste periódico de "está vivo?". Se falhar seguidas vezes, o contêiner é reiniciado.'),
+  readinessProbe: sonda('Teste periódico de "pode receber tráfego?". Enquanto falha, o pod fica fora dos endpoints do Service.'),
+  startupProbe: sonda('Teste de "já terminou de subir?". Enquanto não passa, os outros testes esperam; se esgotar as tentativas, o contêiner é reiniciado.'),
   lifecycle: qualquer('Ganchos de início e de parada.', { go: 'Lifecycle' }),
   imagePullPolicy: texto('Quando baixar a imagem: Always, IfNotPresent ou Never. Padrão: Always se a tag for latest (ou não tiver tag), senão IfNotPresent.'),
   securityContext: qualquer('Opções de segurança do contêiner.', { go: 'SecurityContext' }),
@@ -487,6 +506,43 @@ export const ESQUEMAS = {
     }, { obrigatorio: true }),
     status: status('DaemonSet'),
   }),
+  HorizontalPodAutoscaler: raiz('HorizontalPodAutoscaler', 'O HorizontalPodAutoscaler (HPA) ajusta sozinho o número de réplicas de um Deployment pelo uso (ex.: manter a CPU média em 50% do pedido).', {
+    spec: objeto('v2.HorizontalPodAutoscalerSpec', 'A especificação do HPA.', {
+      scaleTargetRef: objeto('v2.CrossVersionObjectReference', 'O que escalar.', { apiVersion: texto(''), kind: texto('Deployment, StatefulSet ou ReplicaSet.', { obrigatorio: true }), name: texto('O nome.', { obrigatorio: true }) }, { obrigatorio: true }),
+      minReplicas: inteiro('O mínimo de réplicas. Padrão: 1.'),
+      maxReplicas: inteiro('O máximo de réplicas.', { obrigatorio: true }),
+      metrics: lista(objeto('v2.MetricSpec', 'Uma métrica.', {
+        type: texto('Resource (CPU, memória), Pods, Object, External ou ContainerResource.', { obrigatorio: true }),
+        resource: objeto('v2.ResourceMetricSource', 'Uma métrica de recurso dos pods.', {
+          name: texto('cpu ou memory.', { obrigatorio: true }),
+          target: objeto('v2.MetricTarget', 'O alvo.', { type: texto('Utilization (porcentagem do request), AverageValue ou Value.', { obrigatorio: true }), averageUtilization: inteiro('A porcentagem do request (ex.: 50).'), averageValue: qualquer(''), value: qualquer('') }, { obrigatorio: true }),
+        }),
+        pods: qualquer(''), object: qualquer(''), external: qualquer(''), containerResource: qualquer(''),
+      }), 'As métricas que decidem o número de réplicas. Padrão: CPU em 80%.'),
+      behavior: qualquer('Quão rápido sobe e desce (stabilizationWindowSeconds, policies).', { go: 'HorizontalPodAutoscalerBehavior' }),
+    }, { obrigatorio: true }),
+    status: status('HorizontalPodAutoscaler'),
+  }),
+  ResourceQuota: raiz('ResourceQuota', 'A ResourceQuota é a cota de um namespace: no máximo tantos pods, tanto de CPU e de memória pedidos e de limites.', {
+    spec: objeto('v1.ResourceQuotaSpec', 'Os limites do namespace.', {
+      hard: quantidades('Os máximos (ex.: pods: "10", requests.cpu: "2", limits.memory: 4Gi).'),
+      scopes: lista(texto(''), ''),
+      scopeSelector: qualquer(''),
+    }),
+    status: status('ResourceQuota'),
+  }),
+  LimitRange: raiz('LimitRange', 'O LimitRange põe regras por contêiner num namespace: valores padrão de requests e limits para quem não disse nada, e mínimos e máximos.', {
+    spec: objeto('v1.LimitRangeSpec', 'As regras.', {
+      limits: lista(objeto('v1.LimitRangeItem', 'Uma regra.', {
+        type: texto('Container, Pod ou PersistentVolumeClaim.', { obrigatorio: true }),
+        default: quantidades('O limit padrão de quem não disse nenhum.'),
+        defaultRequest: quantidades('O request padrão de quem não disse nenhum.'),
+        max: quantidades('O máximo.'),
+        min: quantidades('O mínimo.'),
+        maxLimitRequestRatio: quantidades(''),
+      }), 'As regras.', { obrigatorio: true }),
+    }),
+  }),
   Node: raiz('Node', 'O Node é uma máquina do cluster, onde os pods rodam.', { spec: qualquer('', { go: 'NodeSpec' }), status: status('Node') }),
   Endpoints: raiz('Endpoints', 'A lista de IPs e portas dos pods atrás de um Service.', { subsets: qualquer('') }),
   Event: raiz('Event', 'Uma ocorrência registrada no cluster.', {}),
@@ -810,6 +866,15 @@ function padroesMolde(t) {
   return t;
 }
 
+function padroesSonda(p) {
+  if (!p) return;
+  p.timeoutSeconds ??= 1;
+  p.periodSeconds ??= 10;
+  p.successThreshold ??= 1;
+  p.failureThreshold ??= 3;
+  if (p.httpGet) p.httpGet.scheme ??= 'HTTP';
+}
+
 function padroesPodSpec(spec) {
   for (const v of spec.volumes ?? []) {
     const tipos = ['configMap', 'secret', 'emptyDir', 'persistentVolumeClaim', 'hostPath', 'projected', 'downwardAPI', 'ephemeral', 'csi', 'nfs', 'image'];
@@ -824,6 +889,7 @@ function padroesPodSpec(spec) {
     c.resources ??= {};
     c.terminationMessagePath ??= '/dev/termination-log';
     c.terminationMessagePolicy ??= 'File';
+    for (const k of ['livenessProbe', 'readinessProbe', 'startupProbe']) padroesSonda(c[k]);
   }
   spec.dnsPolicy ??= 'ClusterFirst';
   spec.restartPolicy ??= 'Always';
@@ -892,6 +958,10 @@ export function aplicarPadroes(obj) {
       if (s.updateStrategy.type === 'RollingUpdate') s.updateStrategy.rollingUpdate = { maxSurge: 0, maxUnavailable: 1, ...(s.updateStrategy.rollingUpdate ?? {}) };
       s.template.metadata ??= {};
       padroesPodSpec(s.template.spec);
+      break;
+    case 'HorizontalPodAutoscaler':
+      s.minReplicas ??= 1;
+      s.metrics ??= [{ type: 'Resource', resource: { name: 'cpu', target: { type: 'Utilization', averageUtilization: 80 } } }];
       break;
     case 'PersistentVolumeClaim':
       s.volumeMode ??= 'Filesystem';

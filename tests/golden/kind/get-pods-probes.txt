@@ -1,0 +1,4 @@
+NAME     READY   STATUS    RESTARTS   AGE
+pronto   0/1     Running   0          25s
+vivo     1/1     Running   0          25s
+exit=0

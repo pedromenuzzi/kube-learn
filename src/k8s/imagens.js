@@ -36,8 +36,8 @@ const NGINX_404 = (versao) => `<html>
 </html>
 `;
 
-const BINARIOS_DEBIAN = ['sh', 'bash', 'cat', 'ls', 'env', 'printenv', 'echo', 'hostname', 'sleep', 'date', 'pwd', 'whoami', 'true', 'false', 'exit', 'id'];
-const BINARIOS_BUSYBOX = [...BINARIOS_DEBIAN.filter((b) => b !== 'bash'), 'wget', 'nslookup', 'ps', 'top', 'ping'];
+const BINARIOS_DEBIAN = ['sh', 'bash', 'cat', 'ls', 'env', 'printenv', 'echo', 'hostname', 'sleep', 'date', 'pwd', 'whoami', 'true', 'false', 'exit', 'id', 'touch', 'rm', 'mkdir'];
+const BINARIOS_BUSYBOX = [...BINARIOS_DEBIAN.filter((b) => b !== 'bash'), 'wget', 'nslookup', 'ps', 'top', 'ping', 'touch', 'rm', 'mkdir'];
 
 const dataNginx = (ms) => new Date(ms).toISOString().replace(/^(\d+)-(\d+)-(\d+)T([\d:]+)\..*$/, '$1/$2/$3 $4');
 const MESES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -87,6 +87,7 @@ const nginx = (versao) => ({
     ].map((l) => `${dataNginx(agora)} [notice] 1#1: ${l}`),
   ],
   arquivos: { '/usr/share/nginx/html/index.html': NGINX_HTML },
+  memoria: '11Mi', cpu: 1, custoReq: 1,
   paraEm: 1500, // o nginx fecha as conexões e sai: o pod aparece como Terminating por um instante
 });
 
@@ -95,6 +96,7 @@ const busybox = {
   comando: ['sh'],
   binarios: BINARIOS_BUSYBOX,
   busybox: true,
+  memoria: '1Mi', cpu: 0,
   paraEm: 30_000, // o sh não trata o SIGTERM: espera o prazo de 30s inteiro
 };
 
@@ -117,6 +119,7 @@ const loja = (versao, extra = {}) => ({
   },
   logs: () => [`{"level":"info","msg":"loja ${versao} ouvindo na porta 8080"}`],
   prontoApos: 2000,
+  memoria: '9Mi', cpu: 1, custoReq: 3, // cada requisição/s custa 3 milicores (100 req/s ≈ 300m)
   paraEm: 0,
   ...extra,
 });
@@ -155,7 +158,8 @@ export const IMAGENS = {
       comando: ['docker-entrypoint.sh', 'redis-server'],
       binarios: [...BINARIOS_DEBIAN, 'redis-server', 'redis-cli', 'docker-entrypoint.sh'],
       servidor: { portas: [6379] },
-      arquivos: { '/data/.keep': '' }, // a pasta de trabalho do redis (WORKDIR /data)
+      arquivos: { '/data/.keep': '' },
+      memoria: '3Mi', cpu: 2, // a pasta de trabalho do redis (WORKDIR /data)
       logs: () => ['1:C 16 Oct 2026 12:00:00.000 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo', '1:M 16 Oct 2026 12:00:00.001 * Server initialized', '1:M 16 Oct 2026 12:00:00.001 * Ready to accept connections tcp'],
       paraEm: 0,
     }])),
@@ -184,6 +188,7 @@ export const IMAGENS = {
       },
       servidor: { portas: [5432] },
       arquivos: { '/var/lib/postgresql/data/.keep': '' },
+      memoria: '22Mi', cpu: 3,
       logs: () => ['PostgreSQL init process complete; ready for start up.', '', 'LOG:  database system is ready to accept connections'],
       paraEm: 0,
     }])),
@@ -194,11 +199,42 @@ export const IMAGENS = {
       '1.0': loja('1.0'),
       '1.1': loja('1.1'),
       '2.0': loja('2.0'),
+      // Aquece por 20s antes de abrir a porta: sem readinessProbe, o Service manda clientes para quem ainda não atende.
+      '2.1-aquece': loja('2.1-aquece', { ouveApos: 20_000, aquecendo: ['{"level":"info","msg":"aquecendo o cache de preços..."}'] }),
+      // Depois de 40s no ar, trava: a porta continua aberta, mas nada responde (só uma livenessProbe percebe).
+      '2.2-trava': loja('2.2-trava', { travaApos: 40_000, travou: ['{"level":"error","msg":"deadlock no carrinho: todas as threads esperando"}'] }),
+      // Demora 45s para subir (migra o banco na partida): precisa de uma startupProbe, ou a liveness mata antes.
+      '3.0-lenta': loja('3.0-lenta', { ouveApos: 45_000, aquecendo: ['{"level":"info","msg":"migrando o banco de dados (isso demora)..."}'] }),
       '2.0-bugada': loja('2.0-bugada', {
         quebraApos: 0,
         codigo: 2,
         log: ['panic: runtime error: invalid memory address or nil pointer dereference', '[signal SIGSEGV: segmentation violation code=0x1 addr=0x0 pc=0x4a2f1c]'],
       }),
+    },
+  },
+  // A imagem do tutorial oficial de HPA: um PHP que gasta CPU a cada requisição e responde "OK!".
+  'registry.k8s.io/hpa-example': {
+    tamanho: 186328614, puxaEm: 4000, digest: 'a07ee6b56d39f1a5d0bd8fa8f8eb72ef4d5a0e1a7f8f9b9e7fd11f8e2e3d4c5b',
+    tags: {
+      latest: {
+        env: { PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' }, entrypoint: ['docker-php-entrypoint'], comando: ['docker-php-entrypoint', 'apache2-foreground'],
+        binarios: [...BINARIOS_DEBIAN, 'docker-php-entrypoint', 'apache2-foreground', 'php'],
+        servidor: { portas: [80], http: () => ({ status: 200, corpo: 'OK!', tipo: 'text/html; charset=UTF-8' }) },
+        logs: () => ['AH00558: apache2: Could not reliably determine the server\'s fully qualified domain name, using 10.244.1.2. Set the \'ServerName\' directive globally to suppress this message'],
+        memoria: '12Mi', cpu: 1, custoReq: 3, paraEm: 0,
+      },
+    },
+  },
+  // O relatório pesado: carrega a planilha inteira na memória (300Mi).
+  'docker.io/kubelearn/relatorio': {
+    tamanho: 9120331, puxaEm: 1200, digest: 'feed0001feed0001feed0001feed0001feed0001feed0001feed0001feed0001',
+    tags: {
+      '1.0': {
+        env: { PATH: '/usr/local/bin:/usr/bin:/bin' }, entrypoint: ['/relatorio'], comando: ['/relatorio'], binarios: ['/relatorio'],
+        servidor: { portas: [] },
+        logs: () => ['{"level":"info","msg":"carregando a planilha de medições (300Mi)..."}', '{"level":"info","msg":"relatório pronto; aguardando o próximo pedido"}'],
+        memoria: '300Mi', cpu: 50, paraEm: 0,
+      },
     },
   },
   // O painel da obra: só abre depois que a preparação deixou o arquivo /config/pronto (é a missão do init container).
@@ -234,7 +270,7 @@ export const IMAGENS = {
     },
   },
   // Componentes do control plane e do DNS (para o `get pods -A` parecer um cluster de verdade).
-  ...Object.fromEntries(['etcd:3.6.4-0', 'kube-apiserver:v1.37.0', 'kube-controller-manager:v1.37.0', 'kube-scheduler:v1.37.0', 'coredns/coredns:v1.12.4', 'kube-proxy:v1.37.0', 'docker.io/kindest/kindnetd:v20260820-69b56db7', 'docker.io/kindest/local-path-provisioner:v20260820-69b56db7']
+  ...Object.fromEntries(['etcd:3.6.4-0', 'kube-apiserver:v1.37.0', 'kube-controller-manager:v1.37.0', 'kube-scheduler:v1.37.0', 'coredns/coredns:v1.12.4', 'kube-proxy:v1.37.0', 'docker.io/kindest/kindnetd:v20260820-69b56db7', 'docker.io/kindest/local-path-provisioner:v20260820-69b56db7', 'metrics-server/metrics-server:v0.9.0']
     .map((ref) => {
       const [repo, tag] = ref.split(':');
       return [repo.startsWith('docker.io/') ? repo : `registry.k8s.io/${repo}`, {

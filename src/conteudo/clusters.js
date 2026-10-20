@@ -3,6 +3,7 @@ import { criarCluster } from '../k8s/cluster.js';
 import { kubectl } from '../k8s/kubectl/index.js';
 import { yaml } from './util.js';
 import { PARTIDA5 } from './nivel5.js';
+import { PARTIDA6 } from './nivel6.js';
 
 const LOJA = (replicas, versao) => yaml`
   apiVersion: apps/v1
@@ -130,6 +131,16 @@ const GATEWAY = yaml`
       protocol: HTTP
 `;
 const juntar = (...docs) => docs.map((d) => d.trim()).join('\n---\n');
+const NS = (nome) => `apiVersion: v1\nkind: Namespace\nmetadata:\n  name: ${nome}\n`;
+const COTA = (ns, duro) => `apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: cota
+  namespace: ${ns}
+spec:
+  hard:
+${Object.entries(duro).map(([k, v]) => `    ${k}: ${JSON.stringify(v)}`).join('\n')}
+`;
 
 // ---------- nível 4 ----------
 const CM = (nome, dados) => `apiVersion: v1
@@ -355,13 +366,60 @@ export const CLUSTERS = {
   'backup-noturno': { manifestos: PARTIDA5.backup },
   extintor: { manifestos: PARTIDA5.extintor },
   painel: { manifestos: PARTIDA5.painel },
+  // Nível 6 (os que medem uso vêm com o metrics-server)
+  'loja-trava': { manifestos: juntar(PARTIDA6.trava, SVC('loja', 80, 8080)) },
+  'loja-lenta': { manifestos: juntar(PARTIDA6.lenta, SVC('loja', 80, 8080)) },
+  'loja-sonda-errada': { manifestos: juntar(PARTIDA6.sondaErrada, SVC('loja', 80, 8080)) },
+  'loja-apertada': { manifestos: juntar(PARTIDA6.apertado, SVC('loja', 80, 8080)), metricas: true },
+  'relatorio-oom': { manifestos: PARTIDA6.oom },
+  consumo: { manifestos: juntar(PARTIDA6.semPedido, SVC('loja', 80, 8080), PARTIDA6.oom.replace('memory: 128Mi', 'memory: 512Mi'), DEP('vitrine', 'nginx:1.27', 1, 80)), metricas: true },
+  'loja-pedidos': { manifestos: juntar(PARTIDA6.apertado.replace('cpu: 1500m', 'cpu: 100m'), SVC('loja', 80, 8080)), metricas: true },
+  'black-friday': {
+    manifestos: juntar(PARTIDA6.semPedido, SVC('loja', 80, 8080), yaml`
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: loja
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: loja
+        minReplicas: 2
+        maxReplicas: 8
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 50
+    `, pod('carga', 'busybox:1.36', { comando: ['sh', '-c', 'while true; do wget -q -O- http://loja; done'] })),
+    metricas: true,
+  },
+  'cota-vendas': { manifestos: juntar(NS('vendas'), COTA('vendas', { 'requests.cpu': '1', 'limits.memory': '1Gi' }), PARTIDA6.vendas) },
+  'cota-compras': { manifestos: juntar(NS('compras'), COTA('compras', { 'requests.cpu': '1', 'requests.memory': '1Gi', 'limits.cpu': '2', 'limits.memory': '2Gi' }), PARTIDA6.compras) },
+  'teto-compras': {
+    manifestos: juntar(NS('compras'), yaml`
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: teto
+        namespace: compras
+      spec:
+        limits:
+        - type: Container
+          max:
+            memory: 512Mi
+    `, PARTIDA6.grande),
+  },
 };
 
 /** Monta o cluster de partida (sempre igual para a mesma semente). */
 export function montarCluster(nome = 'vazio', semente = nome) {
   const def = CLUSTERS[nome];
   if (!def) throw new Error(`cluster de partida desconhecido: ${nome}`);
-  const c = criarCluster({ nodes: def.nodes, semente });
+  const c = criarCluster({ nodes: def.nodes, semente, metricas: def.metricas });
   if (def.manifestos) {
     const r = kubectl(c, 'kubectl apply -f inicial.yaml', { arquivos: { 'inicial.yaml': def.manifestos } });
     if (r.codigo) throw new Error(`cluster ${nome}: ${r.saida}`);

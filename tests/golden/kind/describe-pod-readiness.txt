@@ -1,0 +1,54 @@
+Name:             pronto
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             golden-worker/172.19.0.4
+Start Time:       Tue, 20 Oct 2026 14:40:26 -0300
+Labels:           <none>
+Annotations:      <none>
+Status:           Running
+IP:               10.244.1.44
+IPs:
+  IP:  10.244.1.44
+Containers:
+  web:
+    Container ID:   containerd://ea8b67f442dbb33e4fee8ed7d6f5dce2e0aee636acedcc14e807299b0f858164
+    Image:          nginx:1.27
+    Image ID:       docker.io/library/nginx@sha256:6784fb0834aa7dbbe12e3d7471e69c290df3e6ba810dc38b34ae33d3c1c05f7d
+    Port:           <none>
+    Host Port:      <none>
+    State:          Running
+      Started:      Tue, 20 Oct 2026 14:40:27 -0300
+    Ready:          False
+    Restart Count:  0
+    Readiness:      http-get http://:8080/ delay=0s timeout=1s period=5s successThreshold=1 failureThreshold=3
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-qd9n9 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-qd9n9:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age               From               Message
+  ----     ------     ----              ----               -------
+  Normal   Scheduled  25s               default-scheduler  Successfully assigned default/pronto to golden-worker
+  Normal   Pulled     24s               kubelet            spec.containers{web}: Container image "nginx:1.27" already present on machine and can be accessed by the pod
+  Normal   Created    24s               kubelet            spec.containers{web}: Container created
+  Normal   Started    24s               kubelet            spec.containers{web}: Container started
+  Warning  Unhealthy  4s (x6 over 24s)  kubelet            spec.containers{web}: Readiness probe failed: Get "http://10.244.1.44:8080/": dial tcp 10.244.1.44:8080: connect: connection refused
+exit=0

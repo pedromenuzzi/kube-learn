@@ -1,0 +1,4 @@
+deployment.apps/php created
+service/php created
+deployment.apps/sem-requests created
+exit=0

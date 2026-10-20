@@ -1,7 +1,7 @@
 // `kubectl describe`: escreve as mesmas linhas, com os mesmos "\t", que o describe do kubectl, e alinha
 // com o tabwriter (padding 2). Cada flush() fecha um bloco de alinhamento, como no código original.
 import { tabular } from '../tabwriter.js';
-import { idade, rfc1123z, cpuMili, bytes } from '../unidades.js';
+import { idade, rfc1123z, cpuMili, bytes, textoCpu, textoMemoria } from '../unidades.js';
 import { podsNoNode, pedidosDoPod } from '../scheduler.js';
 import { atobUtf8 } from '../esquema.js';
 import { siglasDeAcesso, pvcsDoPod } from '../discos.js';
@@ -160,6 +160,9 @@ function conteineres(w, titulo, lista, status, recuo = '') {
         for (const k of Object.keys(r).sort()) w.w(3, `${k}:\t${r[k]}\n`);
       }
     }
+    for (const [rotulo, chave] of [['Liveness', 'livenessProbe'], ['Readiness', 'readinessProbe'], ['Startup', 'startupProbe']]) {
+      if (c[chave]) w.w(2, `${rotulo}:\t${textoSonda(c[chave])}\n`);
+    }
     for (const ef of c.envFrom ?? []) {
       if (ef === c.envFrom[0]) w.w(2, 'Environment Variables from:\n');
       const [tipo, ref] = ef.configMapRef ? ['ConfigMap', ef.configMapRef] : ['Secret', ef.secretRef];
@@ -183,6 +186,14 @@ function conteineres(w, titulo, lista, status, recuo = '') {
     w.w(2, `Mounts:${mounts.length ? '' : '\t<none>'}\n`);
     for (const m of mounts) w.w(3, `${m.mountPath} from ${m.name} (${m.readOnly ? 'ro' : 'rw'}${m.subPath ? `,path=${JSON.stringify(m.subPath)}` : ''})\n`);
   }
+}
+
+/** "http-get http://:80/healthz delay=0s timeout=1s period=10s successThreshold=1 failureThreshold=3" */
+function textoSonda(p) {
+  const acao = p.httpGet ? `http-get ${(p.httpGet.scheme ?? 'HTTP').toLowerCase()}://${p.httpGet.host ?? ''}:${p.httpGet.port}${p.httpGet.path ?? ''}`
+    : p.tcpSocket ? `tcp-socket ${p.tcpSocket.host ?? ''}:${p.tcpSocket.port}`
+      : p.exec ? `exec [${(p.exec.command ?? []).join(' ')}]` : 'unknown';
+  return `${acao} delay=${p.initialDelaySeconds ?? 0}s timeout=${p.timeoutSeconds ?? 1}s period=${p.periodSeconds ?? 10}s successThreshold=${p.successThreshold ?? 1} failureThreshold=${p.failureThreshold ?? 3}`;
 }
 
 function volumes(w, lista, recuo = '') {
@@ -385,15 +396,32 @@ const DESCRITORES = {
     escreverEventos(w, ctx.eventos, ctx.agora);
   },
 
-  Namespace(w, n) {
+  Namespace(w, n, ctx) {
     w.w(0, `Name:\t${n.metadata.name}\n`);
     labels(w, 'Labels', n.metadata.labels);
     anotacoes(w, 'Annotations', n.metadata.annotations);
     w.w(0, `Status:\t${n.status?.phase}\n`);
     w.w(0, '\n');
-    w.w(0, 'No resource quota.\n');
+    const cotas = ctx.cluster.listar('ResourceQuota', n.metadata.name);
+    if (!cotas.length) w.w(0, 'No resource quota.\n');
+    else {
+      w.w(0, 'Resource Quotas\n');
+      for (const q of cotas) {
+        w.w(1, `Name:\t${q.metadata.name}\n`);
+        w.w(1, 'Resource\tUsed\tHard\n');
+        w.w(1, '--------\t---\t---\n');
+        for (const k of Object.keys(q.spec.hard ?? {}).sort()) w.w(1, `${k}\t${q.status?.used?.[k] ?? '0'}\t${q.spec.hard[k]}\n`);
+      }
+    }
     w.w(0, '\n');
-    w.w(0, 'No LimitRange resource.\n');
+    const faixas = ctx.cluster.listar('LimitRange', n.metadata.name);
+    if (!faixas.length) w.w(0, 'No LimitRange resource.\n');
+    else {
+      w.w(0, 'Resource Limits\n');
+      w.w(0, ' Type\tResource\tMin\tMax\tDefault Request\tDefault Limit\tMax Limit/Request Ratio\n');
+      w.w(0, ' ----\t--------\t---\t---\t---------------\t-------------\t-----------------------\n');
+      for (const lr of faixas) for (const l of lr.spec.limits) for (const linha of linhasDoLimite(l)) w.w(0, ` ${linha}\n`);
+    }
   },
 
   ConfigMap(w, c, ctx) {
@@ -515,12 +543,8 @@ function generico(w, o, ctx) {
 const cap = (k) => k.replace(/^./, (x) => x.toUpperCase()).replace(/([a-z])([A-Z])/g, '$1 $2');
 
 const seletor = (sel) => Object.entries(sel?.matchLabels ?? {}).sort().map(([k, v]) => `${k}=${v}`).join(',');
-const cpuTexto = (m) => (m === 0 ? '0' : m % 1000 === 0 ? String(m / 1000) : `${m}m`);
-function memTexto(b) {
-  if (b === 0) return '0';
-  for (const [suf, f] of [['Gi', 2 ** 30], ['Mi', 2 ** 20], ['Ki', 2 ** 10]]) if (b % f === 0) return `${b / f}${suf}`;
-  return String(b);
-}
+const cpuTexto = textoCpu;
+const memTexto = textoMemoria;
 
 DESCRITORES.Ingress = (w, ing, ctx) => {
   w.w(0, `Name:\t${ing.metadata.name}\n`);
@@ -722,6 +746,57 @@ DESCRITORES.StorageClass = (w, sc, ctx) => {
   w.w(0, `MountOptions:\t${sc.mountOptions?.length ? sc.mountOptions.join(', ') : '<none>'}\n`);
   w.w(0, `ReclaimPolicy:\t${sc.reclaimPolicy}\n`);
   w.w(0, `VolumeBindingMode:\t${sc.volumeBindingMode}\n`);
+  escreverEventos(w, ctx.eventos, ctx.agora);
+};
+
+/** As linhas de um item de LimitRange, um recurso por linha: Type, Resource, Min, Max, Default Request, Default Limit, Ratio. */
+function linhasDoLimite(l) {
+  const recursos = [...new Set(['min', 'max', 'defaultRequest', 'default', 'maxLimitRequestRatio'].flatMap((k) => Object.keys(l[k] ?? {})))].sort();
+  return recursos.map((r) => [l.type, r, l.min?.[r] ?? '-', l.max?.[r] ?? '-', l.defaultRequest?.[r] ?? '-', l.default?.[r] ?? '-', l.maxLimitRequestRatio?.[r] ?? '-'].join('\t'));
+}
+
+DESCRITORES.ResourceQuota = (w, q) => {
+  w.w(0, `Name:\t${q.metadata.name}\n`);
+  w.w(0, `Namespace:\t${q.metadata.namespace}\n`);
+  w.w(0, 'Resource\tUsed\tHard\n');
+  w.w(0, '--------\t----\t----\n');
+  for (const k of Object.keys(q.spec.hard ?? {}).sort()) w.w(0, `${k}\t${q.status?.used?.[k] ?? '0'}\t${q.spec.hard[k]}\n`);
+};
+
+DESCRITORES.LimitRange = (w, lr) => {
+  w.w(0, `Name:\t${lr.metadata.name}\n`);
+  w.w(0, `Namespace:\t${lr.metadata.namespace}\n`);
+  w.w(0, 'Type\tResource\tMin\tMax\tDefault Request\tDefault Limit\tMax Limit/Request Ratio\n');
+  w.w(0, '----\t--------\t---\t---\t---------------\t-------------\t-----------------------\n');
+  for (const l of lr.spec.limits) for (const linha of linhasDoLimite(l)) w.w(0, `${linha}\n`);
+};
+
+DESCRITORES.HorizontalPodAutoscaler = (w, h, ctx) => {
+  const ref = h.spec.scaleTargetRef;
+  w.w(0, `Name:\t${h.metadata.name}\n`);
+  w.w(0, `Namespace:\t${h.metadata.namespace}\n`);
+  labels(w, 'Labels', h.metadata.labels);
+  anotacoes(w, 'Annotations', h.metadata.annotations);
+  w.w(0, `CreationTimestamp:\t${rfc(h.metadata.creationTimestamp)}\n`);
+  w.w(0, `Reference:\t${ref.kind}/${ref.name}\n`);
+  w.w(0, 'Metrics:\t( current / target )\n');
+  (h.spec.metrics ?? []).forEach((m, i) => {
+    const r = m.resource ?? {};
+    const atual = h.status?.currentMetrics?.[i]?.resource?.current;
+    if (r.target?.type === 'Utilization') {
+      const agora = atual?.averageUtilization !== undefined ? `${atual.averageUtilization}% (${atual.averageValue})` : '<unknown>';
+      w.w(1, `resource ${r.name} on pods  (as a percentage of request):\t${agora} / ${r.target.averageUtilization}%\n`);
+    } else w.w(1, `resource ${r.name} on pods:\t${atual?.averageValue ?? '<unknown>'} / ${r.target?.averageValue}\n`);
+  });
+  w.w(0, `Min replicas:\t${h.spec.minReplicas ?? 1}\n`);
+  w.w(0, `Max replicas:\t${h.spec.maxReplicas}\n`);
+  w.w(0, `${ref.kind} pods:\t${h.status?.currentReplicas ?? 0} current / ${h.status?.desiredReplicas ?? 0} desired\n`);
+  if (h.status?.conditions?.length) {
+    w.w(0, 'Conditions:\n');
+    w.w(1, 'Type\tStatus\tReason\tMessage\n');
+    w.w(1, '----\t------\t------\t-------\n');
+    for (const c of h.status.conditions) w.w(1, `${c.type}\t${c.status}\t${c.reason}\t${c.message}\n`);
+  }
   escreverEventos(w, ctx.eventos, ctx.agora);
 };
 

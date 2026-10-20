@@ -1,0 +1,2 @@
+Error from server (Forbidden): pods "grandao" is forbidden: maximum memory usage per Container is 512Mi, but limit is 1Gi
+exit=1

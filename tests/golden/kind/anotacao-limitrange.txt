@@ -1,0 +1,1 @@
+{"kubernetes.io/limit-ranger":"LimitRanger plugin set: cpu, memory request for container sem-nada; cpu, memory limit for container sem-nada"}exit=0

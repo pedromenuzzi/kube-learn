@@ -71,10 +71,11 @@ function noPod(cluster, pod, porta, url, { origemIp = '10.244.0.1', metodo = 'GE
   const ip = pod.status?.podIP;
   const ouvindo = cluster.kubelet.quemOuve(pod, porta);
   if (!ouvindo) return { erro: 'recusada', ip };
+  if (ouvindo.travado) return { erro: 'timeout', ip }; // o programa travou: aceita a conexão e nunca responde
+  cluster.kubelet.contarRequisicao(pod, ouvindo.conteiner);
   const { comportamento, conteiner } = ouvindo;
   if (!comportamento.servidor.http) return { erro: 'vazia', ip };
-  const fs = cluster.kubelet.fsDe(pod, conteiner);
-  const r = comportamento.servidor.http(url.caminho, { hostname: pod.metadata.name, ler: (c) => fs?.ler(c), env: cluster.kubelet.estado(pod, conteiner)?.env });
+  const r = comportamento.servidor.http(url.caminho, { hostname: pod.metadata.name, ler: (c) => cluster.kubelet.fsDe(pod, conteiner)?.ler(c), env: cluster.kubelet.estado(pod, conteiner)?.env });
   const tamanho = new TextEncoder().encode(r.corpo).length;
   if (comportamento.servidor.acesso) {
     cluster.kubelet.log(pod, conteiner, comportamento.servidor.acesso({ agora: cluster.agora, ip: origemIp, metodo, caminho: url.caminho, status: r.status, tamanho, agente }));
@@ -93,6 +94,9 @@ function noPod(cluster, pod, porta, url, { origemIp = '10.244.0.1', metodo = 'GE
     },
   };
 }
+
+/** A probe httpGet do kubelet: vem do próprio node, com o agente kube-probe. */
+export const sondarHttp = (cluster, pod, porta, caminho) => noPod(cluster, pod, porta, { caminho, porta, host: pod.status?.podIP }, { origemIp: pod.status?.hostIP, agente: 'kube-probe/1.37' });
 
 /** Entrega a um Service, na porta do Service: o kube-proxy escolhe um pod pronto (rodízio). */
 function noServico(cluster, svc, portaServico, url, opcoes) {

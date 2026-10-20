@@ -106,6 +106,16 @@ const statusNode = (node) => {
 const conteineres = (spec) => spec.containers.map((c) => c.name).join(',');
 const imagens = (spec) => spec.containers.map((c) => c.image).join(',');
 
+/** A coluna TARGETS do HPA: "cpu: 61%/50%" (ou <unknown> antes da primeira medida). */
+export function alvosHpa(h) {
+  return (h.spec.metrics ?? []).map((m, i) => {
+    const r = m.resource ?? {};
+    const atual = h.status?.currentMetrics?.[i]?.resource?.current;
+    if (r.target?.type === 'Utilization') return `${r.name}: ${atual?.averageUtilization !== undefined ? `${atual.averageUtilization}%` : '<unknown>'}/${r.target.averageUtilization}%`;
+    return `${r.name}: ${atual?.averageValue ?? '<unknown>'}/${r.target?.averageValue ?? r.target?.value}`;
+  }).join(', ') || '<none>';
+}
+
 /**
  * Cada tipo: colunas e linha(obj, agora); `largas` e `linhaLarga` para -o wide.
  */
@@ -220,6 +230,22 @@ export const TABELAS = {
       `${s.metadata.name}${s.metadata.annotations?.['storageclass.kubernetes.io/is-default-class'] === 'true' ? ' (default)' : ''}`,
       s.provisioner, s.reclaimPolicy ?? 'Delete', s.volumeBindingMode ?? 'Immediate', String(!!s.allowVolumeExpansion), desde(agora, s.metadata.creationTimestamp),
     ],
+  },
+  HorizontalPodAutoscaler: {
+    colunas: ['NAME', 'REFERENCE', 'TARGETS', 'MINPODS', 'MAXPODS', 'REPLICAS', 'AGE'],
+    linha: (h, agora) => [h.metadata.name, `${h.spec.scaleTargetRef.kind}/${h.spec.scaleTargetRef.name}`, alvosHpa(h), String(h.spec.minReplicas ?? 1), String(h.spec.maxReplicas), String(h.status?.currentReplicas ?? 0), desde(agora, h.metadata.creationTimestamp)],
+  },
+  ResourceQuota: {
+    colunas: ['NAME', 'REQUEST', 'LIMIT', 'AGE'],
+    linha: (q, agora) => {
+      const chaves = Object.keys(q.spec.hard ?? {}).sort();
+      const par = (k) => `${k}: ${q.status?.used?.[k] ?? '0'}/${q.spec.hard[k]}`;
+      return [q.metadata.name, chaves.filter((k) => !k.startsWith('limits.')).map(par).join(', '), chaves.filter((k) => k.startsWith('limits.')).map(par).join(', '), desde(agora, q.metadata.creationTimestamp)];
+    },
+  },
+  LimitRange: {
+    colunas: ['NAME', 'CREATED AT'],
+    linha: (l) => [l.metadata.name, l.metadata.creationTimestamp],
   },
   ConfigMap: {
     colunas: ['NAME', 'DATA', 'AGE'],

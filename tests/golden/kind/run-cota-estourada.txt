@@ -1,0 +1,2 @@
+Error from server (Forbidden): pods "guloso" is forbidden: exceeded quota: cota, requested: limits.cpu=2,requests.cpu=2, used: limits.cpu=500m,requests.cpu=100m, limited: limits.cpu=2,requests.cpu=1
+exit=1

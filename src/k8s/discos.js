@@ -207,6 +207,21 @@ export class SistemaDeArquivos {
     return null;
   }
 
+  /** Apaga um arquivo. → null, ou o motivo da falha. */
+  remover(caminho) {
+    const c = normalizar(caminho);
+    const m = this.montagem(c);
+    if (m) {
+      if (m.somenteLeitura) return 'somente-leitura';
+      return m.loja.delete(c.slice(m.caminho.length).replace(/^\//, '')) ? null : 'nao-existe';
+    }
+    if (this.camada.has(c)) {
+      this.camada.delete(c);
+      return null;
+    }
+    return 'nao-existe';
+  }
+
   /** Os nomes dentro da pasta (null se a pasta não existe). */
   listar(pasta) {
     const dir = normalizar(pasta);
