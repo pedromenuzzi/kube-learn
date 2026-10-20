@@ -1,7 +1,8 @@
-// Todos os itens da trilha. Na Fase 3/4 vira a lista de níveis (andares).
-import { EXEMPLOS } from './exemplos.js';
+// Todos os itens da trilha, na ordem dos níveis (andares).
+import { NIVEIS } from './niveis.js';
 
-export const ITENS = [...EXEMPLOS];
+export { NIVEIS };
+export const ITENS = NIVEIS.flatMap((n) => n.itens);
 
 const POR_ID = new Map(ITENS.map((i) => [i.id, i]));
 export const acharItem = (id) => POR_ID.get(id);

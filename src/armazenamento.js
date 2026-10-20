@@ -7,7 +7,16 @@ const PREFIXO = 'kube-learn:';
 export const CHAVES = {
   progresso: 'progresso', // { [idDoItem]: { status: 'resolvido' | 'tentado', em: 'AAAA-MM-DD' } }
   arquivos: 'arquivos:', // arquivos:<idDoItem> → { nome: conteúdo } que o aluno escreveu
+  dias: 'dias', // ['AAAA-MM-DD', ...]: os dias em que o aluno estudou (para a sequência 🔥)
+  janelas: 'janelas', // a arrumação das janelas da tela do exercício
+  preferencias: 'preferencias', // { tema, texto, movimento }
 };
+
+/** Marca hoje como dia de estudo (para a sequência de dias). */
+export function registrarDia(hoje) {
+  const dias = ler(CHAVES.dias, []);
+  if (!dias.includes(hoje)) gravar(CHAVES.dias, [...dias, hoje].slice(-400));
+}
 
 export function ler(chave, padrao = null) {
   try {

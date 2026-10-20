@@ -3,13 +3,32 @@ import { EditorView, basicSetup } from 'codemirror';
 import { EditorState } from '@codemirror/state';
 import { keymap } from '@codemirror/view';
 import { indentWithTab } from '@codemirror/commands';
-import { indentUnit } from '@codemirror/language';
+import { indentUnit, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { tags } from '@lezer/highlight';
 import { yaml } from '@codemirror/lang-yaml';
+
+// Cores do tema (variáveis do CSS): o editor acompanha claro, escuro e alto contraste.
+const tema = EditorView.theme({
+  '&': { backgroundColor: 'var(--editor-fundo)', color: 'var(--texto)', height: '100%' },
+  '.cm-content': { caretColor: 'var(--texto)' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--texto)' },
+  '.cm-gutters': { backgroundColor: 'var(--editor-fundo)', color: 'var(--suave)', borderRight: '1px solid var(--borda)' },
+  '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'var(--editor-linha)' },
+  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': { backgroundColor: 'color-mix(in srgb, var(--destaque) 35%, transparent)' },
+});
+const cores = syntaxHighlighting(HighlightStyle.define([
+  { tag: [tags.propertyName, tags.definition(tags.propertyName), tags.keyword], color: 'var(--sx-chave)' },
+  { tag: [tags.string, tags.content, tags.attributeValue], color: 'var(--sx-texto)' },
+  { tag: [tags.number, tags.bool, tags.null, tags.atom], color: 'var(--sx-numero)' },
+  { tag: [tags.comment, tags.meta, tags.punctuation, tags.separator], color: 'var(--sx-comentario)' },
+]));
 
 export function criarEditor(raiz, { texto, aoMudar, rotulo }) {
   const extensoes = (nome) => [
     basicSetup,
     yaml(),
+    tema,
+    cores,
     indentUnit.of('  '),
     EditorState.tabSize.of(2),
     keymap.of([indentWithTab]),

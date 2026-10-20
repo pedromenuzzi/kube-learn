@@ -25,7 +25,7 @@ test('missão de YAML: copia a solução, aplica, passa nos visíveis e entrega'
 
   // O progresso fica salvo: a lista de missões mostra ✅.
   await page.goto('#/trilha');
-  await expect(page.getByRole('link', { name: /✅ Atualizar sem derrubar ninguém/ })).toBeVisible();
+  await expect(page.locator('#andar-2').getByRole('link', { name: 'Atualizar sem derrubar ninguém (resolvida)' })).toBeVisible();
 });
 
 test('missão de terminal: escala pelo kubectl e entrega', async ({ page }) => {
@@ -58,7 +58,6 @@ test('terminal: erro com a caixa "Na vida real", Tab completa e painel do cluste
   await entrada.press('Enter');
   await expect(page.locator('.term-saida')).toContainText('deployment.apps/nginx created');
 
-  await page.getByRole('tab', { name: '🗺️ Cluster' }).click();
-  await expect(page.locator('.term-saida')).toBeHidden();
+  await page.getByRole('tab', { name: '🗺️ Mapa' }).click();
   await expect(page.locator('.mapa .pod-ok')).toHaveCount(2, { timeout: 15_000 });
 });

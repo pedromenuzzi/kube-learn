@@ -8,6 +8,8 @@ import { rodarTestes, TIPOS_DE_REGRA } from '../src/verificacoes.js';
 import { kubectl } from '../src/k8s/kubectl/index.js';
 import { explicar } from '../src/k8s/esquema.js';
 import { acharRecurso } from '../src/k8s/recursos.js';
+import { GLOSSARIO } from '../src/conteudo/glossario.js';
+import { NIVEIS } from '../src/conteudo/niveis.js';
 
 /** Monta o que o aluno teria: arquivos e, nos exercícios de terminal, o cluster depois dos comandos. */
 function aluno(item, { resolvido }) {
@@ -34,6 +36,15 @@ describe('a trilha inteira', () => {
         const [tipo, ...caminho] = m.split('.');
         expect(explicar(acharRecurso(tipo), caminho).erro, `${i.id}: manual ${m}`).toBeUndefined();
       }
+    }
+  });
+
+  it('glossário: todo termo tem definição, vida real, limite e um nível que existe', () => {
+    const ids = GLOSSARIO.map((g) => g.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const g of GLOSSARIO) {
+      for (const campo of ['termo', 'definicao', 'vidaReal', 'limite']) expect(g[campo], `${g.id}.${campo}`).toBeTruthy();
+      expect(NIVEIS.some((n) => n.numero === g.nivel), `${g.id}.nivel`).toBe(true);
     }
   });
 

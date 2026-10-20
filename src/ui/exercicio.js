@@ -8,11 +8,13 @@ import { explicar as explicarCampo } from '../k8s/esquema.js';
 import { RECURSOS, acharRecurso } from '../k8s/recursos.js';
 import { palavras } from '../k8s/kubectl/argv.js';
 import { rodarTestes } from '../verificacoes.js';
-import { ler, gravar, CHAVES, registrarResultado } from '../armazenamento.js';
+import { ler, gravar, CHAVES, registrarResultado, registrarDia } from '../armazenamento.js';
+import { hojeLocal } from '../jogo/gamificacao.js';
 import { criarTerminal } from './terminal.js';
 import { criarEditor } from './editor.js';
 import { htmlCluster, htmlRecursos, htmlEventos } from './paineis.js';
 import { ativarAbas, htmlAbas, escapar } from './util.js';
+import { montarJanelas } from './janelas.js';
 
 const DIFICULDADE = { facil: 'Fácil', medio: 'Médio', dificil: 'Difícil' };
 const SUBCOMANDOS = ['annotate', 'api-resources', 'apply', 'cluster-info', 'config', 'create', 'delete', 'describe', 'exec', 'explain', 'get', 'help', 'label', 'logs', 'rollout', 'run', 'scale', 'set', 'version'];
@@ -44,40 +46,48 @@ export function montarExercicio(raiz, item) {
         <h1>${escapar(item.titulo)}</h1>
         ${item.dificuldade ? `<span class="selo">${DIFICULDADE[item.dificuldade]} · ${XP[item.dificuldade]} XP</span>` : ''}
       </header>
-      <section class="ex-lado" aria-label="Missão">
-        ${htmlAbas('lado', [
-    { id: 'missao', rotulo: '📝 Missão' },
-    ...(item.vidaReal ? [{ id: 'vida', rotulo: '🏠 Na vida real' }] : []),
-    ...(item.manual?.length ? [{ id: 'manual', rotulo: '📘 Manual' }] : []),
-    ...(item.solucao || item.solucaoTerminal ? [{ id: 'solucao', rotulo: '💡 Solução' }] : []),
-    ...(item.testes?.length ? [{ id: 'testes', rotulo: '🧪 Testes' }] : []),
-  ], 'Sobre a missão')}
-      </section>
-      <section class="ex-trabalho" aria-label="Área de trabalho">
-        ${temArquivos ? `
+      <div class="ex-acoes">
+        ${temArquivos ? '<button type="button" class="botao" data-acao="aplicar" title="Ctrl+Enter">▶ Aplicar</button>' : '<button type="button" class="botao" data-acao="conferir" title="Ctrl+Enter">✔ Conferir</button>'}
+        <button type="button" data-acao="avancar">⏩ +30s</button>
+        ${item.testes?.length ? '<button type="button" class="botao-forte" data-acao="entregar" title="Ctrl+Shift+Enter">⬆ Entregar</button>' : ''}
+        <button type="button" data-acao="resetar">♻️ Resetar cluster</button>
+        <button type="button" data-acao="arrumacao" title="Volta as janelas para o lugar e o tamanho de começo">🪟 Arrumação padrão</button>
+        <span class="relogio" aria-hidden="true"></span>
+      </div>
+      <p class="ex-aviso" role="status" aria-live="polite"></p>
+      <div class="ex-janelas"></div>
+    </div>`;
+
+  const corpo = (html) => {
+    const d = document.createElement('div');
+    d.className = 'corpo';
+    d.innerHTML = html;
+    return d;
+  };
+  const corpos = {
+    missao: { titulo: 'Missão', corpo: corpo(htmlAbas('lado', [
+      { id: 'missao', rotulo: '📝 Missão' },
+      ...(item.vidaReal ? [{ id: 'vida', rotulo: '🏠 Na vida real' }] : []),
+      ...(item.manual?.length ? [{ id: 'manual', rotulo: '📘 Manual' }] : []),
+      ...(item.solucao || item.solucaoTerminal ? [{ id: 'solucao', rotulo: '💡 Solução' }] : []),
+      ...(item.testes?.length ? [{ id: 'testes', rotulo: '🧪 Testes' }] : []),
+    ], 'Sobre a missão')) },
+    ...(temArquivos ? {
+      arquivos: { titulo: 'Arquivos', corpo: corpo(`
         <div class="ex-arquivos">
-          <div role="tablist" aria-label="Arquivos" class="abas arquivos"></div>
+          <ul class="abas arquivos" aria-label="Arquivos"></ul>
           <button type="button" class="mini" data-acao="novo-arquivo" aria-label="Novo arquivo">+ arquivo</button>
         </div>
-        <div class="ex-editor"></div>` : ''}
-        <div class="ex-acoes">
-          ${temArquivos ? '<button type="button" class="botao" data-acao="aplicar" title="Ctrl+Enter">▶ Aplicar</button>' : '<button type="button" class="botao" data-acao="conferir" title="Ctrl+Enter">✔ Conferir</button>'}
-          <button type="button" data-acao="avancar">⏩ +30s</button>
-          ${item.testes?.length ? '<button type="button" class="botao-forte" data-acao="entregar" title="Ctrl+Shift+Enter">⬆ Entregar</button>' : ''}
-          <button type="button" data-acao="resetar">♻️ Resetar cluster</button>
-          <span class="relogio" aria-hidden="true"></span>
-        </div>
-        <p class="ex-aviso" role="status" aria-live="polite"></p>
-        <div class="ex-paineis">
-          ${htmlAbas('baixo', [
-    { id: 'terminal', rotulo: '🖥️ Terminal' },
-    { id: 'cluster', rotulo: '🗺️ Cluster' },
-    { id: 'recursos', rotulo: '🌳 Recursos' },
-    { id: 'eventos', rotulo: '📜 Eventos' },
-  ], 'Painéis do cluster')}
-        </div>
-      </section>
-    </div>`;
+        <div class="ex-editor"></div>`) },
+    } : {}),
+    terminal: { titulo: 'Terminal', corpo: corpo('<div id="ex-terminal"></div>') },
+    cluster: { titulo: 'Cluster', corpo: corpo(htmlAbas('baixo', [
+      { id: 'cluster', rotulo: '🗺️ Mapa' },
+      { id: 'recursos', rotulo: '🌳 Recursos' },
+      { id: 'eventos', rotulo: '📜 Eventos' },
+    ], 'Painéis do cluster')) },
+  };
+  const janelas = montarJanelas(raiz.querySelector('.ex-janelas'), corpos);
 
   const $ = (s) => raiz.querySelector(s);
   const aviso = $('.ex-aviso');
@@ -100,19 +110,19 @@ export function montarExercicio(raiz, item) {
     $('#lado-solucao').innerHTML = `<p>Tente antes! Se travar, a solução está aqui.</p>
       <button type="button" data-acao="ver-solucao">Ver a solução</button><div class="solucao" hidden></div>`;
   }
-  const abasLado = ativarAbas($('.ex-lado'));
-  ativarAbas($('.ex-paineis'), () => atualizarPaineis());
+  const abasLado = ativarAbas(corpos.missao.corpo);
+  ativarAbas(corpos.cluster.corpo, () => atualizarPaineis());
 
   // ---------- arquivos e editor ----------
   let editor = null;
   const salvar = () => gravar(chaveArquivos, estado.arquivos);
   const desenharArquivos = () => {
-    const lista = $('.ex-arquivos [role=tablist]');
+    const lista = $('.ex-arquivos .arquivos');
     lista.innerHTML = Object.keys(estado.arquivos).map((nome) => `
-      <span class="arquivo${nome === estado.atual ? ' atual' : ''}">
-        <button type="button" role="tab" aria-selected="${nome === estado.atual}" data-arquivo="${escapar(nome)}">${escapar(nome)}</button>
+      <li class="arquivo${nome === estado.atual ? ' atual' : ''}">
+        <button type="button" class="aba-arquivo"${nome === estado.atual ? ' aria-current="true"' : ''} data-arquivo="${escapar(nome)}">${escapar(nome)}</button>
         <button type="button" class="mini" data-apagar="${escapar(nome)}" aria-label="Apagar ${escapar(nome)}">×</button>
-      </span>`).join('');
+      </li>`).join('');
   };
   if (temArquivos) {
     editor = criarEditor($('.ex-editor'), {
@@ -199,7 +209,7 @@ export function montarExercicio(raiz, item) {
     return [];
   }
 
-  const terminal = criarTerminal($('#baixo-terminal'), { executar, completar });
+  const terminal = criarTerminal($('#ex-terminal'), { executar, completar });
   terminal.escrever(`Cluster pronto (1 control plane + 2 workers). Digite help para ajuda.${item.terminal ? ' Nesta missão, use o terminal.' : ''}`, 'term-info');
 
   // ---------- painéis ----------
@@ -230,6 +240,7 @@ export function montarExercicio(raiz, item) {
 
   function testar(todos) {
     aviso.textContent = todos ? 'Rodando todos os testes, inclusive os ocultos…' : 'Rodando os testes visíveis…';
+    registrarDia(hojeLocal());
     setTimeout(() => {
       const resultados = rodarTestes(item, {
         arquivos: estado.arquivos, historico: terminal.historico, resposta: estado.resposta, clusterDoAluno: estado.cluster,
@@ -239,7 +250,7 @@ export function montarExercicio(raiz, item) {
         const resolvido = ok === total;
         registrarResultado(item.id, resolvido);
         aviso.textContent = resolvido
-          ? `🎉 Missão cumprida! +${XP[item.dificuldade] ?? 0} XP.`
+          ? `🎉 Missão cumprida! +${XP[item.dificuldade] ?? 0} XP. A janela da missão acendeu no prédio.`
           : `${ok} de ${total} testes passaram. Veja o que faltou na aba 🧪 Testes.`;
       } else {
         aviso.textContent = `Testes visíveis: ${ok} de ${total} passaram${ok === total ? ' ✅ Agora é com o ⬆ Entregar.' : '. Veja a aba 🧪 Testes.'}`;
@@ -277,6 +288,7 @@ export function montarExercicio(raiz, item) {
         ? `<pre>${escapar(item.solucaoTerminal.join('\n'))}</pre>`
         : Object.entries(item.solucao).map(([n, t]) => `<h3>${escapar(n)}</h3><pre>${escapar(t)}</pre>`).join('') + '<button type="button" data-acao="usar-solucao">Copiar para o editor</button>';
     },
+    arrumacao: () => janelas.restaurar(),
     'usar-solucao'() {
       if (!confirm('Trocar seus arquivos pela solução?')) return;
       estado.arquivos = { ...item.solucao };
@@ -312,6 +324,7 @@ export function montarExercicio(raiz, item) {
       clearInterval(relogio);
       document.removeEventListener('keydown', teclas);
       editor?.destruir();
+      janelas.destruir();
     },
   };
 }
