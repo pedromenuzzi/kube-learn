@@ -44,10 +44,10 @@ test('mover, arrastar, redimensionar e lembrar a arrumação', async ({ page }) 
   await entrada.fill('kubectl apply -f .');
   await entrada.press('Enter');
   await expect(page.locator('.term-saida')).toContainText('deployment.apps/nginx created');
-  await page.getByRole('tab', { name: '🗺️ Mapa' }).click();
+  await page.getByRole('tab', { name: 'Mapa' }).click();
   await expect(page.locator('.term-saida')).toBeHidden();
   await expect(page.locator('.mapa')).toBeVisible();
 
-  await page.getByRole('button', { name: '🪟 Arrumação padrão' }).click();
+  await page.getByRole('button', { name: 'Arrumação padrão' }).click();
   await expect.poll(() => ordem(page)).toEqual([['missao'], ['arquivos', 'paineis']]);
 });

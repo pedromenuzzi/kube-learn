@@ -75,5 +75,6 @@ export function registrarResultado(id, resolvido, hoje = new Date().toISOString(
   if (p[id]?.status === 'resolvido') return p;
   p[id] = { status: resolvido ? 'resolvido' : 'tentado', em: hoje };
   gravar(CHAVES.progresso, p);
+  globalThis.dispatchEvent?.(new Event('kube-learn:progresso')); // o placar do topo se atualiza
   return p;
 }

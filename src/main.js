@@ -8,8 +8,10 @@ import { aplicarPreferencias, montarPreferencias } from './ui/preferencias.js';
 import { montarLeitura } from './ui/leitura.js';
 import { paginaRevisao } from './ui/revisao.js';
 import { paginaCertificado, paginaPrivacidade } from './ui/certificado.js';
+import { montarTopo, atualizarTopo } from './ui/topo.js';
 
 aplicarPreferencias();
+montarTopo(document.querySelector('.topo'));
 
 // Cada página devolve HTML (texto) ou uma função que monta a página e devolve { destruir? }.
 const PAGINAS = {
@@ -41,6 +43,7 @@ function desenhar() {
   const conteudo = rota ? PAGINAS[rota.caminho](rota.parametro) : '<h1>Página não encontrada</h1><p><a href="#/">Voltar ao início</a></p>';
   const leitura = rota?.caminho === '/ex' && ['quiz', 'licao'].includes(acharItem(rota.parametro)?.tipo) && !acharItem(rota.parametro)?.inicial;
   main.classList.toggle('largo', !leitura && ['/ex', '/livre', '/trilha', '/'].includes(rota?.caminho));
+  main.classList.toggle('medio', rota?.caminho === '/glossario');
   if (typeof conteudo === 'function') {
     main.replaceChildren();
     paginaAtual = conteudo(main);
@@ -48,10 +51,11 @@ function desenhar() {
     main.innerHTML = conteudo;
   }
   document.title = `${rota ? (rota.caminho === '/ex' ? acharItem(rota.parametro)?.titulo ?? rota.titulo : rota.titulo) : 'Página não encontrada'} · kube-learn`;
-  for (const a of document.querySelectorAll('.topo nav a')) {
-    if (a.getAttribute('href') === `#${rota?.caminho}`) a.setAttribute('aria-current', 'page');
-    else a.removeAttribute('aria-current');
-  }
+  atualizarTopo(rota?.caminho);
+  // Cada página entra com um fade curto (o CSS desliga com "reduzir movimento").
+  main.classList.remove('entrando');
+  void main.offsetWidth;
+  main.classList.add('entrando');
   // Ao trocar de página, o foco vai para o conteúdo (o leitor de tela anuncia o novo título).
   if (document.activeElement !== document.body) main.focus();
 }
@@ -61,4 +65,5 @@ montarPreferencias(document.getElementById('botao-preferencias'), () => {
   if (['/', '/trilha'].includes(resolverRota(location.hash)?.caminho ?? '/')) desenhar();
 });
 window.addEventListener('hashchange', desenhar);
+window.addEventListener('kube-learn:progresso', () => atualizarTopo(resolverRota(location.hash)?.caminho));
 desenhar();
