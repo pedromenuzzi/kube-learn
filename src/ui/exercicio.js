@@ -13,6 +13,7 @@ import { criarTerminal } from './terminal.js';
 import { criarEditor } from './editor.js';
 import { htmlCluster, htmlRecursos, htmlEventos } from './paineis.js';
 import { ativarAbas, htmlAbas, escapar } from './util.js';
+import { montarJanelas } from './janelas.js';
 
 const DIFICULDADE = { facil: 'Fácil', medio: 'Médio', dificil: 'Difícil' };
 const SUBCOMANDOS = ['annotate', 'api-resources', 'apply', 'cluster-info', 'config', 'create', 'delete', 'describe', 'exec', 'explain', 'get', 'help', 'label', 'logs', 'rollout', 'run', 'scale', 'set', 'version'];
@@ -44,40 +45,48 @@ export function montarExercicio(raiz, item) {
         <h1>${escapar(item.titulo)}</h1>
         ${item.dificuldade ? `<span class="selo">${DIFICULDADE[item.dificuldade]} · ${XP[item.dificuldade]} XP</span>` : ''}
       </header>
-      <section class="ex-lado" aria-label="Missão">
-        ${htmlAbas('lado', [
-    { id: 'missao', rotulo: '📝 Missão' },
-    ...(item.vidaReal ? [{ id: 'vida', rotulo: '🏠 Na vida real' }] : []),
-    ...(item.manual?.length ? [{ id: 'manual', rotulo: '📘 Manual' }] : []),
-    ...(item.solucao || item.solucaoTerminal ? [{ id: 'solucao', rotulo: '💡 Solução' }] : []),
-    ...(item.testes?.length ? [{ id: 'testes', rotulo: '🧪 Testes' }] : []),
-  ], 'Sobre a missão')}
-      </section>
-      <section class="ex-trabalho" aria-label="Área de trabalho">
-        ${temArquivos ? `
+      <div class="ex-acoes">
+        ${temArquivos ? '<button type="button" class="botao" data-acao="aplicar" title="Ctrl+Enter">▶ Aplicar</button>' : '<button type="button" class="botao" data-acao="conferir" title="Ctrl+Enter">✔ Conferir</button>'}
+        <button type="button" data-acao="avancar">⏩ +30s</button>
+        ${item.testes?.length ? '<button type="button" class="botao-forte" data-acao="entregar" title="Ctrl+Shift+Enter">⬆ Entregar</button>' : ''}
+        <button type="button" data-acao="resetar">♻️ Resetar cluster</button>
+        <button type="button" data-acao="arrumacao" title="Volta as janelas para o lugar e o tamanho de começo">🪟 Arrumação padrão</button>
+        <span class="relogio" aria-hidden="true"></span>
+      </div>
+      <p class="ex-aviso" role="status" aria-live="polite"></p>
+      <div class="ex-janelas"></div>
+    </div>`;
+
+  const corpo = (html) => {
+    const d = document.createElement('div');
+    d.className = 'corpo';
+    d.innerHTML = html;
+    return d;
+  };
+  const corpos = {
+    missao: { titulo: 'Missão', corpo: corpo(htmlAbas('lado', [
+      { id: 'missao', rotulo: '📝 Missão' },
+      ...(item.vidaReal ? [{ id: 'vida', rotulo: '🏠 Na vida real' }] : []),
+      ...(item.manual?.length ? [{ id: 'manual', rotulo: '📘 Manual' }] : []),
+      ...(item.solucao || item.solucaoTerminal ? [{ id: 'solucao', rotulo: '💡 Solução' }] : []),
+      ...(item.testes?.length ? [{ id: 'testes', rotulo: '🧪 Testes' }] : []),
+    ], 'Sobre a missão')) },
+    ...(temArquivos ? {
+      arquivos: { titulo: 'Arquivos', corpo: corpo(`
         <div class="ex-arquivos">
           <div role="tablist" aria-label="Arquivos" class="abas arquivos"></div>
           <button type="button" class="mini" data-acao="novo-arquivo" aria-label="Novo arquivo">+ arquivo</button>
         </div>
-        <div class="ex-editor"></div>` : ''}
-        <div class="ex-acoes">
-          ${temArquivos ? '<button type="button" class="botao" data-acao="aplicar" title="Ctrl+Enter">▶ Aplicar</button>' : '<button type="button" class="botao" data-acao="conferir" title="Ctrl+Enter">✔ Conferir</button>'}
-          <button type="button" data-acao="avancar">⏩ +30s</button>
-          ${item.testes?.length ? '<button type="button" class="botao-forte" data-acao="entregar" title="Ctrl+Shift+Enter">⬆ Entregar</button>' : ''}
-          <button type="button" data-acao="resetar">♻️ Resetar cluster</button>
-          <span class="relogio" aria-hidden="true"></span>
-        </div>
-        <p class="ex-aviso" role="status" aria-live="polite"></p>
-        <div class="ex-paineis">
-          ${htmlAbas('baixo', [
-    { id: 'terminal', rotulo: '🖥️ Terminal' },
-    { id: 'cluster', rotulo: '🗺️ Cluster' },
-    { id: 'recursos', rotulo: '🌳 Recursos' },
-    { id: 'eventos', rotulo: '📜 Eventos' },
-  ], 'Painéis do cluster')}
-        </div>
-      </section>
-    </div>`;
+        <div class="ex-editor"></div>`) },
+    } : {}),
+    terminal: { titulo: 'Terminal', corpo: corpo('<div id="ex-terminal"></div>') },
+    cluster: { titulo: 'Cluster', corpo: corpo(htmlAbas('baixo', [
+      { id: 'cluster', rotulo: '🗺️ Mapa' },
+      { id: 'recursos', rotulo: '🌳 Recursos' },
+      { id: 'eventos', rotulo: '📜 Eventos' },
+    ], 'Painéis do cluster')) },
+  };
+  const janelas = montarJanelas(raiz.querySelector('.ex-janelas'), corpos);
 
   const $ = (s) => raiz.querySelector(s);
   const aviso = $('.ex-aviso');
@@ -100,8 +109,8 @@ export function montarExercicio(raiz, item) {
     $('#lado-solucao').innerHTML = `<p>Tente antes! Se travar, a solução está aqui.</p>
       <button type="button" data-acao="ver-solucao">Ver a solução</button><div class="solucao" hidden></div>`;
   }
-  const abasLado = ativarAbas($('.ex-lado'));
-  ativarAbas($('.ex-paineis'), () => atualizarPaineis());
+  const abasLado = ativarAbas(corpos.missao.corpo);
+  ativarAbas(corpos.cluster.corpo, () => atualizarPaineis());
 
   // ---------- arquivos e editor ----------
   let editor = null;
@@ -199,7 +208,7 @@ export function montarExercicio(raiz, item) {
     return [];
   }
 
-  const terminal = criarTerminal($('#baixo-terminal'), { executar, completar });
+  const terminal = criarTerminal($('#ex-terminal'), { executar, completar });
   terminal.escrever(`Cluster pronto (1 control plane + 2 workers). Digite help para ajuda.${item.terminal ? ' Nesta missão, use o terminal.' : ''}`, 'term-info');
 
   // ---------- painéis ----------
@@ -277,6 +286,7 @@ export function montarExercicio(raiz, item) {
         ? `<pre>${escapar(item.solucaoTerminal.join('\n'))}</pre>`
         : Object.entries(item.solucao).map(([n, t]) => `<h3>${escapar(n)}</h3><pre>${escapar(t)}</pre>`).join('') + '<button type="button" data-acao="usar-solucao">Copiar para o editor</button>';
     },
+    arrumacao: () => janelas.restaurar(),
     'usar-solucao'() {
       if (!confirm('Trocar seus arquivos pela solução?')) return;
       estado.arquivos = { ...item.solucao };
@@ -312,6 +322,7 @@ export function montarExercicio(raiz, item) {
       clearInterval(relogio);
       document.removeEventListener('keydown', teclas);
       editor?.destruir();
+      janelas.destruir();
     },
   };
 }

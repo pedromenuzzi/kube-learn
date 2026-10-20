@@ -125,32 +125,53 @@ button.botao { background: var(--destaque); color: var(--fundo); border-color: v
 button.botao-forte { background: var(--ok); color: #fff; border-color: var(--ok); font-weight: 600; }
 button.mini { padding: 0.1rem 0.45rem; font-size: 0.85rem; }
 
-.ex { display: grid; gap: 1rem; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); grid-template-areas: "topo topo" "lado trabalho"; }
-.ex-topo { grid-area: topo; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 1rem; }
+.ex { display: flex; flex-direction: column; gap: 0.5rem; }
+.ex-topo { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 1rem; }
 .ex-topo h1 { margin: 0; font-size: 1.4rem; }
-.ex-lado { grid-area: lado; min-width: 0; }
-.ex-trabalho { grid-area: trabalho; min-width: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+
+/* ---------- janelas móveis e redimensionáveis ---------- */
+.janelas { display: flex; gap: 0; height: max(34rem, calc(100vh - 13rem)); }
+.janelas > .coluna { display: flex; flex-direction: column; min-width: 0; min-height: 0; flex-grow: 0; flex-shrink: 1; }
+.janela { display: flex; flex-direction: column; min-height: 0; flex-grow: 0; flex-shrink: 1; border: 1px solid var(--borda); border-radius: 6px; background: var(--superficie); overflow: hidden; }
+.janela.arrastada { opacity: 0.5; }
+.janela-topo { display: flex; align-items: center; gap: 0.4rem; padding: 0.15rem 0.4rem; background: var(--fundo); border-bottom: 1px solid var(--borda); cursor: grab; user-select: none; touch-action: none; }
+.janela-topo h2 { margin: 0; font-size: 0.85rem; flex: 1; }
+.alca { color: var(--suave); }
+.janela-mover { display: flex; gap: 0.15rem; }
+.janela-mover button { padding: 0 0.35rem; font-size: 0.75rem; line-height: 1.4; }
+.janela-corpo { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.janela-corpo > .corpo { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.janela-corpo .painel { flex: 1; min-height: 0; border: 0; }
+.divisor { flex: 0 0 0.6rem; background: transparent; position: relative; touch-action: none; }
+.divisor::after { content: ''; position: absolute; background: var(--borda); border-radius: 2px; }
+.divisor-v { cursor: col-resize; }
+.divisor-v::after { top: 45%; bottom: 45%; left: 0.2rem; right: 0.2rem; }
+.divisor-h { cursor: row-resize; }
+.divisor-h::after { left: 45%; right: 45%; top: 0.2rem; bottom: 0.2rem; }
+.divisor:hover::after, .divisor:focus-visible::after, .divisor.arrastando::after { background: var(--destaque); inset: 0.2rem; top: 0.2rem; bottom: 0.2rem; }
+.marca-soltar { position: fixed; z-index: 20; pointer-events: none; background: color-mix(in srgb, var(--destaque) 25%, transparent); border: 2px dashed var(--destaque); border-radius: 6px; }
 @media (max-width: 60rem) {
-  .ex { grid-template-columns: minmax(0, 1fr); grid-template-areas: "topo" "lado" "trabalho"; }
+  .janelas { flex-direction: column; height: auto; }
+  .janelas > .coluna { flex-basis: auto !important; }
+  .janela { flex-basis: auto !important; min-height: 24rem; margin-bottom: 0.5rem; }
+  .divisor { display: none; }
 }
 
 .abas { display: flex; flex-wrap: wrap; gap: 0.25rem; border-bottom: 1px solid var(--borda); }
 .abas [role=tab] { border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0; background: none; color: var(--suave); }
 .abas [role=tab][aria-selected=true] { border-color: var(--borda); background: var(--superficie); color: var(--texto); font-weight: 600; }
 .painel { padding: 0.75rem; background: var(--superficie); border: 1px solid var(--borda); border-top: 0; overflow: auto; }
-.ex-lado .painel { max-height: 75vh; }
 .painel h2 { font-size: 1rem; margin: 1rem 0 0.25rem; }
 .vida { font-size: 1.1rem; }
 pre.manual, .solucao pre { white-space: pre-wrap; font-size: 0.85rem; background: var(--fundo); padding: 0.5rem; border-radius: 6px; }
 
-.ex-arquivos { display: flex; align-items: flex-end; gap: 0.5rem; }
+.ex-arquivos { display: flex; align-items: flex-end; gap: 0.5rem; padding: 0.25rem 0.25rem 0; }
 .ex-arquivos .abas { flex: 1; }
 .arquivo { display: inline-flex; align-items: center; }
 .arquivo.atual [role=tab] { border-color: var(--borda); background: var(--superficie); color: var(--texto); font-weight: 600; }
-.ex-editor { border: 1px solid var(--borda); background: #fff; color: #1f2328; color-scheme: light; }
-.ex-editor .cm-editor { height: 22rem; font-size: 0.9rem; }
+.ex-editor { flex: 1; min-height: 0; border-top: 1px solid var(--borda); background: #fff; color: #1f2328; color-scheme: light; }
+.ex-editor .cm-editor { height: 100%; font-size: 0.9rem; }
 .ex-editor .cm-focused { outline: 3px solid var(--destaque); }
-.ex-so-terminal .ex-paineis .painel { min-height: 26rem; }
 
 .ex-acoes { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .relogio { margin-left: auto; color: var(--suave); font-variant-numeric: tabular-nums; }
@@ -165,9 +186,9 @@ pre.manual, .solucao pre { white-space: pre-wrap; font-size: 0.85rem; background
 .detalhe { color: var(--suave); }
 
 /* ---------- terminal ---------- */
-#baixo-terminal { padding: 0; background: var(--term-fundo); color: var(--term-texto); }
+#ex-terminal { flex: 1; min-height: 0; background: var(--term-fundo); color: var(--term-texto); }
 .terminal { display: flex; flex-direction: column; }
-.term-saida { height: 20rem; overflow: auto; padding: 0.5rem 0.75rem; font-family: ui-monospace, 'Cascadia Code', Menlo, monospace; font-size: 0.85rem; }
+.term-saida { flex: 1; min-height: 4rem; overflow: auto; padding: 0.5rem 0.75rem; font-family: ui-monospace, 'Cascadia Code', Menlo, monospace; font-size: 0.85rem; }
 .term-saida pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: inherit; }
 .term-comando { color: var(--term-cmd); }
 .term-erro { color: var(--term-erro); }
