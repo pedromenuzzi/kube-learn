@@ -7,11 +7,12 @@ missão resolvida embarca mais um contêiner no seu navio em pixel art, e a pilh
 
 **Acesse:** https://pedromenuzzi.github.io/kube-learn/
 
-**Versão 0.2:** os níveis 0 a 3 (contêineres; cluster, kubectl e Pods; Deployments; Services, Ingress e Gateway
-API), com 13 lições, 8 quizzes e 56 missões, um glossário de 63 termos e o navio em pixel art. Agora com a
-**revisão do dia** (cartões do glossário em repetição espaçada), um **lacre** por nível concluído, o
-**certificado final**, o mapa do cluster desenhado como prédios e uma página de privacidade para baixar ou apagar
-seus dados. O plano completo está em [`PLANO.md`](PLANO.md).
+**Versão 0.3:** os níveis 0 a 6 (contêineres; cluster, kubectl e Pods; Deployments; Services, Ingress e Gateway
+API; configuração e armazenamento; Jobs, CronJobs e DaemonSets; saúde e recursos), com 21 lições, 8 quizzes e 78
+missões, um glossário de 74 termos, a revisão do dia, os lacres de cada nível e o navio em pixel art na página
+inicial, com o mar em movimento. O simulador agora tem volumes e discos (PVC, StorageClass), StatefulSet, Job,
+CronJob, DaemonSet, init containers e sidecars, probes, OOMKilled, `kubectl top`, HPA, ResourceQuota e LimitRange,
+conferidos contra 207 saídas de um kind de verdade. O plano completo está em [`PLANO.md`](PLANO.md).
 
 ## Desenvolvimento
 

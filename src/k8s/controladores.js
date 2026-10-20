@@ -2,11 +2,12 @@
 // Rodam em laço até nada mudar (ver Cluster.reconciliar).
 import { hashTemplate, canonico } from './aleatorio.js';
 import { casaSeletor, estaPronto, portaAlvo, classeDoIngress, IP_INGRESS } from './rede.js';
-import { iso } from './unidades.js';
+import { iso, cpuMili, bytes, textoMemoria } from './unidades.js';
 import { controladorDeDiscos } from './discos.js';
 import { lerCron } from './cron.js';
 import { padroesJob } from './esquema.js';
 import { tolera } from './scheduler.js';
+import { controladorDeCotas } from './cotas.js';
 
 const clone = (o) => structuredClone(o);
 const TERMINAIS = new Set(['Succeeded', 'Failed']);
@@ -24,11 +25,34 @@ export function rodarControladores(c) {
   cronjobs(c);
   jobs(c);
   controladorDeDiscos(c);
+  controladorDeCotas(c);
+  autoscalers(c);
+  servidorDeMetricas(c);
   endpoints(c);
   balanceadores(c);
   ingresses(c);
   gateways(c);
   coletorDeLixo(c);
+}
+
+/**
+ * Cria o pod de um controlador. Se o apiserver recusa (cota, LimitRange), registra FailedCreate e espera um pouco
+ * (cada vez mais) antes de tentar de novo, como os controladores reais. → o pod, ou null.
+ */
+function criarPodDe(c, controle, manifesto, componente) {
+  const espera = c.esperaCriacao.get(controle.metadata.uid);
+  if (espera && c.agora < espera.proxima) return null;
+  try {
+    const pod = c.criar(manifesto);
+    c.esperaCriacao.delete(controle.metadata.uid);
+    return pod;
+  } catch (e) {
+    if (!e.codigo) throw e;
+    const atraso = Math.min((espera?.atraso ?? 500) * 2, 60_000);
+    c.esperaCriacao.set(controle.metadata.uid, { proxima: c.agora + atraso, atraso });
+    c.evento(controle, 'Warning', 'FailedCreate', `Error creating: ${e.message}`, { componente });
+    return null;
+  }
 }
 
 const salvarStatus = (c, obj, status) => {
@@ -129,6 +153,18 @@ function limitesRolling(d) {
   return { surge, indisp: Math.min(indisp, d.spec.replicas) };
 }
 
+// O hash e a forma canônica do template custam caro: guardados por objeto e geração (o template só muda com o spec).
+const moldeDe = (c, d) => {
+  const chave = `${d.metadata.uid}:${d.metadata.generation}`;
+  if (!c.moldes.has(chave)) c.moldes.set(chave, { hash: hashTemplate(d.spec.template), canon: canonico(d.spec.template) });
+  return c.moldes.get(chave);
+};
+const moldeSemHash = (c, rs) => {
+  const chave = `rs:${rs.metadata.uid}:${rs.metadata.generation}`;
+  if (!c.moldes.has(chave)) c.moldes.set(chave, semHash(rs.spec.template));
+  return c.moldes.get(chave);
+};
+
 const semHash = (template) => {
   const t = clone(template);
   delete t.metadata?.labels?.['pod-template-hash'];
@@ -158,8 +194,8 @@ function deployments(c) {
     const ns = d.metadata.namespace;
     const meus = c.listar('ReplicaSet', ns).filter((rs) => controlador(rs)?.uid === d.metadata.uid && !rs.metadata.deletionTimestamp);
     const template = d.spec.template;
-    const hash = hashTemplate(template);
-    let novo = meus.find((rs) => semHash(rs.spec.template) === canonico(template));
+    const { hash, canon } = moldeDe(c, d);
+    let novo = meus.find((rs) => moldeSemHash(c, rs) === canon);
     const maxRev = Math.max(0, ...meus.map(revisao));
     let criouNovo = false;
 
@@ -371,7 +407,7 @@ function replicasets(c) {
     const diff = rs.spec.replicas - ativos.length;
     if (diff > 0) {
       for (let i = 0; i < diff; i++) {
-        const pod = c.criar({
+        const pod = criarPodDe(c, rs, {
           apiVersion: 'v1',
           kind: 'Pod',
           metadata: {
@@ -382,7 +418,8 @@ function replicasets(c) {
             ownerReferences: [dono(rs)],
           },
           spec: clone(rs.spec.template.spec),
-        });
+        }, 'replicaset-controller');
+        if (!pod) break;
         c.evento(rs, 'Normal', 'SuccessfulCreate', `Created pod: ${pod.metadata.name}`, { componente: 'replicaset-controller' });
       }
     } else if (diff < 0) {
@@ -454,7 +491,7 @@ function statefulsets(c) {
       if (!spec.volumes.length) delete spec.volumes;
       spec.hostname = podNome;
       if (sts.spec.serviceName) spec.subdomain = sts.spec.serviceName;
-      c.criar({
+      const criado = criarPodDe(c, sts, {
         apiVersion: 'v1', kind: 'Pod',
         metadata: {
           generateName: `${nome}-`,
@@ -465,7 +502,8 @@ function statefulsets(c) {
           ownerReferences: [dono(sts)],
         },
         spec,
-      });
+      }, 'statefulset-controller');
+      if (!criado) break;
       evento('SuccessfulCreate', `Create Pod ${podNome} in StatefulSet ${nome} successful`);
       if (emOrdem) break;
     }
@@ -553,7 +591,7 @@ function jobs(c) {
         const espera = falhos.length ? Math.min(ESPERA_JOB * 2 ** (falhos.length - 1), 360_000) : 0;
         if (novos > 0 && c.agora >= ultimaFalha + espera) {
           for (let i = 0; i < novos; i++) {
-            const pod = c.criar({
+            const pod = criarPodDe(c, job, {
               apiVersion: 'v1', kind: 'Pod',
               metadata: {
                 generateName: `${job.metadata.name}-`, namespace: job.metadata.namespace,
@@ -562,7 +600,8 @@ function jobs(c) {
                 ownerReferences: [dono(job)],
               },
               spec: clone(s.template.spec),
-            });
+            }, 'job-controller');
+            if (!pod) break;
             evento('Normal', 'SuccessfulCreate', `Created pod: ${pod.metadata.name}`);
           }
         }
@@ -699,7 +738,7 @@ function daemonsets(c) {
       for (const [k, efeito] of [...TOLERANCIAS_DS, ...(spec.hostNetwork ? [['network-unavailable', 'NoSchedule']] : [])]) {
         spec.tolerations.push({ effect: efeito, key: `node.kubernetes.io/${k}`, operator: 'Exists' });
       }
-      const pod = c.criar({
+      const pod = criarPodDe(c, ds, {
         apiVersion: 'v1', kind: 'Pod',
         metadata: {
           generateName: `${ds.metadata.name}-`, namespace: ns,
@@ -708,7 +747,8 @@ function daemonsets(c) {
           ownerReferences: [dono(ds)],
         },
         spec,
-      });
+      }, 'daemonset-controller');
+      if (!pod) continue;
       evento('SuccessfulCreate', `Created pod: ${pod.metadata.name}`);
     }
     // Node que não serve mais (ou saiu do cluster): o pod sai também.
@@ -743,6 +783,138 @@ function daemonsets(c) {
       c.salvar(ds);
     }
   }
+}
+
+// ---------- metrics-server ----------
+const RASPAGEM = 15_000;
+
+/** O metrics-server (quando instalado): a cada 15s, guarda o uso de cada contêiner rodando há pelo menos 10s. */
+function servidorDeMetricas(c) {
+  if (!c.metricasLigadas || c.agora - (c.ultimaRaspagem ?? -Infinity) < RASPAGEM) return;
+  const ms = c.listar('Pod', 'kube-system').find((p) => p.metadata.labels?.['k8s-app'] === 'metrics-server' && estaPronto(p));
+  if (!ms) return;
+  c.ultimaRaspagem = c.agora;
+  const metricas = new Map();
+  for (const pod of c.listar('Pod')) {
+    const e = c.kubelet.pods.get(pod.metadata.uid);
+    if (!e || pod.status?.phase !== 'Running') continue;
+    const conteineres = {};
+    for (const ct of pod.spec.containers) {
+      const est = e.conteineres.get(ct.name);
+      if (est?.fase === 'rodando' && c.agora - est.inicio >= 10_000) conteineres[ct.name] = c.kubelet.uso(pod, ct, est);
+    }
+    if (Object.keys(conteineres).length) metricas.set(pod.metadata.uid, { t: c.agora, conteineres });
+  }
+  c.metricas = metricas;
+}
+
+/** A soma do uso dos contêineres de um pod, pela última raspagem. → { cpu, memoria } ou null. */
+export function usoDoPod(c, pod) {
+  const m = c.metricas?.get(pod.metadata.uid);
+  if (!m) return null;
+  return Object.values(m.conteineres).reduce((t, u) => ({ cpu: t.cpu + u.cpu, memoria: t.memoria + u.memoria }), { cpu: 0, memoria: 0 });
+}
+
+// ---------- HorizontalPodAutoscaler ----------
+const SYNC_HPA = 15_000;
+const ESTABILIZAR_DESCIDA = 300_000;
+
+function autoscalers(c) {
+  for (const hpa of c.listar('HorizontalPodAutoscaler')) {
+    const marca = c.hpas.get(hpa.metadata.uid) ?? { ultima: -Infinity, recomendacoes: [] };
+    c.hpas.set(hpa.metadata.uid, marca);
+    if (c.agora - marca.ultima < SYNC_HPA) continue;
+    marca.ultima = c.agora;
+    escalarPeloUso(c, hpa, marca);
+  }
+}
+
+function escalarPeloUso(c, hpa, marca) {
+  const ns = hpa.metadata.namespace;
+  const ref = hpa.spec.scaleTargetRef;
+  const evento = (tipo, motivo, msg) => c.evento(hpa, tipo, motivo, msg, { componente: 'horizontal-pod-autoscaler' });
+  const anteriores = hpa.status?.conditions ?? [];
+  const cond = (tipo, status, motivo, msg) => {
+    const a = anteriores.find((x) => x.type === tipo);
+    return { lastTransitionTime: a?.status === status ? a.lastTransitionTime : iso(c.agora), message: msg, reason: motivo, status, type: tipo };
+  };
+  const salvar = (status) => {
+    if (JSON.stringify(status) !== JSON.stringify(hpa.status)) {
+      hpa.status = status;
+      c.salvar(hpa);
+    }
+  };
+  const alvo = c.obter(ref.kind, ns, ref.name);
+  if (!alvo) {
+    const msg = `${ref.kind.toLowerCase()}s/scale.apps "${ref.name}" not found`;
+    evento('Warning', 'FailedGetScale', msg);
+    return salvar({ conditions: [cond('AbleToScale', 'False', 'FailedGetScale', `the HPA controller was unable to get the target's current scale: ${msg}`)], currentMetrics: null, currentReplicas: 0, desiredReplicas: 0, observedGeneration: hpa.metadata.generation });
+  }
+  const atual = alvo.spec.replicas;
+  const sel = alvo.spec.selector?.matchLabels ?? {};
+  const pods = c.listar('Pod', ns).filter((p) => casaSeletor(sel, p.metadata.labels) && !p.metadata.deletionTimestamp && !TERMINAIS.has(p.status?.phase));
+  const metrica = hpa.spec.metrics?.[0] ?? {};
+  const recurso = metrica.resource?.name ?? 'cpu';
+  const alvoUtil = metrica.resource?.target?.averageUtilization;
+  const medir = (u) => (recurso === 'cpu' ? u.cpu : u.memoria);
+  const pedido = (p) => p.spec.containers.reduce((t, ct) => t + (recurso === 'cpu' ? cpuMili(ct.resources?.requests?.cpu) : bytes(ct.resources?.requests?.memory)), 0);
+
+  let erro = null;
+  let comMetrica = [];
+  if (!c.metricasLigadas || !c.metricas) erro = `unable to get metrics for resource ${recurso}: no metrics returned from resource metrics API`;
+  else {
+    const sem = pods.flatMap((p) => p.spec.containers.filter((ct) => !ct.resources?.requests?.[recurso]).map((ct) => [p, ct]))[0];
+    if (alvoUtil !== undefined && sem) erro = `missing request for ${recurso} in container ${sem[1].name} of Pod ${sem[0].metadata.name}`;
+    else {
+      comMetrica = pods.filter((p) => estaPronto(p) && usoDoPod(c, p));
+      if (!comMetrica.length) erro = 'did not receive metrics for targeted pods (pods might be unready)';
+    }
+  }
+  if (erro) {
+    const msg = `failed to get ${recurso} utilization: ${erro}`;
+    evento('Warning', 'FailedGetResourceMetric', msg);
+    evento('Warning', 'FailedComputeMetricsReplicas', `invalid metrics (1 invalid out of 1), first error is: failed to get ${recurso} resource metric value: ${msg}`);
+    return salvar({
+      conditions: [cond('AbleToScale', 'True', 'SucceededGetScale', "the HPA controller was able to get the target's current scale"), cond('ScalingActive', 'False', 'FailedGetResourceMetric', `the HPA was unable to compute the replica count: ${msg}`)],
+      currentMetrics: null, currentReplicas: atual, desiredReplicas: 0, observedGeneration: hpa.metadata.generation,
+    });
+  }
+
+  const uso = comMetrica.reduce((t, p) => t + medir(usoDoPod(c, p)), 0);
+  const media = uso / comMetrica.length;
+  const util = Math.floor((uso * 100) / comMetrica.reduce((t, p) => t + pedido(p), 0)); // divisão inteira, como o controlador
+  const razao = alvoUtil !== undefined ? util / alvoUtil : media / (recurso === 'cpu' ? cpuMili(metrica.resource.target.averageValue) : bytes(metrica.resource.target.averageValue));
+  const desejado = Math.abs(razao - 1) <= 0.1 ? atual : Math.ceil(comMetrica.length * razao);
+  // Descer espera 5 min (vale a maior recomendação recente); subir, no máximo dobra (ou +4) por vez.
+  marca.recomendacoes = [...marca.recomendacoes.filter((r) => c.agora - r.t < ESTABILIZAR_DESCIDA), { t: c.agora, n: desejado }];
+  let final = desejado < atual ? Math.min(atual, Math.max(...marca.recomendacoes.map((r) => r.n))) : Math.min(desejado, Math.max(atual * 2, atual + 4));
+  const limitado = desejado > hpa.spec.maxReplicas ? ['True', 'TooManyReplicas', 'the desired replica count is more than the maximum replica count']
+    : desejado < hpa.spec.minReplicas ? ['True', 'TooFewReplicas', 'the desired replica count is less than the minimum replica count']
+      : ['False', 'DesiredWithinRange', 'the desired count is within the acceptable range'];
+  final = Math.max(hpa.spec.minReplicas, Math.min(hpa.spec.maxReplicas, final));
+  const st = { ...(hpa.status ?? {}) };
+  if (final !== atual) {
+    alvo.spec.replicas = final;
+    c.salvar(alvo, { spec: true });
+    evento('Normal', 'SuccessfulRescale', `New size: ${final}; reason: ${recurso} resource utilization (percentage of request) ${final > atual ? 'above' : 'below'} target`);
+    st.lastScaleTime = iso(c.agora);
+  }
+  const podeEscalar = final !== atual ? ['SucceededRescale', `the HPA controller was able to update the target scale to ${final}`]
+    : desejado < atual && final > desejado ? ['ScaleDownStabilized', 'recent recommendations were higher than current one, applying the highest recent recommendation']
+      : ['ReadyForNewScale', 'recommended size matches current size'];
+  salvar({
+    conditions: [
+      cond('AbleToScale', 'True', ...podeEscalar),
+      cond('ScalingActive', 'True', 'ValidMetricFound', `the HPA was able to successfully calculate a replica count from ${recurso} resource utilization (percentage of request)`),
+      cond('ScalingLimited', ...limitado),
+      ...(st.lastScaleTime ? [cond('ScaledToZero', 'False', 'NotScaledToZero', 'the HPA controller did not scale the workload to zero')] : []),
+    ],
+    currentMetrics: [{ resource: { current: { ...(alvoUtil !== undefined ? { averageUtilization: util } : {}), averageValue: recurso === 'cpu' ? `${Math.round(media)}m` : textoMemoria(Math.round(media)) }, name: recurso }, type: 'Resource' }],
+    currentReplicas: atual,
+    desiredReplicas: final,
+    ...(st.lastScaleTime ? { lastScaleTime: st.lastScaleTime } : {}),
+    observedGeneration: hpa.metadata.generation,
+  });
 }
 
 // ---------- Endpoints ----------

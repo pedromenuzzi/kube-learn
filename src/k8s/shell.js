@@ -106,9 +106,10 @@ export function analisar(script) {
   return bloco(null);
 }
 
-const expandir = (palavra, env) => palavra
-  .replace(/\$\{(\w+)\}|\$(\w+|\?)/g, (_, a, b) => env[a ?? b] ?? '')
-  .replaceAll(LITERAL, '$');
+/** Troca $VAR e ${VAR} pelo valor (`valor(nome)`); o "$" que veio entre aspas simples fica. */
+const expandir = (palavra, valor) => (palavra.includes('$') || palavra.includes(LITERAL)
+  ? palavra.replace(/\$\{(\w+)\}|\$(\w+|\?)/g, (_, a, b) => valor(a ?? b) ?? '').replaceAll(LITERAL, '$')
+  : palavra);
 
 /**
  * Roda o script. ctx: { env, saida(texto), comandos: executarComando }.
@@ -130,7 +131,8 @@ export function* rodar(nos, ctx) {
         }
       }
     }
-    const argv = no.argv.map((p) => expandir(p, { ...ctx.env, '?': String(codigo) })).filter((p) => !/^\d?>&?\S*$|^2>&1$/.test(p));
+    const valor = (nome) => (nome === '?' ? String(codigo) : ctx.env[nome]);
+    const argv = no.argv.map((p) => expandir(p, valor)).filter((p) => !/^\d?>&?\S*$|^2>&1$/.test(p));
     const [cmd, ...args] = argv;
     if (cmd === 'sleep') {
       const n = args[0] === 'infinity' ? Infinity : Number.parseFloat(args[0]);
@@ -148,7 +150,7 @@ export function* rodar(nos, ctx) {
     const r = ctx.comandos(argv, ctx);
     codigo = r.codigo;
     if (no.redir) {
-      const alvo = expandir(no.redir.alvo, ctx.env);
+      const alvo = expandir(no.redir.alvo, (nome) => ctx.env[nome]);
       if (r.erro) ctx.saida(r.erro);
       const falha = ctx.fs ? ctx.fs.escrever(alvo, r.saida ?? '', no.redir.anexar) : null;
       if (falha) { // as mensagens do sh do busybox e do dash (Debian) são diferentes
@@ -240,6 +242,27 @@ const COMANDOS = {
     return ok(visiveis.length ? `${visiveis.join('\n')}\n` : '');
   },
   ps: () => ok('PID   USER     TIME  COMMAND\n    1 root      0:00 sh\n'),
+  touch: (args, ctx) => {
+    for (const a of args.filter((x) => !x.startsWith('-'))) {
+      if (ctx.fs.ler(a) !== undefined) continue;
+      const falha = ctx.fs.escrever(a, '', true);
+      if (falha) return { erro: ctx.busybox ? `touch: ${a}: ${falha === 'somente-leitura' ? 'Read-only file system' : 'No such file or directory'}\n` : `touch: cannot touch '${a}': ${falha === 'somente-leitura' ? 'Read-only file system' : 'No such file or directory'}\n`, codigo: 1 };
+    }
+    return ok();
+  },
+  rm: (args, ctx) => {
+    const forcar = args.some((x) => /^-\w*f/.test(x));
+    for (const a of args.filter((x) => !x.startsWith('-'))) {
+      const falha = ctx.fs.remover(a);
+      if (falha === 'nao-existe' && !forcar) return { erro: ctx.busybox ? `rm: can't remove '${a}': No such file or directory\n` : `rm: cannot remove '${a}': No such file or directory\n`, codigo: 1 };
+      if (falha === 'somente-leitura') return { erro: `rm: can't remove '${a}': Read-only file system\n`, codigo: 1 };
+    }
+    return ok();
+  },
+  mkdir: (args, ctx) => {
+    for (const a of args.filter((x) => !x.startsWith('-'))) ctx.fs.escrever(`${a.replace(/\/$/, '')}/.keep`, '', true);
+    return ok();
+  },
   curl: (args, ctx) => curl(args, ctx),
   wget: (args, ctx) => wget(args, ctx),
   nslookup: (args, ctx) => nslookup(args, ctx),

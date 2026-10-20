@@ -1,0 +1,2 @@
+Error from server (Forbidden): pods "x" is forbidden: failed quota: cota: must specify limits.memory for: x; requests.cpu for: x
+exit=1

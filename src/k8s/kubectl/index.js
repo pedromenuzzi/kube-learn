@@ -12,7 +12,7 @@ import { decodificar, validar, explicar, btoaUtf8, ESQUEMAS } from '../esquema.j
 import { ErroApi, VERSAO_SERVIDOR } from '../cluster.js';
 import { portaAlvo } from '../rede.js';
 import { canonico } from '../aleatorio.js';
-import { iso, parseDuracao } from '../unidades.js';
+import { iso, parseDuracao, cpuMili as cpuMiliDe, bytes as bytesDe } from '../unidades.js';
 
 export const VERSAO_CLIENTE = 'v1.37.1';
 const PROTEGIDOS = new Set(['default', 'kube-system', 'kube-public']);
@@ -148,7 +148,7 @@ function selecionar(cluster, posicionais, flags, { exigirNome = false } = {}) {
     }
     return { grupos, erros, nomeado: true };
   }
-  const tipos = posicionais[0].split(',').flatMap((t) => (t === 'all' ? ['pods', 'services', 'daemonsets', 'deployments', 'replicasets', 'statefulsets', 'cronjobs', 'jobs'] : [t])).map(recurso);
+  const tipos = posicionais[0].split(',').flatMap((t) => (t === 'all' ? ['pods', 'services', 'daemonsets', 'deployments', 'replicasets', 'statefulsets', 'horizontalpodautoscalers', 'cronjobs', 'jobs'] : [t])).map(recurso);
   const nomes = posicionais.slice(1);
   if (nomes.length) {
     for (const r of tipos) for (const n of nomes) buscar(r, n);
@@ -1016,6 +1016,99 @@ function set(cluster, a, s) {
   cluster.reconciliar();
 }
 
+// ---------- autoscale / top ----------
+function autoscale(cluster, a, s) {
+  const alvo = alvoUnico(cluster, a, s, 'autoscale');
+  if (!alvo) return;
+  const { obj } = alvo;
+  if (!['Deployment', 'ReplicaSet', 'StatefulSet'].includes(obj.kind)) return s.falha(`error: cannot autoscale a ${obj.kind}: cannot autoscale a ${obj.kind}`);
+  if (a.flags['cpu-percent'] !== undefined) s.err("Flag --cpu-percent has been deprecated, Use --cpu with percentage or resource quantity format (e.g., '70%' for utilization or '500m' for milliCPU).\n");
+  const max = a.flags.max;
+  if (!(max >= 1)) return s.falha(`error: --max=MAXPODS is required and must be at least 1, max: ${max ?? -1}`);
+  const cpu = a.flags.cpu ?? (a.flags['cpu-percent'] !== undefined ? `${a.flags['cpu-percent']}%` : undefined);
+  const alvoCpu = cpu === undefined ? null : /%$/.test(cpu) ? { averageUtilization: Number(cpu.slice(0, -1)), type: 'Utilization' } : { averageValue: cpu, type: 'AverageValue' };
+  const hpa = {
+    apiVersion: 'autoscaling/v2', kind: 'HorizontalPodAutoscaler',
+    metadata: { name: a.flags.name ?? obj.metadata.name },
+    spec: {
+      maxReplicas: max,
+      ...(alvoCpu ? { metrics: [{ resource: { name: 'cpu', target: alvoCpu }, type: 'Resource' }] } : {}),
+      ...(a.flags.min !== undefined ? { minReplicas: a.flags.min } : {}),
+      scaleTargetRef: { apiVersion: obj.apiVersion, kind: obj.kind, name: obj.metadata.name },
+    },
+    status: { currentMetrics: null, desiredReplicas: 0 },
+  };
+  if (ehDryRun(a.flags)) {
+    if (!imprimirObjetos(cluster, s, [hpa], a.flags, true)) s.out(`horizontalpodautoscaler.autoscaling/${hpa.metadata.name} autoscaled${sufixoDryRun(a.flags)}\n`);
+    return;
+  }
+  const manifesto = structuredClone(hpa);
+  delete manifesto.status;
+  manifesto.metadata.namespace = namespaceDe(cluster, a.flags);
+  try {
+    const criado = cluster.criar(manifesto);
+    if (!imprimirObjetos(cluster, s, [criado], a.flags, true)) s.out(`horizontalpodautoscaler.autoscaling/${criado.metadata.name} autoscaled\n`);
+    cluster.reconciliar();
+  } catch (e) {
+    s.falha(mensagemErroApi(e));
+  }
+}
+
+const miliTexto = (m) => `${Math.round(m)}m`;
+const miTexto = (b) => `${Math.floor(b / 2 ** 20)}Mi`;
+// O que o node gasta além dos pods (o próprio kubelet, o containerd, o sistema).
+const BASE_NODE = { controlPlane: { cpu: 250, memoria: 850 * 2 ** 20 }, worker: { cpu: 60, memoria: 280 * 2 ** 20 } };
+
+function top(cluster, a, s) {
+  const [sub, nome] = a.posicionais;
+  const tipo = { pod: 'pods', pods: 'pods', po: 'pods', node: 'nodes', nodes: 'nodes', no: 'nodes' }[sub];
+  if (!tipo) return s.falha(sub ? `error: unknown command "${sub}" for "kubectl top"` : "error: Required resource not specified.\nSee 'kubectl top -h' for help and examples");
+  if (!cluster.metricasLigadas) return s.falha('error: Metrics API not available');
+  const usoDe = (p) => {
+    const m = cluster.metricas?.get(p.metadata.uid);
+    return m ? Object.values(m.conteineres).reduce((t, u) => ({ cpu: t.cpu + u.cpu, memoria: t.memoria + u.memoria }), { cpu: 0, memoria: 0 }) : null;
+  };
+  if (tipo === 'nodes') {
+    const nodes = nome ? [cluster.obter('Node', null, nome)].filter(Boolean) : cluster.listar('Node');
+    if (nome && !nodes.length) return s.falha(`Error from server (NotFound): nodes "${nome}" not found`);
+    if (!cluster.metricas) return s.falha('error: metrics not available yet');
+    const linhas = nodes.map((n) => {
+      const base = BASE_NODE[n.metadata.labels['node-role.kubernetes.io/control-plane'] !== undefined ? 'controlPlane' : 'worker'];
+      const soma = cluster.listar('Pod').filter((p) => p.spec.nodeName === n.metadata.name).map(usoDe).filter(Boolean)
+        .reduce((t, u) => ({ cpu: t.cpu + u.cpu, memoria: t.memoria + u.memoria }), { ...base });
+      const pct = (v, cap) => `${Math.floor((v / cap) * 100)}%`;
+      return [n.metadata.name, miliTexto(soma.cpu), pct(soma.cpu, cpuMiliDe(n.status.allocatable.cpu)), miTexto(soma.memoria), pct(soma.memoria, bytesDe(n.status.allocatable.memory)), ''];
+    });
+    return s.out(tabela([...(a.flags['no-headers'] ? [] : [['NAME', 'CPU(cores)', 'CPU(%)', 'MEMORY(bytes)', 'MEMORY(%)', '']]), ...linhas]));
+  }
+  const ns = namespaceDe(cluster, a.flags);
+  const todos = a.flags['all-namespaces'];
+  const casa = seletorDeLabels(a.flags.selector);
+  let pods = cluster.listar('Pod', todos ? undefined : ns).filter((p) => casa(p.metadata.labels) && (!nome || p.metadata.name === nome));
+  if (nome && !pods.length) return s.falha(`Error from server (NotFound): pods "${nome}" not found`);
+  const comUso = pods.map((p) => [p, usoDe(p)]).filter(([, u]) => u);
+  if (!comUso.length) {
+    if (nome) return s.falha(`error: Metrics not available for pod ${ns}/${nome}, age: ${idadeGo(cluster.agora - Date.parse(pods[0].metadata.creationTimestamp))}`);
+    return s.falha('error: metrics not available yet');
+  }
+  if (a.flags['sort-by'] === 'cpu') comUso.sort((x, y) => y[1].cpu - x[1].cpu);
+  if (a.flags['sort-by'] === 'memory') comUso.sort((x, y) => y[1].memoria - x[1].memoria);
+  pods = comUso;
+  const cab = a.flags.containers ? ['POD', 'NAME', 'CPU(cores)', 'MEMORY(bytes)', ''] : ['NAME', 'CPU(cores)', 'MEMORY(bytes)', ''];
+  const linhas = a.flags.containers
+    ? pods.flatMap(([p]) => Object.entries(cluster.metricas.get(p.metadata.uid).conteineres).map(([nomeCt, u]) => [...(todos ? [p.metadata.namespace] : []), p.metadata.name, nomeCt, miliTexto(u.cpu), miTexto(u.memoria), '']))
+    : pods.map(([p, u]) => [...(todos ? [p.metadata.namespace] : []), p.metadata.name, miliTexto(u.cpu), miTexto(u.memoria), '']);
+  s.out(tabela([...(a.flags['no-headers'] ? [] : [[...(todos ? ['NAMESPACE'] : []), ...cab]]), ...linhas]));
+}
+
+/** Duração como o Go escreve (1m22.65s). */
+const idadeGo = (ms) => {
+  const seg = ms / 1000;
+  const min = Math.floor(seg / 60);
+  const resto = Number((seg - min * 60).toFixed(2));
+  return min ? `${min}m${resto}s` : `${resto}s`;
+};
+
 // ---------- wait ----------
 /** kubectl wait --for=condition=complete job/x (ou Ready, ou delete): o relógio anda até valer ou dar o timeout. */
 function wait(cluster, a, s) {
@@ -1248,6 +1341,10 @@ Basic Commands (Intermediate):
 Deploy Commands:
   rollout         Manage the rollout of a resource
   scale           Set a new size for a deployment, replica set, or replication controller
+  autoscale       Auto-scale a deployment, replica set, stateful set, or replication controller
+
+Cluster Management Commands:
+  top             Display resource (CPU/memory) usage
 
 Troubleshooting and Debugging Commands:
   describe        Show details of a specific resource or group of resources
@@ -1308,6 +1405,7 @@ const COMANDOS = {
   expose: { flags: { ...SAIDA, ...DRY, port: { tipo: 'string' }, 'target-port': { tipo: 'string' }, type: { tipo: 'string' }, name: { tipo: 'string' }, protocol: { tipo: 'string' } }, rodar: expose },
   'port-forward': { flags: { address: { tipo: 'string' } }, rodar: portForward },
   wait: { flags: { ...SELETOR, for: { tipo: 'string' }, timeout: { tipo: 'string' }, all: { tipo: 'bool' } }, rodar: wait },
+  autoscale: { flags: { ...SAIDA, ...DRY, cpu: { tipo: 'string' }, 'cpu-percent': { tipo: 'int' }, min: { tipo: 'int' }, max: { tipo: 'int' }, name: { tipo: 'string' } }, rodar: autoscale },
   label: { flags: { overwrite: { tipo: 'bool' }, ...SELETOR, all: { tipo: 'bool' } }, rodar: (c, a, s) => etiquetar(c, a, s, 'labels') },
   annotate: { flags: { overwrite: { tipo: 'bool' }, ...SELETOR, all: { tipo: 'bool' } }, rodar: (c, a, s) => etiquetar(c, a, s, 'annotations') },
   config: { flags: { current: { tipo: 'bool' } }, rodar: config },
@@ -1315,7 +1413,7 @@ const COMANDOS = {
   explain: { flags: { recursive: { tipo: 'bool' } }, rodar: explain },
   version: { flags: { ...SAIDA, client: { tipo: 'bool' } }, rodar: (c, a, s) => s.out(`Client Version: ${VERSAO_CLIENTE}\nKustomize Version: v5.8.1\n${a.flags.client ? '' : `Server Version: ${VERSAO_SERVIDOR}\n`}`) },
   'cluster-info': { flags: {}, rodar: (c, a, s) => s.out('Kubernetes control plane is running at https://127.0.0.1:6443\nCoreDNS is running at https://127.0.0.1:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy\n\nTo further debug and diagnose cluster problems, use \'kubectl cluster-info dump\'.\n') },
-  top: { flags: {}, rodar: (c, a, s) => s.falha('error: Metrics API not available') },
+  top: { flags: { ...SELETOR, 'all-namespaces': { curto: 'A', tipo: 'bool' }, containers: { tipo: 'bool' }, 'sort-by': { tipo: 'string' }, 'no-headers': { tipo: 'bool' } }, rodar: top },
   help: { flags: {}, rodar: (c, a, s) => s.out(AJUDA) },
 };
 

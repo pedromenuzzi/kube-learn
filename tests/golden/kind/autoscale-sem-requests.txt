@@ -1,0 +1,2 @@
+horizontalpodautoscaler.autoscaling/sem-requests autoscaled
+exit=0

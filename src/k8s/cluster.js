@@ -7,6 +7,7 @@ import { rodarControladores } from './controladores.js';
 import { agendar } from './scheduler.js';
 import { Kubelet, qos } from './kubelet.js';
 import { bytes, cpuMili, iso, parseDuracao } from './unidades.js';
+import { aplicarLimites, conferirCotas } from './cotas.js';
 
 export const INICIO = Date.UTC(2026, 9, 16, 12, 0, 0);
 export const VERSAO_SERVIDOR = 'v1.37.0';
@@ -30,9 +31,11 @@ export class ErroApi extends Error {
 export class Cluster {
   /**
    * opções: nodes [{ nome, controlPlane, cpu ('2'), memoria ('4Gi'), labels, taints }], semente, inicio (ms),
-   * nome (do cluster), contexto (do kubeconfig), uptime (há quanto tempo o cluster está de pé), kernel.
+   * nome (do cluster), contexto (do kubeconfig), uptime (há quanto tempo o cluster está de pé), kernel e metricas
+   * (instala o metrics-server, que o kind não traz: sem ele, nada de kubectl top nem HPA).
    */
-  constructor({ nodes = NODES_PADRAO, semente = 'kube-learn', inicio = INICIO, nome = 'kube-learn', contexto = nome, uptime = '5m', kernel = '6.12.48-kube-learn' } = {}) {
+  constructor({ nodes = NODES_PADRAO, semente = 'kube-learn', inicio = INICIO, nome = 'kube-learn', contexto = nome, uptime = '5m', kernel = '6.12.48-kube-learn', metricas = false } = {}) {
+    this.comMetricas = metricas;
     this.nome = nome;
     this.agora = inicio;
     this.aleatorio = criarAleatorio(semente);
@@ -51,7 +54,10 @@ export class Cluster {
     this.encaminhamentos = []; // kubectl port-forward ativos: { local, ns, pod, remota }
     this.discos = new Map(); // o conteúdo de cada disco: nome do PV (ou "emptydir:<uid do pod>:<volume>") → Map(arquivo → texto)
     this.provisionamentos = new Map(); // uid do PVC → { inicio, avisado, esperando }
-    this.jobsVistos = new Set(); // Jobs de CronJob que já terminaram e foram anotados (SawCompletedJob)
+    this.jobsVistos = new Set();
+    this.moldes = new Map(); // "uid:geração" → hash e forma canônica do template (cache)
+    this.hpas = new Map(); // uid do HPA → { ultima, recomendacoes }
+    this.esperaCriacao = new Map(); // uid do controlador → { proxima, atraso } depois de um pod recusado (FailedCreate) // Jobs de CronJob que já terminaram e foram anotados (SawCompletedJob)
     this.contexto = { nome: contexto, namespace: 'default' };
     this.kubelet = new Kubelet(this);
     // Como no kubeadm/kind: o control plane sobe primeiro (o DNS nasce nele) e os workers entram depois.
@@ -110,7 +116,7 @@ export class Cluster {
     obj.metadata = {
       ...m,
       creationTimestamp: iso(this.agora),
-      ...(['Pod', 'Deployment', 'ReplicaSet', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob'].includes(obj.kind) ? { generation: 1 } : {}),
+      ...(['Pod', 'Deployment', 'ReplicaSet', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'HorizontalPodAutoscaler'].includes(obj.kind) ? { generation: 1 } : {}),
       resourceVersion: String(++this.rv),
       uid: this.aleatorio.uuid(),
     };
@@ -127,6 +133,9 @@ export class Cluster {
   /** O que os "admission controllers" acrescentam na criação. */
   admitir(obj) {
     if (obj.kind === 'Pod') {
+      // LimitRanger e ResourceQuota: os padrões do namespace, os máximos e as cotas.
+      const recusa = aplicarLimites(this, obj) ?? conferirCotas(this, obj);
+      if (recusa) throw new ErroApi('Forbidden', `pods "${obj.metadata.name}" is forbidden: ${recusa}`);
       const s = obj.spec;
       if (s.automountServiceAccountToken !== false && !s.hostNetwork) {
         const nome = `kube-api-access-${this.aleatorio.sufixo(5)}`;
@@ -423,7 +432,7 @@ export class Cluster {
     const nodes = this.listar('Node');
     const cp = nodes.find((n) => n.metadata.labels['node-role.kubernetes.io/control-plane'] !== undefined) ?? nodes[0];
     const imagens = ['registry.k8s.io/etcd:3.6.4-0', 'registry.k8s.io/kube-apiserver:v1.37.0', 'registry.k8s.io/kube-controller-manager:v1.37.0', 'registry.k8s.io/kube-scheduler:v1.37.0', 'registry.k8s.io/coredns/coredns:v1.12.4'];
-    this.imagensDoSistema = [...imagens, 'registry.k8s.io/kube-proxy:v1.37.0', 'docker.io/kindest/kindnetd:v20260820-69b56db7', 'docker.io/kindest/local-path-provisioner:v20260820-69b56db7'];
+    this.imagensDoSistema = [...imagens, 'registry.k8s.io/metrics-server/metrics-server:v0.9.0', 'registry.k8s.io/kube-proxy:v1.37.0', 'docker.io/kindest/kindnetd:v20260820-69b56db7', 'docker.io/kindest/local-path-provisioner:v20260820-69b56db7'];
     for (const n of nodes) for (const img of this.imagensDoSistema) this.kubelet.guardarImagem(n.metadata.name, img);
 
     // O disco padrão do kind: o local-path, que cria a pasta no node do primeiro pod que usar o PVC.
@@ -472,6 +481,7 @@ export class Cluster {
       resources: { limits: { memory: '170Mi' }, requests: { cpu: '100m', memory: '70Mi' } },
     };
     this.criarDaemonSetsDoKind(cp);
+    if (this.comMetricas) this.criarMetricsServer();
     this.criar({
       apiVersion: 'apps/v1', kind: 'Deployment',
       metadata: { name: 'coredns', namespace: 'kube-system', labels: { 'k8s-app': 'kube-dns' } },
@@ -574,6 +584,33 @@ Cluster.prototype.criarDaemonSetsDoKind = function criarDaemonSetsDoKind(cp) {
       },
     },
   });
+};
+
+/** O metrics-server (como o components.yaml oficial, com --kubelet-insecure-tls, que o kind pede). */
+Cluster.prototype.criarMetricsServer = function criarMetricsServer() {
+  const labels = { 'k8s-app': 'metrics-server' };
+  this.criar({
+    apiVersion: 'apps/v1', kind: 'Deployment',
+    metadata: { name: 'metrics-server', namespace: 'kube-system', labels },
+    spec: {
+      selector: { matchLabels: labels },
+      strategy: { rollingUpdate: { maxUnavailable: 0 } },
+      template: {
+        metadata: { labels },
+        spec: {
+          containers: [{
+            name: 'metrics-server', image: 'registry.k8s.io/metrics-server/metrics-server:v0.9.0',
+            args: ['--cert-dir=/tmp', '--secure-port=10250', '--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname', '--kubelet-use-node-status-port', '--metric-resolution=15s', '--kubelet-insecure-tls'],
+            ports: [{ containerPort: 10250, name: 'https', protocol: 'TCP' }],
+            resources: { requests: { cpu: '100m', memory: '200Mi' } },
+          }],
+          nodeSelector: { 'kubernetes.io/os': 'linux' }, priorityClassName: 'system-cluster-critical', serviceAccountName: 'metrics-server',
+        },
+      },
+    },
+  });
+  this.criar({ apiVersion: 'v1', kind: 'Service', metadata: { name: 'metrics-server', namespace: 'kube-system', labels }, spec: { ports: [{ name: 'https', port: 443, protocol: 'TCP', targetPort: 'https' }], selector: labels } });
+  this.metricasLigadas = true;
 };
 
 export const criarCluster = (opcoes) => new Cluster(opcoes);

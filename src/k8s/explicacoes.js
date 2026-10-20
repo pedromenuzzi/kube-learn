@@ -25,6 +25,22 @@ const REGRAS = [
     t: () => ({ titulo: 'O seletor não bate com as labels do template', texto: 'O <code>spec.selector.matchLabels</code> precisa estar dentro das <code>labels</code> do template. Senão, o Deployment criaria pods que ele mesmo não reconhece.', vidaReal: 'O contrato diz "equipe: suporte", mas as plaquinhas das portas dizem outra coisa: a fiscal nunca acharia as salas.' }),
   },
   {
+    re: /exceeded quota: ([\w-]+)/,
+    t: (m) => ({ titulo: `Estoura a cota "${m[1]}" do namespace`, texto: 'A soma do que os pods do namespace pedem passaria do teto. Veja o uso com <code>kubectl describe quota</code>: diminua os requests/limits, as réplicas, ou peça mais cota.', vidaReal: 'A empresa já usou a cota de energia que o condomínio deu.' }),
+  },
+  {
+    re: /failed quota: ([\w-]+): must specify ([^\n]+)/,
+    t: (m) => ({ titulo: 'A cota exige declarar o consumo', texto: `Com cota de CPU ou memória, todo contêiner precisa dizer quanto pede e quanto pode usar. Falta: <code>${m[2]}</code>. Ponha em <code>resources</code>, ou crie um LimitRange com valores padrão.`, vidaReal: 'Aparelho sem etiqueta de consumo não entra no condomínio.' }),
+  },
+  {
+    re: /maximum (\w+) usage per Container is ([\w.]+), but limit is ([\w.]+)/,
+    t: (m) => ({ titulo: `Passou do teto de ${m[1]} por contêiner`, texto: `O LimitRange do namespace aceita no máximo ${m[2]} e o contêiner pediu ${m[3]}. Diminua o <code>limits.${m[1]}</code>.`, vidaReal: 'A regra do condomínio proíbe disjuntor maior que o permitido.' }),
+  },
+  {
+    re: /Metrics API not available/,
+    t: () => ({ titulo: 'Não há quem meça o consumo', texto: 'O <code>kubectl top</code> e o HPA dependem do metrics-server, que o kind não traz. Num cluster de verdade: <code>kubectl apply -f</code> o components.yaml do metrics-server.', vidaReal: 'Pedir a leitura do medidor num prédio sem leiturista.' }),
+  },
+  {
     re: /restartPolicy: Required value: valid values: "OnFailure", "Never"/,
     t: () => ({ titulo: 'Job não aceita restartPolicy Always', texto: 'Um Job precisa terminar: use <code>restartPolicy: Never</code> (cada falha vira um pod novo) ou <code>OnFailure</code> (o contêiner reinicia no mesmo pod). Always é para o que não pode parar.', vidaReal: 'Contrato de empreitada com cláusula "se acabar, comece de novo": isso é emprego fixo, não empreitada.' }),
   },
@@ -103,6 +119,8 @@ const STATUS = [
   { re: /\bCrashLoopBackOff\b/, titulo: 'CrashLoopBackOff: o contêiner cai e é reiniciado', texto: 'O programa termina logo depois de subir, e o kubelet espera cada vez mais antes de tentar de novo (10s, 20s, 40s... até 5 min). Veja o motivo em <code>kubectl logs NOME --previous</code> e em <code>kubectl describe pod NOME</code>.', vidaReal: 'O morador desmaia toda vez que entra, e o síndico espera cada vez mais antes de tentar de novo.' },
   { re: /\b(ImagePullBackOff|ErrImagePull)\b/, titulo: 'A imagem não foi baixada', texto: 'Nome ou tag errado, ou imagem privada. Confira a imagem e veja o erro exato em <code>kubectl describe pod NOME</code>, nas Events.', vidaReal: 'O pré-moldado não chegou: o pedido tinha o modelo errado.' },
   { re: /\bCreateContainerConfigError\b/, titulo: 'Falta configuração para criar o contêiner', texto: 'Algum ConfigMap ou Secret usado no <code>env</code> não existe (ou não tem a chave). O <code>kubectl describe pod</code> diz qual.', vidaReal: 'A mudança travou porque o envelope com a senha não chegou.' },
+  { re: /\bOOMKilled\b/, titulo: 'OOMKilled: passou do limite de memória', texto: 'O contêiner usou mais memória que o <code>limits.memory</code> e foi morto (código 137). Ou o limite está baixo para o programa, ou o programa vaza memória.', vidaReal: 'O disjuntor desarmou: ligaram aparelhos demais ao mesmo tempo.' },
+  { re: /<unknown>\/\d+%/, titulo: 'O HPA ainda não sabe o uso', texto: 'Nos primeiros segundos é normal. Se continuar: os pods precisam de <code>resources.requests</code> (a porcentagem é sobre o request) e o metrics-server precisa estar rodando. <code>kubectl describe hpa</code> diz o motivo.', vidaReal: 'O gerente não sabe a capacidade de cada atendente: não consegue calcular se está cheio.' },
   { re: /\bInit:(Error|CrashLoopBackOff)\b/, titulo: 'Um init container falhou', texto: 'O pod não passa da preparação: o init container terminou com erro e o kubelet tenta de novo. Veja o log dele: <code>kubectl logs POD -c NOME_DO_INIT</code>.', vidaReal: 'A vistoria reprovou: a mudança espera do lado de fora até a vistoria passar.' },
   { re: /\bBackoffLimitExceeded\b|reached the specified backoff limit/, titulo: 'O Job desistiu', texto: 'Falhou mais vezes que o <code>backoffLimit</code>. Os logs dos pods (<code>kubectl logs job/NOME</code>) contam o motivo; conserte e crie o Job de novo.', vidaReal: 'O pedreiro tentou, tentou, e o contrato acabou antes da parede ficar de pé.' },
   { re: /MountVolume\.SetUp failed for volume/, titulo: 'O volume não montou', texto: 'O ConfigMap ou o Secret que o volume usa não existe (ou tem outro nome). O pod fica em ContainerCreating até ele aparecer: crie o objeto ou corrija o nome em <code>spec.volumes</code>.', vidaReal: 'A mudança espera o armário que nunca chegou.' },

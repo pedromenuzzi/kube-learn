@@ -71,7 +71,7 @@ describe('a trilha inteira', () => {
   }
 
   for (const item of ITENS.filter((i) => i.tipo === 'problema')) {
-    describe(item.id, () => {
+    describe(item.id, { timeout: 30_000 }, () => { // alguns testes simulam minutos de cluster (com carga)
       it('a solução passa em todos os testes', () => {
         const r = rodarTestes(item, aluno(item, { resolvido: true }), { todos: true });
         const falhas = r.flatMap((t) => t.regras.filter((x) => !x.ok).map((x) => `${t.descricao}: ${x.mensagem} (${x.detalhe})`));

@@ -28,6 +28,11 @@ const ESPECIAIS = {
   'describe-pod-volumes': { ate: 'Events:' },
   'rollout-sts': { ultimas: 2 },
   'rollout-ds': { ultimas: 2 },
+  // O Go percorre o mapa de recursos do LimitRange em ordem aleatória (cpu e memory trocam de lugar).
+  'describe-limitrange': { conjunto: true },
+  'describe-ns-cota': { conjunto: true },
+  // As primeiras mensagens dependem de quando o metrics-server teve a primeira amostra.
+  'describe-hpa-sem-requests': { ate: 'Events:' },
 };
 
 const linhas = (t) => t.split('\n');

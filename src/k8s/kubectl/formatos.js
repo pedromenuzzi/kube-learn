@@ -93,7 +93,7 @@ function avaliar(caminho, raiz, atual) {
   return valores;
 }
 
-const texto = (v) => (typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v));
+const texto = (v) => (typeof v === 'object' && v !== null ? JSON.stringify(ordenar(v)) : String(v));
 
 export function jsonpath(template, raiz) {
   const partes = analisarTemplate(template);

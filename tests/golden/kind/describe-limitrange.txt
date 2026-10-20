@@ -1,0 +1,7 @@
+Name:       limites
+Namespace:  time-a
+Type        Resource  Min  Max    Default Request  Default Limit  Max Limit/Request Ratio
+----        --------  ---  ---    ---------------  -------------  -----------------------
+Container   memory    -    512Mi  128Mi            256Mi          -
+Container   cpu       -    -      100m             500m           -
+exit=0

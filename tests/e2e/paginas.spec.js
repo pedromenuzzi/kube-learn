@@ -71,9 +71,9 @@ test('resolver uma missão embarca um contêiner: o nível mostra o progresso e 
 
 test('glossário: a busca filtra (sem precisar de acento)', async ({ page }) => {
   await page.goto('#/glossario');
-  await page.getByLabel('Buscar').fill('disjuntor');
+  await page.getByLabel('Buscar').fill('leiturista');
   await expect(page.locator('.termo:visible')).toHaveCount(1);
-  await expect(page.locator('.termo:visible h3')).toHaveText('Limits');
+  await expect(page.locator('.termo:visible h3')).toHaveText('metrics-server');
   await page.getByLabel('Buscar').fill('reconciliacao');
   await expect(page.locator('.termo:visible h3')).toHaveText('Reconciliação');
 });

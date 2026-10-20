@@ -657,3 +657,172 @@ for i in $(seq 1 40); do kc get jobs 2>/dev/null | grep -q limpeza && break; sle
 sleep 8
 cap get-cronjob kc get cronjob
 cap describe-cronjob kc describe cronjob limpeza
+
+# ---------- Fase 6 · nível 6: probes, recursos, cotas e HPA (o kind precisa do metrics-server) ----------
+# kubectl apply -f metrics-server/components.yaml, com --kubelet-insecure-tls nos args, antes desta seção.
+cat > /tmp/kl-probes.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pronto
+spec:
+  containers:
+  - name: web
+    image: nginx:1.27
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 8080
+      periodSeconds: 5
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vivo
+spec:
+  containers:
+  - name: web
+    image: nginx:1.27
+    livenessProbe:
+      tcpSocket:
+        port: 80
+      initialDelaySeconds: 3
+Y
+cat > /tmp/kl-cota.yaml <<'Y'
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: time-a
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: cota
+  namespace: time-a
+spec:
+  hard:
+    pods: "3"
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+    limits.memory: 2Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: limites
+  namespace: time-a
+spec:
+  limits:
+  - type: Container
+    default:
+      cpu: 500m
+      memory: 256Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    max:
+      memory: 512Mi
+Y
+cat > /tmp/kl-cota-b.yaml <<'Y'
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: time-b
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: cota
+  namespace: time-b
+spec:
+  hard:
+    requests.cpu: "1"
+    limits.memory: 1Gi
+Y
+cat > /tmp/kl-hpa.yaml <<'Y'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: php
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: php
+  template:
+    metadata:
+      labels:
+        app: php
+    spec:
+      containers:
+      - name: php
+        image: registry.k8s.io/hpa-example
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: 200m
+          limits:
+            cpu: 500m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: php
+spec:
+  selector:
+    app: php
+  ports:
+  - port: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sem-requests
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sem-requests
+  template:
+    metadata:
+      labels:
+        app: sem-requests
+    spec:
+      containers:
+      - name: c
+        image: nginx:1.27
+Y
+
+cap apply-probes kc apply -f /tmp/kl-probes.yaml
+sleep 25
+cap get-pods-probes kc get pod pronto vivo
+cap yaml-probe kc get pod pronto -o jsonpath='{.spec.containers[0].readinessProbe}'
+cap describe-pod-readiness kc describe pod pronto
+cap describe-pod-liveness kc describe pod vivo
+cap apply-cota kc apply -f /tmp/kl-cota.yaml
+sleep 2
+cap run-limitrange kc run sem-nada --image=nginx:1.27 -n time-a
+cap resources-limitrange kc get pod sem-nada -n time-a -o jsonpath='{.spec.containers[0].resources}'
+cap anotacao-limitrange kc get pod sem-nada -n time-a -o jsonpath='{.metadata.annotations}'
+cap run-max-limitrange kc run grandao --image=nginx:1.27 -n time-a --overrides='{"spec":{"containers":[{"name":"grandao","image":"nginx:1.27","resources":{"limits":{"memory":"1Gi"}}}]}}'
+cap run-cota-estourada kc run guloso --image=nginx:1.27 -n time-a --overrides='{"spec":{"containers":[{"name":"guloso","image":"nginx:1.27","resources":{"requests":{"cpu":"2"},"limits":{"cpu":"2"}}}]}}'
+kc create deployment muitos --image=nginx:1.27 --replicas=5 -n time-a >/dev/null 2>&1
+sleep 8
+cap get-quota kc get quota -n time-a
+cap describe-quota kc describe quota cota -n time-a
+cap get-limitrange kc get limitrange -n time-a
+cap describe-limitrange kc describe limitrange limites -n time-a
+cap describe-ns-cota kc describe ns time-a
+cap apply-cota-b kc apply -f /tmp/kl-cota-b.yaml
+sleep 2
+cap run-cota-sem-requests kc run x --image=nginx:1.27 -n time-b
+cap apply-hpa kc apply -f /tmp/kl-hpa.yaml
+cap autoscale kc autoscale deployment php --cpu=50% --min=1 --max=5
+cap autoscale-sem-requests kc autoscale deployment sem-requests --cpu=50% --min=1 --max=3
+cap dry-autoscale kc autoscale deployment php --cpu-percent=50 --min=1 --max=5 --dry-run=client -o yaml
+kc rollout status deploy/php --timeout=120s >/dev/null 2>&1
+sleep 60
+cap get-hpa kc get hpa
+cap describe-hpa-sem-requests kc describe hpa sem-requests

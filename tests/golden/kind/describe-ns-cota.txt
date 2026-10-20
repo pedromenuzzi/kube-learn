@@ -1,0 +1,21 @@
+Name:         time-a
+Labels:       kubernetes.io/metadata.name=time-a
+Annotations:  <none>
+Status:       Active
+
+Resource Quotas
+  Name:            cota
+  Resource         Used   Hard
+  --------         ---    ---
+  limits.cpu       1500m  2
+  limits.memory    768Mi  2Gi
+  pods             3      3
+  requests.cpu     300m   1
+  requests.memory  384Mi  1Gi
+
+Resource Limits
+ Type       Resource  Min  Max    Default Request  Default Limit  Max Limit/Request Ratio
+ ----       --------  ---  ---    ---------------  -------------  -----------------------
+ Container  memory    -    512Mi  128Mi            256Mi          -
+ Container  cpu       -    -      100m             500m           -
+exit=0

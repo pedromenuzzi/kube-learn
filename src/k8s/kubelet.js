@@ -2,8 +2,8 @@
 // guarda os logs e escreve o status do pod. As transições seguem o relógio do cluster.
 import { buscarImagem } from './imagens.js';
 import { analisar, rodar, executarComando, rodarAteOFim } from './shell.js';
-import { resolvConf, buscaDns, http, resolver } from './rede.js';
-import { iso } from './unidades.js';
+import { resolvConf, buscaDns, http, resolver, sondarHttp, portaAlvo } from './rede.js';
+import { iso, cpuMili, bytes } from './unidades.js';
 import { atobUtf8 } from './esquema.js';
 import { SistemaDeArquivos } from './discos.js';
 
@@ -217,6 +217,90 @@ export class Kubelet {
     }
   }
 
+  // ---------- probes ----------
+  /** Um teste (httpGet, tcpSocket ou exec) agora. → { ok, msg } */
+  testar(pod, ct, est, sonda) {
+    const ip = this.ip(pod);
+    if (sonda.httpGet) {
+      const porta = portaAlvo(pod, sonda.httpGet.port);
+      const caminho = sonda.httpGet.path ?? '/';
+      const r = sondarHttp(this.c, pod, porta, caminho);
+      if (r.erro === 'recusada' || r.erro === 'vazia') return { ok: false, msg: `Get "http://${ip}:${porta}${caminho}": dial tcp ${ip}:${porta}: connect: connection refused` };
+      if (r.erro) return { ok: false, msg: `Get "http://${ip}:${porta}${caminho}": context deadline exceeded (Client.Timeout exceeded while awaiting headers)` };
+      return r.status >= 200 && r.status < 400 ? { ok: true } : { ok: false, msg: `HTTP probe failed with statuscode: ${r.status}` };
+    }
+    if (sonda.tcpSocket) {
+      const porta = portaAlvo(pod, sonda.tcpSocket.port);
+      return this.quemOuve(pod, porta) ? { ok: true } : { ok: false, msg: `dial tcp ${ip}:${porta}: connect: connection refused` };
+    }
+    if (sonda.exec) {
+      const r = this.exec(pod, ct.name, sonda.exec.command ?? []);
+      if (r.erro) return { ok: false, msg: r.erro.replace(/^error: /, '') };
+      return r.codigo === 0 ? { ok: true } : { ok: false, msg: (r.saida ?? '').trim() || `command ${JSON.stringify((sonda.exec.command ?? []).join(' '))} exited with ${r.codigo}` };
+    }
+    return { ok: true };
+  }
+
+  /** Roda as probes que estão na hora: startup (segura as outras), liveness (reinicia) e readiness (tira do Service). */
+  sondar(pod, ct, est) {
+    const agora = this.c.agora;
+    est.sondas ??= {};
+    const rodar = (tipo, sonda) => {
+      const st = (est.sondas[tipo] ??= { falhas: 0, sucessos: 0, proxima: est.inicio + (sonda.initialDelaySeconds ?? 0) * 1000 });
+      if (agora < st.proxima) return null;
+      st.proxima = agora + sonda.periodSeconds * 1000;
+      const r = this.testar(pod, ct, est, sonda);
+      if (r.ok) {
+        st.sucessos++;
+        st.falhas = 0;
+      } else {
+        st.falhas++;
+        st.sucessos = 0;
+        const rotulo = { startup: 'Startup', liveness: 'Liveness', readiness: 'Readiness' }[tipo];
+        this.evento(pod, ct, 'Warning', 'Unhealthy', `${rotulo} probe failed: ${r.msg}`);
+      }
+      return st;
+    };
+    const matar = (tipo) => {
+      this.evento(pod, ct, 'Normal', 'Killing', `Container ${ct.name} failed ${tipo} probe, will be restarted`);
+      const sabeParar = (est.comportamento?.paraEm ?? 0) < (pod.spec.terminationGracePeriodSeconds ?? 30) * 1000;
+      this.encerrarExecucao(pod, ct, est, sabeParar ? 0 : 137, sabeParar ? 'Completed' : 'Error');
+      // O kubelet recria na hora as primeiras vezes; se continuar falhando, entra a espera crescente (CrashLoopBackOff).
+      est.quedas = (est.quedas ?? 0) + 1;
+      if (est.quedas <= 3) {
+        est.decidido = true;
+        est.reiniciarEm = this.c.agora;
+        this.iniciarPull(pod, ct, est);
+      }
+    };
+    if (ct.startupProbe && !est.iniciou) {
+      const st = rodar('startup', ct.startupProbe);
+      if (st?.sucessos >= ct.startupProbe.successThreshold) est.iniciou = true;
+      else if (st?.falhas >= ct.startupProbe.failureThreshold) matar('startup');
+      return;
+    }
+    if (ct.livenessProbe) {
+      const st = rodar('liveness', ct.livenessProbe);
+      if (st?.falhas >= ct.livenessProbe.failureThreshold) {
+        matar('liveness');
+        return;
+      }
+    }
+    if (ct.readinessProbe) {
+      const st = rodar('readiness', ct.readinessProbe);
+      if (st?.sucessos >= ct.readinessProbe.successThreshold) est.prontoSonda = true;
+      if (st?.falhas >= ct.readinessProbe.failureThreshold) est.prontoSonda = false;
+    }
+  }
+
+  /** O contêiner está pronto? Com readinessProbe, quem decide é ela; com startupProbe, só depois de ela passar. */
+  pronto(ct, est) {
+    if (est.fase !== 'rodando') return false;
+    if (ct.startupProbe && !est.iniciou) return false;
+    if (ct.readinessProbe) return !!est.prontoSonda;
+    return this.c.agora >= (est.prontoEm ?? 0);
+  }
+
   // ---------- máquina de estados de um contêiner ----------
   passo(pod, ct, est, politicaDoContainer = pod.spec.restartPolicy) {
     const agora = this.c.agora;
@@ -251,6 +335,7 @@ export class Kubelet {
         break;
       case 'rodando':
         this.avancarProcesso(pod, ct, est);
+        if (est.fase === 'rodando') this.sondar(pod, ct, est);
         break;
       case 'terminado':
         if (est.final) break;
@@ -352,6 +437,13 @@ export class Kubelet {
     est.logsAnteriores = est.logs;
     est.logs = [];
     est.camada = new Map(); // contêiner novo, camada gravável nova (o que não estava num volume se perde)
+    for (const st of Object.values(est.sondas ?? {})) { // o relógio das probes continua; só a contagem recomeça
+      st.falhas = 0;
+      st.sucessos = 0;
+    }
+    est.iniciou = false;
+    est.prontoSonda = false;
+    est.travado = false;
 
     const comp = r.comportamento;
     // Como o Docker: command substitui o ENTRYPOINT; args substitui o CMD.
@@ -373,6 +465,8 @@ export class Kubelet {
 
     this.evento(pod, ct, 'Normal', 'Started', 'Container started');
     est.fase = 'rodando';
+    const limiteMemoria = bytes(ct.resources?.limits?.memory);
+    est.oomEm = limiteMemoria && bytes(comp.memoria ?? '8Mi') > limiteMemoria ? c.agora + 1000 : undefined;
     // Entre o "Started" e o "Ready" passa um tempo (o programa abrindo, o kubelet relatando o status).
     est.prontoEm = c.agora + (comp.prontoApos ?? 1000);
     est.jaRodou = true;
@@ -396,8 +490,17 @@ export class Kubelet {
           return { codigo: comp.semArquivo.codigo };
         }
         const linhas = comp.logs({ agora: c.agora, cpus: Math.max(1, Math.floor(c.cpuDoNode(node) / 1000)), kernel: c.kernel });
+        if (comp.ouveApos) { // aquece antes de abrir a porta: até lá, quem liga dá com a porta fechada
+          saida(`${comp.aquecendo.join('\n')}\n`);
+          yield { dormir: comp.ouveApos };
+        }
         if (linhas.length) saida(`${linhas.join('\n')}\n`);
         est.ouvindo = true;
+        if (comp.travaApos !== undefined) { // depois de um tempo, trava: a porta continua aberta, mas ninguém responde
+          yield { dormir: comp.travaApos };
+          est.travado = true;
+          saida(`${comp.travou.join('\n')}\n`);
+        }
         if (comp.quebraApos !== undefined) {
           // quebraApos 0: cai na subida. Maior que 0: sobe, fica "pronto" e cai depois (engana o rollout sem probe).
           if (comp.quebraApos > 0) yield { dormir: comp.quebraApos };
@@ -421,14 +524,36 @@ export class Kubelet {
 
   avancarProcesso(pod, ct, est) {
     const c = this.c;
+    if (est.oomEm !== undefined && c.agora >= est.oomEm) { // passou do limite de memória: o kernel mata (exit 137)
+      this.encerrarExecucao(pod, ct, est, 137, 'OOMKilled');
+      return;
+    }
+    // O relógio do processo anda pelos próprios sleeps: dentro de um segundo cabem vários "sleep 0.01".
     for (let i = 0; i < 100 && est.fase === 'rodando' && est.acordarEm <= c.agora; i++) {
       const { value, done } = est.processo.next();
       if (done) {
         this.encerrarExecucao(pod, ct, est, value?.codigo ?? 0);
         return;
       }
-      if (value?.dormir !== undefined) est.acordarEm = c.agora + value.dormir;
+      if (value?.dormir !== undefined) est.acordarEm = Math.max(est.acordarEm, c.agora - 1000) + value.dormir;
     }
+  }
+
+  // ---------- uso de recursos (para o metrics-server, o kubectl top e o HPA) ----------
+  contarRequisicao(pod, conteiner) {
+    const est = this.estado(pod, conteiner);
+    if (est) (est.requisicoes ??= []).push(this.c.agora);
+  }
+
+  /** O uso agora: CPU (milicores) = base + custo por requisição/s, até o limit (throttling); memória em bytes. */
+  uso(pod, ct, est) {
+    const comp = est.comportamento ?? {};
+    const agora = this.c.agora;
+    est.requisicoes = (est.requisicoes ?? []).filter((t) => agora - t < 15_000);
+    let cpu = (comp.cpu ?? 1) + (comp.custoReq ?? 2) * (est.requisicoes.length / 15);
+    const limite = cpuMili(ct.resources?.limits?.cpu);
+    if (limite) cpu = Math.min(cpu, limite);
+    return { cpu: Math.max(0, Math.round(cpu)), memoria: bytes(comp.memoria ?? '8Mi') };
   }
 
   encerrarExecucao(pod, ct, est, codigo, motivo) {
@@ -566,7 +691,7 @@ export class Kubelet {
     const e = this.pods.get(pod.metadata.uid);
     if (!e) return null;
     for (const [nome, est] of e.conteineres) {
-      if (est.fase === 'rodando' && est.ouvindo && est.comportamento.servidor.portas.includes(porta)) return { comportamento: est.comportamento, conteiner: nome };
+      if (est.fase === 'rodando' && est.ouvindo && est.comportamento.servidor.portas.includes(porta)) return { comportamento: est.comportamento, conteiner: nome, travado: !!est.travado };
     }
     return null;
   }
@@ -616,16 +741,15 @@ export class Kubelet {
     if (initFalhou) fase = 'Failed';
     else if (finais) fase = ests.every(([, est]) => est.atual.exitCode === 0) ? 'Succeeded' : 'Failed';
     else if (todosJaRodaram && e.inicializado) fase = 'Running';
-    const pronto = (est) => est.fase === 'rodando' && c.agora >= (est.prontoEm ?? 0);
     const sidecars = inits.filter(([ct]) => ehSidecar(ct));
-    const prontos = [...ests, ...sidecars].every(([, est]) => pronto(est));
+    const prontos = [...ests, ...sidecars].every(([ct, est]) => this.pronto(ct, est));
     const incompletos = inits.filter(([ct, est]) => (ehSidecar(ct) ? est.fase !== 'rodando' : !terminouBem(est)) && !e.inicializado).map(([ct]) => ct.name);
     const condicao = (tipo, status, extra = {}) => {
       const anterior = e.condicoes[tipo];
       if (!anterior || anterior.status !== status) e.condicoes[tipo] = { status, desde: c.agora };
       return { lastProbeTime: null, lastTransitionTime: iso(e.condicoes[tipo].desde), observedGeneration: 1, status, type: tipo, ...extra };
     };
-    const naoProntos = ests.filter(([, est]) => !pronto(est)).map(([ct]) => ct.name);
+    const naoProntos = ests.filter(([ct, est]) => !this.pronto(ct, est)).map(([ct]) => ct.name);
     const motivoNaoPronto = fase === 'Succeeded' ? { reason: 'PodCompleted' } : { message: `containers with unready status: [${naoProntos.join(' ')}]`, reason: 'ContainersNotReady' };
     const encerrado = fase === 'Succeeded' || fase === 'Failed';
     const status = {
@@ -666,9 +790,9 @@ export class Kubelet {
     }
     s.lastState = est.ultimoTermino ? { terminated: est.ultimoTermino } : {};
     s.name = ct.name;
-    s.ready = concluido || (est.fase === 'rodando' && this.c.agora >= (est.prontoEm ?? 0));
+    s.ready = concluido || this.pronto(ct, est);
     s.restartCount = est.reinicios;
-    s.started = est.fase === 'rodando';
+    s.started = est.fase === 'rodando' && (!ct.startupProbe || !!est.iniciou);
     switch (est.fase) {
       case 'rodando': s.state = { running: { startedAt: iso(est.inicio) } }; break;
       case 'terminado': s.state = { terminated: est.atual }; break;

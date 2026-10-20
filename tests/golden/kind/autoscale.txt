@@ -1,0 +1,2 @@
+horizontalpodautoscaler.autoscaling/php autoscaled
+exit=0

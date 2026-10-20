@@ -1,0 +1,4 @@
+namespace/time-a created
+resourcequota/cota created
+limitrange/limites created
+exit=0
