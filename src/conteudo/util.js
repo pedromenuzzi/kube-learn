@@ -10,8 +10,23 @@ export function yaml(partes, ...valores) {
 
 export const XP = { licao: 5, quiz: 5, facil: 10, medio: 20, dificil: 40 };
 
-/** Uma lição: explicação, analogia e um YAML de exemplo para aplicar. Conclui ao aplicar sem erro. */
-export const licao = (dados) => ({ tipo: 'licao', cluster: 'vazio', testes: [{ descricao: 'kubectl apply -f .', regras: [{ semErros: true }] }], ...dados });
+/**
+ * Uma lição: `conteudo` (HTML), vidaReal e limite. Com `inicial` (um YAML de exemplo), abre na tela do exercício
+ * e conclui ao aplicar sem erro; sem ele, é só leitura e conclui no botão "Marquei como lida".
+ */
+export const licao = (dados) => ({
+  tipo: 'licao',
+  cluster: 'vazio',
+  ...(dados.inicial ? { solucao: dados.inicial, testes: [{ descricao: 'kubectl apply -f .', regras: [{ semErros: true }] }] } : { testes: [] }),
+  ...dados,
+  enunciado: dados.conteudo,
+});
+
+/**
+ * Um quiz: `pergunta` (HTML) e `alternativas` [{ texto, certa?, explicacao }] — ou `resposta` (RegExp) para
+ * uma resposta digitada, com `explicacao`. Vale 5 XP.
+ */
+export const quiz = (dados) => ({ tipo: 'quiz', testes: [], ...dados, enunciado: dados.pergunta });
 
 /**
  * Um problema: enunciado, arquivos iniciais, solução e testes.

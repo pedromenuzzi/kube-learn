@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-const PAGINAS = ['#/', '#/trilha', '#/glossario', '#/livre', '#/ex/deploy-rolling-sem-indisponibilidade'];
+const PAGINAS = ['#/', '#/trilha', '#/glossario', '#/livre', '#/ex/deploy-rolling-sem-indisponibilidade', '#/ex/n0-imagem-e-conteiner', '#/ex/n0-quiz-latest'];
 const TEMAS = ['claro', 'escuro', 'contraste'];
 
 for (const tema of TEMAS) {
@@ -11,7 +11,7 @@ for (const tema of TEMAS) {
     for (const url of PAGINAS) {
       await page.goto(url);
       await page.waitForSelector('main#conteudo > *');
-      if (url.includes('ex/') || url.includes('livre')) await page.waitForSelector('.cm-content');
+      if (url.includes('deploy-') || url.includes('livre')) await page.waitForSelector('.cm-content');
       // .cm-scroller fica de fora: o editor é alcançado pelo teclado pela caixa de texto dele (contenteditable),
       // que rola junto com o cursor; o axe não reconhece isso como conteúdo focável.
       const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).exclude('.cm-scroller').analyze();
@@ -21,8 +21,36 @@ for (const tema of TEMAS) {
   });
 }
 
+test('térreo: lição lida e quiz certo contam no prédio', async ({ page }) => {
+  await page.goto('#/trilha');
+  await expect(page.locator('#andar-2')).toContainText('Bloqueado');
+  await page.locator('#andar-0').getByRole('link', { name: /Funciona na minha máquina/ }).click();
+  await page.getByRole('button', { name: '✅ Marquei como lida' }).click();
+  await expect(page.getByRole('status')).toContainText('+5 XP');
+  await page.goto('#/ex/n0-quiz-latest');
+  await page.getByLabel(/a versão mais nova publicada/).check();
+  await page.getByRole('button', { name: 'Responder' }).click();
+  await expect(page.locator('.quiz-retorno')).toContainText('Ainda não');
+  await page.getByLabel(/tag comum/).check();
+  await page.getByRole('button', { name: 'Responder' }).click();
+  await expect(page.locator('.quiz-retorno')).toContainText('Certo! +5 XP');
+  await page.goto('#/ex/n0-quiz-referencia');
+  await page.getByLabel('Sua resposta').fill('nginx:1.27');
+  await page.getByRole('button', { name: 'Responder' }).click();
+  await expect(page.locator('.quiz-retorno')).toContainText('Certo!');
+  await page.goto('#/trilha');
+  await expect(page.locator('#andar-0')).toContainText('2 de 8 missões (25%)');
+  await expect(page.locator('.placar')).toContainText('15');
+});
+
 test('resolver uma missão acende a janela: o andar mostra o progresso e o placar soma XP', async ({ page }) => {
   page.on('dialog', (d) => d.accept());
+  // Térreo já com 75% (6 de 8 quizzes), para o andar da missão estar aberto.
+  await page.addInitScript(() => {
+    if (localStorage.getItem('kube-learn:progresso')) return;
+    const ids = ['n0-quiz-imagem-conteiner', 'n0-quiz-quantos', 'n0-quiz-referencia', 'n0-quiz-partes', 'n0-quiz-latest', 'n0-quiz-dockerfile'];
+    localStorage.setItem('kube-learn:progresso', JSON.stringify(Object.fromEntries(ids.map((i) => [i, { status: 'resolvido', em: '2026-10-20' }]))));
+  });
   await page.goto('#/trilha');
   await expect(page.locator('#andar-2')).toContainText('0 de 2 missões');
   await expect(page.locator('#andar-3')).toContainText('Em obra');
@@ -34,9 +62,9 @@ test('resolver uma missão acende a janela: o andar mostra o progresso e o placa
   await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
   await page.getByRole('link', { name: '← Trilha' }).click();
   await expect(page.locator('#andar-2')).toContainText('1 de 2 missões (50%)');
-  await expect(page.locator('.placar')).toContainText('20');
+  await expect(page.locator('.placar')).toContainText('50');
   await expect(page.locator('.placar')).toContainText('🔥 Dias seguidos');
-  await expect(page.getByRole('link', { name: /resolvida/ })).toHaveCount(1);
+  await expect(page.locator('#andar-2').getByRole('link', { name: /resolvida/ })).toHaveCount(1);
   await expect(page.locator('canvas.predio')).toBeVisible();
 });
 

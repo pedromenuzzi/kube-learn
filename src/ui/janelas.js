@@ -11,8 +11,8 @@ const MIN_ALTURA = 12;
 /** Arrumação: { colunas: [{ largura (%), janelas: [{ id, altura (%) }] }] }. */
 export const ARRUMACAO_PADRAO = {
   colunas: [
-    { largura: 40, janelas: [{ id: 'missao', altura: 60 }, { id: 'cluster', altura: 40 }] },
-    { largura: 60, janelas: [{ id: 'arquivos', altura: 55 }, { id: 'terminal', altura: 45 }] },
+    { largura: 40, janelas: [{ id: 'missao', altura: 100 }] },
+    { largura: 60, janelas: [{ id: 'arquivos', altura: 50 }, { id: 'paineis', altura: 50 }] },
   ],
 };
 
