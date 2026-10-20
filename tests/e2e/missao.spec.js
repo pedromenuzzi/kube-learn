@@ -61,3 +61,28 @@ test('terminal: erro com a caixa "Na vida real", Tab completa e painel do cluste
   await page.getByRole('tab', { name: '🗺️ Mapa' }).click();
   await expect(page.locator('.mapa .pod-ok')).toHaveCount(2, { timeout: 15_000 });
 });
+
+test('nível 1: ler o log, guardar a resposta e conferir', async ({ page }) => {
+  await page.goto('#/ex/n1-diario');
+  const entrada = page.getByRole('textbox', { name: /aluno@kube-learn/ });
+  await entrada.fill('kubectl logs diario');
+  await entrada.press('Enter');
+  await expect(page.locator('.term-saida')).toContainText('a senha do Wi-Fi da obra é: tijolo-azul-42');
+  await page.getByLabel('A senha').fill('tijolo-azul-42');
+  await page.getByRole('button', { name: '✔ Conferir' }).click();
+  await expect(page.locator('#lado-testes')).toContainText('1 de 1 teste passou');
+});
+
+test('nível 1: o > grava a saída do kubectl num arquivo do editor', async ({ page }) => {
+  await page.goto('#/ex/n1-dry-run');
+  const entrada = page.getByRole('textbox', { name: /aluno@kube-learn/ });
+  await entrada.fill('kubectl run rascunho --image=nginx:1.27 --dry-run=client -o yaml > rascunho.yaml');
+  await entrada.press('Enter');
+  await expect(page.getByRole('button', { name: 'rascunho.yaml', exact: true })).toBeVisible();
+  await expect(page.locator('.cm-content')).toContainText('image: nginx:1.27');
+  await entrada.fill('kubectl apply -f rascunho.yaml');
+  await entrada.press('Enter');
+  await expect(page.locator('.term-saida')).toContainText('pod/rascunho created');
+  await page.getByRole('button', { name: '⬆ Entregar' }).click();
+  await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
+});

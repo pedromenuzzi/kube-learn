@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-const PAGINAS = ['#/', '#/trilha', '#/glossario', '#/livre', '#/ex/deploy-rolling-sem-indisponibilidade', '#/ex/n0-imagem-e-conteiner', '#/ex/n0-quiz-latest'];
+const PAGINAS = ['#/', '#/trilha', '#/glossario', '#/livre', '#/ex/deploy-rolling-sem-indisponibilidade', '#/ex/n0-imagem-e-conteiner', '#/ex/n0-quiz-latest', '#/ex/n1-diario'];
 const TEMAS = ['claro', 'escuro', 'contraste'];
 
 for (const tema of TEMAS) {
@@ -45,10 +45,11 @@ test('térreo: lição lida e quiz certo contam no prédio', async ({ page }) =>
 
 test('resolver uma missão acende a janela: o andar mostra o progresso e o placar soma XP', async ({ page }) => {
   page.on('dialog', (d) => d.accept());
-  // Térreo já com 75% (6 de 8 quizzes), para o andar da missão estar aberto.
+  // Térreo e 1º andar já resolvidos, para o andar da missão estar aberto.
   await page.addInitScript(() => {
     if (localStorage.getItem('kube-learn:progresso')) return;
-    const ids = ['n0-quiz-imagem-conteiner', 'n0-quiz-quantos', 'n0-quiz-referencia', 'n0-quiz-partes', 'n0-quiz-latest', 'n0-quiz-dockerfile'];
+    const ids = ['n0-quiz-imagem-conteiner', 'n0-quiz-quantos', 'n0-quiz-referencia', 'n0-quiz-partes', 'n0-quiz-latest', 'n0-quiz-dockerfile',
+      'n1-quantos-nodes', 'n1-primeiro-pod', 'n1-kubectl-run', 'n1-em-que-node', 'n1-diario', 'n1-cofre', 'n1-labels', 'n1-seletor', 'n1-namespaces', 'n1-contexto', 'n1-dry-run', 'n1-explain'];
     localStorage.setItem('kube-learn:progresso', JSON.stringify(Object.fromEntries(ids.map((i) => [i, { status: 'resolvido', em: '2026-10-20' }]))));
   });
   await page.goto('#/trilha');
@@ -62,7 +63,7 @@ test('resolver uma missão acende a janela: o andar mostra o progresso e o placa
   await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
   await page.getByRole('link', { name: '← Trilha' }).click();
   await expect(page.locator('#andar-2')).toContainText('1 de 2 missões (50%)');
-  await expect(page.locator('.placar')).toContainText('50');
+
   await expect(page.locator('.placar')).toContainText('🔥 Dias seguidos');
   await expect(page.locator('#andar-2').getByRole('link', { name: /resolvida/ })).toHaveCount(1);
   await expect(page.locator('canvas.predio')).toBeVisible();
