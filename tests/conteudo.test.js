@@ -10,6 +10,7 @@ import { explicar } from '../src/k8s/esquema.js';
 import { acharRecurso } from '../src/k8s/recursos.js';
 import { GLOSSARIO } from '../src/conteudo/glossario.js';
 import { NIVEIS } from '../src/conteudo/niveis.js';
+import { conferirQuiz } from '../src/ui/leitura.js';
 
 /** Monta o que o aluno teria: arquivos e, nos exercícios de terminal, o cluster depois dos comandos. */
 function aluno(item, { resolvido }) {
@@ -30,7 +31,19 @@ describe('a trilha inteira', () => {
       expect(i.enunciado, i.id).toBeTruthy();
       expect(i.vidaReal, `${i.id}: toda missão tem a comparação com a vida real`).toBeTruthy();
       expect(i.limite, `${i.id}: e onde a comparação quebra`).toBeTruthy();
-      expect(CLUSTERS[i.cluster], `${i.id}: cluster ${i.cluster}`).toBeTruthy();
+      if (i.tipo === 'problema' || i.inicial) expect(CLUSTERS[i.cluster], `${i.id}: cluster ${i.cluster}`).toBeTruthy();
+      if (i.tipo === 'quiz') {
+        if (i.alternativas) {
+          expect(i.alternativas.filter((a) => a.certa).length, `${i.id}: uma alternativa certa`).toBe(1);
+          for (const a of i.alternativas) expect(a.explicacao, `${i.id}: toda alternativa explica`).toBeTruthy();
+        } else {
+          expect(i.resposta, `${i.id}: resposta`).toBeInstanceOf(RegExp);
+          expect(i.explicacao, `${i.id}: explicação`).toBeTruthy();
+          expect(i.exemplos?.length, `${i.id}: exemplos de resposta certa (para o teste)`).toBeTruthy();
+          for (const e of i.exemplos) expect(conferirQuiz(i, e).certa, `${i.id}: "${e}"`).toBe(true);
+          expect(conferirQuiz(i, 'qualquer coisa').certa).toBe(false);
+        }
+      }
       for (const t of i.testes) for (const r of t.regras) expect(TIPOS_DE_REGRA.some((k) => k in r), `${i.id}: ${JSON.stringify(r)}`).toBe(true);
       for (const m of i.manual ?? []) {
         const [tipo, ...caminho] = m.split('.');
@@ -47,6 +60,13 @@ describe('a trilha inteira', () => {
       expect(NIVEIS.some((n) => n.numero === g.nivel), `${g.id}.nivel`).toBe(true);
     }
   });
+
+  for (const item of ITENS.filter((i) => i.tipo === 'licao' && i.inicial)) {
+    it(`${item.id}: o exemplo da lição aplica sem erro`, () => {
+      const r = rodarTestes(item, { arquivos: item.inicial }, { todos: true });
+      expect(r.every((t) => t.ok)).toBe(true);
+    });
+  }
 
   for (const item of ITENS.filter((i) => i.tipo === 'problema')) {
     describe(item.id, () => {

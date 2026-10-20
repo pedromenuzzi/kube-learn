@@ -5,6 +5,7 @@ import { resolverRota } from './rotas.js';
 import { acharItem, PLAYGROUND } from './conteudo/index.js';
 import { paginaInicio, paginaTrilha, paginaGlossario } from './ui/paginas.js';
 import { aplicarPreferencias, montarPreferencias } from './ui/preferencias.js';
+import { montarLeitura } from './ui/leitura.js';
 
 aplicarPreferencias();
 
@@ -15,6 +16,7 @@ const PAGINAS = {
   '/ex': (id) => {
     const item = acharItem(id);
     if (!item) return '<h1>Missão não encontrada</h1><p><a href="#/trilha">Ver o prédio</a></p>';
+    if (item.tipo === 'quiz' || (item.tipo === 'licao' && !item.inicial)) return (main) => montarLeitura(main, item);
     return (main) => montarTela(main, item);
   },
   '/livre': () => (main) => montarTela(main, PLAYGROUND),
@@ -33,7 +35,8 @@ function desenhar() {
   paginaAtual = null;
   const rota = resolverRota(location.hash);
   const conteudo = rota ? PAGINAS[rota.caminho](rota.parametro) : '<h1>Página não encontrada</h1><p><a href="#/">Voltar ao início</a></p>';
-  main.classList.toggle('largo', ['/ex', '/livre', '/trilha', '/'].includes(rota?.caminho));
+  const leitura = rota?.caminho === '/ex' && ['quiz', 'licao'].includes(acharItem(rota.parametro)?.tipo) && !acharItem(rota.parametro)?.inicial;
+  main.classList.toggle('largo', !leitura && ['/ex', '/livre', '/trilha', '/'].includes(rota?.caminho));
   if (typeof conteudo === 'function') {
     main.replaceChildren();
     paginaAtual = conteudo(main);

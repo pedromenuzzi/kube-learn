@@ -261,7 +261,9 @@ pre.manual, .solucao pre { white-space: pre-wrap; font-size: 0.85rem; background
 .detalhe { color: var(--suave); }
 
 /* ---------- terminal ---------- */
-#ex-terminal { flex: 1; min-height: 0; background: var(--term-fundo); color: var(--term-texto); }
+#baixo-terminal { padding: 0; background: var(--term-fundo); color: var(--term-texto); }
+#baixo-terminal:not([hidden]) { display: flex; flex-direction: column; }
+#baixo-terminal .terminal { flex: 1; min-height: 0; }
 .terminal { display: flex; flex-direction: column; }
 .term-saida { flex: 1; min-height: 4rem; overflow: auto; padding: 0.5rem 0.75rem; font-family: ui-monospace, 'Cascadia Code', Menlo, monospace; font-size: 0.85rem; }
 .term-saida pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: inherit; }
@@ -357,3 +359,18 @@ canvas.predio { image-rendering: pixelated; width: 100%; height: auto; display: 
 dialog.preferencias { background: var(--superficie); color: var(--texto); border: 1px solid var(--borda); border-radius: 8px; max-width: 26rem; }
 dialog.preferencias::backdrop { background: #0008; }
 dialog.preferencias fieldset { border: 1px solid var(--borda); border-radius: 6px; display: grid; gap: 0.3rem; }
+
+/* ---------- lições e quizzes ---------- */
+.leitura { max-width: 46rem; }
+.leitura-texto h2 { font-size: 1.15rem; margin-top: 1.5rem; }
+.leitura-texto pre { background: var(--superficie); border: 1px solid var(--borda); padding: 0.6rem 0.8rem; border-radius: 6px; overflow-x: auto; }
+.caixa-vida { border-left: 5px solid var(--espera); background: var(--superficie); padding: 0.5rem 1rem; border-radius: 6px; margin: 1.25rem 0; }
+.caixa-vida p { margin: 0.35rem 0; }
+.quiz fieldset { border: 1px solid var(--borda); border-radius: 6px; display: grid; gap: 0.4rem; padding: 0.75rem; }
+.alternativa { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.3rem; border-radius: 4px; cursor: pointer; }
+.alternativa:hover { background: var(--fundo); }
+.quiz input:not([type=radio]) { font: inherit; padding: 0.3rem 0.5rem; border: 1px solid var(--borda); border-radius: 6px; background: var(--superficie); color: var(--texto); min-width: 18rem; max-width: 100%; }
+.quiz-retorno.ok { color: var(--ok); }
+.quiz-retorno.falha { color: var(--ruim); }
+.quiz-retorno p { color: var(--texto); }
+.leitura-acoes { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-top: 1.5rem; }

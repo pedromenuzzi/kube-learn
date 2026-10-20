@@ -80,12 +80,12 @@ export function montarExercicio(raiz, item) {
         </div>
         <div class="ex-editor"></div>`) },
     } : {}),
-    terminal: { titulo: 'Terminal', corpo: corpo('<div id="ex-terminal"></div>') },
-    cluster: { titulo: 'Cluster', corpo: corpo(htmlAbas('baixo', [
+    paineis: { titulo: 'Terminal e cluster', corpo: corpo(htmlAbas('baixo', [
+      { id: 'terminal', rotulo: '🖥️ Terminal' },
       { id: 'cluster', rotulo: '🗺️ Mapa' },
       { id: 'recursos', rotulo: '🌳 Recursos' },
       { id: 'eventos', rotulo: '📜 Eventos' },
-    ], 'Painéis do cluster')) },
+    ], 'Terminal e painéis do cluster')) },
   };
   const janelas = montarJanelas(raiz.querySelector('.ex-janelas'), corpos);
 
@@ -111,7 +111,7 @@ export function montarExercicio(raiz, item) {
       <button type="button" data-acao="ver-solucao">Ver a solução</button><div class="solucao" hidden></div>`;
   }
   const abasLado = ativarAbas(corpos.missao.corpo);
-  ativarAbas(corpos.cluster.corpo, () => atualizarPaineis());
+  const abasBaixo = ativarAbas(corpos.paineis.corpo, () => atualizarPaineis());
 
   // ---------- arquivos e editor ----------
   let editor = null;
@@ -209,7 +209,7 @@ export function montarExercicio(raiz, item) {
     return [];
   }
 
-  const terminal = criarTerminal($('#ex-terminal'), { executar, completar });
+  const terminal = criarTerminal($('#baixo-terminal'), { executar, completar });
   terminal.escrever(`Cluster pronto (1 control plane + 2 workers). Digite help para ajuda.${item.terminal ? ' Nesta missão, use o terminal.' : ''}`, 'term-info');
 
   // ---------- painéis ----------
@@ -262,6 +262,7 @@ export function montarExercicio(raiz, item) {
   // ---------- botões e atalhos ----------
   const acoes = {
     aplicar() {
+      abasBaixo.selecionar('terminal');
       terminal.rodar('kubectl apply -f .');
       if (item.testes?.some((t) => !t.oculto)) testar(false);
     },
