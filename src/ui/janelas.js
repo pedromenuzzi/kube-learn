@@ -1,7 +1,7 @@
 // As janelas da tela do exercício (missão, arquivos, terminal, cluster): o aluno arrasta para mudar de lugar
 // e arrasta os divisores para mudar o tamanho. Também dá pelo teclado: botões ↑ ↓ ← → em cada janela e
 // setas nos divisores. A arrumação fica salva no navegador. No celular, as janelas ficam empilhadas.
-import { ler, gravar } from '../armazenamento.js';
+import { ler, gravar, CHAVES } from '../armazenamento.js';
 import { escapar } from './util.js';
 
 export const MAX_COLUNAS = 3;
@@ -149,7 +149,7 @@ export function redimensionarJanelas(arrumacao, c, j, delta) {
 }
 
 // ---------- DOM ----------
-const CHAVE = 'janelas';
+const CHAVE = CHAVES.janelas;
 const SETAS = { cima: '↑', baixo: '↓', esquerda: '←', direita: '→' };
 const NOMES = { cima: 'para cima', baixo: 'para baixo', esquerda: 'para a esquerda', direita: 'para a direita' };
 

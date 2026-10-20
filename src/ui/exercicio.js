@@ -8,7 +8,8 @@ import { explicar as explicarCampo } from '../k8s/esquema.js';
 import { RECURSOS, acharRecurso } from '../k8s/recursos.js';
 import { palavras } from '../k8s/kubectl/argv.js';
 import { rodarTestes } from '../verificacoes.js';
-import { ler, gravar, CHAVES, registrarResultado } from '../armazenamento.js';
+import { ler, gravar, CHAVES, registrarResultado, registrarDia } from '../armazenamento.js';
+import { hojeLocal } from '../jogo/gamificacao.js';
 import { criarTerminal } from './terminal.js';
 import { criarEditor } from './editor.js';
 import { htmlCluster, htmlRecursos, htmlEventos } from './paineis.js';
@@ -74,7 +75,7 @@ export function montarExercicio(raiz, item) {
     ...(temArquivos ? {
       arquivos: { titulo: 'Arquivos', corpo: corpo(`
         <div class="ex-arquivos">
-          <div role="tablist" aria-label="Arquivos" class="abas arquivos"></div>
+          <ul class="abas arquivos" aria-label="Arquivos"></ul>
           <button type="button" class="mini" data-acao="novo-arquivo" aria-label="Novo arquivo">+ arquivo</button>
         </div>
         <div class="ex-editor"></div>`) },
@@ -116,12 +117,12 @@ export function montarExercicio(raiz, item) {
   let editor = null;
   const salvar = () => gravar(chaveArquivos, estado.arquivos);
   const desenharArquivos = () => {
-    const lista = $('.ex-arquivos [role=tablist]');
+    const lista = $('.ex-arquivos .arquivos');
     lista.innerHTML = Object.keys(estado.arquivos).map((nome) => `
-      <span class="arquivo${nome === estado.atual ? ' atual' : ''}">
-        <button type="button" role="tab" aria-selected="${nome === estado.atual}" data-arquivo="${escapar(nome)}">${escapar(nome)}</button>
+      <li class="arquivo${nome === estado.atual ? ' atual' : ''}">
+        <button type="button" class="aba-arquivo"${nome === estado.atual ? ' aria-current="true"' : ''} data-arquivo="${escapar(nome)}">${escapar(nome)}</button>
         <button type="button" class="mini" data-apagar="${escapar(nome)}" aria-label="Apagar ${escapar(nome)}">×</button>
-      </span>`).join('');
+      </li>`).join('');
   };
   if (temArquivos) {
     editor = criarEditor($('.ex-editor'), {
@@ -239,6 +240,7 @@ export function montarExercicio(raiz, item) {
 
   function testar(todos) {
     aviso.textContent = todos ? 'Rodando todos os testes, inclusive os ocultos…' : 'Rodando os testes visíveis…';
+    registrarDia(hojeLocal());
     setTimeout(() => {
       const resultados = rodarTestes(item, {
         arquivos: estado.arquivos, historico: terminal.historico, resposta: estado.resposta, clusterDoAluno: estado.cluster,
@@ -248,7 +250,7 @@ export function montarExercicio(raiz, item) {
         const resolvido = ok === total;
         registrarResultado(item.id, resolvido);
         aviso.textContent = resolvido
-          ? `🎉 Missão cumprida! +${XP[item.dificuldade] ?? 0} XP.`
+          ? `🎉 Missão cumprida! +${XP[item.dificuldade] ?? 0} XP. A janela da missão acendeu no prédio.`
           : `${ok} de ${total} testes passaram. Veja o que faltou na aba 🧪 Testes.`;
       } else {
         aviso.textContent = `Testes visíveis: ${ok} de ${total} passaram${ok === total ? ' ✅ Agora é com o ⬆ Entregar.' : '. Veja a aba 🧪 Testes.'}`;

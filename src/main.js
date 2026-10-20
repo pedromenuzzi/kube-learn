@@ -1,42 +1,26 @@
+import '@fontsource/atkinson-hyperlegible/400.css';
+import '@fontsource/atkinson-hyperlegible/700.css';
+import '@fontsource/press-start-2p/400.css';
 import { resolverRota } from './rotas.js';
-import { ITENS, acharItem, PLAYGROUND } from './conteudo/index.js';
-import { XP } from './conteudo/util.js';
-import { ler, CHAVES } from './armazenamento.js';
-import { escapar } from './ui/util.js';
+import { acharItem, PLAYGROUND } from './conteudo/index.js';
+import { paginaInicio, paginaTrilha, paginaGlossario } from './ui/paginas.js';
+import { aplicarPreferencias, montarPreferencias } from './ui/preferencias.js';
 
-// Cada página devolve HTML (texto) ou uma função que monta a página e devolve { destruir }.
+aplicarPreferencias();
+
+// Cada página devolve HTML (texto) ou uma função que monta a página e devolve { destruir? }.
 const PAGINAS = {
-  '/': () => `
-    <h1>Aprenda Kubernetes andar por andar</h1>
-    <p>Um cluster simulado no navegador, <code>kubectl</code> de verdade e comparações com a vida real.
-       Cada nível concluído ergue mais um andar do seu prédio, até virar arranha-céu.</p>
-    <p class="obra">🚧 Em obra. A trilha completa abre na versão 0.1; já dá para experimentar as missões de exemplo.</p>
-    <p><a class="botao" href="#/trilha">Ver as missões</a> <a href="#/livre">ou abrir o playground</a></p>`,
-  '/trilha': () => {
-    const progresso = ler(CHAVES.progresso, {});
-    const marca = { resolvido: '✅', tentado: '🟡' };
-    return `
-      <h1>Missões de exemplo</h1>
-      <p class="obra">🚧 O prédio da trilha chega na Fase 3. Por enquanto, as missões de exemplo:</p>
-      <ul class="lista-missoes">${ITENS.map((i) => `
-        <li><a href="#/ex/${i.id}">${marca[progresso[i.id]?.status] ?? '⬜'} ${escapar(i.titulo)}</a>
-          <span class="selo">${XP[i.dificuldade] ?? XP[i.tipo]} XP</span></li>`).join('')}
-      </ul>
-      <p><a href="#/livre">🧪 Playground livre</a>: um cluster só seu, sem testes.</p>`;
-  },
+  '/': paginaInicio,
+  '/trilha': paginaTrilha,
   '/ex': (id) => {
     const item = acharItem(id);
-    if (!item) return '<h1>Missão não encontrada</h1><p><a href="#/trilha">Ver as missões</a></p>';
+    if (!item) return '<h1>Missão não encontrada</h1><p><a href="#/trilha">Ver o prédio</a></p>';
     return (main) => montarTela(main, item);
   },
   '/livre': () => (main) => montarTela(main, PLAYGROUND),
-  '/glossario': () => emObra('O glossário', 'Fase 3'),
-  '/revisao': () => emObra('A revisão do dia', 'Fase 5'),
+  '/glossario': paginaGlossario,
+  '/revisao': () => '<h1>🚧 Em obra</h1><p>A revisão do dia chega na Fase 5.</p><p><a href="#/">Voltar ao início</a></p>',
 };
-
-function emObra(oque, fase) {
-  return `<h1>🚧 Em obra</h1><p>${oque} chega na ${fase}.</p><p><a href="#/">Voltar ao início</a></p>`;
-}
 
 // A tela do exercício (com o editor e o simulador) só é baixada quando alguém abre uma missão.
 const montarTela = (main, item) => import('./ui/exercicio.js').then((m) => m.montarExercicio(main, item));
@@ -49,7 +33,7 @@ function desenhar() {
   paginaAtual = null;
   const rota = resolverRota(location.hash);
   const conteudo = rota ? PAGINAS[rota.caminho](rota.parametro) : '<h1>Página não encontrada</h1><p><a href="#/">Voltar ao início</a></p>';
-  main.classList.toggle('largo', typeof conteudo === 'function');
+  main.classList.toggle('largo', ['/ex', '/livre', '/trilha', '/'].includes(rota?.caminho));
   if (typeof conteudo === 'function') {
     main.replaceChildren();
     paginaAtual = conteudo(main);
@@ -57,9 +41,17 @@ function desenhar() {
     main.innerHTML = conteudo;
   }
   document.title = `${rota ? (rota.caminho === '/ex' ? acharItem(rota.parametro)?.titulo ?? rota.titulo : rota.titulo) : 'Página não encontrada'} · kube-learn`;
+  for (const a of document.querySelectorAll('.topo nav a')) {
+    if (a.getAttribute('href') === `#${rota?.caminho}`) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  }
   // Ao trocar de página, o foco vai para o conteúdo (o leitor de tela anuncia o novo título).
   if (document.activeElement !== document.body) main.focus();
 }
 
+// Trocar o tema redesenha o prédio (ele usa as cores do tema); a tela do exercício não é recriada.
+montarPreferencias(document.getElementById('botao-preferencias'), () => {
+  if (['/', '/trilha'].includes(resolverRota(location.hash)?.caminho ?? '/')) desenhar();
+});
 window.addEventListener('hashchange', desenhar);
 desenhar();
