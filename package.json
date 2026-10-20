@@ -1,6 +1,6 @@
 {
   "name": "kube-learn",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Trilha gamificada de Kubernetes no navegador: cluster simulado, kubectl de verdade e comparações com a vida real",
   "private": true,
   "type": "module",

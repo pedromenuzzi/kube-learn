@@ -3,6 +3,7 @@
 import { NIVEL0 } from './nivel0.js';
 import { NIVEL1 } from './nivel1.js';
 import { NIVEL2 } from './nivel2.js';
+import { NIVEL3 } from './nivel3.js';
 
 const nivel = (numero, icone, titulo, descricao, itens = []) => ({ id: `nivel-${numero}`, numero, icone, titulo, descricao, itens });
 
@@ -10,7 +11,7 @@ export const NIVEIS = [
   nivel(0, '📦', 'Contêineres', 'Antes do Kubernetes: imagem, contêiner, registry e tags.', NIVEL0),
   nivel(1, '🏛️', 'Cluster, kubectl e Pods', 'A administração do condomínio, o kubectl e o primeiro pod.', NIVEL1),
   nivel(2, '👷', 'ReplicaSet e Deployment', 'Manter réplicas rodando e trocar de versão sem derrubar ninguém.', NIVEL2),
-  nivel(3, '📞', 'Services e rede', 'Ramal fixo, DNS, Ingress e Gateway API.'),
+  nivel(3, '📞', 'Services e rede', 'Ramal fixo, DNS, Ingress e Gateway API.', NIVEL3),
   nivel(4, '📋', 'Configuração e armazenamento', 'ConfigMap, Secret, volumes e StatefulSet.'),
   nivel(5, '🧹', 'Jobs, CronJobs e DaemonSets', 'Tarefas pontuais, rotinas agendadas e um extintor em cada prédio.'),
   nivel(6, '🩺', 'Saúde e recursos', 'Probes, requests e limits, OOMKilled e autoscaling.'),

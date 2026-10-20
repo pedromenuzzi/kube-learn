@@ -64,6 +64,72 @@ const NIVEL1 = [
   pod('vitrine', 'ngnix:1.27'),
 ].join('---\n');
 
+const LOJA_DEP = (replicas = 3, versao = '1.0', nome = 'loja', app = nome) => LOJA(replicas, versao).split('---')[0]
+  .replaceAll('name: loja', `name: ${nome}`).replaceAll('app: loja', `app: ${app}`);
+const SVC = (nome, porta, alvo, app = nome) => yaml`
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${nome}
+  spec:
+    selector:
+      app: ${app}
+    ports:
+    - port: ${porta}
+      targetPort: ${alvo}
+`;
+const DEP = (nome, imagem, replicas, porta) => yaml`
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: ${nome}
+  spec:
+    replicas: ${replicas}
+    selector:
+      matchLabels:
+        app: ${nome}
+    template:
+      metadata:
+        labels:
+          app: ${nome}
+      spec:
+        containers:
+        - name: ${nome}
+          image: ${imagem}
+          ports:
+          - containerPort: ${porta}
+`;
+const INGRESS_CLASS = yaml`
+  apiVersion: networking.k8s.io/v1
+  kind: IngressClass
+  metadata:
+    name: traefik
+    annotations:
+      ingressclass.kubernetes.io/is-default-class: "true"
+  spec:
+    controller: traefik.io/ingress-controller
+`;
+const GATEWAY = yaml`
+  apiVersion: gateway.networking.k8s.io/v1
+  kind: GatewayClass
+  metadata:
+    name: kube-learn
+  spec:
+    controllerName: kube-learn.dev/gateway-controller
+  ---
+  apiVersion: gateway.networking.k8s.io/v1
+  kind: Gateway
+  metadata:
+    name: portaria
+  spec:
+    gatewayClassName: kube-learn
+    listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+`;
+const juntar = (...docs) => docs.map((d) => d.trim()).join('\n---\n');
+
 export const CLUSTERS = {
   vazio: {},
   'loja-3-replicas': { manifestos: LOJA(3, '1.0') },
@@ -103,6 +169,20 @@ export const CLUSTERS = {
     ],
   },
   nivel1: { manifestos: NIVEL1 },
+  // Nível 3
+  'loja-sem-servico': { manifestos: LOJA_DEP() },
+  estoque: {
+    manifestos: juntar(
+      'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: estoque',
+      DEP('estoque', 'nginx:1.27', 2, 80).replace('metadata:\n  name: estoque', 'metadata:\n  name: estoque\n  namespace: estoque'),
+      SVC('estoque', 80, 80).replace('metadata:\n  name: estoque', 'metadata:\n  name: estoque\n  namespace: estoque'),
+      pod('cliente', 'busybox:1.36', { comando: ['sleep', '3600'] }),
+    ),
+  },
+  banco: { manifestos: DEP('banco', 'redis:7', 3, 6379) },
+  praca: { manifestos: juntar(INGRESS_CLASS, LOJA_DEP(2), SVC('loja', 80, 8080), DEP('blog', 'httpd:2.4', 2, 80), SVC('blog', 80, 80)) },
+  'condominio-gateway': { manifestos: juntar(GATEWAY, LOJA_DEP(2), SVC('loja', 80, 8080)) },
+  canario: { manifestos: juntar(GATEWAY, LOJA_DEP(3), SVC('loja', 80, 8080), LOJA_DEP(1, '1.1', 'loja-v2'), SVC('loja-v2', 80, 8080)) },
 };
 
 /** Monta o cluster de partida (sempre igual para a mesma semente). */

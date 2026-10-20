@@ -10,6 +10,7 @@ import { lerCaminhos, lerYaml, ultimaAplicada, mesclar } from './manifestos.js';
 import { RECURSOS, acharRecurso, recursoDoKind, apiVersion, nomeQualificado, pluralQualificado } from '../recursos.js';
 import { decodificar, validar, explicar, btoaUtf8, ESQUEMAS } from '../esquema.js';
 import { ErroApi, VERSAO_SERVIDOR } from '../cluster.js';
+import { portaAlvo } from '../rede.js';
 import { canonico } from '../aleatorio.js';
 import { iso, parseDuracao } from '../unidades.js';
 
@@ -954,6 +955,94 @@ function set(cluster, a, s) {
   cluster.reconciliar();
 }
 
+// ---------- expose / port-forward ----------
+function expose(cluster, a, s) {
+  const alvo = alvoUnico(cluster, a, s, 'expose');
+  if (!alvo) return;
+  const { obj } = alvo;
+  let seletor;
+  let porta;
+  if (obj.kind === 'Deployment' || obj.kind === 'ReplicaSet') {
+    seletor = obj.spec.selector.matchLabels;
+    porta = obj.spec.template.spec.containers.flatMap((c) => c.ports ?? [])[0]?.containerPort;
+  } else if (obj.kind === 'Pod') {
+    seletor = obj.metadata.labels;
+    porta = obj.spec.containers.flatMap((c) => c.ports ?? [])[0]?.containerPort;
+  } else if (obj.kind === 'Service') {
+    seletor = obj.spec.selector;
+    porta = obj.spec.ports?.[0]?.port;
+  } else return s.falha(`error: cannot expose a ${obj.kind}`);
+  if (!seletor || !Object.keys(seletor).length) return s.falha(`error: couldn't retrieve selectors via --selector flag or introspection: the ${obj.kind.toLowerCase()} has no labels and cannot be exposed`);
+  porta = a.flags.port ?? porta;
+  if (!porta) return s.falha("error: couldn't find port via --port flag or introspection\nSee 'kubectl expose -h' for help and examples");
+  const tipos = { clusterip: 'ClusterIP', nodeport: 'NodePort', loadbalancer: 'LoadBalancer' };
+  const tipo = tipos[(a.flags.type ?? 'ClusterIP').toLowerCase()];
+  if (!tipo) return s.falha(`error: Service "${a.flags.name ?? obj.metadata.name}" is invalid: spec.type: Unsupported value: "${a.flags.type}": supported values: "ClusterIP", "ExternalName", "LoadBalancer", "NodePort"`);
+  const alvoPorta = a.flags['target-port'] ?? porta;
+  const svc = {
+    apiVersion: 'v1', kind: 'Service',
+    metadata: { ...(obj.metadata.labels ? { labels: { ...obj.metadata.labels } } : {}), name: a.flags.name ?? obj.metadata.name },
+    spec: { ports: [{ port: Number(porta), protocol: 'TCP', targetPort: /^\d+$/.test(String(alvoPorta)) ? Number(alvoPorta) : alvoPorta }], selector: { ...seletor }, ...(tipo !== 'ClusterIP' ? { type: tipo } : {}) },
+    status: { loadBalancer: {} },
+  };
+  if (ehDryRun(a.flags)) {
+    if (!imprimirObjetos(cluster, s, [svc], a.flags, true)) s.out(`service/${svc.metadata.name} exposed${sufixoDryRun(a.flags)}\n`);
+    return;
+  }
+  const manifesto = structuredClone(svc);
+  delete manifesto.status;
+  manifesto.metadata.namespace = namespaceDe(cluster, a.flags);
+  try {
+    const criado = cluster.criar(manifesto);
+    if (!imprimirObjetos(cluster, s, [criado], a.flags, true)) s.out(`service/${criado.metadata.name} exposed\n`);
+    cluster.reconciliar();
+  } catch (e) {
+    s.falha(mensagemErroApi(e));
+  }
+}
+
+function portForward(cluster, a, s) {
+  const [alvoTxt, ...portas] = a.posicionais;
+  if (!alvoTxt || !portas.length) return s.falha("error: TYPE/NAME and list of ports are required for port-forward\nSee 'kubectl port-forward -h' for help and examples");
+  const ns = namespaceDe(cluster, a.flags);
+  let pod;
+  let svc = null;
+  if (alvoTxt.includes('/') && !/^(pods?|po)\//.test(alvoTxt)) {
+    const [tipo, nome] = alvoTxt.split('/');
+    const r = acharRecurso(tipo);
+    if (!r) return s.falha(`error: the server doesn't have a resource type "${tipo}"`);
+    const obj = cluster.obter(r.kind, ns, nome);
+    if (!obj) return s.falha(`Error from server (NotFound): ${pluralQualificado(r)} "${nome}" not found`);
+    const sel = r.kind === 'Service' ? obj.spec.selector : obj.spec.selector?.matchLabels;
+    if (r.kind === 'Service') svc = obj;
+    pod = cluster.listar('Pod', ns).filter((p) => casaLabels(sel, p.metadata.labels) && p.status?.phase === 'Running')[0];
+    if (!pod) return s.falha(`error: unable to forward port because pod is not running. Current status=Pending`);
+  } else {
+    const nome = alvoTxt.replace(/^(pods?|po)\//, '');
+    pod = cluster.obter('Pod', ns, nome);
+    if (!pod) return s.falha(`Error from server (NotFound): pods "${nome}" not found`);
+    if (pod.status?.phase !== 'Running') return s.falha(`error: unable to forward port because pod is not running. Current status=${pod.status?.phase ?? 'Pending'}`);
+  }
+  let saida = '';
+  for (const p of portas) {
+    const [local, remota] = p.includes(':') ? p.split(':').map(Number) : [Number(p), Number(p)];
+    let noPod = remota;
+    if (svc) {
+      const sp = svc.spec.ports.find((x) => x.port === remota);
+      if (!sp) return s.falha(`error: Service ${svc.metadata.name} does not have a service port ${remota}`);
+      noPod = portaAlvo(pod, sp.targetPort);
+    }
+    if (cluster.encaminhamentos.some((e) => e.local === local)) {
+      return s.falha(`Unable to listen on port ${local}: Listeners failed to create with the following errors: [unable to create listener: Error listen tcp4 127.0.0.1:${local}: bind: address already in use unable to create listener: Error listen tcp6 [::1]:${local}: bind: address already in use]\nerror: unable to listen on any of the requested ports: [{${local} ${noPod}}]`);
+    }
+    cluster.encaminhamentos.push({ local, ns, pod: pod.metadata.name, remota: noPod });
+    saida += `Forwarding from 127.0.0.1:${local} -> ${noPod}\nForwarding from [::1]:${local} -> ${noPod}\n`;
+  }
+  s.out(saida);
+}
+
+const casaLabels = (sel, labels = {}) => !!sel && Object.keys(sel).length > 0 && Object.entries(sel).every(([k, v]) => labels[k] === v);
+
 // ---------- label / annotate ----------
 function etiquetar(cluster, a, s, campo) {
   const ehLabel = campo === 'labels';
@@ -1133,6 +1222,8 @@ const COMANDOS = {
   scale: { flags: { replicas: { tipo: 'int' }, 'current-replicas': { tipo: 'int' } }, rodar: scale },
   rollout: { flags: { revision: { tipo: 'int' }, 'to-revision': { tipo: 'int' }, timeout: { tipo: 'string' }, watch: { curto: 'w', tipo: 'bool' } }, rodar: rollout },
   set: { flags: {}, rodar: set },
+  expose: { flags: { ...SAIDA, ...DRY, port: { tipo: 'string' }, 'target-port': { tipo: 'string' }, type: { tipo: 'string' }, name: { tipo: 'string' }, protocol: { tipo: 'string' } }, rodar: expose },
+  'port-forward': { flags: { address: { tipo: 'string' } }, rodar: portForward },
   label: { flags: { overwrite: { tipo: 'bool' }, ...SELETOR, all: { tipo: 'bool' } }, rodar: (c, a, s) => etiquetar(c, a, s, 'labels') },
   annotate: { flags: { overwrite: { tipo: 'bool' }, ...SELETOR, all: { tipo: 'bool' } }, rodar: (c, a, s) => etiquetar(c, a, s, 'annotations') },
   config: { flags: { current: { tipo: 'bool' } }, rodar: config },

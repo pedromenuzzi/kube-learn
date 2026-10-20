@@ -135,6 +135,33 @@ export const TABELAS = {
     colunas: ['NAME', 'TYPE', 'DATA', 'AGE'],
     linha: (s, agora) => [s.metadata.name, s.type, String(Object.keys(s.data ?? {}).length), desde(agora, s.metadata.creationTimestamp)],
   },
+  Ingress: {
+    colunas: ['NAME', 'CLASS', 'HOSTS', 'ADDRESS', 'PORTS', 'AGE'],
+    linha: (i, agora) => [
+      i.metadata.name,
+      i.spec.ingressClassName ?? '<none>',
+      (i.spec.rules ?? []).map((r) => r.host ?? '*').join(',') || '*',
+      (i.status?.loadBalancer?.ingress ?? []).map((x) => x.ip ?? x.hostname).join(','),
+      i.spec.tls?.length ? '80, 443' : '80',
+      desde(agora, i.metadata.creationTimestamp),
+    ],
+  },
+  IngressClass: {
+    colunas: ['NAME', 'CONTROLLER', 'PARAMETERS', 'AGE'],
+    linha: (i, agora) => [i.metadata.name, i.spec.controller, '<none>', desde(agora, i.metadata.creationTimestamp)],
+  },
+  GatewayClass: {
+    colunas: ['NAME', 'CONTROLLER', 'ACCEPTED', 'AGE'],
+    linha: (g, agora) => [g.metadata.name, g.spec.controllerName, g.status?.conditions?.find((x) => x.type === 'Accepted')?.status ?? 'Unknown', desde(agora, g.metadata.creationTimestamp)],
+  },
+  Gateway: {
+    colunas: ['NAME', 'CLASS', 'ADDRESS', 'PROGRAMMED', 'AGE'],
+    linha: (g, agora) => [g.metadata.name, g.spec.gatewayClassName, g.status?.addresses?.[0]?.value ?? '', g.status?.conditions?.find((x) => x.type === 'Programmed')?.status ?? 'Unknown', desde(agora, g.metadata.creationTimestamp)],
+  },
+  HTTPRoute: {
+    colunas: ['NAME', 'HOSTNAMES', 'AGE'],
+    linha: (r, agora) => [r.metadata.name, JSON.stringify(r.spec.hostnames ?? []), desde(agora, r.metadata.creationTimestamp)],
+  },
   Event: {
     colunas: ['LAST SEEN', 'TYPE', 'REASON', 'OBJECT', 'MESSAGE'],
     linha: (e, agora) => [desde(agora, e.lastTimestamp), e.type, e.reason, `${e.involvedObject.kind.toLowerCase()}/${e.involvedObject.name}`, e.message],

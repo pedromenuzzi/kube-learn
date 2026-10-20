@@ -47,6 +47,8 @@ export class Cluster {
     this.mudancasDeCapacidade = 0;
     this.ipsServico = new Set(['10.96.0.1', '10.96.0.10']);
     this.proximoIp = new Map();
+    this.proximoIpExterno = 200; // pool dos LoadBalancers: 172.18.255.200 em diante
+    this.encaminhamentos = []; // kubectl port-forward ativos: { local, ns, pod, remota }
     this.contexto = { nome: contexto, namespace: 'default' };
     this.kubelet = new Kubelet(this);
     // Como no kubeadm/kind: o control plane sobe primeiro (o DNS nasce nele) e os workers entram depois.
@@ -321,6 +323,10 @@ export class Cluster {
 
   cpuDoNode(node) {
     return cpuMili(node.status.capacity.cpu);
+  }
+
+  alocarIpExterno() {
+    return `172.18.255.${this.proximoIpExterno++}`;
   }
 
   alocarIpPod(node) {

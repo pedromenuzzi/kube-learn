@@ -246,6 +246,78 @@ export const ESQUEMAS = {
     type: texto('O tipo do Secret. Padrão: Opaque.'),
     immutable: booleano('Se true, os dados não podem mais mudar.'),
   }),
+  Ingress: raiz('Ingress', 'O Ingress leva o tráfego HTTP de fora para os Services, por nome (host) e caminho (path). Quem faz o trabalho é um controlador de Ingress instalado no cluster.', {
+    spec: objeto('v1.IngressSpec', 'A especificação do Ingress.', {
+      ingressClassName: texto('Qual controlador de Ingress cuida deste (kubectl get ingressclass).'),
+      defaultBackend: qualquer('O Service que recebe o que não casar com nenhuma regra.', { go: 'IngressBackend' }),
+      tls: qualquer('Os certificados (HTTPS), guardados em Secrets.', { go: '[]IngressTLS' }),
+      rules: lista(objeto('v1.IngressRule', 'Uma regra: um host e os caminhos dele.', {
+        host: texto('O nome (ex.: loja.kube-learn.local). Sem host, vale para qualquer nome.'),
+        http: objeto('v1.HTTPIngressRuleValue', 'Os caminhos.', {
+          paths: lista(objeto('v1.HTTPIngressPath', 'Um caminho e para onde ele vai.', {
+            path: texto('O caminho (ex.: /api).'),
+            pathType: texto('Prefix (o caminho e tudo abaixo dele), Exact (só esse) ou ImplementationSpecific.', { obrigatorio: true }),
+            backend: objeto('v1.IngressBackend', 'O destino.', {
+              service: objeto('v1.IngressServiceBackend', 'O Service de destino.', {
+                name: texto('O nome do Service.', { obrigatorio: true }),
+                port: objeto('v1.ServiceBackendPort', 'A porta do Service.', { number: inteiro('O número da porta.'), name: texto('O nome da porta.') }),
+              }),
+              resource: qualquer(''),
+            }, { obrigatorio: true }),
+          }), 'Os caminhos deste host.', { obrigatorio: true }),
+        }),
+      }), 'As regras de roteamento.'),
+    }),
+    status: status('Ingress'),
+  }),
+  IngressClass: raiz('IngressClass', 'Uma classe de Ingress: diz qual controlador cuida dos Ingresses que a citam.', {
+    spec: objeto('v1.IngressClassSpec', '', { controller: texto('O controlador (ex.: traefik.io/ingress-controller).'), parameters: qualquer('') }),
+  }),
+  GatewayClass: raiz('GatewayClass', 'O tipo de portaria disponível no cluster, oferecido por uma implementação do Gateway API.', {
+    spec: objeto('v1.GatewayClassSpec', '', { controllerName: texto('A implementação que cuida desta classe.', { obrigatorio: true }), parametersRef: qualquer(''), description: texto('') }),
+    status: status('GatewayClass'),
+  }),
+  Gateway: raiz('Gateway', 'A portaria: um ponto de entrada (endereço e portas), normalmente cuidado pelo time de plataforma.', {
+    spec: objeto('v1.GatewaySpec', 'A especificação do Gateway.', {
+      gatewayClassName: texto('Qual GatewayClass usar.', { obrigatorio: true }),
+      listeners: lista(objeto('v1.Listener', 'Uma porta aberta na portaria.', {
+        name: texto('Nome do listener.', { obrigatorio: true }),
+        hostname: texto('Só aceita este nome (opcional).'),
+        port: inteiro('A porta.', { obrigatorio: true }),
+        protocol: texto('HTTP, HTTPS, TLS, TCP ou UDP.', { obrigatorio: true }),
+        allowedRoutes: qualquer('Quais rotas (de quais namespaces) podem se pendurar aqui.', { go: 'AllowedRoutes' }),
+        tls: qualquer(''),
+      }), 'As portas abertas.', { obrigatorio: true }),
+      addresses: qualquer(''),
+      infrastructure: qualquer(''),
+    }),
+    status: status('Gateway'),
+  }),
+  HTTPRoute: raiz('HTTPRoute', 'A placa de cada empresa: regras HTTP (nome, caminho, pesos) penduradas num Gateway.', {
+    spec: objeto('v1.HTTPRouteSpec', 'A especificação da rota.', {
+      parentRefs: lista(objeto('v1.ParentReference', 'O Gateway onde a rota se pendura.', {
+        name: texto('O nome do Gateway.', { obrigatorio: true }),
+        namespace: texto('O namespace do Gateway (padrão: o da rota).'),
+        sectionName: texto('O listener específico.'),
+        group: texto(''), kind: texto(''), port: inteiro(''),
+      }), 'Em quais Gateways a rota vale.', { obrigatorio: true }),
+      hostnames: lista(texto(''), 'Os nomes que a rota atende.'),
+      rules: lista(objeto('v1.HTTPRouteRule', 'Uma regra.', {
+        matches: lista(objeto('v1.HTTPRouteMatch', 'Quando a regra vale.', {
+          path: objeto('v1.HTTPPathMatch', 'O caminho.', { type: texto('PathPrefix (padrão), Exact ou RegularExpression.'), value: texto('O caminho.') }),
+          headers: qualquer(''), queryParams: qualquer(''), method: texto(''),
+        }), 'As condições (padrão: qualquer caminho).'),
+        backendRefs: lista(objeto('v1.HTTPBackendRef', 'Um destino.', {
+          name: texto('O nome do Service.', { obrigatorio: true }),
+          port: inteiro('A porta do Service.'),
+          weight: inteiro('O peso (padrão 1): com 90 e 10, 90% vai para um e 10% para o outro.'),
+          namespace: texto(''), group: texto(''), kind: texto(''), filters: qualquer(''),
+        }), 'Para onde vai o tráfego.'),
+        filters: qualquer(''), timeouts: qualquer(''), name: texto(''),
+      }), 'As regras da rota.'),
+    }),
+    status: status('HTTPRoute'),
+  }),
   Node: raiz('Node', 'O Node é uma máquina do cluster, onde os pods rodam.', { spec: qualquer('', { go: 'NodeSpec' }), status: status('Node') }),
   Endpoints: raiz('Endpoints', 'A lista de IPs e portas dos pods atrás de um Service.', { subsets: qualquer('') }),
   Event: raiz('Event', 'Uma ocorrência registrada no cluster.', {}),
@@ -401,6 +473,20 @@ export function validar(obj, antigo) {
       });
       break;
     }
+    case 'Ingress':
+      (s?.rules ?? []).forEach((r, i) => (r.http?.paths ?? []).forEach((pa, j) => {
+        const cam = `spec.rules[${i}].http.paths[${j}]`;
+        if (!pa.pathType) erros.push(obrigatorio(`${cam}.pathType`));
+        else if (!['Prefix', 'Exact', 'ImplementationSpecific'].includes(pa.pathType)) erros.push(`${cam}.pathType: Unsupported value: ${JSON.stringify(pa.pathType)}: supported values: "Exact", "ImplementationSpecific", "Prefix"`);
+        if (pa.path && !pa.path.startsWith('/')) erros.push(invalido(`${cam}.path`, pa.path, 'must be an absolute path'));
+        if (!pa.backend?.service?.name) erros.push(obrigatorio(`${cam}.backend`));
+        else if (pa.backend.service.port?.number === undefined && !pa.backend.service.port?.name) erros.push(obrigatorio(`${cam}.backend.service.port`));
+      }));
+      if (!s?.rules?.length && !s?.defaultBackend) erros.push('spec: Invalid value: "": either `defaultBackend` or `rules` must be specified');
+      break;
+    case 'HTTPRoute':
+      if (!s?.parentRefs?.length) erros.push(obrigatorio('spec.parentRefs'));
+      break;
     case 'ConfigMap':
     case 'Secret':
       if (antigo?.immutable && JSON.stringify(antigo.data) !== JSON.stringify(obj.data)) {

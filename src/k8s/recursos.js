@@ -11,6 +11,11 @@ export const RECURSOS = [
   { kind: 'Service', plural: 'services', singular: 'service', curtos: ['svc'], grupo: '', versao: 'v1', namespaced: true },
   { kind: 'Deployment', plural: 'deployments', singular: 'deployment', curtos: ['deploy'], grupo: 'apps', versao: 'v1', namespaced: true },
   { kind: 'ReplicaSet', plural: 'replicasets', singular: 'replicaset', curtos: ['rs'], grupo: 'apps', versao: 'v1', namespaced: true },
+  { kind: 'Ingress', plural: 'ingresses', singular: 'ingress', curtos: ['ing'], grupo: 'networking.k8s.io', versao: 'v1', namespaced: true },
+  { kind: 'IngressClass', plural: 'ingressclasses', singular: 'ingressclass', curtos: [], grupo: 'networking.k8s.io', versao: 'v1', namespaced: false },
+  { kind: 'GatewayClass', plural: 'gatewayclasses', singular: 'gatewayclass', curtos: ['gc'], grupo: 'gateway.networking.k8s.io', versao: 'v1', namespaced: false },
+  { kind: 'Gateway', plural: 'gateways', singular: 'gateway', curtos: ['gtw'], grupo: 'gateway.networking.k8s.io', versao: 'v1', namespaced: true },
+  { kind: 'HTTPRoute', plural: 'httproutes', singular: 'httproute', curtos: [], grupo: 'gateway.networking.k8s.io', versao: 'v1', namespaced: true },
 ];
 
 const POR_KIND = Object.fromEntries(RECURSOS.map((r) => [r.kind, r]));

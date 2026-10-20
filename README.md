@@ -7,7 +7,9 @@ concluído ergue mais um andar do seu prédio em pixel art, até virar arranha-c
 
 **Acesse:** https://pedromenuzzi.github.io/kube-learn/
 
-> 🚧 Em obra. O plano completo está em [`PLANO.md`](PLANO.md); a versão 0.1 traz os níveis 0 a 3.
+**Versão 0.1:** os níveis 0 a 3 (contêineres; cluster, kubectl e Pods; Deployments; Services, Ingress e Gateway
+API), com 13 lições, 8 quizzes e 56 missões, um glossário de 63 termos e o prédio em pixel art. O plano completo
+está em [`PLANO.md`](PLANO.md).
 
 ## Desenvolvimento
 

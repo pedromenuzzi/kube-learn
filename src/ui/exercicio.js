@@ -17,11 +17,12 @@ import { ativarAbas, htmlAbas, escapar } from './util.js';
 import { montarJanelas } from './janelas.js';
 
 const DIFICULDADE = { facil: 'Fácil', medio: 'Médio', dificil: 'Difícil' };
-const SUBCOMANDOS = ['annotate', 'api-resources', 'apply', 'cluster-info', 'config', 'create', 'delete', 'describe', 'exec', 'explain', 'get', 'help', 'label', 'logs', 'rollout', 'run', 'scale', 'set', 'version'];
+const SUBCOMANDOS = ['annotate', 'api-resources', 'apply', 'cluster-info', 'config', 'create', 'delete', 'describe', 'exec', 'explain', 'expose', 'get', 'help', 'label', 'logs', 'port-forward', 'rollout', 'run', 'scale', 'set', 'version'];
 const COM_TIPO = new Set(['get', 'describe', 'delete', 'label', 'annotate', 'scale', 'explain', 'edit']);
 const AJUDA = `Este terminal entende o kubectl (experimente: kubectl get pods) e alguns comandos simples:
   ls            lista os arquivos do editor
   cat ARQUIVO   mostra um arquivo
+  curl URL      uma requisição do SEU computador (fora do cluster): port-forward, NodePort, LoadBalancer, Ingress
   history       os comandos que você já digitou
   clear         limpa a tela (ou Ctrl+L)
 O relógio do cluster anda sozinho; o botão ⏩ adianta 30 segundos.
@@ -183,7 +184,7 @@ export function montarExercicio(raiz, item) {
       if (faltam.length) return { saida: `cat: ${faltam[0]}: No such file or directory\n`, codigo: 1, partes: [{ fluxo: 'err', texto: `cat: ${faltam[0]}: No such file or directory\n` }] };
       return { saida: args.map((a) => estado.arquivos[a]).join('') };
     }
-    if (cmd !== 'kubectl' && cmd !== 'k') {
+    if (cmd !== 'kubectl' && cmd !== 'k' && cmd !== 'curl') {
       const texto = `bash: ${cmd}: command not found\n`;
       return { saida: texto, codigo: 127, partes: [{ fluxo: 'err', texto }], caixas: [{ titulo: 'Aqui o terminal só fala kubectl', texto: 'Use <code>kubectl ...</code>, ou <code>help</code> para ver os outros comandos.' }] };
     }
@@ -205,7 +206,7 @@ export function montarExercicio(raiz, item) {
     const ultimo = ps.at(-1);
     const base = ps.slice(0, -1).join(' ');
     const opcoes = (lista) => lista.filter((o) => o.startsWith(ultimo)).map((o) => `${base ? `${base} ` : ''}${o}`);
-    if (ps.length === 1) return opcoes(['kubectl', 'clear', 'help', 'ls', 'cat', 'history']);
+    if (ps.length === 1) return opcoes(['kubectl', 'curl', 'clear', 'help', 'ls', 'cat', 'history']);
     if (ps[0] === 'cat' || ps.at(-2) === '-f') return opcoes(['.', ...Object.keys(estado.arquivos)]);
     if (ps[0] !== 'kubectl') return [];
     if (ps.length === 2) return opcoes(SUBCOMANDOS);

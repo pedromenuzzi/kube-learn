@@ -7,7 +7,10 @@
 //   { pods: 'app=loja', ns, quantidade, prontos, fase, imagem, node, reinicios: { max } }
 //   { status: 'pod/x' | 'app=x', motivo: 'CrashLoopBackOff' }   motivo atual (ou o último término)
 //   { endpoints: 'svc/loja', quantidade }              quantos pods prontos atrás do Service
-//   { requisicao: { url, de: 'pod/x', status: 200 | 'recusada' | 'timeout' | 'dns', corpo: 'regex' } }
+//   { requisicao: { url, de: 'pod/x' | 'fora', host, status: 200 | 'recusada' | 'timeout' | 'dns', corpo: 'regex' } }
+//                                                      ('fora' = do computador do aluno; host = cabeçalho Host)
+//   { distribuicao: { url, de, host, vezes: 100, corpo: 'regex', entre: [5, 15] } }   quantas respostas casam
+//   { dns: { nome, de: 'pod/x', quantidade } }         quantos endereços o nome resolve (headless = um por pod)
 //   { rollout: 'deployment/loja', minDisponivel: 3 }   nunca ficou com menos pods prontos durante o teste
 //   { evento: { motivo, objeto } }                     aconteceu um evento com esse motivo
 //   { env: { pods: 'app=x', nome, igual } }            a variável de ambiente dentro do contêiner
@@ -21,10 +24,19 @@
 import { montarCluster } from './conteudo/clusters.js';
 import { kubectl, seletorDeLabels } from './k8s/kubectl/index.js';
 import { acharRecurso, pluralQualificado } from './k8s/recursos.js';
-import { estaPronto, http } from './k8s/rede.js';
+import { estaPronto, http, httpDeFora, resolver } from './k8s/rede.js';
 import { resumoPod } from './k8s/kubectl/tabelas.js';
 import { canonico } from './k8s/aleatorio.js';
 import { parseDuracao } from './k8s/unidades.js';
+
+/** Uma requisição de teste: de um pod, de dentro do cluster (sem pod) ou de fora (o computador do aluno). */
+function pedir(cluster, q) {
+  const m = q.url.match(/^(?:https?:\/\/)?([^/:]+)(?::(\d+))?(\/.*)?$/);
+  const url = { host: m[1], porta: Number(m[2] ?? 80), caminho: m[3] ?? '/' };
+  if (q.de === 'fora') return httpDeFora(cluster, url, { host: q.host });
+  const origem = q.de ? cluster.obter('Pod', q.ns ?? 'default', separar(q.de).nome) : null;
+  return http(cluster, origem, url);
+}
 
 const PASSOS_PADRAO = [{ comando: 'kubectl apply -f .' }, { avancar: '1m' }];
 const mostrar = (v) => (v === undefined ? 'nada' : JSON.stringify(v));
@@ -115,13 +127,26 @@ const REGRAS = {
   },
   requisicao(r, ctx) {
     const q = r.requisicao;
-    const origem = q.de ? ctx.cluster.obter('Pod', q.ns ?? 'default', separar(q.de).nome) : null;
-    const m = q.url.match(/^(?:https?:\/\/)?([^/:]+)(?::(\d+))?(\/.*)?$/);
-    const res = http(ctx.cluster, origem, { host: m[1], porta: Number(m[2] ?? 80), caminho: m[3] ?? '/' });
+    const res = pedir(ctx.cluster, q);
     const obtido = res.erro ?? res.status;
     let ok = obtido === (q.status ?? 200);
     if (ok && q.corpo) ok = new RegExp(q.corpo).test(res.corpo);
     return [ok, `${q.url} responde ${q.status ?? 200}${q.corpo ? ` com /${q.corpo}/` : ''}`, `veio ${obtido}`];
+  },
+  distribuicao(r, ctx) {
+    const q = r.distribuicao;
+    const re = new RegExp(q.corpo);
+    let n = 0;
+    for (let i = 0; i < (q.vezes ?? 100); i++) if (re.test(pedir(ctx.cluster, q).corpo ?? '')) n++;
+    const [min, max] = q.entre;
+    return [n >= min && n <= max, `de ${q.vezes ?? 100} requisições a ${q.url}, entre ${min} e ${max} casam com /${q.corpo}/`, `foram ${n}`];
+  },
+  dns(r, ctx) {
+    const q = r.dns;
+    const origem = q.de ? ctx.cluster.obter('Pod', q.ns ?? 'default', separar(q.de).nome) : null;
+    const res = resolver(ctx.cluster, q.nome, origem?.metadata.namespace ?? 'default');
+    const n = res?.ips?.length ?? 0;
+    return [n === q.quantidade, `${q.nome} resolve para ${q.quantidade} endereço${q.quantidade === 1 ? '' : 's'}`, res ? `resolve para ${n}` : 'não resolve'];
   },
   rollout(r, ctx) {
     const { nome } = separar(r.rollout, 'deployment');

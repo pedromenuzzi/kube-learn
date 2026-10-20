@@ -33,6 +33,17 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
   `tests/golden.test.js` compara. Mudou um formato de saída? O golden tem de continuar passando. Novo comando
   ou formato? Acrescente o passo nos dois lados e capture de novo num kind.
 
+## Conteúdo (`src/conteudo/`)
+
+- Um arquivo por nível (`nivel0.js`...), ligado em `niveis.js`. Construtores em `util.js`: `licao` (com `inicial` abre
+  na tela do exercício; sem, é leitura), `quiz` (alternativas com explicação, ou `resposta` RegExp + `exemplos`) e
+  `problema`.
+- Missão de terminal: `terminal: true`, `solucaoTerminal: [...]` e testes `noClusterDoAluno` (conferem o cluster do
+  próprio aluno). Resposta digitada: regra `{ resposta }` + `respostaCerta` (texto ou função do cluster).
+- Clusters de partida em `clusters.js` (`manifestos` e `comandos` rodados antes do aluno chegar).
+- As regras de teste estão documentadas no topo de `src/verificacoes.js`. O teste da trilha
+  (`tests/conteudo.test.js`) roda a solução e o inicial de toda missão.
+
 ## Comandos
 
 ```bash

@@ -67,6 +67,7 @@ const REGRAS = [
 ];
 
 const STATUS = [
+  { re: /^Forwarding from 127\.0\.0\.1:(\d+)/m, titulo: 'Port-forward ativo', texto: 'Uma passagem do seu computador direto para o pod. Teste com <code>curl http://localhost:PORTA</code> aqui mesmo no terminal (o <code>curl</code> sem kubectl roda no seu computador). No terminal de verdade este comando fica preso (Ctrl+C encerra) e você testa em outro terminal.', vidaReal: 'Uma passagem temporária da sua casa direto até o apartamento.' },
   { re: /\bCrashLoopBackOff\b/, titulo: 'CrashLoopBackOff: o contêiner cai e é reiniciado', texto: 'O programa termina logo depois de subir, e o kubelet espera cada vez mais antes de tentar de novo (10s, 20s, 40s... até 5 min). Veja o motivo em <code>kubectl logs NOME --previous</code> e em <code>kubectl describe pod NOME</code>.', vidaReal: 'O morador desmaia toda vez que entra, e o síndico espera cada vez mais antes de tentar de novo.' },
   { re: /\b(ImagePullBackOff|ErrImagePull)\b/, titulo: 'A imagem não foi baixada', texto: 'Nome ou tag errado, ou imagem privada. Confira a imagem e veja o erro exato em <code>kubectl describe pod NOME</code>, nas Events.', vidaReal: 'O pré-moldado não chegou: o pedido tinha o modelo errado.' },
   { re: /\bCreateContainerConfigError\b/, titulo: 'Falta configuração para criar o contêiner', texto: 'Algum ConfigMap ou Secret usado no <code>env</code> não existe (ou não tem a chave). O <code>kubectl describe pod</code> diz qual.', vidaReal: 'A mudança travou porque o envelope com a senha não chegou.' },
