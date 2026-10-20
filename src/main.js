@@ -6,6 +6,8 @@ import { acharItem, PLAYGROUND } from './conteudo/index.js';
 import { paginaInicio, paginaTrilha, paginaGlossario } from './ui/paginas.js';
 import { aplicarPreferencias, montarPreferencias } from './ui/preferencias.js';
 import { montarLeitura } from './ui/leitura.js';
+import { paginaRevisao } from './ui/revisao.js';
+import { paginaCertificado, paginaPrivacidade } from './ui/certificado.js';
 
 aplicarPreferencias();
 
@@ -15,13 +17,15 @@ const PAGINAS = {
   '/trilha': paginaTrilha,
   '/ex': (id) => {
     const item = acharItem(id);
-    if (!item) return '<h1>Missão não encontrada</h1><p><a href="#/trilha">Ver o prédio</a></p>';
+    if (!item) return '<h1>Missão não encontrada</h1><p><a href="#/trilha">Ver a trilha</a></p>';
     if (item.tipo === 'quiz' || (item.tipo === 'licao' && !item.inicial)) return (main) => montarLeitura(main, item);
     return (main) => montarTela(main, item);
   },
   '/livre': () => (main) => montarTela(main, PLAYGROUND),
   '/glossario': paginaGlossario,
-  '/revisao': () => '<h1>🚧 Em obra</h1><p>A revisão do dia chega na Fase 5.</p><p><a href="#/">Voltar ao início</a></p>',
+  '/revisao': paginaRevisao,
+  '/certificado': paginaCertificado,
+  '/privacidade': paginaPrivacidade,
 };
 
 // A tela do exercício (com o editor e o simulador) só é baixada quando alguém abre uma missão.
@@ -52,7 +56,7 @@ function desenhar() {
   if (document.activeElement !== document.body) main.focus();
 }
 
-// Trocar o tema redesenha o prédio (ele usa as cores do tema); a tela do exercício não é recriada.
+// Trocar o tema redesenha o navio (ele usa as cores do tema); a tela do exercício não é recriada.
 montarPreferencias(document.getElementById('botao-preferencias'), () => {
   if (['/', '/trilha'].includes(resolverRota(location.hash)?.caminho ?? '/')) desenhar();
 });

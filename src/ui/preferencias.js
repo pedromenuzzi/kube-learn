@@ -14,7 +14,7 @@ export function aplicarPreferencias(p = ler(CHAVES.preferencias, PADRAO)) {
   return pref;
 }
 
-/** O botão "Aa" do topo abre um <dialog> com as opções. `aoMudar` redesenha a página (o prédio usa as cores do tema). */
+/** O botão "Aa" do topo abre um <dialog> com as opções. `aoMudar` redesenha a página (o navio usa as cores do tema). */
 export function montarPreferencias(botao, aoMudar) {
   const dialogo = document.createElement('dialog');
   dialogo.className = 'preferencias';

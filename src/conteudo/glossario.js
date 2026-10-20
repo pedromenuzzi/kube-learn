@@ -1,5 +1,5 @@
 // O dicionário do condomínio: cada termo tem a definição, a comparação com a vida real (vidaReal), onde a
-// comparação quebra (limite) e um exemplo. `nivel` é o andar em que o termo aparece primeiro.
+// comparação quebra (limite) e um exemplo. `nivel` é o nível em que o termo aparece primeiro.
 
 const t = (id, nivel, termo, definicao, vidaReal, limite, exemplo) => ({ id, nivel, termo, definicao, vidaReal, limite, exemplo });
 

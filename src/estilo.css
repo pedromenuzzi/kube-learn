@@ -12,6 +12,7 @@
   --texto-botao: #ffffff;
   --ceu-topo: #5b8fd6;
   --ceu-baixo: #cfe6fb;
+  --janelas-navio: #2b3a55;
   --editor-fundo: #ffffff;
   --editor-linha: #f0f4fa;
   --sx-chave: #0b4f9e;
@@ -40,6 +41,7 @@
   --texto-botao: #0d1117;
   --ceu-topo: #0b1a3a;
   --ceu-baixo: #3b5b8f;
+  --janelas-navio: #ffd75e;
   --editor-fundo: #0d1117;
   --editor-linha: #161b22;
   --sx-chave: #79c0ff;
@@ -63,6 +65,7 @@
   --texto-botao: #0d1117;
   --ceu-topo: #0b1a3a;
   --ceu-baixo: #3b5b8f;
+  --janelas-navio: #ffd75e;
   --editor-fundo: #0d1117;
   --editor-linha: #161b22;
   --sx-chave: #79c0ff;
@@ -85,6 +88,7 @@
   --texto-botao: #000000;
   --ceu-topo: #000000;
   --ceu-baixo: #1a1a1a;
+  --janelas-navio: #ffd75e;
   --editor-fundo: #000000;
   --editor-linha: #1a1a1a;
   --sx-chave: #ffff00;
@@ -287,8 +291,8 @@ pre.manual, .solucao pre { white-space: pre-wrap; font-size: 0.85rem; background
 .node h4 { margin: 0 0 0.4rem; font-size: 0.95rem; display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
 .node-status { font-weight: normal; color: var(--suave); font-size: 0.8rem; }
 .pods { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.25rem; }
-.pod { padding: 0.2rem 0.4rem; border-radius: 4px; border-left: 4px solid; font-size: 0.8rem; word-break: break-all; }
-.pod-status { font-weight: 600; }
+.pod { padding: 0.2rem 0.4rem; border-radius: 4px; border-left: 4px solid; font-size: 0.8rem; overflow-wrap: anywhere; }
+.pod-status { font-weight: 600; white-space: nowrap; }
 .pod-ns { color: var(--suave); }
 .pod-ok { border-color: var(--ok); color: var(--ok); }
 .pod-espera { border-color: var(--espera); color: var(--espera); }
@@ -316,37 +320,40 @@ input[type=search], select { font: inherit; padding: 0.3rem 0.5rem; border: 1px 
 .placar dt { font-size: 0.85rem; color: var(--suave); }
 .placar dd { margin: 0; font-size: 1.4rem; font-weight: 700; }
 
-/* ---------- prédio (canvas) e trilha ---------- */
-canvas.predio { image-rendering: pixelated; width: 100%; height: auto; display: block; border-radius: 6px; border: 1px solid var(--borda); }
-.trilha-corpo { display: grid; grid-template-columns: minmax(14rem, 24rem) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
-.trilha-corpo canvas.predio { position: sticky; top: 1rem; }
-.andares { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column-reverse; gap: 0.75rem; }
-.andar { border: 1px solid var(--borda); border-left: 6px solid var(--borda); border-radius: 6px; padding: 0.6rem 0.9rem; background: var(--superficie); }
-.andar h2 { font-size: 1.05rem; margin: 0; }
-.rotulo-andar { font-size: 0.65rem; display: block; color: var(--suave); margin-bottom: 0.3rem; }
-.andar-status { margin: 0.2rem 0; font-weight: 600; }
-.andar-obra { border-left-color: var(--espera); }
-.andar-pronto { border-left-color: var(--destaque); }
-.andar-habite-se { border-left-color: var(--ok); }
-.andar-planta { opacity: 0.85; border-style: dashed; }
-.andar progress { width: 100%; max-width: 20rem; accent-color: var(--ok); }
+/* ---------- navio (canvas) e trilha ---------- */
+canvas.navio { image-rendering: pixelated; width: 100%; height: auto; display: block; border-radius: 6px; border: 1px solid var(--borda); }
+.trilha-corpo { display: grid; grid-template-columns: minmax(14rem, 26rem) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.trilha-corpo canvas.navio { position: sticky; top: 1rem; }
+.niveis { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+.nivel { border: 1px solid var(--borda); border-left: 6px solid var(--borda); border-radius: 6px; padding: 0.6rem 0.9rem; background: var(--superficie); }
+.nivel h2 { font-size: 1.05rem; margin: 0; }
+.rotulo-nivel { font-size: 0.65rem; display: block; color: var(--suave); margin-bottom: 0.3rem; }
+.nivel-status { margin: 0.2rem 0; font-weight: 600; }
+.nivel-carregando { border-left-color: var(--espera); }
+.nivel-pronto { border-left-color: var(--destaque); }
+.nivel-lacrado { border-left-color: var(--ok); }
+.nivel-bloqueado { opacity: 0.85; border-style: dashed; }
+.nivel progress { width: 100%; max-width: 20rem; accent-color: var(--ok); }
 .salas { list-style: none; padding: 0; margin: 0.4rem 0 0; }
 .salas li { display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; padding: 0.15rem 0; }
 @media (max-width: 50rem) {
   .trilha-corpo { grid-template-columns: minmax(0, 1fr); }
-  .trilha-corpo canvas.predio { position: static; max-width: 18rem; margin: 0 auto; }
+  .trilha-corpo canvas.navio { position: static; }
 }
 
-/* ---------- início ---------- */
-.heroi { display: grid; grid-template-columns: minmax(0, 3fr) minmax(12rem, 2fr); gap: 2rem; align-items: center; }
-.titulo-heroi { font-size: 1.6rem; }
-.chamada { font-size: 1.15rem; }
+/* ---------- início: o navio ocupa a largura toda, o texto num cartão por cima do céu ---------- */
+.heroi { position: relative; }
+.heroi canvas.navio { border: 0; border-radius: 10px; }
+.heroi-texto { background: var(--superficie); border: 1px solid var(--borda); border-radius: 10px; padding: 1.25rem 1.5rem; margin-top: 1rem; }
+.titulo-heroi { font-size: 1.5rem; line-height: 1.4; margin-top: 0; }
+.chamada { font-size: 1.1rem; }
 .acoes { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: center; }
-.predio-heroi { max-width: 22rem; justify-self: center; }
+@media (min-width: 64rem) {
+  .heroi-texto { position: absolute; top: 1.5rem; left: 1.5rem; width: min(30rem, 40%); margin: 0; box-shadow: 0 4px 16px #0003; }
+}
 .cartoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; margin-top: 2rem; }
 .cartoes article { background: var(--superficie); border: 1px solid var(--borda); border-radius: 8px; padding: 1rem; }
 .cartoes h2 { font-size: 1.05rem; margin-top: 0; }
-@media (max-width: 50rem) { .heroi { grid-template-columns: minmax(0, 1fr); } .predio-heroi { max-width: 14rem; } }
 
 /* ---------- glossário ---------- */
 .termo { background: var(--superficie); border: 1px solid var(--borda); border-radius: 8px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
@@ -378,3 +385,32 @@ dialog.preferencias fieldset { border: 1px solid var(--borda); border-radius: 6p
 .tabela-simples th, .tabela-simples td { border: 1px solid var(--borda); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
 .tabela-simples th { background: var(--superficie); }
 .resposta-aluno input { font: inherit; padding: 0.3rem 0.5rem; border: 1px solid var(--borda); border-radius: 6px; background: var(--superficie); color: var(--texto); }
+
+/* ---------- revisão, selos, certificado ---------- */
+.cartao-revisao { max-width: 46rem; }
+.cartao-revisao legend { font-size: 1.1rem; line-height: 1.5; padding: 0 0.25rem; }
+.selos { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 1rem; }
+.selos li { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; max-width: 9rem; text-align: center; font-size: 0.9rem; }
+.selo-svg { image-rendering: pixelated; }
+.nivel-selo { display: flex; gap: 0.75rem; align-items: center; margin-top: 0.5rem; }
+.certificado { border: 6px double var(--texto); padding: 2rem; text-align: center; background: var(--superficie); max-width: 46rem; margin: 1rem 0; }
+.cert-nome { font-size: 1.8rem; font-weight: 700; margin: 0.5rem 0; }
+.cert-niveis { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; justify-content: center; font-size: 0.9rem; }
+.form-nome input { font: inherit; padding: 0.3rem 0.5rem; border: 1px solid var(--borda); border-radius: 6px; background: var(--superficie); color: var(--texto); min-width: 18rem; max-width: 100%; }
+@media print {
+  .topo, .rodape, .pular, .nao-imprimir { display: none !important; }
+  .certificado { border-color: #000; color: #000; background: #fff; }
+}
+
+/* ---------- mapa do cluster ---------- */
+.mapa-legenda { font-size: 0.85rem; color: var(--suave); display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; margin: 0 0 0.25rem; }
+.node { border-top: 6px solid var(--suave); }
+.node-caido { border-color: var(--ruim); opacity: 0.8; }
+.node-lobby { border-style: dashed; border-color: var(--espera); }
+.uso { display: grid; grid-template-columns: 4.5rem 1fr auto; gap: 0.4rem; align-items: center; font-size: 0.75rem; color: var(--suave); margin: 0.1rem 0; }
+.uso-barra { height: 0.5rem; background: var(--fundo); border: 1px solid var(--borda); border-radius: 3px; overflow: hidden; }
+.uso-barra > span { display: block; height: 100%; background: var(--destaque); }
+.uso-barra > .uso-alto { background: var(--ruim); }
+.pods { margin-top: 0.4rem; }
+.mapa-sub { margin: 0.75rem 0 0.25rem; font-size: 0.9rem; }
+.ramais { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.2rem; font-size: 0.85rem; }

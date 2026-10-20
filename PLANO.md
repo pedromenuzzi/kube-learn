@@ -1,6 +1,6 @@
 # 🏗️ kube-learn: plano de criação
 
-> Aprenda Kubernetes de baixo para cima. Cada nível concluído ergue mais um andar, até o seu arranha-céu.
+> Aprenda Kubernetes contêiner por contêiner. Cada missão resolvida embarca mais um contêiner no seu navio.
 
 Plano escrito em 16/10/2026. A referência é o **DivergeTerraform**
 ([site](https://sertaoseracloud.github.io/terraform-playground/) · [repo](https://github.com/sertaoseracloud/terraform-playground)),
@@ -19,8 +19,8 @@ aprendizado**; o jogo existe para dar ritmo e vontade de voltar.
   ensinar errado.
 - **Exercícios no estilo LeetCode.** Há testes visíveis e ocultos. Os ocultos fazem "caos": apagam um pod, derrubam um
   node ou mandam carga. Resposta decorada não passa.
-- **O progresso é um prédio.** Cada nível concluído constrói mais um andar para cima, e no fim o prédio vira um
-  arranha-céu.
+- **O progresso é um navio.** Cada missão resolvida embarca mais um contêiner, e a pilha sobe até ficar
+  engraçada.
 - **Língua: português do Brasil.** O `kubectl` responde em inglês, como o real, e embaixo de cada resposta vem uma
   explicação em português.
 - **Público:** quem nunca usou Kubernetes, ou quem usa "copiando YAML" sem entender. A trilha vai até o nível de quem
@@ -38,7 +38,7 @@ aprendizado**; o jogo existe para dar ritmo e vontade de voltar.
 | Casos de teste visíveis e ocultos | Os mesmos, com caos nos ocultos |
 | Terminal `terraform` | Terminal `kubectl` (e `helm` no fim) |
 | Grafo, Estado e Outputs | **Cluster** (desenho simples dos nodes e pods), **Recursos** (árvore) e **Eventos** |
-| Mapa pixel art com uma vila que cresce | **Prédio em pixel art 8-bit que ganha um andar por nível** (reaproveitando o motor de sprites deles) |
+| Mapa pixel art com uma vila que cresce | **Navio porta-contêiner em pixel art 8-bit que ganha um contêiner por missão** (com o motor de sprites deles) |
 | XP, 🔥 sequência, desbloqueio a 70% e certificados | Os mesmos, mais **revisão espaçada** e **incidentes** |
 | O teste roda a trilha inteira (toda solução passa e todo código inicial falha) | Igual. É o teste mais importante |
 
@@ -165,43 +165,38 @@ O nome de cada personagem começa como o componente. Aparecem em balões nas li�
 
 ---
 
-## 5. A trilha (cada nível = um andar)
+## 5. A trilha (cada item = um contêiner no navio)
 
-### 5.1 Visual do prédio
+> Na Fase 5 o prédio virou um **navio porta-contêiner**, que combina mais com o Kubernetes (contêineres, timoneiro).
 
-O prédio é desenhado em **pixel art 8-bit**, no estilo dos jogos antigos:
+### 5.1 Visual do navio
 
-- **Térreo:** o nível 0.
-- **Cada nível concluído** sobe mais um andar.
-- **Dentro do andar:** as janelas acendem conforme os exercícios são resolvidos.
-- **Andar ainda bloqueado:** aparece como andaime vazio.
-- **No topo:** com tudo concluído, o prédio vira um arranha-céu, com o céu ao fundo.
+O navio é desenhado em **pixel art 8-bit**, no estilo dos jogos antigos, e ocupa a largura da página inicial:
+
+- **Começa vazio:** só o casco, a ponte de comando e o mar.
+- **Cada item resolvido** embarca um contêiner com a cor do nível (lição, quiz e fácil são de 20 pés; médio e
+  difícil, de 40), empilhado na ordem da trilha.
+- **A pilha só sobe**, e a partir da 6ª fileira começa a entortar: a graça é ver até onde aguenta.
+- **O helicóptero** traz o contêiner da próxima missão; nível lacrado (100%) ganha o lacre dourado nos contêineres.
+- **No topo:** uma gaivota; com tudo embarcado, a bandeira.
 
 **Como desenhar:**
 
-- **Motor:** o mesmo dos cenários do DivergeTerraform (`pixel.js`), reaproveitado com crédito, já que a licença
-  permite (§13).
-  - Cada sprite tem 16×16 pixels e é escrito como texto: 16 linhas de 16 letras, em que cada letra é uma cor da
-    paleta.
-  - É desenhado ampliado num `<canvas>`, sem suavização (`image-rendering: pixelated`).
-- **Sprites necessários** (poucos):
-  - andar com janela apagada e com janela acesa;
-  - andaime e porta do térreo;
-  - telhado ou topo;
-  - nuvens;
-  - um bonequinho de capacete que sobe junto com o progresso.
-- **Fonte pixel** para os títulos do prédio e da trilha, por exemplo "Press Start 2P", servida pelo próprio site com
-  `@fontsource`. O texto corrido fica em Atkinson Hyperlegible, porque fonte pixel cansa na leitura.
-- **Mesmo estilo nos badges** de cada andar e no certificado final.
+- **Motor:** `pixel.js`, adaptado dos cenários do DivergeTerraform com crédito (§13), para as nuvens; o resto é
+  desenhado com retângulos num `<canvas>`, sem suavização (`image-rendering: pixelated`). Céu e janelas usam as cores
+  do tema (noite no tema escuro).
+- **Fonte pixel** para os títulos, por exemplo "Press Start 2P", servida pelo próprio site com `@fontsource`. O
+  texto corrido fica em Atkinson Hyperlegible, porque fonte pixel cansa na leitura.
+- **Mesmo estilo nos lacres** de cada nível e no certificado final.
 
 **Acessibilidade:** o canvas é só enfeite (`aria-hidden`). Por baixo dele há uma lista de níveis com links, na ordem
 do curso, que é o que o teclado e o leitor de tela usam. "Reduzir movimento" para as animações.
 
 ### 5.2 Níveis
 
-| Nível (andar) | Tema | Analogia âncora | Itens* |
+| Nível | Tema | Analogia âncora | Itens* |
 |---|---|---|---|
-| 0 · Térreo | **Contêineres** (antes do Kubernetes) | Pré-moldados | 5 L + 8 quizzes |
+| 0 | **Contêineres** (antes do Kubernetes) | Pré-moldados | 5 L + 8 quizzes |
 | 1 | **Cluster, kubectl e Pods** | Condomínio, administração e personagens | 3 L + 14 |
 | 2 | **ReplicaSet e Deployment** | Contrato e reforma por etapas | 2 L + 12 |
 | 3 | **Services e rede** (Ingress e Gateway API) | Ramal, portaria e balcão | 3 L + 14 |
@@ -212,7 +207,7 @@ do curso, que é o que o teclado e o leitor de tela usam. "Reduzir movimento" pa
 | 8 | **Segurança** (RBAC e NetworkPolicy) | Crachás e catracas | 3 L + 12 |
 | 9 | **Troubleshooting** (só incidentes) | Plantão do síndico | 1 L + 20 |
 | 10 | **Helm, Kustomize e GitOps** | Projeto da construtora | 3 L + 10 |
-| 11 · Arranha-céu | **Projetos finais** | Tudo junto | 8 projetos de ~5 etapas |
+| 11 | **Projetos finais** | Tudo junto | 8 projetos de ~5 etapas |
 
 \* L = lição. As quantidades são metas. No total, cerca de 30 lições, 130 exercícios e 40 etapas.
 
@@ -317,10 +312,10 @@ do curso, que é o que o teclado e o leitor de tela usam. "Reduzir movimento" pa
 ## 6. Jogo (o mínimo que motiva)
 
 - **XP:** lição ou quiz vale 5, fácil 10, médio 20 e difícil 40. Incidentes e etapas de projeto seguem a dificuldade.
-- **Nível = andar.** Não há "cargos" por XP: um conceito só. O XP aparece como pontuação.
+- **Item = contêiner, nível = cor.** Não há "cargos" por XP: um conceito só. O XP aparece como pontuação.
 - **🔥 Sequência de dias** de estudo, com a mesma regra do original (não zera de manhã).
-- **Desbloqueio:** o próximo andar abre quando o atual chega a **70%**.
-- **Badge por andar concluído (100%)** e **certificado final** quando o arranha-céu fica pronto, com botão para o
+- **Desbloqueio:** o próximo nível abre quando o atual chega a **70%**.
+- **Lacre por nível concluído (100%)** e **certificado final** quando o navio está carregado, com botão para o
   LinkedIn.
 - **🔍 Revisão do dia:** de 5 a 10 cartões do glossário, só com os termos já vistos. Há três formatos:
   - qual conceito é esta analogia?
@@ -609,9 +604,9 @@ As estimativas são em sessões do Claude no esforço alto. Cada fase termina co
 | **0. Repositório** ✅ | Vite, ESLint, Vitest, CI, deploy no Pages, LICENSE, README, `CLAUDE.md` e rotas vazias | O site está no ar via Actions | 1 |
 | **1. Motor v0** ✅ | Relógio, API, esquemas (Pod, Namespace, Deployment, ReplicaSet, Service, ConfigMap, Secret), controladores básicos, scheduler simples, kubelet (pull, running, crash, logs), imagens, DNS e Service, `kubectl` dos níveis 1 e 2 | Aplicar um Deployment e avançar o tempo dá um `get pods` igual ao golden | 3 |
 | **2. Tela do exercício** ✅ | Editor, terminal, painéis, abas, verificações, testes visíveis e ocultos, playground livre | Um exercício resolvido de ponta a ponta | 2 |
-| **3. Trilha e progresso** ✅ | Prédio em pixel art (motor `pixel.js` reaproveitado, sprites e fonte pixel), XP, 🔥, 70%, landing, página do glossário, acessibilidade básica, E2E com axe | O progresso fica salvo e o axe passa | 2 |
+| **3. Trilha e progresso** ✅ | Prédio em pixel art (navio desde a Fase 5) (motor `pixel.js` reaproveitado, sprites e fonte pixel), XP, 🔥, 70%, landing, página do glossário, acessibilidade básica, E2E com axe | O progresso fica salvo e o axe passa | 2 |
 | **4. Conteúdo MVP** ✅ | Níveis 0 a 3 (~13 lições e ~48 exercícios) e ~45 termos no glossário | A trilha inteira passa. **🚀 v0.1** | 4 |
-| **5. Revisão e certificados** | Revisão do dia, badges por andar, certificado final, desenho do cluster | **v0.2** | 2 |
+| **5. Revisão e certificados** ✅ | Revisão do dia, o navio no lugar do prédio, lacre por nível, certificado final, mapa do cluster, página de privacidade | **v0.2** | 2 |
 | **6. Níveis 4 a 6** | Motor (volumes, StatefulSet, Jobs, DaemonSet, probes, limits, HPA, quotas) e conteúdo | **v0.3** | 5 |
 | **7. Níveis 7 a 9** | Motor (scheduling avançado, drain, RBAC, NetworkPolicy, PSA) e os 20 incidentes | **v0.4** | 5 |
 | **8. Níveis 10 e 11** | Helm e Kustomize simulados, CRD, os 8 projetos, lição do kind | **v1.0 🏙️** | 4 |

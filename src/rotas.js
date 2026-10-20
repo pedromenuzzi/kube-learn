@@ -7,6 +7,8 @@ export const ROTAS = {
   '/livre': { titulo: 'Playground livre' },
   '/glossario': { titulo: 'Glossário' },
   '/revisao': { titulo: 'Revisão do dia' },
+  '/certificado': { titulo: 'Certificado' },
+  '/privacidade': { titulo: 'Privacidade' },
 };
 
 /** '#/ex/pod-1' → { caminho: '/ex', parametro: 'pod-1', titulo }. Rota desconhecida → null. */

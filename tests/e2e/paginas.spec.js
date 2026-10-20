@@ -1,4 +1,4 @@
-// Fase 3: o prédio, o progresso, o glossário, as preferências e a acessibilidade (axe, WCAG 2.2 AA).
+// Fase 3: o navio, o progresso, o glossário, as preferências e a acessibilidade (axe, WCAG 2.2 AA).
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
@@ -21,10 +21,10 @@ for (const tema of TEMAS) {
   });
 }
 
-test('térreo: lição lida e quiz certo contam no prédio', async ({ page }) => {
+test('nível 0: lição lida e quiz certo contam na trilha', async ({ page }) => {
   await page.goto('#/trilha');
-  await expect(page.locator('#andar-2')).toContainText('Bloqueado');
-  await page.locator('#andar-0').getByRole('link', { name: /Funciona na minha máquina/ }).click();
+  await expect(page.locator('#nivel-2')).toContainText('Bloqueado');
+  await page.locator('#nivel-0').getByRole('link', { name: /Funciona na minha máquina/ }).click();
   await page.getByRole('button', { name: '✅ Marquei como lida' }).click();
   await expect(page.getByRole('status')).toContainText('+5 XP');
   await page.goto('#/ex/n0-quiz-latest');
@@ -39,13 +39,13 @@ test('térreo: lição lida e quiz certo contam no prédio', async ({ page }) =>
   await page.getByRole('button', { name: 'Responder' }).click();
   await expect(page.locator('.quiz-retorno')).toContainText('Certo!');
   await page.goto('#/trilha');
-  await expect(page.locator('#andar-0')).toContainText('2 de 8 missões (25%)');
+  await expect(page.locator('#nivel-0')).toContainText('2 de 8 missões (25%)');
   await expect(page.locator('.placar')).toContainText('15');
 });
 
-test('resolver uma missão acende a janela: o andar mostra o progresso e o placar soma XP', async ({ page }) => {
+test('resolver uma missão embarca um contêiner: o nível mostra o progresso e o placar soma XP', async ({ page }) => {
   page.on('dialog', (d) => d.accept());
-  // Térreo e 1º andar já resolvidos, para o andar da missão estar aberto.
+  // Níveis 0 e 1 já resolvidos, para o nível da missão estar aberto.
   await page.addInitScript(() => {
     if (localStorage.getItem('kube-learn:progresso')) return;
     const ids = ['n0-quiz-imagem-conteiner', 'n0-quiz-quantos', 'n0-quiz-referencia', 'n0-quiz-partes', 'n0-quiz-latest', 'n0-quiz-dockerfile',
@@ -53,20 +53,20 @@ test('resolver uma missão acende a janela: o andar mostra o progresso e o placa
     localStorage.setItem('kube-learn:progresso', JSON.stringify(Object.fromEntries(ids.map((i) => [i, { status: 'resolvido', em: '2026-10-20' }]))));
   });
   await page.goto('#/trilha');
-  await expect(page.locator('#andar-2')).toContainText('0 de 12 missões');
-  await expect(page.locator('#andar-4')).toContainText('Em obra');
-  await page.locator('#andar-2').getByRole('link', { name: /Atualizar sem derrubar ninguém/ }).click();
+  await expect(page.locator('#nivel-2')).toContainText('0 de 12 missões');
+  await expect(page.locator('#nivel-4')).toContainText('Em breve');
+  await page.locator('#nivel-2').getByRole('link', { name: /Atualizar sem derrubar ninguém/ }).click();
   await page.getByRole('tab', { name: '💡 Solução' }).click();
   await page.getByRole('button', { name: 'Ver a solução' }).click();
   await page.getByRole('button', { name: 'Copiar para o editor' }).click();
   await page.getByRole('button', { name: '⬆ Entregar' }).click();
   await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
   await page.getByRole('link', { name: '← Trilha' }).click();
-  await expect(page.locator('#andar-2')).toContainText('1 de 12 missões (8%)');
+  await expect(page.locator('#nivel-2')).toContainText('1 de 12 missões (8%)');
 
   await expect(page.locator('.placar')).toContainText('🔥 Dias seguidos');
-  await expect(page.locator('#andar-2').getByRole('link', { name: /resolvida/ })).toHaveCount(1);
-  await expect(page.locator('canvas.predio')).toBeVisible();
+  await expect(page.locator('#nivel-2').getByRole('link', { name: /resolvida/ })).toHaveCount(1);
+  await expect(page.locator('canvas.navio')).toBeVisible();
 });
 
 test('glossário: a busca filtra (sem precisar de acento)', async ({ page }) => {

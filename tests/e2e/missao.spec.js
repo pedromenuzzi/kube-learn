@@ -25,7 +25,7 @@ test('missão de YAML: copia a solução, aplica, passa nos visíveis e entrega'
 
   // O progresso fica salvo: a lista de missões mostra ✅.
   await page.goto('#/trilha');
-  await expect(page.locator('#andar-2').getByRole('link', { name: 'Atualizar sem derrubar ninguém (resolvida)' })).toBeVisible();
+  await expect(page.locator('#nivel-2').getByRole('link', { name: 'Atualizar sem derrubar ninguém (resolvida)' })).toBeVisible();
 });
 
 test('missão de terminal: escala pelo kubectl e entrega', async ({ page }) => {

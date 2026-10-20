@@ -140,7 +140,7 @@ web    1/1     Running   0          2m</code></pre>
     titulo: 'Pedra fundamental: o primeiro pod',
     dificuldade: 'facil',
     vidaReal: 'O primeiro apartamento do condomínio: um endereço com um morador dentro.',
-    limite: 'Um apartamento solto, sem contrato (Deployment), não é refeito se sumir. No próximo andar você vê como resolver isso.',
+    limite: 'Um apartamento solto, sem contrato (Deployment), não é refeito se sumir. No próximo nível você vê como resolver isso.',
     enunciado: `
       <p>Complete o arquivo para criar um <b>Pod</b>:</p>
       <ul>

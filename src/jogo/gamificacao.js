@@ -1,8 +1,8 @@
-// As regras do jogo (funções puras, testadas em tests/gamificacao.test.js): XP, andares, desbloqueio a 70%,
+// As regras do jogo (funções puras, testadas em tests/gamificacao.test.js): XP, níveis, desbloqueio a 70%,
 // próximo passo e sequência de dias.
 import { XP } from '../conteudo/util.js';
 
-/** O andar de cima abre quando o de baixo tem esta porcentagem dos exercícios resolvidos. */
+/** O nível seguinte abre quando o anterior tem esta porcentagem dos exercícios resolvidos. */
 export const LIMITE_DESBLOQUEIO = 70;
 
 export const xpDoItem = (item) => (item.tipo === 'licao' || item.tipo === 'quiz' ? XP[item.tipo] : XP[item.dificuldade] ?? 0);
@@ -11,7 +11,7 @@ const contaNaPorcentagem = (item) => item.tipo !== 'licao';
 /**
  * O estado da trilha. `progresso`: { [id]: { status: 'resolvido' | 'tentado', em } }.
  * Cada nível ganha: total, resolvidos, pct, emObra (sem itens), desbloqueado, passou (≥ 70%), concluido (100%)
- * e o estado do andar ('planta' | 'obra' | 'pronto' | 'habite-se'); cada item: estado e xp.
+ * e a situação do nível ('bloqueado' | 'carregando' | 'pronto' | 'lacrado'); cada item: estado e xp.
  */
 export function calcularJornada(niveis, progresso = {}) {
   let xp = 0;
@@ -32,8 +32,8 @@ export function calcularJornada(niveis, progresso = {}) {
       const estado = status === 'resolvido' ? 'concluido' : status === 'tentado' ? 'tentado' : desbloqueado ? 'disponivel' : 'bloqueado';
       return { ...i, estado, xp: xpDoItem(i) };
     });
-    const andar = emObra || !desbloqueado ? 'planta' : concluido ? 'habite-se' : passou ? 'pronto' : 'obra';
-    return { ...n, itens, total: conta.length, resolvidos, pct, emObra, desbloqueado, passou: !emObra && passou, concluido, andar };
+    const situacao = emObra || !desbloqueado ? 'bloqueado' : concluido ? 'lacrado' : passou ? 'pronto' : 'carregando';
+    return { ...n, itens, total: conta.length, resolvidos, pct, emObra, desbloqueado, passou: !emObra && passou, concluido, situacao };
   });
 
   let proximo = null;
@@ -50,8 +50,8 @@ export function calcularJornada(niveis, progresso = {}) {
     xp,
     niveis: resultado,
     proximo,
-    andaresProntos: resultado.filter((n) => n.passou).length,
-    arranhaCeu: comConteudo.length === resultado.length && comConteudo.every((n) => n.concluido),
+    niveisProntos: resultado.filter((n) => n.passou).length,
+    navioCheio: comConteudo.length === resultado.length && comConteudo.every((n) => n.concluido),
   };
 }
 
