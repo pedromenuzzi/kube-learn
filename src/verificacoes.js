@@ -15,6 +15,7 @@
 //   { evento: { motivo, objeto } }                     aconteceu um evento com esse motivo
 //   { env: { pods: 'app=x', nome, igual } }            a variável de ambiente dentro do contêiner
 //   { comando: 'regex' }                               o aluno usou esse comando no terminal
+//   { saida: 'regex' }                                 a saída de algum comando dos passos do teste combina
 //   { resposta: 'texto' | /regex/ | { de: 'pod/x', campo: 'spec.nodeName' } }   a resposta que o aluno digitou
 //                                                      (a última forma compara com um campo do cluster do aluno)
 //   { contexto: { namespace } }                        o namespace padrão do kubectl (kubectl config set-context)
@@ -63,7 +64,7 @@ function comparar(valor, regra, rotulo) {
     const ok = Array.isArray(valor) ? valor.includes(regra.contem) : String(valor ?? '').includes(regra.contem);
     return [ok, `${rotulo} contém ${mostrar(regra.contem)}`, `veio ${mostrar(valor)}`];
   }
-  if ('regex' in regra) return [new RegExp(regra.regex).test(String(valor ?? '')), `${rotulo} combina com /${regra.regex}/`, `veio ${mostrar(valor)}`];
+  if ('regex' in regra) return [new RegExp(regra.regex).test(valor && typeof valor === 'object' ? JSON.stringify(valor) : String(valor ?? '')), `${rotulo} combina com /${regra.regex}/`, `veio ${mostrar(valor)}`];
   const deveExistir = regra.existe ?? true;
   return [(valor !== undefined) === deveExistir, `${rotulo} ${deveExistir ? 'existe' : 'não existe'}`, `veio ${mostrar(valor)}`];
 }
@@ -129,9 +130,10 @@ const REGRAS = {
     const q = r.requisicao;
     const res = pedir(ctx.cluster, q);
     const obtido = res.erro ?? res.status;
-    let ok = obtido === (q.status ?? 200);
-    if (ok && q.corpo) ok = new RegExp(q.corpo).test(res.corpo);
-    return [ok, `${q.url} responde ${q.status ?? 200}${q.corpo ? ` com /${q.corpo}/` : ''}`, `veio ${obtido}`];
+    const statusOk = obtido === (q.status ?? 200);
+    const corpoOk = !q.corpo || new RegExp(q.corpo).test(res.corpo ?? '');
+    const detalhe = statusOk ? `veio ${obtido}, mas sem /${q.corpo}/ na resposta: ${mostrar((res.corpo ?? '').trim().slice(0, 80))}` : `veio ${obtido}`;
+    return [statusOk && corpoOk, `${q.url} responde ${q.status ?? 200}${q.corpo ? ` com /${q.corpo}/` : ''}`, detalhe];
   },
   distribuicao(r, ctx) {
     const q = r.distribuicao;
@@ -166,6 +168,10 @@ const REGRAS = {
     const lista = podsDo(ctx.cluster, q.pods, q.ns).filter(estaPronto);
     const valores = lista.map((p) => ctx.cluster.kubelet.estado(p, p.spec.containers[0].name)?.env?.[q.nome]);
     return [lista.length > 0 && valores.every((v) => v === q.igual), `${q.nome}=${q.igual} dentro dos pods ${q.pods}`, lista.length ? `veio ${mostrar(valores[0])}` : 'nenhum pod pronto'];
+  },
+  saida(r, ctx) {
+    const re = new RegExp(r.saida);
+    return [ctx.resultados.some((x) => re.test(x.saida)), `a saída de um comando do teste combina com /${r.saida}/`, ctx.resultados.length ? `veio ${mostrar(ctx.resultados.at(-1).saida.trim().split('\n')[0])}` : 'nenhum comando rodou'];
   },
   comando(r, ctx) {
     const re = new RegExp(r.comando);

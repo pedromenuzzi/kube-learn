@@ -1,0 +1,22 @@
+Name:              pvc-c7e57d91-2ef8-4b8e-b299-1c1c1f7d2508
+Labels:            <none>
+Annotations:       local.path.provisioner/selected-node: golden-worker2
+                   pv.kubernetes.io/provisioned-by: rancher.io/local-path
+Finalizers:        [kubernetes.io/pv-protection]
+StorageClass:      standard
+Status:            Bound
+Claim:             default/dados
+Reclaim Policy:    Delete
+Access Modes:      RWO
+VolumeMode:        Filesystem
+Capacity:          1Gi
+Node Affinity:     
+  Required Terms:  
+    Term 0:        kubernetes.io/hostname in [golden-worker2]
+Message:           
+Source:
+    Type:          HostPath (bare host directory volume)
+    Path:          /var/local-path-provisioner/pvc-c7e57d91-2ef8-4b8e-b299-1c1c1f7d2508_default_dados
+    HostPathType:  DirectoryOrCreate
+Events:            <none>
+exit=0

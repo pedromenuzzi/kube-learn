@@ -1,0 +1,4 @@
+persistentvolumeclaim/rapido created
+pod/usa-rapido created
+pod/sem-cm created
+exit=0

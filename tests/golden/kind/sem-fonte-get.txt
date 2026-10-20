@@ -1,0 +1,4 @@
+NAME         READY   STATUS              RESTARTS   AGE
+sem-cm       0/1     ContainerCreating   0          22s
+usa-rapido   0/1     Pending             0          22s
+exit=0

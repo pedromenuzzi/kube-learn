@@ -22,7 +22,8 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
 ## O simulador (`src/k8s/`)
 
 - `cluster.js` (API, eventos, relógio, laço de reconciliação) → `controladores.js`, `scheduler.js`, `kubelet.js`,
-  `rede.js`; `imagens.js` é o catálogo de imagens falsas (o comportamento de cada uma); `shell.js` roda o
+  `rede.js`, `discos.js` (PV, PVC, o provisionador local-path do kind e o sistema de arquivos de cada contêiner,
+  com volumes); `imagens.js` é o catálogo de imagens falsas (o comportamento de cada uma); `shell.js` roda o
   `sh -c` dos contêineres e o `kubectl exec`; `esquema.js` tem os campos de cada kind (decodificação estrita,
   validação, padrões, explain); `kubectl/` é a linha de comando.
 - `kubectl(cluster, 'kubectl get pods', { arquivos })` → `{ saida, stdout, stderr, codigo, observar?, sessao? }`.
@@ -31,7 +32,9 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
 - **Golden:** `tests/golden/kind/` é a saída do kubectl real (kind v1.37), capturada com
   `scripts/capturar-golden.sh`; `tests/golden/cenario.js` roda os mesmos passos no simulador e
   `tests/golden.test.js` compara. Mudou um formato de saída? O golden tem de continuar passando. Novo comando
-  ou formato? Acrescente o passo nos dois lados e capture de novo num kind.
+  ou formato? Acrescente o passo nos dois lados e capture de novo num kind. Os manifestos novos ficam só no script
+  (blocos `cat > /tmp/... <<'Y'`): o `cenario.js` lê de lá. Para capturar só uma seção nova, rode o cabeçalho do
+  script mais a seção, num kind limpo.
 
 ## Conteúdo (`src/conteudo/`)
 

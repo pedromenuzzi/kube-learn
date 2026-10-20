@@ -1,0 +1,2 @@
+statefulset.apps/db scaled
+exit=0

@@ -1,0 +1,2 @@
+The Pod "montagem-errada" is invalid: spec.containers[0].volumeMounts[0].name: Not found: "dado"
+exit=1

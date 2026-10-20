@@ -1,0 +1,4 @@
+NAME         STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+dados-db-0   Bound    pvc-e57fc4d5-04ed-4afe-8ddc-935f93aa3f64   1Gi        RWO            standard       <unset>                 30s
+dados-db-1   Bound    pvc-a816a8ba-343b-4382-8c55-3e4e31e3c7c7   1Gi        RWO            standard       <unset>                 25s
+exit=0

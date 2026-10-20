@@ -54,7 +54,7 @@ test('resolver uma missão embarca um contêiner: o nível mostra o progresso e 
   });
   await page.goto('#/trilha');
   await expect(page.locator('#nivel-2')).toContainText('0 de 12 missões');
-  await expect(page.locator('#nivel-4')).toContainText('Em breve');
+  await expect(page.locator('#nivel-5')).toContainText('Em breve');
   await page.locator('#nivel-2').getByRole('link', { name: /Atualizar sem derrubar ninguém/ }).click();
   await page.getByRole('tab', { name: '💡 Solução' }).click();
   await page.getByRole('button', { name: 'Ver a solução' }).click();

@@ -1,0 +1,28 @@
+Name:          dados
+Namespace:     default
+StorageClass:  standard
+Status:        Bound
+Volume:        pvc-c7e57d91-2ef8-4b8e-b299-1c1c1f7d2508
+Labels:        <none>
+Annotations:   pv.kubernetes.io/bind-completed: yes
+               pv.kubernetes.io/bound-by-controller: yes
+               volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+               volume.kubernetes.io/selected-node: golden-worker2
+               volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+Finalizers:    [kubernetes.io/pvc-protection]
+Capacity:      1Gi
+Access Modes:  RWO
+VolumeMode:    Filesystem
+Used By:       caderno
+Conditions:
+  Type     Status  LastProbeTime                     LastTransitionTime                Reason        Message
+  ----     ------  -----------------                 ------------------                ------        -------
+  Unused   False   Mon, 01 Jan 0001 00:00:00 +0000   Tue, 20 Oct 2026 13:20:06 -0300   PodUsingPVC   A pod is currently referencing this PVC
+Events:
+  Type    Reason                 Age              From                                                                                                Message
+  ----    ------                 ----             ----                                                                                                -------
+  Normal  WaitForFirstConsumer   5s               persistentvolume-controller                                                                         waiting for first consumer to be created before binding
+  Normal  Provisioning           5s               rancher.io/local-path_local-path-provisioner-75f7fc7dc5-wl7q4_ea0ac010-c723-45ec-a43c-64045b3c286c  External provisioner is provisioning volume for claim "default/dados"
+  Normal  ExternalProvisioning   4s (x2 over 5s)  persistentvolume-controller                                                                         Waiting for a volume to be created either by the external provisioner 'rancher.io/local-path' or manually by the system administrator. If volume creation is delayed, please verify that the provisioner is running and correctly registered.
+  Normal  ProvisioningSucceeded  2s               rancher.io/local-path_local-path-provisioner-75f7fc7dc5-wl7q4_ea0ac010-c723-45ec-a43c-64045b3c286c  Successfully provisioned volume pvc-c7e57d91-2ef8-4b8e-b299-1c1c1f7d2508
+exit=0

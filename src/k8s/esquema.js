@@ -2,6 +2,7 @@
 // campo desconhecido como o apiserver), validação (os "is invalid"), padrões e os textos do `kubectl explain`.
 // O motor só cresce com o conteúdo: um campo entra aqui quando algum exercício precisa dele. Subárvores
 // que ainda não simulamos ficam como `qualquer` (aceitas sem conferir), para não recusar YAML válido.
+import { canonico } from './aleatorio.js';
 
 // ---------- construtores ----------
 const campo = (tipo, desc = '', extra = {}) => ({ tipo, desc, ...extra });
@@ -58,6 +59,53 @@ const envVar = objeto('v1.EnvVar', 'Uma variável de ambiente do contêiner.', {
   }),
 });
 
+const chaveParaArquivo = lista(objeto('v1.KeyToPath', 'Uma chave e o arquivo onde ela vai parar.', {
+  key: texto('A chave.', { obrigatorio: true }),
+  path: texto('O caminho do arquivo, relativo ao ponto de montagem.', { obrigatorio: true }),
+  mode: inteiro('As permissões do arquivo.'),
+}), 'Só estas chaves, nestes arquivos (sem isto: um arquivo por chave, com o nome da chave).');
+
+const volumeMount = objeto('v1.VolumeMount', 'Um volume do pod montado neste contêiner.', {
+  name: texto('O nome do volume (um dos spec.volumes do pod).', { obrigatorio: true }),
+  mountPath: texto('Onde o volume aparece dentro do contêiner.', { obrigatorio: true }),
+  readOnly: booleano('Só leitura.'),
+  subPath: texto('Monta só um arquivo ou uma pasta de dentro do volume.'),
+  subPathExpr: texto(''),
+  mountPropagation: texto(''),
+  recursiveReadOnly: texto(''),
+});
+
+const volume = objeto('v1.Volume', 'Um volume: uma pasta que os contêineres do pod podem montar. O tipo diz de onde vem o conteúdo.', {
+  name: texto('O nome do volume, usado no volumeMounts dos contêineres.', { obrigatorio: true }),
+  configMap: objeto('v1.ConfigMapVolumeSource', 'Os dados de um ConfigMap, um arquivo por chave.', {
+    name: texto('O nome do ConfigMap.'),
+    items: chaveParaArquivo,
+    defaultMode: inteiro('As permissões dos arquivos. Padrão: 0644.'),
+    optional: booleano('Se o ConfigMap pode faltar.'),
+  }),
+  secret: objeto('v1.SecretVolumeSource', 'Os dados de um Secret (já decodificados), um arquivo por chave.', {
+    secretName: texto('O nome do Secret.'),
+    items: chaveParaArquivo,
+    defaultMode: inteiro('As permissões dos arquivos. Padrão: 0644.'),
+    optional: booleano('Se o Secret pode faltar.'),
+  }),
+  emptyDir: objeto('v1.EmptyDirVolumeSource', 'Uma pasta vazia que nasce com o pod e morre com ele (os contêineres do pod dividem).', {
+    medium: texto('"" (o disco do node) ou Memory.'),
+    sizeLimit: qualquer('O tamanho máximo (ex.: 100Mi).', { go: 'Quantity' }),
+  }),
+  persistentVolumeClaim: objeto('v1.PersistentVolumeClaimVolumeSource', 'Um PersistentVolumeClaim (o pedido de disco) do mesmo namespace.', {
+    claimName: texto('O nome do PersistentVolumeClaim.', { obrigatorio: true }),
+    readOnly: booleano('Só leitura.'),
+  }),
+  hostPath: objeto('v1.HostPathVolumeSource', 'Uma pasta do próprio node (evite: o pod fica preso àquele node).', { path: texto('O caminho no node.', { obrigatorio: true }), type: texto('') }),
+  projected: qualquer('Vários ConfigMaps, Secrets e dados do pod numa pasta só.', { go: 'ProjectedVolumeSource' }),
+  downwardAPI: qualquer('Dados do próprio pod (labels, nome...) em arquivos.', { go: 'DownwardAPIVolumeSource' }),
+  ephemeral: qualquer('', { go: 'EphemeralVolumeSource' }),
+  csi: qualquer('', { go: 'CSIVolumeSource' }),
+  nfs: qualquer('', { go: 'NFSVolumeSource' }),
+  image: qualquer('', { go: 'ImageVolumeSource' }),
+});
+
 const container = objeto('v1.Container', 'Um contêiner: o programa que roda dentro do pod, a partir de uma imagem.', {
   name: texto('O nome do contêiner, único no pod.', { obrigatorio: true }),
   image: texto('A imagem do contêiner, no formato registry/repositório:tag (ex.: nginx:1.27).'),
@@ -82,7 +130,7 @@ const container = objeto('v1.Container', 'Um contêiner: o programa que roda den
     limits: quantidades('O máximo: passou do limite de memória, o contêiner é morto (OOMKilled); de CPU, fica lento.'),
     claims: qualquer(''),
   }),
-  volumeMounts: lista(qualquer('Um volume montado.', { go: 'VolumeMount' }), 'Volumes do pod montados neste contêiner.'),
+  volumeMounts: lista(volumeMount, 'Volumes do pod montados neste contêiner.'),
   volumeDevices: lista(qualquer('', { go: 'VolumeDevice' }), ''),
   livenessProbe: qualquer('Teste periódico de "está vivo?". Se falhar, o contêiner é reiniciado.', { go: 'Probe' }),
   readinessProbe: qualquer('Teste periódico de "pode receber tráfego?". Se falhar, o pod sai dos endpoints do Service.', { go: 'Probe' }),
@@ -148,7 +196,7 @@ const podSpec = objeto('v1.PodSpec', 'A especificação do pod: os contêineres 
   schedulingGates: qualquer(''),
   resourceClaims: qualquer(''),
   resources: qualquer(''),
-  volumes: lista(qualquer('Um volume.'), 'Os volumes que os contêineres do pod podem montar.'),
+  volumes: lista(volume, 'Os volumes que os contêineres do pod podem montar.'),
 });
 
 const podTemplate = objeto('v1.PodTemplateSpec', 'O molde dos pods que serão criados.', {
@@ -157,6 +205,21 @@ const podTemplate = objeto('v1.PodTemplateSpec', 'O molde dos pods que serão cr
 });
 
 const status = (kind) => qualquer('O estado atual, preenchido pelo sistema. Não se escreve à mão.', { go: `${kind}Status` });
+
+const pvcSpec = objeto('v1.PersistentVolumeClaimSpec', 'O pedido: tamanho, modo de acesso e classe.', {
+  accessModes: lista(texto(''), 'Como o disco vai ser montado: ReadWriteOnce (um node por vez), ReadOnlyMany, ReadWriteMany ou ReadWriteOncePod.'),
+  resources: objeto('v1.VolumeResourceRequirements', 'O tamanho pedido.', {
+    requests: quantidades('O mínimo: storage: 1Gi.'),
+    limits: quantidades(''),
+  }),
+  storageClassName: texto('A StorageClass (o tipo de disco). Sem ela, vale a classe padrão do cluster; "" pede um PV sem classe.'),
+  volumeName: texto('Liga direto a um PersistentVolume específico.'),
+  volumeMode: texto('Filesystem (padrão) ou Block.'),
+  selector: labelSelector,
+  dataSource: qualquer(''),
+  dataSourceRef: qualquer(''),
+  volumeAttributesClassName: texto(''),
+});
 
 // ---------- os kinds ----------
 const raiz = (go, desc, campos) => objeto(go, desc, {
@@ -318,6 +381,62 @@ export const ESQUEMAS = {
     }),
     status: status('HTTPRoute'),
   }),
+  PersistentVolumeClaim: raiz('PersistentVolumeClaim', 'O PersistentVolumeClaim (PVC) é o pedido de um disco: "quero 1Gi, para ler e escrever". O cluster liga o pedido a um PersistentVolume (ou cria um, pela StorageClass).', {
+    spec: pvcSpec,
+    status: status('PersistentVolumeClaim'),
+  }),
+  PersistentVolume: raiz('PersistentVolume', 'O PersistentVolume (PV) é um disco de verdade do cluster, criado pelo administrador ou por uma StorageClass. Vive fora dos pods: os dados ficam quando o pod vai embora.', {
+    spec: objeto('v1.PersistentVolumeSpec', 'A especificação do disco.', {
+      capacity: quantidades('O tamanho do disco (ex.: storage: 1Gi).'),
+      accessModes: lista(texto(''), 'Como o disco pode ser montado: ReadWriteOnce (um node por vez), ReadOnlyMany, ReadWriteMany ou ReadWriteOncePod.'),
+      persistentVolumeReclaimPolicy: texto('O que fazer com o disco quando o pedido (PVC) for apagado: Retain (guardar) ou Delete (apagar).'),
+      storageClassName: texto('A StorageClass do disco. Só liga com pedidos da mesma classe.'),
+      hostPath: objeto('v1.HostPathVolumeSource', 'Uma pasta de um node (bom para laboratório).', { path: texto('O caminho no node.', { obrigatorio: true }), type: texto('') }),
+      local: qualquer('', { go: 'LocalVolumeSource' }),
+      nfs: qualquer('', { go: 'NFSVolumeSource' }),
+      csi: qualquer('', { go: 'CSIPersistentVolumeSource' }),
+      claimRef: qualquer('O pedido (PVC) ligado a este disco.', { go: 'ObjectReference' }),
+      nodeAffinity: qualquer('Em quais nodes o disco existe.', { go: 'VolumeNodeAffinity' }),
+      volumeMode: texto('Filesystem (padrão) ou Block.'),
+      mountOptions: lista(texto(''), ''),
+      volumeAttributesClassName: texto(''),
+    }),
+    status: status('PersistentVolume'),
+  }),
+  StorageClass: raiz('StorageClass', 'A StorageClass é um tipo de disco que o cluster sabe criar sozinho (o "provisionador"). Um PVC que cita a classe ganha um PersistentVolume novo, sob medida.', {
+    provisioner: texto('Quem cria os discos desta classe (ex.: rancher.io/local-path).', { obrigatorio: true }),
+    parameters: mapa('Parâmetros para o provisionador.'),
+    reclaimPolicy: texto('Delete (padrão) ou Retain: o que acontece com o disco quando o PVC é apagado.'),
+    volumeBindingMode: texto('Immediate (cria o disco na hora) ou WaitForFirstConsumer (espera um pod usar o PVC, para criar o disco no node certo).'),
+    allowVolumeExpansion: booleano('Se o PVC pode crescer depois.'),
+    mountOptions: lista(texto(''), ''),
+    allowedTopologies: qualquer(''),
+  }),
+  StatefulSet: raiz('StatefulSet', 'O StatefulSet mantém pods com identidade: nomes fixos e numerados (db-0, db-1...), criados em ordem, cada um com o seu próprio disco e o seu nome no DNS.', {
+    spec: objeto('v1.StatefulSetSpec', 'A especificação do StatefulSet.', {
+      serviceName: texto('O Service headless que dá nome no DNS a cada pod (db-0.db, db-1.db...).'),
+      replicas: inteiro('Quantos pods manter. Padrão: 1.'),
+      selector: { ...labelSelector, desc: 'Como o StatefulSet acha os pods dele. Precisa bater com as labels do template.', obrigatorio: true },
+      template: { ...podTemplate, obrigatorio: true },
+      volumeClaimTemplates: lista(objeto('v1.PersistentVolumeClaim', 'Um molde de PVC: cada pod ganha o seu (dados-db-0, dados-db-1...).', {
+        apiVersion: texto(''),
+        kind: texto(''),
+        metadata,
+        spec: pvcSpec,
+        status: status('PersistentVolumeClaim'),
+      }), 'Os moldes de disco: cada pod ganha um PVC só dele, que continua existindo quando o pod é recriado.'),
+      podManagementPolicy: texto('OrderedReady (padrão: um de cada vez, em ordem) ou Parallel.'),
+      updateStrategy: objeto('v1.StatefulSetUpdateStrategy', 'Como trocar os pods quando o template muda.', {
+        type: texto('RollingUpdate (padrão: do maior número para o menor) ou OnDelete.'),
+        rollingUpdate: objeto('v1.RollingUpdateStatefulSetStrategy', '', { partition: inteiro('Só pods com número maior ou igual a este são atualizados.'), maxUnavailable: intOuTexto('') }),
+      }),
+      revisionHistoryLimit: inteiro('Quantas revisões antigas guardar. Padrão: 10.'),
+      minReadySeconds: inteiro(''),
+      persistentVolumeClaimRetentionPolicy: objeto('v1.StatefulSetPersistentVolumeClaimRetentionPolicy', 'O que fazer com os PVCs quando o StatefulSet é apagado ou diminuído. Padrão: Retain (guardar).', { whenDeleted: texto('Retain ou Delete.'), whenScaled: texto('Retain ou Delete.') }),
+      ordinals: qualquer(''),
+    }, { obrigatorio: true }),
+    status: status('StatefulSet'),
+  }),
   Node: raiz('Node', 'O Node é uma máquina do cluster, onde os pods rodam.', { spec: qualquer('', { go: 'NodeSpec' }), status: status('Node') }),
   Endpoints: raiz('Endpoints', 'A lista de IPs e portas dos pods atrás de um Service.', { subsets: qualquer('') }),
   Event: raiz('Event', 'Uma ocorrência registrada no cluster.', {}),
@@ -398,11 +517,21 @@ function validarNome(obj, erros) {
   else if (!RE_SUBDOMINIO.test(nome) || nome.length > 253) erros.push(invalido('metadata.name', nome, MSG_SUBDOMINIO));
 }
 
-function validarPodSpec(spec, base, erros) {
+/** `volumesExtras`: nomes que valem como volume sem estar em spec.volumes (os volumeClaimTemplates do StatefulSet). */
+function validarPodSpec(spec, base, erros, volumesExtras = []) {
   if (!spec?.containers?.length) {
     erros.push(obrigatorio(`${base}.containers`));
     return;
   }
+  const volumes = new Set(volumesExtras);
+  (spec.volumes ?? []).forEach((v, i) => {
+    const cam = `${base}.volumes[${i}]`;
+    if (!v.name) erros.push(obrigatorio(`${cam}.name`));
+    else if (!RE_LABEL.test(v.name)) erros.push(invalido(`${cam}.name`, v.name, MSG_LABEL));
+    else if (volumes.has(v.name)) erros.push(`${cam}.name: Duplicate value: ${JSON.stringify(v.name)}`);
+    volumes.add(v.name);
+    if (v.persistentVolumeClaim && !v.persistentVolumeClaim.claimName) erros.push(obrigatorio(`${cam}.persistentVolumeClaim.claimName`));
+  });
   const nomes = new Set();
   spec.containers.forEach((c, i) => {
     const cam = `${base}.containers[${i}]`;
@@ -418,12 +547,40 @@ function validarPodSpec(spec, base, erros) {
     (c.env ?? []).forEach((e, j) => {
       if (!e.name) erros.push(obrigatorio(`${cam}.env[${j}].name`));
     });
+    (c.volumeMounts ?? []).forEach((m, j) => {
+      const cm = `${cam}.volumeMounts[${j}]`;
+      if (!m.name) erros.push(obrigatorio(`${cm}.name`));
+      else if (!volumes.has(m.name)) erros.push(`${cm}.name: Not found: ${JSON.stringify(m.name)}`);
+      if (!m.mountPath) erros.push(obrigatorio(`${cm}.mountPath`));
+    });
   });
   const politica = spec.restartPolicy;
   if (politica && !['Always', 'OnFailure', 'Never'].includes(politica)) {
     erros.push(`${base}.restartPolicy: Unsupported value: ${JSON.stringify(politica)}: supported values: "Always", "OnFailure", "Never"`);
   }
 }
+
+function validarPvcSpec(spec, base, erros) {
+  if (!spec?.accessModes?.length) erros.push(`${base}.accessModes: Required value: at least 1 access mode is required`);
+  else {
+    spec.accessModes.forEach((m) => {
+      if (!['ReadWriteOnce', 'ReadOnlyMany', 'ReadWriteMany', 'ReadWriteOncePod'].includes(m)) erros.push(`${base}.accessModes: Unsupported value: ${JSON.stringify(m)}: supported values: "ReadOnlyMany", "ReadWriteMany", "ReadWriteOnce", "ReadWriteOncePod"`);
+    });
+  }
+  if (!spec?.resources?.requests?.storage) erros.push(`${base}.resources[storage]: Required value`);
+}
+
+/** Um volumeClaimTemplate como o apiserver mostra no erro de campo imutável (a struct do Go em JSON). */
+const moldeGo = (t) => ({
+  name: t.metadata?.name ?? '',
+  Spec: {
+    AccessModes: t.spec?.accessModes ?? null, Selector: t.spec?.selector ?? null,
+    Resources: { Limits: t.spec?.resources?.limits ?? null, Requests: t.spec?.resources?.requests ?? null },
+    VolumeName: t.spec?.volumeName ?? '', StorageClassName: t.spec?.storageClassName ?? null, VolumeMode: t.spec?.volumeMode ?? 'Filesystem',
+    DataSource: null, DataSourceRef: null, VolumeAttributesClassName: null,
+  },
+  Status: { Phase: 'Pending', AccessModes: null, Capacity: null, Conditions: null, AllocatedResources: null, AllocatedResourceStatuses: null, CurrentVolumeAttributesClassName: null, ModifyVolumeStatus: null, HealthStatus: null },
+});
 
 const casaSeletor = (matchLabels = {}, labels = {}) => Object.entries(matchLabels).every(([k, v]) => labels[k] === v);
 
@@ -487,6 +644,43 @@ export function validar(obj, antigo) {
     case 'HTTPRoute':
       if (!s?.parentRefs?.length) erros.push(obrigatorio('spec.parentRefs'));
       break;
+    case 'StatefulSet': {
+      const ml = s?.selector?.matchLabels;
+      if (!s?.selector || (!ml && !s.selector.matchExpressions)) erros.push(obrigatorio('spec.selector'));
+      const labels = s?.template?.metadata?.labels;
+      if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? {}, '`selector` does not match template `labels`'));
+      validarPodSpec(s?.template?.spec, 'spec.template.spec', erros, (s?.volumeClaimTemplates ?? []).map((t) => t.metadata?.name));
+      if (s?.replicas < 0) erros.push(invalido('spec.replicas', s.replicas, 'must be greater than or equal to 0'));
+      (s?.volumeClaimTemplates ?? []).forEach((t, i) => validarPvcSpec(t.spec, `spec.volumeClaimTemplates[${i}].spec`, erros));
+      if (antigo && !erros.length) {
+        const moldes = (x) => canonico((x.volumeClaimTemplates ?? []).map((t) => padroesMolde(structuredClone(t))));
+        if (moldes(antigo.spec) !== moldes(s)) {
+          erros.push(invalido('spec.volumeClaimTemplates', (s.volumeClaimTemplates ?? []).map(moldeGo), 'field is immutable'));
+        } else {
+          const fixos = (x) => canonico({ ...x, replicas: 0, ordinals: 0, template: 0, updateStrategy: 0, revisionHistoryLimit: 0, persistentVolumeClaimRetentionPolicy: 0, minReadySeconds: 0 });
+          if (fixos(antigo.spec) !== fixos(s)) erros.push("spec: Forbidden: updates to statefulset spec for fields other than 'replicas', 'ordinals', 'template', 'updateStrategy', 'revisionHistoryLimit', 'persistentVolumeClaimRetentionPolicy' and 'minReadySeconds' are forbidden");
+        }
+      }
+      break;
+    }
+    case 'PersistentVolumeClaim':
+      validarPvcSpec(s, 'spec', erros);
+      if (antigo && !erros.length) {
+        const semTamanho = (x) => canonico({ ...x, resources: { ...x.resources, requests: 0 }, volumeName: 0 });
+        if (semTamanho(antigo.spec) !== semTamanho(s)) erros.push('spec: Forbidden: spec is immutable after creation except resources.requests and volumeAttributesClassName for bound claims');
+      }
+      break;
+    case 'PersistentVolume':
+      if (!s?.accessModes?.length) erros.push('spec.accessModes: Required value');
+      if (!s?.capacity?.storage) erros.push('spec.capacity: Required value');
+      if (!s?.hostPath && !s?.local && !s?.nfs && !s?.csi) erros.push('spec: Required value: must specify a volume type');
+      break;
+    case 'StorageClass':
+      if (!obj.provisioner) erros.push(obrigatorio('provisioner'));
+      if (antigo && (antigo.provisioner !== obj.provisioner || antigo.reclaimPolicy !== (obj.reclaimPolicy ?? 'Delete') || antigo.volumeBindingMode !== (obj.volumeBindingMode ?? 'Immediate'))) {
+        erros.push('provisioner: Forbidden: updates to provisioner are forbidden.');
+      }
+      break;
     case 'ConfigMap':
     case 'Secret':
       if (antigo?.immutable && JSON.stringify(antigo.data) !== JSON.stringify(obj.data)) {
@@ -500,7 +694,24 @@ export function validar(obj, antigo) {
 // ---------- padrões ----------
 const ehLatest = (imagem) => !/:[^/]+$/.test(imagem.split('@')[0]) || imagem.endsWith(':latest');
 
+/** Os padrões de um volumeClaimTemplate do StatefulSet. */
+function padroesMolde(t) {
+  t.apiVersion ??= 'v1';
+  t.kind ??= 'PersistentVolumeClaim';
+  t.spec ??= {};
+  t.spec.volumeMode ??= 'Filesystem';
+  t.status ??= { phase: 'Pending' };
+  return t;
+}
+
 function padroesPodSpec(spec) {
+  for (const v of spec.volumes ?? []) {
+    const tipos = ['configMap', 'secret', 'emptyDir', 'persistentVolumeClaim', 'hostPath', 'projected', 'downwardAPI', 'ephemeral', 'csi', 'nfs', 'image'];
+    if (!tipos.some((t) => v[t])) v.emptyDir = {}; // volume sem tipo vira uma pasta vazia, como no apiserver
+    if (v.configMap) v.configMap.defaultMode ??= 420;
+    if (v.secret) v.secret.defaultMode ??= 420;
+    if (v.hostPath) v.hostPath.type ??= '';
+  }
   for (const c of [...(spec.initContainers ?? []), ...(spec.containers ?? [])]) {
     c.imagePullPolicy ??= c.image && ehLatest(c.image) ? 'Always' : 'IfNotPresent';
     for (const p of c.ports ?? []) p.protocol ??= 'TCP';
@@ -544,6 +755,31 @@ export function aplicarPadroes(obj) {
     case 'ReplicaSet':
       s.replicas ??= 1;
       padroesPodSpec(s.template.spec);
+      break;
+    case 'StatefulSet':
+      s.replicas ??= 1;
+      s.podManagementPolicy ??= 'OrderedReady';
+      s.revisionHistoryLimit ??= 10;
+      s.persistentVolumeClaimRetentionPolicy = { whenDeleted: 'Retain', whenScaled: 'Retain', ...(s.persistentVolumeClaimRetentionPolicy ?? {}) };
+      s.updateStrategy ??= {};
+      s.updateStrategy.type ??= 'RollingUpdate';
+      if (s.updateStrategy.type === 'RollingUpdate') s.updateStrategy.rollingUpdate = { maxUnavailable: 1, partition: 0, ...(s.updateStrategy.rollingUpdate ?? {}) };
+      s.template.metadata ??= {};
+      padroesPodSpec(s.template.spec);
+      for (const t of s.volumeClaimTemplates ?? []) padroesMolde(t);
+      break;
+    case 'PersistentVolumeClaim':
+      s.volumeMode ??= 'Filesystem';
+      obj.status ??= { phase: 'Pending' };
+      break;
+    case 'PersistentVolume':
+      s.persistentVolumeReclaimPolicy ??= 'Retain';
+      s.volumeMode ??= 'Filesystem';
+      obj.status ??= { phase: 'Pending' };
+      break;
+    case 'StorageClass':
+      obj.reclaimPolicy ??= 'Delete';
+      obj.volumeBindingMode ??= 'Immediate';
       break;
     case 'Service':
       s.type ??= 'ClusterIP';

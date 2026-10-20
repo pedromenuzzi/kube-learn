@@ -1,0 +1,4 @@
+configmap/vitrine created
+secret/cofre created
+pod/vitrine created
+exit=0

@@ -36,6 +36,20 @@ function tokens(script) {
     } else if (c === ';' || c === '\n') {
       fechar();
       saida.push({ sep: ';' });
+    } else if (c === '>') {
+      // Redirecionamento: "2>&1" e "2>arquivo" (o erro) são ignorados; "> arquivo" e ">> arquivo" gravam a saída.
+      if (palavra === '2') {
+        palavra = null;
+        i++;
+        while (i < script.length && ' \t;\n'.includes(script[i])) i++;
+        while (i < script.length && !' \t;\n'.includes(script[i])) i++;
+        i--;
+        continue;
+      }
+      fechar();
+      const anexar = script[i + 1] === '>';
+      if (anexar) i++;
+      saida.push({ redir: anexar ? '>>' : '>' });
     } else if ((c === '&' || c === '|') && script[i + 1] === c) {
       fechar();
       saida.push({ sep: c + c });
@@ -59,15 +73,22 @@ export function analisar(script) {
     const nos = [];
     let argv = [];
     let sep = ';';
+    let redir = null;
     const empurrar = (proximoSep) => {
-      if (argv.length) nos.push({ argv, sep });
+      if (argv.length) nos.push({ argv, sep, ...(redir ? { redir } : {}) });
       argv = [];
+      redir = null;
       sep = proximoSep;
     };
     while (i < lista.length) {
       const t = lista[i++];
       if (t.sep) {
         empurrar(t.sep);
+        continue;
+      }
+      if (t.redir) {
+        redir = { anexar: t.redir === '>>', alvo: lista[i]?.palavra ?? '' };
+        if (lista[i]?.palavra !== undefined) i++;
         continue;
       }
       if (argv.length === 0 && t.palavra === fim) return nos;
@@ -125,8 +146,20 @@ export function* rodar(nos, ctx) {
     }
     if (cmd === 'exit') return { sair: true, codigo: Number(args[0] ?? codigo) || 0 };
     const r = ctx.comandos(argv, ctx);
-    if (r.saida) ctx.saida(r.saida);
     codigo = r.codigo;
+    if (no.redir) {
+      const alvo = expandir(no.redir.alvo, ctx.env);
+      if (r.erro) ctx.saida(r.erro);
+      const falha = ctx.fs ? ctx.fs.escrever(alvo, r.saida ?? '', no.redir.anexar) : null;
+      if (falha) { // as mensagens do sh do busybox e do dash (Debian) são diferentes
+        const motivo = { 'somente-leitura': 'Read-only file system', 'sem-pasta': ctx.busybox ? 'nonexistent directory' : 'Directory nonexistent', pasta: 'Is a directory' }[falha];
+        ctx.saida(ctx.busybox ? `sh: can't create ${alvo}: ${motivo}\n` : `sh: 1: cannot create ${alvo}: ${motivo}\n`);
+        codigo = ctx.busybox ? 1 : 2;
+      }
+      continue;
+    }
+    if (r.saida) ctx.saida(r.saida);
+    if (r.erro) ctx.saida(r.erro);
   }
   return { codigo };
 }
@@ -189,21 +222,22 @@ const COMANDOS = {
   cat: (args, ctx) => {
     let saida = '';
     for (const a of args) {
-      if (!(a in ctx.arquivos)) return { saida: `${saida}cat: ${a}: No such file or directory\n`, codigo: 1 };
-      saida += ctx.arquivos[a];
+      const texto = ctx.fs.ler(a);
+      if (texto === undefined) {
+        const erro = ctx.busybox ? `cat: can't open '${a}': No such file or directory\n` : `cat: ${a}: No such file or directory\n`;
+        return { saida, erro, codigo: 1 };
+      }
+      saida += texto;
     }
     return ok(saida);
   },
   ls: (args, ctx) => {
-    const dir = (args.find((a) => !a.startsWith('-')) ?? '/').replace(/\/?$/, '/');
-    if (ctx.arquivos[dir.slice(0, -1)] !== undefined) return ok(`${dir.slice(0, -1)}\n`);
-    const nomes = new Set();
-    for (const caminho of Object.keys(ctx.arquivos)) {
-      if (caminho.startsWith(dir)) nomes.add(caminho.slice(dir.length).split('/')[0]);
-    }
-    if (dir === '/') ['bin', 'dev', 'etc', 'home', 'proc', 'root', 'sys', 'tmp', 'usr', 'var'].forEach((d) => nomes.add(d));
-    if (!nomes.size) return { saida: `ls: ${dir.slice(0, -1)}: No such file or directory\n`, codigo: 1 };
-    return ok(`${[...nomes].sort().join('\n')}\n`);
+    const alvo = args.find((a) => !a.startsWith('-')) ?? '/';
+    if (ctx.fs.ler(alvo) !== undefined) return ok(`${alvo}\n`);
+    const nomes = ctx.fs.listar(alvo);
+    if (!nomes) return ctx.busybox ? { saida: `ls: ${alvo}: No such file or directory\n`, codigo: 1 } : { saida: `ls: cannot access '${alvo}': No such file or directory\n`, codigo: 2 };
+    const visiveis = args.some((x) => /^-\w*a/.test(x)) ? nomes : nomes.filter((n) => !n.startsWith('.'));
+    return ok(visiveis.length ? `${visiveis.join('\n')}\n` : '');
   },
   ps: () => ok('PID   USER     TIME  COMMAND\n    1 root      0:00 sh\n'),
   curl: (args, ctx) => curl(args, ctx),
@@ -299,8 +333,11 @@ function nslookup(args, ctx) {
   const cab = 'Server:\t\t10.96.0.10\nAddress:\t10.96.0.10:53\n\n';
   const nx = (n) => `** server can't find ${n}: NXDOMAIN\n\n`;
   const enderecos = (x) => (x.ips ?? [x.ip]).map((ip) => `Name:\t${x.nome}\nAddress: ${ip}\n`).join('');
-  if (nome.endsWith('.')) {
-    return r ? ok(`${cab}\n${enderecos(r)}\n`) : { saida: `${cab}${nx(nome.slice(0, -1))}${nx(nome.slice(0, -1))}`, codigo: 1 };
+  // Nome com ponto (db-0.db, web.default): o nslookup do busybox pergunta só por ele, sem os domínios de busca.
+  if (nome.includes('.')) {
+    const n = nome.replace(/\.$/, '');
+    const x = ctx.rede.dns(`${n}.`);
+    return x ? ok(`${cab}\n${enderecos(x)}\n`) : { saida: `${cab}${nx(n)}${nx(n)}`, codigo: 1 };
   }
   // O busybox pergunta por todos os domínios de busca (ndots:5) e mostra o que achou e o que não achou.
   const busca = (ctx.buscaDns ?? []).map((d) => `${nome}.${d}`);

@@ -1,6 +1,7 @@
 // O scheduler: escolhe um node para cada pod sem node. Filtra (taints, seletor, recursos) e pontua
 // (espalha réplicas do mesmo dono e prefere nodes mais livres), com as mensagens do kube-scheduler.
 import { cpuMili, bytes, iso } from './unidades.js';
+import { pvcsDoPod } from './discos.js';
 
 const TERMINAIS = new Set(['Succeeded', 'Failed']);
 const REPETIR_EM = 300_000; // como o podMaxInUnschedulablePodsDuration do kube-scheduler
@@ -36,6 +37,24 @@ export function agendar(c) {
     const tentativa = c.agendamento.get(pod.metadata.uid);
     if (tentativa && c.agora < tentativa.proxima && tentativa.mudancas === c.mudancasDeCapacidade) continue;
 
+    // Os discos do pod: o PVC precisa existir; ligado a um disco de um node só, o pod vai para aquele node;
+    // pendente numa classe WaitForFirstConsumer, o scheduler escolhe o node e espera o disco ficar pronto.
+    const pvcs = pvcsDoPod(pod).map((nome) => [nome, c.obter('PersistentVolumeClaim', pod.metadata.namespace, nome)]);
+    const faltando = pvcs.find(([, pvc]) => !pvc || pvc.metadata.deletionTimestamp);
+    const pendentes = pvcs.filter(([, pvc]) => pvc && pvc.status?.phase !== 'Bound').map(([, pvc]) => pvc);
+    const esperaPrimeiro = (pvc) => c.obter('StorageClass', null, pvc.spec.storageClassName ?? '')?.volumeBindingMode === 'WaitForFirstConsumer';
+    const semDisco = faltando
+      ? `persistentvolumeclaim "${faltando[0]}" ${faltando[1] ? 'is being deleted' : 'not found'}`
+      : pendentes.some((pvc) => !esperaPrimeiro(pvc)) ? 'pod has unbound immediate PersistentVolumeClaims' : null;
+    if (semDisco) {
+      naoCabe(c, pod, `0/${nodes.length} nodes are available: ${semDisco}. not found`);
+      continue;
+    }
+    if (pendentes.length && pendentes.every((pvc) => pvc.metadata.annotations?.['volume.kubernetes.io/selected-node'])) continue; // o disco está sendo criado
+    const nodesDosDiscos = pvcs.map(([, pvc]) => c.obter('PersistentVolume', null, pvc.spec.volumeName ?? ''))
+      .map((pv) => pv?.spec.nodeAffinity?.required?.nodeSelectorTerms?.[0]?.matchExpressions?.find((e) => e.key === 'kubernetes.io/hostname')?.values ?? null)
+      .filter(Boolean);
+
     const pedido = pedidosDoPod(pod);
     const motivos = {};
     const preempcao = {};
@@ -46,6 +65,9 @@ export function agendar(c) {
       const taints = [...(node.spec.taints ?? []), ...(nodePronto(node) ? [] : [{ key: 'node.kubernetes.io/not-ready', effect: 'NoSchedule' }])];
       if (taints.some((t) => (t.effect === 'NoSchedule' || t.effect === 'NoExecute') && !tolera(pod, t))) {
         conta(motivos, 'node(s) had untolerated taint(s)'); conta(preempcao, 'Preemption is not helpful for scheduling'); continue;
+      }
+      if (nodesDosDiscos.some((lista) => !lista.includes(node.metadata.name))) {
+        conta(motivos, 'node(s) had volume node affinity conflict'); conta(preempcao, 'Preemption is not helpful for scheduling'); continue;
       }
       const sel = pod.spec.nodeSelector ?? {};
       if (Object.entries(sel).some(([k, v]) => node.metadata.labels?.[k] !== v)) {
@@ -71,6 +93,13 @@ export function agendar(c) {
 
     if (candidatos.length) {
       const { node } = candidatos.sort((a, b) => b.nota - a.nota)[0];
+      if (pendentes.length) { // escolheu o node: agora o provisionador cria o disco lá, e o pod espera
+        for (const pvc of pendentes) {
+          pvc.metadata.annotations = { ...(pvc.metadata.annotations ?? {}), 'volume.kubernetes.io/selected-node': node.metadata.name };
+          c.salvar(pvc);
+        }
+        continue;
+      }
       pod.spec.nodeName = node.metadata.name;
       pod.status = {
         conditions: [{ lastProbeTime: null, lastTransitionTime: iso(c.agora), status: 'True', type: 'PodScheduled' }],
@@ -84,20 +113,24 @@ export function agendar(c) {
     }
 
     const lista = (obj) => Object.entries(obj).map(([m, n]) => `${n} ${m}`).sort().join(', ');
-    const msg = nodes.length
+    naoCabe(c, pod, nodes.length
       ? `0/${nodes.length} nodes are available: ${lista(motivos)}. preemption: 0/${nodes.length} nodes are available: ${lista(preempcao)}.`
-      : 'no nodes available to schedule pods';
-    const anterior = pod.status?.conditions?.find((x) => x.type === 'PodScheduled');
-    const status = {
-      ...pod.status,
-      conditions: [{ lastProbeTime: null, lastTransitionTime: anterior?.status === 'False' ? anterior.lastTransitionTime : iso(c.agora), message: msg, reason: 'Unschedulable', status: 'False', type: 'PodScheduled' }],
-      phase: 'Pending',
-    };
-    c.agendamento.set(pod.metadata.uid, { proxima: c.agora + REPETIR_EM, mudancas: c.mudancasDeCapacidade });
-    if (JSON.stringify(status) !== JSON.stringify(pod.status)) {
-      pod.status = status;
-      c.salvar(pod);
-    }
-    c.evento(pod, 'Warning', 'FailedScheduling', msg, { componente: 'default-scheduler' });
+      : 'no nodes available to schedule pods');
   }
+}
+
+/** O pod não coube em nenhum node: condição PodScheduled=False, evento FailedScheduling e nova tentativa mais tarde. */
+function naoCabe(c, pod, msg) {
+  const anterior = pod.status?.conditions?.find((x) => x.type === 'PodScheduled');
+  const status = {
+    ...pod.status,
+    conditions: [{ lastProbeTime: null, lastTransitionTime: anterior?.status === 'False' ? anterior.lastTransitionTime : iso(c.agora), message: msg, reason: 'Unschedulable', status: 'False', type: 'PodScheduled' }],
+    phase: 'Pending',
+  };
+  c.agendamento.set(pod.metadata.uid, { proxima: c.agora + REPETIR_EM, mudancas: c.mudancasDeCapacidade });
+  if (JSON.stringify(status) !== JSON.stringify(pod.status)) {
+    pod.status = status;
+    c.salvar(pod);
+  }
+  c.evento(pod, 'Warning', 'FailedScheduling', msg, { componente: 'default-scheduler' });
 }

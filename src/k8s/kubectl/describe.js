@@ -4,6 +4,7 @@ import { tabular } from '../tabwriter.js';
 import { idade, rfc1123z, cpuMili, bytes } from '../unidades.js';
 import { podsNoNode, pedidosDoPod } from '../scheduler.js';
 import { atobUtf8 } from '../esquema.js';
+import { siglasDeAcesso, pvcsDoPod } from '../discos.js';
 
 const NIVEL = ['', '  ', '    ', '      ', '        '];
 
@@ -539,6 +540,112 @@ DESCRITORES.Ingress = (w, ing, ctx) => {
   anotacoes(w, 'Annotations', ing.metadata.annotations);
   escreverEventos(w, ctx.eventos, ctx.agora);
 };
+DESCRITORES.StatefulSet = (w, sts, ctx) => {
+  const s = sts.spec;
+  w.w(0, `Name:\t${sts.metadata.name}\n`);
+  w.w(0, `Namespace:\t${sts.metadata.namespace}\n`);
+  w.w(0, `CreationTimestamp:\t${rfc(sts.metadata.creationTimestamp)}\n`);
+  w.w(0, `Selector:\t${seletor(s.selector)}\n`);
+  labels(w, 'Labels', sts.metadata.labels);
+  anotacoes(w, 'Annotations', sts.metadata.annotations);
+  w.w(0, `Service Name:\t${s.serviceName ?? ''}\n`);
+  w.w(0, `Pod Management Policy:\t${s.podManagementPolicy}\n`);
+  w.w(0, `Replicas:\t${s.replicas} desired | ${sts.status?.replicas ?? 0} total\n`);
+  w.w(0, `Update Strategy:\t${s.updateStrategy.type}\n`);
+  const ru = s.updateStrategy.rollingUpdate;
+  if (ru?.partition !== undefined) w.w(1, `Partition:\t${ru.partition}\n`);
+  if (ru?.maxUnavailable !== undefined) w.w(1, `MaxUnavailable:\t${ru.maxUnavailable}\n`);
+  w.w(0, 'Persistent Volume Claim Retention Policy:\n');
+  w.w(1, `WhenDeleted:\t${s.persistentVolumeClaimRetentionPolicy.whenDeleted}\n`);
+  w.w(1, `WhenScaled:\t${s.persistentVolumeClaimRetentionPolicy.whenScaled}\n`);
+  const pods = ctx.cluster.listar('Pod', sts.metadata.namespace).filter((p) => p.metadata.ownerReferences?.some((o) => o.uid === sts.metadata.uid));
+  const conta = (fase) => pods.filter((p) => p.status?.phase === fase).length;
+  w.w(0, `Pods Status:\t${conta('Running')} Running / ${conta('Pending')} Waiting / ${conta('Succeeded')} Succeeded / ${conta('Failed')} Failed\n`);
+  templateDePod(w, s.template);
+  if (!s.volumeClaimTemplates?.length) w.w(0, 'Volume Claims:\t<none>\n');
+  else {
+    w.w(0, 'Volume Claims:\n');
+    for (const t of s.volumeClaimTemplates) {
+      w.w(1, `Name:\t${t.metadata.name}\n`);
+      w.w(1, `StorageClass:\t${t.spec.storageClassName ?? ''}\n`);
+      labels(w, '  Labels', t.metadata.labels);
+      anotacoes(w, '  Annotations', t.metadata.annotations);
+      w.w(1, `Capacity:\t${t.spec.resources?.requests?.storage ?? ''}\n`);
+      w.w(1, `Access Modes:\t[${(t.spec.accessModes ?? []).join(' ')}]\n`);
+    }
+  }
+  escreverEventos(w, ctx.eventos, ctx.agora);
+};
+
+DESCRITORES.PersistentVolumeClaim = (w, pvc, ctx) => {
+  w.w(0, `Name:\t${pvc.metadata.name}\n`);
+  w.w(0, `Namespace:\t${pvc.metadata.namespace}\n`);
+  w.w(0, `StorageClass:\t${pvc.spec.storageClassName ?? ''}\n`);
+  w.w(0, pvc.metadata.deletionTimestamp ? `Status:\tTerminating (lasts ${idade(ctx.agora - Date.parse(pvc.metadata.deletionTimestamp))})\n` : `Status:\t${pvc.status?.phase ?? 'Pending'}\n`);
+  w.w(0, `Volume:\t${pvc.spec.volumeName ?? ''}\n`);
+  labels(w, 'Labels', pvc.metadata.labels);
+  anotacoes(w, 'Annotations', pvc.metadata.annotations);
+  w.w(0, `Finalizers:\t[${(pvc.metadata.finalizers ?? []).join(' ')}]\n`);
+  w.w(0, `Capacity:\t${pvc.status?.capacity?.storage ?? ''}\n`);
+  w.w(0, `Access Modes:\t${siglasDeAcesso(pvc.status?.accessModes)}\n`);
+  w.w(0, `VolumeMode:\t${pvc.spec.volumeMode ?? 'Filesystem'}\n`);
+  const usando = ctx.cluster.listar('Pod', pvc.metadata.namespace).filter((p) => pvcsDoPod(p).includes(pvc.metadata.name)).map((p) => p.metadata.name);
+  w.w(0, 'Used By:\t');
+  if (!usando.length) w.linha('<none>');
+  usando.forEach((n, i) => w.w(0, `${i ? '\t' : ''}${n}\n`));
+  if (pvc.status?.conditions?.length) {
+    w.w(0, 'Conditions:\n');
+    w.w(1, 'Type\tStatus\tLastProbeTime\tLastTransitionTime\tReason\tMessage\n');
+    w.w(1, '----\t------\t-----------------\t------------------\t------\t-------\n');
+    for (const c of pvc.status.conditions) w.w(1, `${c.type} \t${c.status} \tMon, 01 Jan 0001 00:00:00 +0000 \t${rfc(c.lastTransitionTime)} \t${c.reason} \t${c.message}\n`);
+  }
+  escreverEventos(w, ctx.eventos, ctx.agora);
+};
+
+DESCRITORES.PersistentVolume = (w, pv, ctx) => {
+  const s = pv.spec;
+  w.w(0, `Name:\t${pv.metadata.name}\n`);
+  labels(w, 'Labels', pv.metadata.labels);
+  anotacoes(w, 'Annotations', pv.metadata.annotations);
+  w.w(0, `Finalizers:\t[${(pv.metadata.finalizers ?? []).join(' ')}]\n`);
+  w.w(0, `StorageClass:\t${s.storageClassName ?? ''}\n`);
+  w.w(0, pv.metadata.deletionTimestamp ? `Status:\tTerminating (lasts ${idade(ctx.agora - Date.parse(pv.metadata.deletionTimestamp))})\n` : `Status:\t${pv.status?.phase ?? 'Pending'}\n`);
+  w.w(0, `Claim:\t${s.claimRef ? `${s.claimRef.namespace}/${s.claimRef.name}` : ''}\n`);
+  w.w(0, `Reclaim Policy:\t${s.persistentVolumeReclaimPolicy}\n`);
+  w.w(0, `Access Modes:\t${siglasDeAcesso(s.accessModes)}\n`);
+  w.w(0, `VolumeMode:\t${s.volumeMode ?? 'Filesystem'}\n`);
+  w.w(0, `Capacity:\t${s.capacity?.storage ?? ''}\n`);
+  const termos = s.nodeAffinity?.required?.nodeSelectorTerms;
+  if (!termos?.length) w.w(0, 'Node Affinity:\t<none>\n');
+  else {
+    w.w(0, 'Node Affinity:\t\n');
+    w.w(1, 'Required Terms:\t\n');
+    termos.forEach((t, i) => w.w(2, `Term ${i}:\t${(t.matchExpressions ?? []).map((e) => `${e.key} ${e.operator.toLowerCase()} [${(e.values ?? []).join(', ')}]`).join(', ')}\n`));
+  }
+  w.w(0, `Message:\t${pv.status?.message ?? ''}\n`);
+  w.w(0, 'Source:\n');
+  if (s.hostPath) {
+    w.w(2, 'Type:\tHostPath (bare host directory volume)\n');
+    w.w(2, `Path:\t${s.hostPath.path}\n`);
+    w.w(2, `HostPathType:\t${s.hostPath.type ?? ''}\n`);
+  }
+  escreverEventos(w, ctx.eventos, ctx.agora);
+};
+
+DESCRITORES.StorageClass = (w, sc, ctx) => {
+  const an = sc.metadata.annotations ?? {};
+  w.w(0, `Name:\t${sc.metadata.name}\n`);
+  w.w(0, `IsDefaultClass:\t${an['storageclass.kubernetes.io/is-default-class'] === 'true' ? 'Yes' : 'No'}\n`);
+  w.w(0, `Annotations:\t${Object.keys(an).sort().map((k) => `${k}=${an[k]}`).join(',') || '<none>'}\n`);
+  w.w(0, `Provisioner:\t${sc.provisioner}\n`);
+  w.w(0, `Parameters:\t${Object.keys(sc.parameters ?? {}).sort().map((k) => `${k}=${sc.parameters[k]}`).join(',') || '<none>'}\n`);
+  w.w(0, `AllowVolumeExpansion:\t${sc.allowVolumeExpansion === undefined ? '<unset>' : sc.allowVolumeExpansion}\n`);
+  w.w(0, `MountOptions:\t${sc.mountOptions?.length ? sc.mountOptions.join(', ') : '<none>'}\n`);
+  w.w(0, `ReclaimPolicy:\t${sc.reclaimPolicy}\n`);
+  w.w(0, `VolumeBindingMode:\t${sc.volumeBindingMode}\n`);
+  escreverEventos(w, ctx.eventos, ctx.agora);
+};
+
 for (const k of ['IngressClass', 'GatewayClass', 'Gateway', 'HTTPRoute']) DESCRITORES[k] = generico;
 
 export const temDescritor = (kind) => kind in DESCRITORES;

@@ -23,6 +23,7 @@ const AJUDA = `Este terminal entende o kubectl (experimente: kubectl get pods) e
   ls            lista os arquivos do editor
   cat ARQUIVO   mostra um arquivo
   curl URL      uma requisição do SEU computador (fora do cluster): port-forward, NodePort, LoadBalancer, Ingress
+  ... | base64 -d   decodifica a saída (ex.: o valor de um Secret)
   history       os comandos que você já digitou
   clear         limpa a tela (ou Ctrl+L)
 O relógio do cluster anda sozinho; o botão ⏩ adianta 30 segundos.
@@ -190,7 +191,7 @@ export function montarExercicio(raiz, item) {
       if (faltam.length) return { saida: `cat: ${faltam[0]}: No such file or directory\n`, codigo: 1, partes: [{ fluxo: 'err', texto: `cat: ${faltam[0]}: No such file or directory\n` }] };
       return { saida: args.map((a) => estado.arquivos[a]).join('') };
     }
-    if (cmd !== 'kubectl' && cmd !== 'k' && cmd !== 'curl') {
+    if (!['kubectl', 'k', 'curl', 'echo'].includes(cmd)) {
       const texto = `bash: ${cmd}: command not found\n`;
       return { saida: texto, codigo: 127, partes: [{ fluxo: 'err', texto }], caixas: [{ titulo: 'Aqui o terminal só fala kubectl', texto: 'Use <code>kubectl ...</code>, ou <code>help</code> para ver os outros comandos.' }] };
     }

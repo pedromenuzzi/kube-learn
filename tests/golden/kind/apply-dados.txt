@@ -1,0 +1,3 @@
+persistentvolumeclaim/dados created
+pod/caderno created
+exit=0

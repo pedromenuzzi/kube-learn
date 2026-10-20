@@ -1,6 +1,7 @@
 // As colunas do `kubectl get` para cada tipo (normal e -o wide), como os printers do kubectl.
 import { idade } from '../unidades.js';
 import { estaPronto } from '../rede.js';
+import { siglasDeAcesso } from '../discos.js';
 
 const desde = (agora, ts) => (ts ? idade(agora - Date.parse(ts)) : '<unknown>');
 export const labelsTexto = (labels) => (labels && Object.keys(labels).length ? Object.keys(labels).sort().map((k) => `${k}=${labels[k]}`).join(',') : '<none>');
@@ -125,6 +126,39 @@ export const TABELAS = {
       n.status.nodeInfo.osImage,
       `${n.status.nodeInfo.kernelVersion} (${n.status.nodeInfo.architecture})`,
       n.status.nodeInfo.containerRuntimeVersion,
+    ],
+  },
+  StatefulSet: {
+    colunas: ['NAME', 'READY', 'AGE'],
+    linha: (s, agora) => [s.metadata.name, `${s.status?.readyReplicas ?? 0}/${s.spec.replicas}`, desde(agora, s.metadata.creationTimestamp)],
+    largas: ['CONTAINERS', 'IMAGES'],
+    linhaLarga: (s) => [conteineres(s.spec.template.spec), imagens(s.spec.template.spec)],
+  },
+  PersistentVolumeClaim: {
+    colunas: ['NAME', 'STATUS', 'VOLUME', 'CAPACITY', 'ACCESS MODES', 'STORAGECLASS', 'VOLUMEATTRIBUTESCLASS', 'AGE'],
+    linha: (c, agora) => [
+      c.metadata.name, c.metadata.deletionTimestamp ? 'Terminating' : c.status?.phase ?? 'Pending', c.spec.volumeName ?? '',
+      c.status?.capacity?.storage ?? '', siglasDeAcesso(c.status?.accessModes), c.spec.storageClassName ?? '', c.spec.volumeAttributesClassName ?? '<unset>',
+      desde(agora, c.metadata.creationTimestamp),
+    ],
+    largas: ['VOLUMEMODE'],
+    linhaLarga: (c) => [c.spec.volumeMode ?? 'Filesystem'],
+  },
+  PersistentVolume: {
+    colunas: ['NAME', 'CAPACITY', 'ACCESS MODES', 'RECLAIM POLICY', 'STATUS', 'CLAIM', 'STORAGECLASS', 'VOLUMEATTRIBUTESCLASS', 'REASON', 'AGE'],
+    linha: (v, agora) => [
+      v.metadata.name, v.spec.capacity?.storage ?? '', siglasDeAcesso(v.spec.accessModes), v.spec.persistentVolumeReclaimPolicy,
+      v.metadata.deletionTimestamp ? 'Terminating' : v.status?.phase ?? 'Pending', v.spec.claimRef ? `${v.spec.claimRef.namespace}/${v.spec.claimRef.name}` : '',
+      v.spec.storageClassName ?? '', v.spec.volumeAttributesClassName ?? '<unset>', v.status?.reason ?? '', desde(agora, v.metadata.creationTimestamp),
+    ],
+    largas: ['VOLUMEMODE'],
+    linhaLarga: (v) => [v.spec.volumeMode ?? 'Filesystem'],
+  },
+  StorageClass: {
+    colunas: ['NAME', 'PROVISIONER', 'RECLAIMPOLICY', 'VOLUMEBINDINGMODE', 'ALLOWVOLUMEEXPANSION', 'AGE'],
+    linha: (s, agora) => [
+      `${s.metadata.name}${s.metadata.annotations?.['storageclass.kubernetes.io/is-default-class'] === 'true' ? ' (default)' : ''}`,
+      s.provisioner, s.reclaimPolicy ?? 'Delete', s.volumeBindingMode ?? 'Immediate', String(!!s.allowVolumeExpansion), desde(agora, s.metadata.creationTimestamp),
     ],
   },
   ConfigMap: {

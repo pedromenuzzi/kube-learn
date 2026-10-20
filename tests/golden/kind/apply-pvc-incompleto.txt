@@ -1,0 +1,4 @@
+The PersistentVolumeClaim "incompleto" is invalid: 
+* spec.accessModes: Required value: at least 1 access mode is required
+* spec.resources[storage]: Required value
+exit=1

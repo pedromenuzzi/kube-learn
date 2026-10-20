@@ -45,8 +45,7 @@ export function paginaInicio() {
         <article><h2>🏠 Vida real em tudo</h2><p>Pod é apartamento, Service é ramal, limite de memória é disjuntor. E cada comparação diz onde deixa de valer. <a href="#/glossario">Veja o glossário</a>.</p></article>
         <article><h2>🚢 Seu navio enche</h2><p>Cada missão embarca um contêiner com a cor do nível; com 70% de um nível, o próximo abre. Até onde a pilha aguenta?</p></article>
       </section>`;
-    desenharNavio(main.querySelector('canvas'), j);
-    return {};
+    return { destruir: desenharNavio(main.querySelector('canvas'), j) };
   };
 }
 
@@ -79,10 +78,10 @@ export function paginaTrilha() {
           </ol>
         </div>
       </div>`;
-    desenharNavio(main.querySelector('canvas'), j);
+    const parar = desenharNavio(main.querySelector('canvas'), j);
     const atual = j.proximo ? main.querySelector(`#nivel-${j.proximo.nivel}`) : null;
     atual?.scrollIntoView({ block: 'center' });
-    return {};
+    return { destruir: parar };
   };
 }
 

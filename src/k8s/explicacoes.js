@@ -25,6 +25,30 @@ const REGRAS = [
     t: () => ({ titulo: 'O seletor não bate com as labels do template', texto: 'O <code>spec.selector.matchLabels</code> precisa estar dentro das <code>labels</code> do template. Senão, o Deployment criaria pods que ele mesmo não reconhece.', vidaReal: 'O contrato diz "equipe: suporte", mas as plaquinhas das portas dizem outra coisa: a fiscal nunca acharia as salas.' }),
   },
   {
+    re: /volumeMounts\[\d+\]\.name: Not found: "([^"]+)"/,
+    t: (m) => ({ titulo: `O contêiner monta o volume "${m[1]}", que o pod não tem`, texto: 'Cada <code>volumeMounts[].name</code> precisa ser o nome de um volume em <code>spec.volumes</code> (no mesmo pod). Confira a grafia nos dois lugares.', vidaReal: 'Pedir para instalar no apartamento um armário que não está na lista da mudança.' }),
+  },
+  {
+    re: /PersistentVolumeClaim "[^"]+" is invalid: spec: Forbidden: spec is immutable/,
+    t: () => ({ titulo: 'O pedido de disco não muda depois de feito', texto: 'Num PVC, só dá para aumentar o tamanho. Para trocar classe ou modo de acesso: <code>kubectl delete pvc NOME</code> e crie de novo (com cuidado: os dados vão junto, se a política for Delete).', vidaReal: 'O contrato do box já foi assinado: para trocar de box, cancela e faz outro.' }),
+  },
+  {
+    re: /field is immutable|Forbidden: updates to statefulset spec/,
+    t: () => ({ titulo: 'Esse campo não muda depois de criado', texto: 'Alguns campos ficam fixos. No StatefulSet, os <code>volumeClaimTemplates</code> e o <code>serviceName</code> não mudam: apague (<code>kubectl delete sts NOME</code>; os PVCs ficam) e crie de novo.', vidaReal: 'A planta do prédio já foi aprovada: mudar a garagem pede outro projeto.' }),
+  },
+  {
+    re: /pod updates may not change fields/,
+    t: () => ({ titulo: 'Um pod não muda depois de criado', texto: 'Num pod só a imagem pode mudar. Para mudar o resto (volumes, comando, portas): <code>kubectl delete pod NOME</code> e aplique de novo. Com Deployment, isso acontece sozinho.', vidaReal: 'O apartamento já está mobiliado: para mudar a planta, o morador sai e o apartamento é refeito.' }),
+  },
+  {
+    re: /Read-only file system/,
+    t: () => ({ titulo: 'Esse volume é só de leitura', texto: 'ConfigMap e Secret montados como volume são sempre só leitura (mudanças vêm do objeto, não de dentro do pod). Para gravar, use um <code>emptyDir</code> ou um PVC.', vidaReal: 'O quadro de avisos fica atrás do vidro: só a administração troca o papel.' }),
+  },
+  {
+    re: /nonexistent directory|Directory nonexistent/,
+    t: () => ({ titulo: 'A pasta não existe no contêiner', texto: 'A imagem não tem essa pasta. Monte um volume ali (<code>volumeMounts</code>) ou grave numa pasta que exista, como <code>/tmp</code>.', vidaReal: 'Guardar a caixa num box que ninguém alugou.' }),
+  },
+  {
     re: /is invalid: .*?([\w.[\]]+): Required value/,
     t: (m) => ({ titulo: `Falta um campo obrigatório: ${m[1]}`, texto: 'Esse campo não pode ficar vazio. O 📘 Manual (ou <code>kubectl explain</code>) mostra o que vai nele.', vidaReal: 'Um formulário sem um campo obrigatório preenchido.' }),
   },
@@ -71,6 +95,8 @@ const STATUS = [
   { re: /\bCrashLoopBackOff\b/, titulo: 'CrashLoopBackOff: o contêiner cai e é reiniciado', texto: 'O programa termina logo depois de subir, e o kubelet espera cada vez mais antes de tentar de novo (10s, 20s, 40s... até 5 min). Veja o motivo em <code>kubectl logs NOME --previous</code> e em <code>kubectl describe pod NOME</code>.', vidaReal: 'O morador desmaia toda vez que entra, e o síndico espera cada vez mais antes de tentar de novo.' },
   { re: /\b(ImagePullBackOff|ErrImagePull)\b/, titulo: 'A imagem não foi baixada', texto: 'Nome ou tag errado, ou imagem privada. Confira a imagem e veja o erro exato em <code>kubectl describe pod NOME</code>, nas Events.', vidaReal: 'O pré-moldado não chegou: o pedido tinha o modelo errado.' },
   { re: /\bCreateContainerConfigError\b/, titulo: 'Falta configuração para criar o contêiner', texto: 'Algum ConfigMap ou Secret usado no <code>env</code> não existe (ou não tem a chave). O <code>kubectl describe pod</code> diz qual.', vidaReal: 'A mudança travou porque o envelope com a senha não chegou.' },
+  { re: /MountVolume\.SetUp failed for volume/, titulo: 'O volume não montou', texto: 'O ConfigMap ou o Secret que o volume usa não existe (ou tem outro nome). O pod fica em ContainerCreating até ele aparecer: crie o objeto ou corrija o nome em <code>spec.volumes</code>.', vidaReal: 'A mudança espera o armário que nunca chegou.' },
+  { re: /pod has unbound immediate PersistentVolumeClaims|ProvisioningFailed/, titulo: 'O pedido de disco não foi atendido', texto: 'O PVC está Pending: a StorageClass pedida não existe (veja <code>kubectl get sc</code>) ou nenhum PV serve. <code>kubectl describe pvc NOME</code> mostra o motivo.', vidaReal: 'Pediram um box "climatizado", mas o condomínio só tem box comum.' },
   { re: /\bPending\b/, titulo: 'Pending: o pod ainda não tem lugar', texto: 'Ou o scheduler não achou um node que caiba (veja <code>kubectl describe pod</code>, em Events: <i>FailedScheduling</i>), ou ele está só começando.', vidaReal: 'Esperando no lobby: a corretora ainda não achou um prédio com espaço.' },
 ];
 

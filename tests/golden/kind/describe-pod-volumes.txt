@@ -1,0 +1,88 @@
+Name:             vitrine
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             golden-worker2/172.19.0.3
+Start Time:       Tue, 20 Oct 2026 13:20:33 -0300
+Labels:           <none>
+Annotations:      <none>
+Status:           Running
+IP:               10.244.2.15
+IPs:
+  IP:  10.244.2.15
+Containers:
+  nginx:
+    Container ID:   containerd://4fa6aedd72a8bb59ea457b232589e9c9f701305d0ef8daaf62a4ff636cfa5b2e
+    Image:          nginx:1.27
+    Image ID:       docker.io/library/nginx@sha256:6784fb0834aa7dbbe12e3d7471e69c290df3e6ba810dc38b34ae33d3c1c05f7d
+    Port:           <none>
+    Host Port:      <none>
+    State:          Running
+      Started:      Tue, 20 Oct 2026 13:20:49 -0300
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /etc/segredo from segredo (ro)
+      /usr/share/nginx/html from html (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-sxm8p (ro)
+  escritor:
+    Container ID:  containerd://df43fb8005cdda06904b4f4eae19199bb02c228a5cf6c0cd998da7e96a994c2f
+    Image:         busybox:1.36
+    Image ID:      docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      echo oi > /compartilhado/msg; sleep 3600
+    State:          Running
+      Started:      Tue, 20 Oct 2026 13:20:49 -0300
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /compartilhado from compartilhado (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-sxm8p (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  html:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      vitrine
+    Optional:  false
+  segredo:
+    Type:        Secret (a volume populated by a Secret)
+    SecretName:  cofre
+    Optional:    false
+  compartilhado:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  kube-api-access-sxm8p:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  18s   default-scheduler  Successfully assigned default/vitrine to golden-worker2
+  Normal  Pulling    17s   kubelet            spec.containers{nginx}: Pulling image "nginx:1.27"
+  Normal  Pulled     2s    kubelet            spec.containers{nginx}: Successfully pulled image "nginx:1.27" in 14.987s (14.991s including waiting). Image size: 72406859 bytes.
+  Normal  Created    2s    kubelet            spec.containers{nginx}: Container created
+  Normal  Started    2s    kubelet            spec.containers{nginx}: Container started
+  Normal  Pulled     2s    kubelet            spec.containers{escritor}: Container image "busybox:1.36" already present on machine and can be accessed by the pod
+  Normal  Created    2s    kubelet            spec.containers{escritor}: Container created
+  Normal  Started    2s    kubelet            spec.containers{escritor}: Container started
+exit=0

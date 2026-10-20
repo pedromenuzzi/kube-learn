@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"PersistentVolumeClaim","metadata":{"annotations":{},"name":"dados","namespace":"default"},"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"1Gi"}}}}
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: golden-worker2
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  creationTimestamp: "2026-10-20T16:20:03Z"
+  finalizers:
+  - kubernetes.io/pvc-protection
+  name: dados
+  namespace: default
+  resourceVersion: "2395"
+  uid: c7e57d91-2ef8-4b8e-b299-1c1c1f7d2508
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard
+  volumeMode: Filesystem
+  volumeName: pvc-c7e57d91-2ef8-4b8e-b299-1c1c1f7d2508
+status:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 1Gi
+  conditions:
+  - lastProbeTime: null
+    lastTransitionTime: "2026-10-20T16:20:06Z"
+    message: A pod is currently referencing this PVC
+    reason: PodUsingPVC
+    status: "False"
+    type: Unused
+  phase: Bound
+exit=0

@@ -3,6 +3,7 @@
 import { hashTemplate, canonico } from './aleatorio.js';
 import { casaSeletor, estaPronto, portaAlvo, classeDoIngress, IP_INGRESS } from './rede.js';
 import { iso } from './unidades.js';
+import { controladorDeDiscos } from './discos.js';
 
 const clone = (o) => structuredClone(o);
 const TERMINAIS = new Set(['Succeeded', 'Failed']);
@@ -15,6 +16,8 @@ export function rodarControladores(c) {
   namespaces(c);
   deployments(c);
   replicasets(c);
+  statefulsets(c);
+  controladorDeDiscos(c);
   endpoints(c);
   balanceadores(c);
   ingresses(c);
@@ -398,6 +401,108 @@ function replicasets(c) {
     if (JSON.stringify(status) !== JSON.stringify(rs.status)) {
       rs.status = status;
       c.salvar(rs);
+    }
+  }
+}
+
+// ---------- StatefulSet ----------
+const indice = (p) => Number(p.metadata.labels?.['apps.kubernetes.io/pod-index'] ?? p.metadata.name.split('-').pop());
+const prontoERodando = (p) => p.status?.phase === 'Running' && estaPronto(p) && !p.metadata.deletionTimestamp;
+
+/** Pods com identidade: nomes fixos (db-0, db-1...), um de cada vez, cada um com o seu PVC. */
+function statefulsets(c) {
+  for (const sts of c.listar('StatefulSet')) {
+    if (sts.metadata.deletionTimestamp) continue;
+    const ns = sts.metadata.namespace;
+    const nome = sts.metadata.name;
+    const revisao = `${nome}-${hashTemplate(sts.spec.template)}`;
+    const meus = c.listar('Pod', ns).filter((p) => controlador(p)?.uid === sts.metadata.uid);
+    const porIndice = new Map(meus.map((p) => [indice(p), p]));
+    const n = sts.spec.replicas;
+    const emOrdem = sts.spec.podManagementPolicy !== 'Parallel';
+    const evento = (motivo, msg) => c.evento(sts, 'Normal', motivo, msg, { componente: 'statefulset-controller' });
+
+    // Sobe: cria o que falta, em ordem; o próximo só nasce quando o anterior está pronto (OrderedReady).
+    for (let i = 0; i < n; i++) {
+      const p = porIndice.get(i);
+      if (p) {
+        if (TERMINAIS.has(p.status?.phase) && !p.metadata.deletionTimestamp) c.remover(p, { graca: 0 });
+        if (emOrdem && !prontoERodando(p)) break;
+        continue;
+      }
+      const podNome = `${nome}-${i}`;
+      const moldes = sts.spec.volumeClaimTemplates ?? [];
+      for (const t of moldes) {
+        const pvcNome = `${t.metadata.name}-${podNome}`;
+        if (c.obter('PersistentVolumeClaim', ns, pvcNome)) continue;
+        c.criar({
+          apiVersion: 'v1', kind: 'PersistentVolumeClaim',
+          metadata: { ...clone(t.metadata), name: pvcNome, namespace: ns, labels: { ...(t.metadata.labels ?? {}), ...sts.spec.selector.matchLabels } },
+          spec: clone(t.spec),
+        });
+        evento('SuccessfulCreate', `Create Claim ${pvcNome} Pod ${podNome} in StatefulSet ${nome} success`);
+      }
+      const spec = clone(sts.spec.template.spec);
+      const volumesDosMoldes = moldes.map((t) => ({ name: t.metadata.name, persistentVolumeClaim: { claimName: `${t.metadata.name}-${podNome}` } }));
+      spec.volumes = [...volumesDosMoldes, ...(spec.volumes ?? []).filter((v) => !moldes.some((t) => t.metadata.name === v.name))];
+      if (!spec.volumes.length) delete spec.volumes;
+      spec.hostname = podNome;
+      if (sts.spec.serviceName) spec.subdomain = sts.spec.serviceName;
+      c.criar({
+        apiVersion: 'v1', kind: 'Pod',
+        metadata: {
+          generateName: `${nome}-`,
+          name: podNome,
+          namespace: ns,
+          labels: { ...clone(sts.spec.template.metadata?.labels ?? {}), 'apps.kubernetes.io/pod-index': String(i), 'controller-revision-hash': revisao, 'statefulset.kubernetes.io/pod-name': podNome },
+          ...(sts.spec.template.metadata?.annotations ? { annotations: clone(sts.spec.template.metadata.annotations) } : {}),
+          ownerReferences: [dono(sts)],
+        },
+        spec,
+      });
+      evento('SuccessfulCreate', `Create Pod ${podNome} in StatefulSet ${nome} successful`);
+      if (emOrdem) break;
+    }
+
+    // Desce: apaga do maior número para o menor, um de cada vez. Os PVCs ficam (os dados esperam a volta).
+    const sobrando = meus.filter((p) => indice(p) >= n).sort((a, b) => indice(b) - indice(a));
+    if (sobrando.length && (!emOrdem || !sobrando.some((p) => p.metadata.deletionTimestamp))) {
+      const alvo = sobrando.find((p) => !p.metadata.deletionTimestamp);
+      if (alvo) {
+        c.remover(alvo);
+        evento('SuccessfulDelete', `Delete Pod ${alvo.metadata.name} in StatefulSet ${nome} successful`);
+      }
+    }
+
+    // Template novo (RollingUpdate): troca do maior número para o menor, um pod de cada vez, esperando o anterior.
+    const atuais = [...porIndice.entries()].filter(([i]) => i < n).map(([, p]) => p);
+    const particao = sts.spec.updateStrategy?.rollingUpdate?.partition ?? 0;
+    if (sts.spec.updateStrategy?.type !== 'OnDelete' && atuais.length === n && atuais.every(prontoERodando)) {
+      const velho = atuais.filter((p) => indice(p) >= particao && p.metadata.labels['controller-revision-hash'] !== revisao).sort((a, b) => indice(b) - indice(a))[0];
+      if (velho) {
+        c.remover(velho);
+        evento('SuccessfulDelete', `Delete Pod ${velho.metadata.name} in StatefulSet ${nome} successful`);
+      }
+    }
+
+    const vivos = c.listar('Pod', ns).filter((p) => controlador(p)?.uid === sts.metadata.uid && !p.metadata.deletionTimestamp);
+    const novos = vivos.filter((p) => p.metadata.labels['controller-revision-hash'] === revisao);
+    const prontos = vivos.filter((p) => estaPronto(p));
+    const revisaoAtual = novos.length === vivos.length ? revisao : sts.status?.currentRevision ?? revisao;
+    const status = {
+      availableReplicas: prontos.length,
+      collisionCount: 0,
+      ...(vivos.length - (revisaoAtual === revisao ? 0 : novos.length) ? { currentReplicas: vivos.length - (revisaoAtual === revisao ? 0 : novos.length) } : {}),
+      currentRevision: revisaoAtual,
+      observedGeneration: sts.metadata.generation,
+      ...(prontos.length ? { readyReplicas: prontos.length } : {}),
+      replicas: vivos.length,
+      updateRevision: revisao,
+      ...(novos.length ? { updatedReplicas: novos.length } : {}),
+    };
+    if (JSON.stringify(status) !== JSON.stringify(sts.status)) {
+      sts.status = status;
+      c.salvar(sts);
     }
   }
 }

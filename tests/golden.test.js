@@ -23,6 +23,10 @@ const ESPECIAIS = {
   'explain-deploy': { estrutura: true },
   'explain-replicas': { estrutura: true },
   'explain-containers': { estrutura: true },
+  // Fase 6: o pod caiu num node que ainda não tinha o nginx (a ordem dos eventos muda); o rollout real ainda
+  // pegou o StatefulSet antes do controlador ("spec update to be observed"): compara as duas últimas linhas.
+  'describe-pod-volumes': { ate: 'Events:' },
+  'rollout-sts': { ultimas: 2 },
 };
 
 const linhas = (t) => t.split('\n');
@@ -46,6 +50,7 @@ function comparavel(texto, regra) {
     const ls = linhas(t).filter(Boolean);
     return [ls[0], ...ls.slice(-2)].join('\n');
   }
+  if (regra.ultimas) return linhas(t).filter(Boolean).slice(-regra.ultimas).join('\n');
   if (regra.estrutura) return linhas(t).filter((l) => /^(GROUP|KIND|VERSION|FIELD|DESCRIPTION|FIELDS|exit)|^ \| [a-zA-Z]+ \| </.test(l)).join('\n');
   return t;
 }

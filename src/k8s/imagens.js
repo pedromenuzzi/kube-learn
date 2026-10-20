@@ -55,9 +55,14 @@ const nginx = (versao) => ({
   binarios: [...BINARIOS_DEBIAN, 'curl', 'nginx', '/docker-entrypoint.sh'],
   servidor: {
     portas: [80],
-    http: (caminho) => (caminho === '/' || caminho === '/index.html'
-      ? { status: 200, corpo: NGINX_HTML, tipo: 'text/html' }
-      : { status: 404, corpo: NGINX_404(versao), tipo: 'text/html' }),
+    // Serve os arquivos da pasta html do contêiner (a da imagem, ou um volume montado por cima).
+    http: (caminho, { ler }) => {
+      const arquivo = `/usr/share/nginx/html${caminho.endsWith('/') ? `${caminho}index.html` : caminho}`;
+      const corpo = ler(arquivo);
+      return corpo !== undefined
+        ? { status: 200, corpo, tipo: /\.html?$/.test(arquivo) ? 'text/html' : /\.(txt|conf)$/.test(arquivo) ? 'text/plain' : 'application/octet-stream' }
+        : { status: 404, corpo: NGINX_404(versao), tipo: 'text/html' };
+    },
     acesso: ({ agora, ip, metodo, caminho, status, tamanho, agente }) => `${ip} - - [${dataAcesso(agora)}] "${metodo} ${caminho} HTTP/1.1" ${status} ${tamanho} "-" "${agente}" "-"`,
     cabecalhoServidor: `nginx/${versao}`,
   },
@@ -102,8 +107,9 @@ const loja = (versao, extra = {}) => ({
   binarios: ['/loja'], // distroless: sem shell
   servidor: {
     portas: [8080],
-    http: (caminho, { hostname }) => (caminho === '/' || caminho === '/api'
-      ? { status: 200, corpo: `${JSON.stringify({ app: 'loja', versao, pod: hostname })}\n`, tipo: 'application/json' }
+    // A cor da vitrine vem da variável COR (de um ConfigMap, nas missões do nível 4).
+    http: (caminho, { hostname, env }) => (caminho === '/' || caminho === '/api'
+      ? { status: 200, corpo: `${JSON.stringify({ app: 'loja', versao, pod: hostname, ...(env?.COR ? { cor: env.COR } : {}) })}\n`, tipo: 'application/json' }
       : caminho === '/healthz'
         ? { status: 200, corpo: 'ok\n', tipo: 'text/plain' }
         : { status: 404, corpo: '404 page not found\n', tipo: 'text/plain' }),
@@ -149,6 +155,7 @@ export const IMAGENS = {
       comando: ['docker-entrypoint.sh', 'redis-server'],
       binarios: [...BINARIOS_DEBIAN, 'redis-server', 'redis-cli', 'docker-entrypoint.sh'],
       servidor: { portas: [6379] },
+      arquivos: { '/data/.keep': '' }, // a pasta de trabalho do redis (WORKDIR /data)
       logs: () => ['1:C 16 Oct 2026 12:00:00.000 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo', '1:M 16 Oct 2026 12:00:00.001 * Server initialized', '1:M 16 Oct 2026 12:00:00.001 * Ready to accept connections tcp'],
       paraEm: 0,
     }])),
@@ -176,6 +183,7 @@ export const IMAGENS = {
         ],
       },
       servidor: { portas: [5432] },
+      arquivos: { '/var/lib/postgresql/data/.keep': '' },
       logs: () => ['PostgreSQL init process complete; ready for start up.', '', 'LOG:  database system is ready to accept connections'],
       paraEm: 0,
     }])),
