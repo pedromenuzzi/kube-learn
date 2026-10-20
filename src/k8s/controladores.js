@@ -4,6 +4,9 @@ import { hashTemplate, canonico } from './aleatorio.js';
 import { casaSeletor, estaPronto, portaAlvo, classeDoIngress, IP_INGRESS } from './rede.js';
 import { iso } from './unidades.js';
 import { controladorDeDiscos } from './discos.js';
+import { lerCron } from './cron.js';
+import { padroesJob } from './esquema.js';
+import { tolera } from './scheduler.js';
 
 const clone = (o) => structuredClone(o);
 const TERMINAIS = new Set(['Succeeded', 'Failed']);
@@ -17,6 +20,9 @@ export function rodarControladores(c) {
   deployments(c);
   replicasets(c);
   statefulsets(c);
+  daemonsets(c);
+  cronjobs(c);
+  jobs(c);
   controladorDeDiscos(c);
   endpoints(c);
   balanceadores(c);
@@ -503,6 +509,238 @@ function statefulsets(c) {
     if (JSON.stringify(status) !== JSON.stringify(sts.status)) {
       sts.status = status;
       c.salvar(sts);
+    }
+  }
+}
+
+// ---------- Job ----------
+const ESPERA_JOB = 10_000; // depois de cada falha, a próxima tentativa espera 10s, 20s, 40s... (até 6 min)
+const condJob = (tipo, motivo, msg, agora) => ({ lastProbeTime: iso(agora), lastTransitionTime: iso(agora), message: msg, reason: motivo, status: 'True', type: tipo });
+const terminou = (job) => job.status?.conditions?.some((x) => (x.type === 'Complete' || x.type === 'Failed') && x.status === 'True');
+
+/** Roda o trabalho até o fim: completions pods com sucesso, no máximo parallelism ao mesmo tempo, até backoffLimit falhas. */
+function jobs(c) {
+  for (const job of c.listar('Job')) {
+    if (job.metadata.deletionTimestamp) continue;
+    const s = job.spec;
+    const pods = c.listar('Pod', job.metadata.namespace).filter((p) => controlador(p)?.uid === job.metadata.uid);
+    const sucesso = pods.filter((p) => p.status?.phase === 'Succeeded');
+    const falhos = pods.filter((p) => p.status?.phase === 'Failed');
+    const ativos = pods.filter((p) => !TERMINAIS.has(p.status?.phase) && !p.metadata.deletionTimestamp);
+    // Com OnFailure o contêiner reinicia no mesmo pod: cada reinício também conta como falha.
+    const reinicios = ativos.reduce((t, p) => t + (p.status?.containerStatuses ?? []).reduce((x, st) => x + st.restartCount, 0), 0);
+    const falhas = falhos.length + reinicios;
+    const evento = (tipo, motivo, msg) => c.evento(job, tipo, motivo, msg, { componente: 'job-controller' });
+    const st = { ...(job.status ?? {}) };
+    st.startTime ??= iso(c.agora);
+
+    if (ttlVencido(c, job)) continue;
+    if (!terminou(job) && !s.suspend) {
+      const prazo = s.activeDeadlineSeconds !== undefined && c.agora - Date.parse(st.startTime) >= s.activeDeadlineSeconds * 1000;
+      if (falhas > s.backoffLimit || prazo) {
+        const [motivo, msg] = prazo ? ['DeadlineExceeded', 'Job was active longer than specified deadline'] : ['BackoffLimitExceeded', 'Job has reached the specified backoff limit'];
+        for (const p of ativos) c.remover(p);
+        st.conditions = [condJob('FailureTarget', motivo, msg, c.agora), condJob('Failed', motivo, msg, c.agora)];
+        evento('Warning', motivo, msg);
+      } else if (s.completions !== undefined && sucesso.length >= s.completions) {
+        st.completionTime = iso(c.agora);
+        st.conditions = [condJob('SuccessCriteriaMet', 'CompletionsReached', 'Reached expected number of succeeded pods', c.agora), condJob('Complete', 'CompletionsReached', 'Reached expected number of succeeded pods', c.agora)];
+        evento('Normal', 'Completed', 'Job completed');
+      } else {
+        const faltam = (s.completions ?? Math.max(s.parallelism, 1)) - sucesso.length;
+        const novos = Math.min(s.parallelism, faltam) - ativos.length;
+        const ultimaFalha = Math.max(0, ...falhos.map((p) => Date.parse(p.status.containerStatuses?.[0]?.state?.terminated?.finishedAt ?? p.metadata.creationTimestamp)));
+        const espera = falhos.length ? Math.min(ESPERA_JOB * 2 ** (falhos.length - 1), 360_000) : 0;
+        if (novos > 0 && c.agora >= ultimaFalha + espera) {
+          for (let i = 0; i < novos; i++) {
+            const pod = c.criar({
+              apiVersion: 'v1', kind: 'Pod',
+              metadata: {
+                generateName: `${job.metadata.name}-`, namespace: job.metadata.namespace,
+                labels: clone(s.template.metadata?.labels ?? {}),
+                ...(s.template.metadata?.annotations ? { annotations: clone(s.template.metadata.annotations) } : {}),
+                ownerReferences: [dono(job)],
+              },
+              spec: clone(s.template.spec),
+            });
+            evento('Normal', 'SuccessfulCreate', `Created pod: ${pod.metadata.name}`);
+          }
+        }
+      }
+    }
+    const agora = c.listar('Pod', job.metadata.namespace).filter((p) => controlador(p)?.uid === job.metadata.uid && !TERMINAIS.has(p.status?.phase) && !p.metadata.deletionTimestamp);
+    const status = {
+      ...(agora.length ? { active: agora.length } : {}),
+      ...(st.completionTime ? { completionTime: st.completionTime } : {}),
+      ...(st.conditions ? { conditions: st.conditions } : {}),
+      ...(falhos.length ? { failed: falhos.length } : {}),
+      ready: agora.filter(estaPronto).length,
+      startTime: st.startTime,
+      ...(sucesso.length ? { succeeded: sucesso.length } : {}),
+      terminating: 0,
+      uncountedTerminatedPods: {},
+    };
+    if (JSON.stringify(status) !== JSON.stringify(job.status)) {
+      job.status = status;
+      c.salvar(job);
+    }
+  }
+}
+
+/** ttlSecondsAfterFinished: o Job terminado some (com os pods) depois do prazo. */
+function ttlVencido(c, job) {
+  const ttl = job.spec.ttlSecondsAfterFinished;
+  const fim = job.status?.conditions?.find((x) => (x.type === 'Complete' || x.type === 'Failed') && x.status === 'True');
+  if (ttl === undefined || !fim || c.agora - Date.parse(fim.lastTransitionTime) < ttl * 1000) return false;
+  c.remover(job);
+  return true;
+}
+
+// ---------- CronJob ----------
+/** Cria um Job a cada horário marcado (a conferência é a cada segundo do relógio do cluster). */
+function cronjobs(c) {
+  for (const cj of c.listar('CronJob')) {
+    if (cj.metadata.deletionTimestamp) continue;
+    const ns = cj.metadata.namespace;
+    const evento = (tipo, motivo, msg) => c.evento(cj, tipo, motivo, msg, { componente: 'cronjob-controller' });
+    const meus = c.listar('Job', ns).filter((j) => controlador(j)?.uid === cj.metadata.uid).sort(porCriacao);
+    const st = { ...(cj.status ?? {}) };
+    // Jobs que terminaram desde a última olhada.
+    for (const j of meus) {
+      const fim = j.status?.conditions?.find((x) => (x.type === 'Complete' || x.type === 'Failed') && x.status === 'True');
+      if (!fim || c.jobsVistos.has(j.metadata.uid)) continue;
+      c.jobsVistos.add(j.metadata.uid);
+      evento('Normal', 'SawCompletedJob', `Saw completed job: ${j.metadata.name}, condition: ${fim.type}`);
+      if (fim.type === 'Complete') st.lastSuccessfulTime = j.status.completionTime;
+    }
+    // O horário: um Job por minuto marcado, sem repetir o mesmo minuto.
+    const minuto = Math.floor(c.agora / 60_000) * 60_000;
+    const horario = lerCron(cj.spec.schedule);
+    const ultimo = st.lastScheduleTime ? Date.parse(st.lastScheduleTime) : Date.parse(cj.metadata.creationTimestamp);
+    const ativos = () => c.listar('Job', ns).filter((j) => controlador(j)?.uid === cj.metadata.uid && !terminou(j));
+    if (!cj.spec.suspend && !horario.erro && minuto > ultimo && horario.casa(minuto)) {
+      const pol = cj.spec.concurrencyPolicy;
+      st.lastScheduleTime = iso(minuto);
+      if (pol === 'Forbid' && ativos().length) {
+        evento('Normal', 'JobAlreadyActive', 'Not starting job because prior execution is running and concurrency policy is Forbid');
+      } else {
+        if (pol === 'Replace') for (const j of ativos()) {
+          c.remover(j);
+          evento('Normal', 'SuccessfulDelete', `Deleted job ${j.metadata.name}`);
+        }
+        const molde = clone(cj.spec.jobTemplate);
+        const spec = molde.spec;
+        padroesJob(spec);
+        const nome = `${cj.metadata.name}-${Math.floor(minuto / 60_000)}`;
+        c.criar({
+          apiVersion: 'batch/v1', kind: 'Job',
+          metadata: { ...(molde.metadata ?? {}), name: nome, namespace: ns, annotations: { ...(molde.metadata?.annotations ?? {}), 'batch.kubernetes.io/cronjob-scheduled-timestamp': iso(minuto) }, ownerReferences: [dono(cj)] },
+          spec,
+        });
+        evento('Normal', 'SuccessfulCreate', `Created job ${nome}`);
+      }
+    }
+    // O histórico: guarda só os últimos (3 com sucesso, 1 com falha, por padrão).
+    const guardar = (tipo, limite) => {
+      const lista = c.listar('Job', ns).filter((j) => controlador(j)?.uid === cj.metadata.uid && j.status?.conditions?.some((x) => x.type === tipo && x.status === 'True')).sort(porCriacao);
+      for (const j of lista.slice(0, Math.max(0, lista.length - limite))) {
+        c.remover(j);
+        evento('Normal', 'SuccessfulDelete', `Deleted job ${j.metadata.name}`);
+      }
+    };
+    guardar('Complete', cj.spec.successfulJobsHistoryLimit);
+    guardar('Failed', cj.spec.failedJobsHistoryLimit);
+    const lista = ativos();
+    const status = {
+      ...(lista.length ? { active: lista.map((j) => ({ apiVersion: 'batch/v1', kind: 'Job', name: j.metadata.name, namespace: ns, resourceVersion: j.metadata.resourceVersion, uid: j.metadata.uid })) } : {}),
+      ...(st.lastScheduleTime ? { lastScheduleTime: st.lastScheduleTime } : {}),
+      ...(st.lastSuccessfulTime ? { lastSuccessfulTime: st.lastSuccessfulTime } : {}),
+    };
+    if (JSON.stringify(status) !== JSON.stringify(cj.status ?? {})) {
+      cj.status = status;
+      c.salvar(cj);
+    }
+  }
+}
+
+// ---------- DaemonSet ----------
+// As tolerâncias que o controlador põe em todo pod de DaemonSet (o "extintor" vai até em prédio com problema).
+const TOLERANCIAS_DS = [['not-ready', 'NoExecute'], ['unreachable', 'NoExecute'], ['disk-pressure', 'NoSchedule'], ['memory-pressure', 'NoSchedule'], ['pid-pressure', 'NoSchedule'], ['unschedulable', 'NoSchedule']];
+
+/** O node pode receber o pod do DaemonSet? (seletor e taints) */
+function nodeServe(ds, node) {
+  const sel = ds.spec.template.spec.nodeSelector ?? {};
+  if (Object.entries(sel).some(([k, v]) => node.metadata.labels?.[k] !== v)) return false;
+  return (node.spec.taints ?? []).every((t) => !['NoSchedule', 'NoExecute'].includes(t.effect) || tolera({ spec: ds.spec.template.spec }, t));
+}
+
+/** Um pod em cada node que serve. Node novo ganha o pod; node que deixa de servir perde. */
+function daemonsets(c) {
+  for (const ds of c.listar('DaemonSet')) {
+    if (ds.metadata.deletionTimestamp) continue;
+    const ns = ds.metadata.namespace;
+    const evento = (motivo, msg) => c.evento(ds, 'Normal', motivo, msg, { componente: 'daemonset-controller' });
+    const geracao = String(ds.metadata.generation ?? 1);
+    if (ds.metadata.annotations?.['deprecated.daemonset.template.generation'] !== geracao) {
+      ds.metadata.annotations = { ...(ds.metadata.annotations ?? {}), 'deprecated.daemonset.template.generation': geracao };
+      c.salvar(ds);
+    }
+    const revisao = hashTemplate(ds.spec.template);
+    const pods = c.listar('Pod', ns).filter((p) => controlador(p)?.uid === ds.metadata.uid && !p.metadata.deletionTimestamp);
+    const noNode = (p) => p.spec.affinity?.nodeAffinity?.requiredDuringSchedulingIgnoredDuringExecution?.nodeSelectorTerms?.[0]?.matchFields?.[0]?.values?.[0] ?? p.spec.nodeName;
+    const nodes = c.listar('Node');
+    const servem = nodes.filter((n) => nodeServe(ds, n));
+    for (const node of servem) {
+      const nome = node.metadata.name;
+      if (pods.some((p) => noNode(p) === nome)) continue;
+      const spec = clone(ds.spec.template.spec);
+      spec.affinity = { ...(spec.affinity ?? {}), nodeAffinity: { requiredDuringSchedulingIgnoredDuringExecution: { nodeSelectorTerms: [{ matchFields: [{ key: 'metadata.name', operator: 'In', values: [nome] }] }] } } };
+      spec.tolerations = [...(spec.tolerations ?? [])];
+      for (const [k, efeito] of [...TOLERANCIAS_DS, ...(spec.hostNetwork ? [['network-unavailable', 'NoSchedule']] : [])]) {
+        spec.tolerations.push({ effect: efeito, key: `node.kubernetes.io/${k}`, operator: 'Exists' });
+      }
+      const pod = c.criar({
+        apiVersion: 'v1', kind: 'Pod',
+        metadata: {
+          generateName: `${ds.metadata.name}-`, namespace: ns,
+          labels: { ...clone(ds.spec.template.metadata?.labels ?? {}), 'controller-revision-hash': revisao, 'pod-template-generation': geracao },
+          ...(ds.spec.template.metadata?.annotations ? { annotations: clone(ds.spec.template.metadata.annotations) } : {}),
+          ownerReferences: [dono(ds)],
+        },
+        spec,
+      });
+      evento('SuccessfulCreate', `Created pod: ${pod.metadata.name}`);
+    }
+    // Node que não serve mais (ou saiu do cluster): o pod sai também.
+    for (const p of pods) {
+      if (servem.some((n) => n.metadata.name === noNode(p))) continue;
+      c.remover(p);
+      evento('SuccessfulDelete', `Deleted pod: ${p.metadata.name}`);
+    }
+    // Template novo: troca um node de cada vez (maxUnavailable 1), esperando o anterior ficar pronto.
+    if (ds.spec.updateStrategy?.type !== 'OnDelete') {
+      const vivos = c.listar('Pod', ns).filter((p) => controlador(p)?.uid === ds.metadata.uid);
+      const velho = vivos.find((p) => p.metadata.labels['controller-revision-hash'] !== revisao && !p.metadata.deletionTimestamp);
+      if (velho && vivos.every((p) => p.metadata.deletionTimestamp || p === velho || estaPronto(p)) && !vivos.some((p) => p.metadata.deletionTimestamp)) {
+        c.remover(velho);
+        evento('SuccessfulDelete', `Deleted pod: ${velho.metadata.name}`);
+      }
+    }
+    const atuais = c.listar('Pod', ns).filter((p) => controlador(p)?.uid === ds.metadata.uid && !p.metadata.deletionTimestamp);
+    const prontos = atuais.filter(estaPronto);
+    const status = {
+      currentNumberScheduled: atuais.length,
+      desiredNumberScheduled: servem.length,
+      ...(prontos.length ? { numberAvailable: prontos.length } : {}),
+      numberMisscheduled: 0,
+      numberReady: prontos.length,
+      ...(servem.length - prontos.length > 0 ? { numberUnavailable: servem.length - prontos.length } : {}),
+      observedGeneration: ds.metadata.generation,
+      ...(atuais.filter((p) => p.metadata.labels['controller-revision-hash'] === revisao).length ? { updatedNumberScheduled: atuais.filter((p) => p.metadata.labels['controller-revision-hash'] === revisao).length } : {}),
+    };
+    if (JSON.stringify(status) !== JSON.stringify(ds.status)) {
+      ds.status = status;
+      c.salvar(ds);
     }
   }
 }

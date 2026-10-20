@@ -322,5 +322,40 @@ export function rodarCenario() {
   c.avancar('10s');
   cap('scale-sts-get', 'kubectl get pods -l app=db');
   cap('scale-sts-pvc', 'kubectl get pvc -l app=db');
+
+  // Fase 6 · nível 5: Job, CronJob, DaemonSet, init container e sidecar
+  cap('apply-job', 'kubectl apply -f /tmp/kl-job.yaml');
+  cap('wait-job', 'kubectl wait --for=condition=complete job/relatorio --timeout=120s');
+  cap('get-jobs', 'kubectl get jobs');
+  cap('get-jobs-wide', 'kubectl get jobs -o wide');
+  cap('describe-job', 'kubectl describe job relatorio');
+  cap('yaml-job', 'kubectl get job relatorio -o yaml');
+  cap('get-pods-job', 'kubectl get pods -l job-name=relatorio');
+  cap('logs-job-pod', 'kubectl logs -l job-name=relatorio --tail=1');
+  cap('apply-job-falha', 'kubectl apply -f /tmp/kl-job-falha.yaml');
+  c.avancar('50s');
+  cap('get-job-falha', 'kubectl get job falha');
+  cap('describe-job-falha', 'kubectl describe job falha');
+  cap('apply-job-sem-politica', 'kubectl apply -f /tmp/kl-job-sem-politica.yaml');
+  cap('apply-cron-errado', 'kubectl apply -f /tmp/kl-cron-errado.yaml');
+  cap('dry-job', 'kubectl create job x --image=busybox:1.36 --dry-run=client -o yaml -- echo oi');
+  cap('dry-cronjob', "kubectl create cronjob y --image=busybox:1.36 --schedule='*/5 * * * *' --dry-run=client -o yaml");
+  cap('apply-init', 'kubectl apply -f /tmp/kl-init.yaml');
+  c.avancarAte(() => podPronto('com-init')() && podPronto('com-sidecar')(), '2m');
+  cap('get-pods-init', 'kubectl get pods com-init com-sidecar');
+  cap('describe-pod-init', 'kubectl describe pod com-init');
+  cap('logs-init', 'kubectl logs com-init -c espera');
+  cap('get-ds', 'kubectl get ds -A');
+  cap('get-ds-wide', 'kubectl get ds -A -o wide');
+  cap('describe-ds-kindnet', 'kubectl describe ds kindnet -n kube-system');
+  cap('apply-extintor', 'kubectl apply -f /tmp/kl-extintor.yaml');
+  cap('rollout-ds', 'kubectl rollout status ds/extintor --timeout=120s');
+  cap('get-ds-extintor', 'kubectl get ds extintor');
+  cap('describe-ds-extintor', 'kubectl describe ds extintor');
+  cap('apply-cron', 'kubectl apply -f /tmp/kl-cron.yaml');
+  c.avancarAte(() => c.listar('Job', 'default').some((j) => j.metadata.name.startsWith('limpeza-')), '2m');
+  c.avancar('8s');
+  cap('get-cronjob', 'kubectl get cronjob');
+  cap('describe-cronjob', 'kubectl describe cronjob limpeza');
   return { saidas, cluster: c };
 }

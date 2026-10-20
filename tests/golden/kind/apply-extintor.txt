@@ -1,0 +1,2 @@
+daemonset.apps/extintor created
+exit=0

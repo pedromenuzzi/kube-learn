@@ -8,8 +8,13 @@ const ordenar = (v) => {
   return v;
 };
 
+// O que o YAML 1.1 leria como outro tipo (bool, número, nulo): o go-yaml põe entre aspas duplas; o resto que não
+// pode ficar sem aspas (começa com *, tem ": "...) vai entre aspas simples.
+const OUTRO_TIPO = /^(?:[yYnN]|yes|Yes|YES|no|No|NO|true|True|TRUE|false|False|FALSE|on|On|ON|off|Off|OFF|null|Null|NULL|~|[-+]?[\d_]*\.?[\d_]+(?:[eE][-+]?\d+)?|0x[\da-fA-F]+|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN)|\d{4}-\d\d?-\d\d?(?:(?:[Tt]|\s+)\d\d?:\d\d:\d\d(?:\.\d*)?(?:\s*(?:Z|[-+]\d\d?(?::\d\d)?))?)?|)$/;
+const aspasDoGo = (texto) => texto.replace(/(?<=(?:^|: |- ))"((?:[^"\\]|\\.)*)"$/gm, (m, dentro) => (dentro.includes('\\') || OUTRO_TIPO.test(dentro) ? m : `'${dentro.replaceAll("'", "''")}'`));
+
 /** YAML como o kubectl: chaves em ordem alfabética, listas sem recuo, sem quebrar linhas longas. */
-export const paraYaml = (obj) => stringify(ordenar(obj), { indentSeq: false, lineWidth: 0, version: '1.1', aliasDuplicateObjects: false });
+export const paraYaml = (obj) => aspasDoGo(stringify(ordenar(obj), { indentSeq: false, lineWidth: 0, version: '1.1', aliasDuplicateObjects: false }));
 
 /** JSON como o kubectl: chaves em ordem, 4 espaços e <, >, & escapados (como o encoding/json do Go). */
 export const paraJson = (obj) => `${JSON.stringify(ordenar(obj), null, 4)

@@ -497,3 +497,163 @@ cap scale-sts kc scale sts db --replicas=1
 sleep 10
 cap scale-sts-get kc get pods -l app=db
 cap scale-sts-pvc kc get pvc -l app=db
+
+# ---------- Fase 6 · nível 5: Job, CronJob, DaemonSet, init container e sidecar ----------
+cat > /tmp/kl-job.yaml <<'Y'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: relatorio
+spec:
+  completions: 3
+  parallelism: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: relatorio
+        image: busybox:1.36
+        command: ["sh", "-c", "echo gerando relatorio; sleep 3; echo pronto"]
+Y
+cat > /tmp/kl-job-falha.yaml <<'Y'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: falha
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: falha
+        image: busybox:1.36
+        command: ["sh", "-c", "echo tentando; exit 1"]
+Y
+cat > /tmp/kl-job-sem-politica.yaml <<'Y'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sem-politica
+spec:
+  template:
+    spec:
+      containers:
+      - name: c
+        image: busybox:1.36
+        command: ["echo", "oi"]
+Y
+cat > /tmp/kl-cron-errado.yaml <<'Y'
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hora-errada
+spec:
+  schedule: "a cada 5 minutos"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: c
+            image: busybox:1.36
+Y
+cat > /tmp/kl-cron.yaml <<'Y'
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: limpeza
+spec:
+  schedule: "*/1 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: limpeza
+            image: busybox:1.36
+            command: ["sh", "-c", "echo varrendo o corredor"]
+Y
+cat > /tmp/kl-init.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: com-init
+spec:
+  initContainers:
+  - name: espera
+    image: busybox:1.36
+    command: ["sh", "-c", "echo esperando o banco; sleep 8"]
+  containers:
+  - name: app
+    image: nginx:1.27
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: com-sidecar
+spec:
+  initContainers:
+  - name: logs
+    image: busybox:1.36
+    restartPolicy: Always
+    command: ["sh", "-c", "while true; do echo enviando logs; sleep 5; done"]
+  containers:
+  - name: app
+    image: nginx:1.27
+Y
+cat > /tmp/kl-extintor.yaml <<'Y'
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: extintor
+spec:
+  selector:
+    matchLabels:
+      app: extintor
+  template:
+    metadata:
+      labels:
+        app: extintor
+    spec:
+      containers:
+      - name: extintor
+        image: busybox:1.36
+        command: ["sleep", "3600"]
+Y
+
+cap apply-job kc apply -f /tmp/kl-job.yaml
+cap wait-job kc wait --for=condition=complete job/relatorio --timeout=120s
+cap get-jobs kc get jobs
+cap get-jobs-wide kc get jobs -o wide
+cap describe-job kc describe job relatorio
+cap yaml-job kc get job relatorio -o yaml
+cap get-pods-job kc get pods -l job-name=relatorio
+cap logs-job-pod kc logs -l job-name=relatorio --tail=1
+cap apply-job-falha kc apply -f /tmp/kl-job-falha.yaml
+sleep 50
+cap get-job-falha kc get job falha
+cap describe-job-falha kc describe job falha
+cap apply-job-sem-politica kc apply -f /tmp/kl-job-sem-politica.yaml
+cap apply-cron-errado kc apply -f /tmp/kl-cron-errado.yaml
+cap dry-job kc create job x --image=busybox:1.36 --dry-run=client -o yaml -- echo oi
+cap dry-cronjob kc create cronjob y --image=busybox:1.36 --schedule='*/5 * * * *' --dry-run=client -o yaml
+cap apply-init kc apply -f /tmp/kl-init.yaml
+kc wait --for=condition=Ready pod/com-init pod/com-sidecar --timeout=120s >/dev/null 2>&1
+cap get-pods-init kc get pods com-init com-sidecar
+cap describe-pod-init kc describe pod com-init
+cap logs-init kc logs com-init -c espera
+cap get-ds kc get ds -A
+cap get-ds-wide kc get ds -A -o wide
+cap describe-ds-kindnet kc describe ds kindnet -n kube-system
+cap apply-extintor kc apply -f /tmp/kl-extintor.yaml
+cap rollout-ds kc rollout status ds/extintor --timeout=120s
+cap get-ds-extintor kc get ds extintor
+cap describe-ds-extintor kc describe ds extintor
+cap apply-cron kc apply -f /tmp/kl-cron.yaml
+for i in $(seq 1 40); do kc get jobs 2>/dev/null | grep -q limpeza && break; sleep 3; done
+sleep 8
+cap get-cronjob kc get cronjob
+cap describe-cronjob kc describe cronjob limpeza

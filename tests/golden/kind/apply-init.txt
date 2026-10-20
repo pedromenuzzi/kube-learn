@@ -1,0 +1,3 @@
+pod/com-init created
+pod/com-sidecar created
+exit=0

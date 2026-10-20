@@ -1,0 +1,38 @@
+Name:                          limpeza
+Namespace:                     default
+Labels:                        <none>
+Annotations:                   <none>
+Schedule:                      */1 * * * *
+Concurrency Policy:            Allow
+Suspend:                       False
+Time Zone:                     <unset>
+Successful Job History Limit:  3
+Failed Job History Limit:      1
+Starting Deadline Seconds:     <unset>
+Selector:                      <unset>
+Parallelism:                   <unset>
+Completions:                   <unset>
+Pod Template:
+  Labels:  <none>
+  Containers:
+   limpeza:
+    Image:      busybox:1.36
+    Port:       <none>
+    Host Port:  <none>
+    Command:
+      sh
+      -c
+      echo varrendo o corredor
+    Environment:     <none>
+    Mounts:          <none>
+  Volumes:           <none>
+  Node-Selectors:    <none>
+  Tolerations:       <none>
+Last Schedule Time:  Tue, 20 Oct 2026 14:00:00 -0300
+Active Jobs:         <none>
+Events:
+  Type    Reason            Age   From                Message
+  ----    ------            ----  ----                -------
+  Normal  SuccessfulCreate  12s   cronjob-controller  Created job limpeza-29875260
+  Normal  SawCompletedJob   8s    cronjob-controller  Saw completed job: limpeza-29875260, condition: Complete
+exit=0

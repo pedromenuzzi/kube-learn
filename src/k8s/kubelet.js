@@ -13,6 +13,10 @@ const SINCRONIA = 2000; // o kubelet só percebe a queda e reinicia na próxima 
 const WRAPPERS = new Set(['/docker-entrypoint.sh', 'docker-entrypoint.sh']);
 const ATRASO_CONFIG = 60_000; // o kubelet leva até um minuto para atualizar um ConfigMap montado como volume
 const sem = (caminho) => `/${caminho.split('/').filter(Boolean).join('/')}`;
+/** Init container com restartPolicy Always: o sidecar (sobe antes do app e continua rodando ao lado dele). */
+export const ehSidecar = (ct) => ct.restartPolicy === 'Always';
+const todosOsConteineres = (pod) => [...(pod.spec.initContainers ?? []), ...pod.spec.containers];
+const terminouBem = (est) => est.fase === 'terminado' && est.atual?.exitCode === 0;
 
 /** Duração no formato do Go: 3.214s, 520ms. */
 const duracaoGo = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(3).replace(/\.?0+$/, '')}s` : `${ms}ms`);
@@ -58,7 +62,7 @@ export class Kubelet {
       };
       this.pods.set(uid, e);
     }
-    for (const ct of pod.spec.containers) {
+    for (const ct of todosOsConteineres(pod)) {
       if (!e.conteineres.has(ct.name)) e.conteineres.set(ct.name, { fase: 'esperando', reinicios: 0, logs: [], logsAnteriores: [], backoff: BACKOFF_INICIAL, backoffPull: BACKOFF_INICIAL });
     }
     if (pod.metadata.deletionTimestamp) {
@@ -67,14 +71,18 @@ export class Kubelet {
     }
     if (this.montarVolumes(pod, e)) {
       e.ip ??= pod.spec.hostNetwork ? c.ipDoNode(node) : c.alocarIpPod(node);
-      for (const ct of pod.spec.containers) this.passo(pod, ct, e.conteineres.get(ct.name));
+      if (this.inicializar(pod, e)) {
+        for (const ct of pod.spec.containers) this.passo(pod, ct, e.conteineres.get(ct.name));
+        this.encerrarSidecars(pod, e);
+      }
     }
     this.escreverStatus(pod, e);
   }
 
   // ---------- eventos ----------
   evento(pod, ct, tipo, motivo, mensagem) {
-    this.c.evento(pod, tipo, motivo, mensagem, { componente: 'kubelet', campo: `spec.containers{${ct.name}}`, host: pod.spec.nodeName });
+    const lista = (pod.spec.initContainers ?? []).some((x) => x.name === ct.name) ? 'initContainers' : 'containers';
+    this.c.evento(pod, tipo, motivo, mensagem, { componente: 'kubelet', campo: `spec.${lista}{${ct.name}}`, host: pod.spec.nodeName });
   }
 
   // ---------- volumes ----------
@@ -166,13 +174,51 @@ export class Kubelet {
 
   /** O sistema de arquivos de um contêiner pelo nome (para o servidor da imagem ler os arquivos dele). */
   fsDe(pod, nome) {
-    const ct = pod.spec.containers.find((x) => x.name === nome);
+    const ct = todosOsConteineres(pod).find((x) => x.name === nome);
     const est = this.estado(pod, nome);
     return ct && est ? this.fs(pod, ct, est) : null;
   }
 
+  /**
+   * Os init containers, em ordem: cada um precisa terminar bem (código 0) antes do próximo; um sidecar só precisa
+   * estar rodando. → true quando os contêineres do app já podem subir.
+   */
+  inicializar(pod, e) {
+    const inits = pod.spec.initContainers ?? [];
+    const politica = pod.spec.restartPolicy === 'Never' ? 'Never' : 'OnFailure'; // init que falha tenta de novo, a menos que Never
+    for (const ct of inits) {
+      const est = e.conteineres.get(ct.name);
+      if (ehSidecar(ct)) {
+        this.passo(pod, ct, est, 'Always');
+        if (!e.inicializado && est.fase !== 'rodando') return false;
+        continue;
+      }
+      if (e.inicializado || terminouBem(est)) {
+        est.final = true;
+        continue;
+      }
+      this.passo(pod, ct, est, politica);
+      if (!terminouBem(est)) return false;
+      est.final = true;
+    }
+    e.inicializado = true;
+    return true;
+  }
+
+  /** O app terminou de vez (um Job, por exemplo): os sidecars recebem o sinal e saem, e o pod pode terminar. */
+  encerrarSidecars(pod, e) {
+    if (!pod.spec.containers.every((ct) => e.conteineres.get(ct.name).final)) return;
+    for (const ct of (pod.spec.initContainers ?? []).filter(ehSidecar)) {
+      const est = e.conteineres.get(ct.name);
+      if (est.fase !== 'rodando') continue;
+      this.evento(pod, ct, 'Normal', 'Killing', `Stopping container ${ct.name}`);
+      this.encerrarExecucao(pod, ct, est, 0, 'Completed');
+      est.final = true;
+    }
+  }
+
   // ---------- máquina de estados de um contêiner ----------
-  passo(pod, ct, est) {
+  passo(pod, ct, est, politicaDoContainer = pod.spec.restartPolicy) {
     const agora = this.c.agora;
     if (est.imagem && est.imagem !== ct.image && ['rodando', 'terminado', 'backoffCrash'].includes(est.fase)) {
       // A imagem do pod mudou (kubectl set image num pod solto): o contêiner é recriado.
@@ -209,7 +255,7 @@ export class Kubelet {
       case 'terminado':
         if (est.final) break;
         if (!est.decidido) {
-          const politica = pod.spec.restartPolicy;
+          const politica = politicaDoContainer;
           if (!(politica === 'Always' || (politica === 'OnFailure' && est.atual.exitCode !== 0))) {
             if (agora >= est.ate) est.final = true;
             break;
@@ -337,12 +383,17 @@ export class Kubelet {
     const node = c.obter('Node', null, pod.spec.nodeName);
     const ctx = this.contexto(pod, ct, est, saida);
     const programa = programaPadrao(comp);
-    if (comp.servidor && bin === programa[0]) {
+    const base = (x) => x?.split('/').pop();
+    if (comp.servidor && base(bin) === base(programa[0])) {
       est.processo = (function* servidor() {
         // Falta configuração: o programa sai na hora, sem nunca ficar pronto.
         if (comp.exigeEnv?.some((k) => !est.env[k])) {
           saida(`${comp.semEnv.log.join('\n')}\n`);
           return { codigo: comp.semEnv.codigo };
+        }
+        if (comp.exigeArquivo && ctx.fs.ler(comp.exigeArquivo) === undefined) {
+          saida(`${comp.semArquivo.log.join('\n')}\n`);
+          return { codigo: comp.semArquivo.codigo };
         }
         const linhas = comp.logs({ agora: c.agora, cpus: Math.max(1, Math.floor(c.cpuDoNode(node) / 1000)), kernel: c.kernel });
         if (linhas.length) saida(`${linhas.join('\n')}\n`);
@@ -402,7 +453,7 @@ export class Kubelet {
     if (!e.terminando) {
       e.terminando = true;
       const prazo = (pod.metadata.deletionGracePeriodSeconds ?? pod.spec.terminationGracePeriodSeconds ?? 30) * 1000;
-      for (const ct of pod.spec.containers) {
+      for (const ct of todosOsConteineres(pod)) {
         const est = e.conteineres.get(ct.name);
         if (est.fase === 'rodando') {
           this.evento(pod, ct, 'Normal', 'Killing', `Stopping container ${ct.name}`);
@@ -410,7 +461,7 @@ export class Kubelet {
         } else est.paraEm = c.agora;
       }
     }
-    const pronto = pod.spec.containers.every((ct) => c.agora >= e.conteineres.get(ct.name).paraEm);
+    const pronto = todosOsConteineres(pod).every((ct) => c.agora >= (e.conteineres.get(ct.name).paraEm ?? 0));
     if (pronto) {
       this.pods.delete(pod.metadata.uid);
       c.finalizarRemocao(pod);
@@ -541,7 +592,7 @@ export class Kubelet {
       return { erro: `error: Internal error occurred: Internal error occurred: error executing command in container: failed to exec in container: failed to start exec "${this.c.aleatorio.hex(64)}": OCI runtime exec failed: exec failed: unable to start container process: exec: "${bin}": executable file not found in $PATH` };
     }
     let saida = '';
-    const ctx = this.contexto(pod, pod.spec.containers.find((x) => x.name === conteiner), est, (t) => { saida += t; });
+    const ctx = this.contexto(pod, todosOsConteineres(pod).find((x) => x.name === conteiner), est, (t) => { saida += t; });
     ctx.env = { ...est.env };
     const base = bin.split('/').pop();
     if ((base === 'sh' || base === 'bash') && argv[1] === '-c') {
@@ -557,13 +608,18 @@ export class Kubelet {
   escreverStatus(pod, e) {
     const c = this.c;
     const ests = pod.spec.containers.map((ct) => [ct, e.conteineres.get(ct.name)]);
+    const inits = (pod.spec.initContainers ?? []).map((ct) => [ct, e.conteineres.get(ct.name)]);
+    const initFalhou = inits.find(([ct, est]) => !ehSidecar(ct) && est.final && est.atual?.exitCode !== 0);
     const todosJaRodaram = ests.every(([, est]) => est.jaRodou);
     const finais = ests.every(([, est]) => est.final);
     let fase = 'Pending';
-    if (finais) fase = ests.every(([, est]) => est.atual.exitCode === 0) ? 'Succeeded' : 'Failed';
-    else if (todosJaRodaram) fase = 'Running';
+    if (initFalhou) fase = 'Failed';
+    else if (finais) fase = ests.every(([, est]) => est.atual.exitCode === 0) ? 'Succeeded' : 'Failed';
+    else if (todosJaRodaram && e.inicializado) fase = 'Running';
     const pronto = (est) => est.fase === 'rodando' && c.agora >= (est.prontoEm ?? 0);
-    const prontos = ests.every(([, est]) => pronto(est));
+    const sidecars = inits.filter(([ct]) => ehSidecar(ct));
+    const prontos = [...ests, ...sidecars].every(([, est]) => pronto(est));
+    const incompletos = inits.filter(([ct, est]) => (ehSidecar(ct) ? est.fase !== 'rodando' : !terminouBem(est)) && !e.inicializado).map(([ct]) => ct.name);
     const condicao = (tipo, status, extra = {}) => {
       const anterior = e.condicoes[tipo];
       if (!anterior || anterior.status !== status) e.condicoes[tipo] = { status, desde: c.agora };
@@ -575,12 +631,16 @@ export class Kubelet {
     const status = {
       conditions: [
         condicao('PodReadyToStartContainers', encerrado || !e.ip ? 'False' : 'True'),
-        condicao('Initialized', 'True'),
+        condicao('Initialized', e.inicializado || !inits.length ? 'True' : 'False', e.inicializado || !inits.length ? {} : { message: `containers with incomplete status: [${incompletos.join(' ')}]`, reason: 'ContainersNotInitialized' }),
         condicao('Ready', prontos ? 'True' : 'False', prontos ? {} : motivoNaoPronto),
         condicao('ContainersReady', prontos ? 'True' : 'False', prontos ? {} : motivoNaoPronto),
         { ...(pod.status?.conditions?.find((x) => x.type === 'PodScheduled') ?? {}), observedGeneration: 1 },
       ],
-      containerStatuses: ests.map(([ct, est]) => this.statusConteiner(pod, ct, est)),
+      containerStatuses: ests.map(([ct, est]) => {
+        const st = this.statusConteiner(pod, ct, est);
+        return !inits.length || e.inicializado || est.jaRodou ? st : { ...st, state: { waiting: { reason: 'PodInitializing' } } }; // o app espera os init containers
+      }),
+      ...(inits.length ? { initContainerStatuses: inits.map(([ct, est]) => this.statusConteiner(pod, ct, est, terminouBem(est))) } : {}),
       hostIP: c.ipDoNode(c.obter('Node', null, pod.spec.nodeName)),
       hostIPs: [{ ip: c.ipDoNode(c.obter('Node', null, pod.spec.nodeName)) }],
       observedGeneration: 1,
@@ -596,7 +656,7 @@ export class Kubelet {
     }
   }
 
-  statusConteiner(pod, ct, est) {
+  statusConteiner(pod, ct, est, concluido = false) {
     const s = { image: est.ref && est.id ? est.ref.completo : ct.image };
     if (est.ref && est.id) {
       s.imageID = `${est.ref.repo}@sha256:${est.info.digest}`;
@@ -606,7 +666,7 @@ export class Kubelet {
     }
     s.lastState = est.ultimoTermino ? { terminated: est.ultimoTermino } : {};
     s.name = ct.name;
-    s.ready = est.fase === 'rodando' && this.c.agora >= (est.prontoEm ?? 0);
+    s.ready = concluido || (est.fase === 'rodando' && this.c.agora >= (est.prontoEm ?? 0));
     s.restartCount = est.reinicios;
     s.started = est.fase === 'rodando';
     switch (est.fase) {

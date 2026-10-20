@@ -217,6 +217,10 @@ function volumes(w, lista, recuo = '') {
       w.w(2, 'Type:\tPersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)\n');
       w.w(2, `ClaimName:\t${v.persistentVolumeClaim.claimName}\n`);
       w.w(2, `ReadOnly:\t${!!v.persistentVolumeClaim.readOnly}\n`);
+    } else if (v.hostPath) {
+      w.w(2, 'Type:\tHostPath (bare host directory volume)\n');
+      w.w(2, `Path:\t${v.hostPath.path}\n`);
+      w.w(2, `HostPathType:\t${v.hostPath.type ?? ''}\n`);
     } else {
       w.w(2, 'Type:\t<unknown>\n');
     }
@@ -540,6 +544,81 @@ DESCRITORES.Ingress = (w, ing, ctx) => {
   anotacoes(w, 'Annotations', ing.metadata.annotations);
   escreverEventos(w, ctx.eventos, ctx.agora);
 };
+const statusDosPods = (ctx, dono) => {
+  const pods = ctx.cluster.listar('Pod', dono.metadata.namespace).filter((p) => p.metadata.ownerReferences?.some((o) => o.uid === dono.metadata.uid));
+  const conta = (fase) => pods.filter((p) => p.status?.phase === fase).length;
+  return `${conta('Running')} Running / ${conta('Pending')} Waiting / ${conta('Succeeded')} Succeeded / ${conta('Failed')} Failed`;
+};
+
+DESCRITORES.DaemonSet = (w, ds, ctx) => {
+  const st = ds.status ?? {};
+  w.w(0, `Name:\t${ds.metadata.name}\n`);
+  w.w(0, `Namespace:\t${ds.metadata.namespace}\n`);
+  w.w(0, `Selector:\t${seletor(ds.spec.selector)}\n`);
+  w.w(0, `Node-Selector:\t${Object.keys(ds.spec.template.spec.nodeSelector ?? {}).sort().map((k) => `${k}=${ds.spec.template.spec.nodeSelector[k]}`).join(',') || '<none>'}\n`);
+  labels(w, 'Labels', ds.metadata.labels);
+  anotacoes(w, 'Annotations', ds.metadata.annotations);
+  w.w(0, `Desired Number of Nodes Scheduled: ${st.desiredNumberScheduled ?? 0}\n`);
+  w.w(0, `Current Number of Nodes Scheduled: ${st.currentNumberScheduled ?? 0}\n`);
+  w.w(0, `Number of Nodes Scheduled with Up-to-date Pods: ${st.updatedNumberScheduled ?? 0}\n`);
+  w.w(0, `Number of Nodes Scheduled with Available Pods: ${st.numberAvailable ?? 0}\n`);
+  w.w(0, `Number of Nodes Misscheduled: ${st.numberMisscheduled ?? 0}\n`);
+  w.w(0, `Pods Status:\t${statusDosPods(ctx, ds)}\n`);
+  templateDePod(w, ds.spec.template);
+  escreverEventos(w, ctx.eventos, ctx.agora);
+};
+
+DESCRITORES.Job = (w, job, ctx) => {
+  const s = job.spec;
+  const st = job.status ?? {};
+  w.w(0, `Name:\t${job.metadata.name}\n`);
+  w.w(0, `Namespace:\t${job.metadata.namespace}\n`);
+  w.w(0, `Selector:\t${seletor(s.selector)}\n`);
+  labels(w, 'Labels', job.metadata.labels);
+  anotacoes(w, 'Annotations', job.metadata.annotations);
+  const ctrl = controladoPor(job);
+  if (ctrl) w.w(0, `Controlled By:\t${ctrl}\n`);
+  w.w(0, `Parallelism:\t${s.parallelism}\n`);
+  w.w(0, s.completions !== undefined ? `Completions:\t${s.completions}\n` : 'Completions:\t<unset>\n');
+  w.w(0, `Completion Mode:\t${s.completionMode}\n`);
+  w.w(0, `Suspend:\t${!!s.suspend}\n`);
+  w.w(0, `Backoff Limit:\t${s.backoffLimit}\n`);
+  if (s.ttlSecondsAfterFinished !== undefined) w.w(0, `TTL Seconds After Finished:\t${s.ttlSecondsAfterFinished}\n`);
+  if (st.startTime) w.w(0, `Start Time:\t${rfc(st.startTime)}\n`);
+  if (st.completionTime) {
+    w.w(0, `Completed At:\t${rfc(st.completionTime)}\n`);
+    w.w(0, `Duration:\t${idade(Date.parse(st.completionTime) - Date.parse(st.startTime))}\n`);
+  }
+  if (s.activeDeadlineSeconds !== undefined) w.w(0, `Active Deadline Seconds:\t${s.activeDeadlineSeconds}s\n`);
+  w.w(0, `Pods Statuses:\t${st.active ?? 0} Active (${st.ready ?? 0} Ready) / ${st.succeeded ?? 0} Succeeded / ${st.failed ?? 0} Failed\n`);
+  templateDePod(w, s.template);
+  escreverEventos(w, ctx.eventos, ctx.agora);
+};
+
+DESCRITORES.CronJob = (w, cj, ctx) => {
+  const s = cj.spec;
+  const js = s.jobTemplate.spec;
+  w.w(0, `Name:\t${cj.metadata.name}\n`);
+  w.w(0, `Namespace:\t${cj.metadata.namespace}\n`);
+  labels(w, 'Labels', cj.metadata.labels);
+  anotacoes(w, 'Annotations', cj.metadata.annotations);
+  w.w(0, `Schedule:\t${s.schedule}\n`);
+  w.w(0, `Concurrency Policy:\t${s.concurrencyPolicy}\n`);
+  w.w(0, `Suspend:\t${s.suspend ? 'True' : 'False'}\n`);
+  w.w(0, `Time Zone:\t${s.timeZone ?? '<unset>'}\n`);
+  w.w(0, `Successful Job History Limit:\t${s.successfulJobsHistoryLimit}\n`);
+  w.w(0, `Failed Job History Limit:\t${s.failedJobsHistoryLimit}\n`);
+  w.w(0, `Starting Deadline Seconds:\t${s.startingDeadlineSeconds !== undefined ? `${s.startingDeadlineSeconds}s` : '<unset>'}\n`);
+  w.w(0, `Selector:\t${js.selector ? seletor(js.selector) : '<unset>'}\n`);
+  w.w(0, `Parallelism:\t${js.parallelism ?? '<unset>'}\n`);
+  w.w(0, `Completions:\t${js.completions ?? '<unset>'}\n`);
+  if (js.activeDeadlineSeconds !== undefined) w.w(0, `Active Deadline Seconds:\t${js.activeDeadlineSeconds}s\n`);
+  templateDePod(w, js.template);
+  w.w(0, `Last Schedule Time:\t${cj.status?.lastScheduleTime ? rfc(cj.status.lastScheduleTime) : '<unset>'}\n`);
+  w.w(0, `Active Jobs:\t${cj.status?.active?.length ? cj.status.active.map((j) => j.name).join(', ') : '<none>'}\n`);
+  escreverEventos(w, ctx.eventos, ctx.agora);
+};
+
 DESCRITORES.StatefulSet = (w, sts, ctx) => {
   const s = sts.spec;
   w.w(0, `Name:\t${sts.metadata.name}\n`);

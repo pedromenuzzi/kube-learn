@@ -23,7 +23,7 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
 
 - `cluster.js` (API, eventos, relógio, laço de reconciliação) → `controladores.js`, `scheduler.js`, `kubelet.js`,
   `rede.js`, `discos.js` (PV, PVC, o provisionador local-path do kind e o sistema de arquivos de cada contêiner,
-  com volumes); `imagens.js` é o catálogo de imagens falsas (o comportamento de cada uma); `shell.js` roda o
+  com volumes), `cron.js` (o horário dos CronJobs); `imagens.js` é o catálogo de imagens falsas (o comportamento de cada uma); `shell.js` roda o
   `sh -c` dos contêineres e o `kubectl exec`; `esquema.js` tem os campos de cada kind (decodificação estrita,
   validação, padrões, explain); `kubectl/` é a linha de comando.
 - `kubectl(cluster, 'kubectl get pods', { arquivos })` → `{ saida, stdout, stderr, codigo, observar?, sessao? }`.

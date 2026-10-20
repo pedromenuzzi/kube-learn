@@ -1,0 +1,2 @@
+The Job "sem-politica" is invalid: spec.template.spec.restartPolicy: Required value: valid values: "OnFailure", "Never"
+exit=1

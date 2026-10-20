@@ -1,0 +1,4 @@
+NAME          READY   STATUS    RESTARTS   AGE
+com-init      1/1     Running   0          12s
+com-sidecar   2/2     Running   0          12s
+exit=0

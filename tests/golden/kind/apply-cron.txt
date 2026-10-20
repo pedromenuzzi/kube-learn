@@ -1,0 +1,2 @@
+cronjob.batch/limpeza created
+exit=0

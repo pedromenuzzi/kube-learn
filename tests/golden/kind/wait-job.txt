@@ -1,0 +1,2 @@
+job.batch/relatorio condition met
+exit=0

@@ -25,6 +25,14 @@ const REGRAS = [
     t: () => ({ titulo: 'O seletor não bate com as labels do template', texto: 'O <code>spec.selector.matchLabels</code> precisa estar dentro das <code>labels</code> do template. Senão, o Deployment criaria pods que ele mesmo não reconhece.', vidaReal: 'O contrato diz "equipe: suporte", mas as plaquinhas das portas dizem outra coisa: a fiscal nunca acharia as salas.' }),
   },
   {
+    re: /restartPolicy: Required value: valid values: "OnFailure", "Never"/,
+    t: () => ({ titulo: 'Job não aceita restartPolicy Always', texto: 'Um Job precisa terminar: use <code>restartPolicy: Never</code> (cada falha vira um pod novo) ou <code>OnFailure</code> (o contêiner reinicia no mesmo pod). Always é para o que não pode parar.', vidaReal: 'Contrato de empreitada com cláusula "se acabar, comece de novo": isso é emprego fixo, não empreitada.' }),
+  },
+  {
+    re: /spec\.schedule: Invalid value: "([^"]*)": (.*)/,
+    t: (m) => ({ titulo: 'O horário do CronJob não está no formato do cron', texto: `São 5 campos separados por espaço: minuto hora dia mês dia-da-semana (ex.: <code>*/5 * * * *</code>, <code>0 3 * * *</code>). O apiserver disse: ${m[2]}.`, vidaReal: 'Marcar a coleta "lá pela manhã": o caminhão precisa de dia e hora.' }),
+  },
+  {
     re: /volumeMounts\[\d+\]\.name: Not found: "([^"]+)"/,
     t: (m) => ({ titulo: `O contêiner monta o volume "${m[1]}", que o pod não tem`, texto: 'Cada <code>volumeMounts[].name</code> precisa ser o nome de um volume em <code>spec.volumes</code> (no mesmo pod). Confira a grafia nos dois lugares.', vidaReal: 'Pedir para instalar no apartamento um armário que não está na lista da mudança.' }),
   },
@@ -95,6 +103,8 @@ const STATUS = [
   { re: /\bCrashLoopBackOff\b/, titulo: 'CrashLoopBackOff: o contêiner cai e é reiniciado', texto: 'O programa termina logo depois de subir, e o kubelet espera cada vez mais antes de tentar de novo (10s, 20s, 40s... até 5 min). Veja o motivo em <code>kubectl logs NOME --previous</code> e em <code>kubectl describe pod NOME</code>.', vidaReal: 'O morador desmaia toda vez que entra, e o síndico espera cada vez mais antes de tentar de novo.' },
   { re: /\b(ImagePullBackOff|ErrImagePull)\b/, titulo: 'A imagem não foi baixada', texto: 'Nome ou tag errado, ou imagem privada. Confira a imagem e veja o erro exato em <code>kubectl describe pod NOME</code>, nas Events.', vidaReal: 'O pré-moldado não chegou: o pedido tinha o modelo errado.' },
   { re: /\bCreateContainerConfigError\b/, titulo: 'Falta configuração para criar o contêiner', texto: 'Algum ConfigMap ou Secret usado no <code>env</code> não existe (ou não tem a chave). O <code>kubectl describe pod</code> diz qual.', vidaReal: 'A mudança travou porque o envelope com a senha não chegou.' },
+  { re: /\bInit:(Error|CrashLoopBackOff)\b/, titulo: 'Um init container falhou', texto: 'O pod não passa da preparação: o init container terminou com erro e o kubelet tenta de novo. Veja o log dele: <code>kubectl logs POD -c NOME_DO_INIT</code>.', vidaReal: 'A vistoria reprovou: a mudança espera do lado de fora até a vistoria passar.' },
+  { re: /\bBackoffLimitExceeded\b|reached the specified backoff limit/, titulo: 'O Job desistiu', texto: 'Falhou mais vezes que o <code>backoffLimit</code>. Os logs dos pods (<code>kubectl logs job/NOME</code>) contam o motivo; conserte e crie o Job de novo.', vidaReal: 'O pedreiro tentou, tentou, e o contrato acabou antes da parede ficar de pé.' },
   { re: /MountVolume\.SetUp failed for volume/, titulo: 'O volume não montou', texto: 'O ConfigMap ou o Secret que o volume usa não existe (ou tem outro nome). O pod fica em ContainerCreating até ele aparecer: crie o objeto ou corrija o nome em <code>spec.volumes</code>.', vidaReal: 'A mudança espera o armário que nunca chegou.' },
   { re: /pod has unbound immediate PersistentVolumeClaims|ProvisioningFailed/, titulo: 'O pedido de disco não foi atendido', texto: 'O PVC está Pending: a StorageClass pedida não existe (veja <code>kubectl get sc</code>) ou nenhum PV serve. <code>kubectl describe pvc NOME</code> mostra o motivo.', vidaReal: 'Pediram um box "climatizado", mas o condomínio só tem box comum.' },
   { re: /\bPending\b/, titulo: 'Pending: o pod ainda não tem lugar', texto: 'Ou o scheduler não achou um node que caiba (veja <code>kubectl describe pod</code>, em Events: <i>FailedScheduling</i>), ou ele está só começando.', vidaReal: 'Esperando no lobby: a corretora ainda não achou um prédio com espaço.' },

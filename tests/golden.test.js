@@ -8,7 +8,7 @@ import { normalizar } from './golden/normalizar.js';
 
 // Casos que não dá para comparar linha a linha, e por quê.
 const ESPECIAIS = {
-  // O kind tem DaemonSets (kindnet, kube-proxy) que o simulador ainda não tem: compara até a lista de pods.
+  // Em qual node cada réplica do web caiu é sorte do scheduler: compara até a lista de pods.
   'describe-node': { ate: 'Non-terminated Pods:' },
   // Quantas vezes já caiu/tentou depende do ritmo exato do kubelet: compara sem as contagens.
   'crash-get': { semContagem: true },
@@ -27,9 +27,14 @@ const ESPECIAIS = {
   // pegou o StatefulSet antes do controlador ("spec update to be observed"): compara as duas últimas linhas.
   'describe-pod-volumes': { ate: 'Events:' },
   'rollout-sts': { ultimas: 2 },
+  'rollout-ds': { ultimas: 2 },
 };
 
 const linhas = (t) => t.split('\n');
+// Se a imagem já estava no node depende de onde o pod caiu: "baixou" e "já estava lá" contam igual.
+const semCache = (l) => (/Pulling image/.test(l) ? null : l
+  .replace(/Successfully pulled image ("[^"]+") in .*$/, 'imagem $1 no node')
+  .replace(/Container image ("[^"]+") already present on machine and can be accessed by the pod/, 'imagem $1 no node'));
 const semContagem = (t) => t.replace(/\b\d+ \(<t> ago\)/g, 'N (<t> ago)').replace(/\(x\d+ over/g, '(xN over')
   .replace(/\b(ErrImagePull|ImagePullBackOff)\b/g, '<pull>').replace(/\b(CrashLoopBackOff|Completed|Error)\b/g, '<crash>');
 
@@ -42,10 +47,10 @@ function comparavel(texto, regra) {
     const base = ls.slice(0, i === -1 ? undefined : i).join('\n');
     if (!regra.eventos) return base;
     const j = ls.findIndex((l) => l.startsWith('Events:'));
-    const eventos = ls.slice(j + 3).filter(Boolean).map((l) => semContagem(l).replace(/\| [^|]*\(xN over <t>\) \|/, '| <t> |')).sort();
+    const eventos = ls.slice(j + 3).filter(Boolean).map((l) => semCache(semContagem(l).replace(/\| [^|]*\(xN over <t>\) \|/, '| <t> |'))).filter(Boolean).sort();
     return `${base}\n---\n${[...new Set(eventos)].join('\n')}`;
   }
-  if (regra.conjunto) return [...new Set(linhas(semContagem(t)))].sort().join('\n');
+  if (regra.conjunto) return [...new Set(linhas(semContagem(t)).map(semCache).filter((l) => l !== null))].sort().join('\n');
   if (regra.pontas) {
     const ls = linhas(t).filter(Boolean);
     return [ls[0], ...ls.slice(-2)].join('\n');
