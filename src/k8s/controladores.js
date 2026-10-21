@@ -9,6 +9,7 @@ import { padroesJob } from './esquema.js';
 import { tolera } from './scheduler.js';
 import { controladorDeCotas } from './cotas.js';
 import { controladorDeNodes, controladorDePdbs } from './manutencao.js';
+import { operadorDeBackup } from './crds.js';
 
 const clone = (o) => structuredClone(o);
 const TERMINAIS = new Set(['Succeeded', 'Failed']);
@@ -29,6 +30,7 @@ export function rodarControladores(c) {
   controladorDeDiscos(c);
   controladorDeCotas(c);
   autoscalers(c);
+  operadorDeBackup(c);
   servidorDeMetricas(c);
   controladorDePdbs(c);
   endpoints(c);

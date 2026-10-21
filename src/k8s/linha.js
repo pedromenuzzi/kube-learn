@@ -3,6 +3,8 @@
 // Ingress e Gateway), o echo e o `| base64` (para ver o que um Secret guarda). Usado pela tela do exercício e
 // pelo teste da trilha (as soluções de terminal).
 import { kubectl } from './kubectl/index.js';
+import { helm } from './helm.js';
+import { git } from './gitops.js';
 import { palavras } from './kubectl/argv.js';
 import { executarComando } from './shell.js';
 import { httpDeFora } from './rede.js';
@@ -50,10 +52,12 @@ export function rodarLinha(cluster, linha, arquivos) {
   const m = linha.match(/^(.*?)\s+(>>?)\s*(\S+)\s*$/);
   const comando = m ? m[1] : linha;
   const ehCurl = /^\s*curl\b/.test(comando);
-  if (!m) return ehCurl ? curlDeFora(cluster, comando) : kubectl(cluster, linha, { arquivos });
+  if (/^\s*git\b/.test(linha)) return git(cluster, linha, arquivos);
+  const rodar = (l) => (ehCurl ? curlDeFora(cluster, l) : /^\s*helm\b/.test(l) ? helm(cluster, l, { arquivos }) : kubectl(cluster, l, { arquivos }));
+  if (!m) return rodar(linha);
   const [, , operador, nome] = m;
   if (!NOME.test(nome)) return resultado(1, '', `bash: ${nome}: só dá para gravar arquivos .yaml, .json ou .txt aqui\n`);
-  const r = ehCurl ? curlDeFora(cluster, comando) : kubectl(cluster, comando, { arquivos });
+  const r = rodar(comando);
   arquivos[nome] = (operador === '>>' ? arquivos[nome] ?? '' : '') + r.stdout;
   const partes = r.partes.filter((p) => p.fluxo === 'err');
   return { ...r, saida: partes.map((p) => p.texto).join(''), partes, arquivoGravado: nome };

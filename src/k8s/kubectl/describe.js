@@ -3,7 +3,7 @@
 import { tabular } from '../tabwriter.js';
 import { idade, rfc1123z, cpuMili, bytes, textoCpu, textoMemoria } from '../unidades.js';
 import { podsNoNode, pedidosDoPod } from '../scheduler.js';
-import { atobUtf8 } from '../esquema.js';
+import { atobUtf8, esquemaDe } from '../esquema.js';
 import { siglasDeAcesso, pvcsDoPod } from '../discos.js';
 
 const NIVEL = ['', '  ', '    ', '      ', '        '];
@@ -944,12 +944,42 @@ DESCRITORES.HorizontalPodAutoscaler = (w, h, ctx) => {
 
 for (const k of ['IngressClass', 'GatewayClass', 'Gateway', 'HTTPRoute']) DESCRITORES[k] = generico;
 
-export const temDescritor = (kind) => kind in DESCRITORES;
+export const temDescritor = (kind) => kind in DESCRITORES || !!esquemaDe(kind)?.crd;
+
+/** "creationTimestamp" → "Creation Timestamp": os nomes de campo do describe genérico (o dos recursos de CRD). */
+const rotuloCampo = (k) => (k === 'uid' ? 'UID' : k.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, (x) => x.toUpperCase()));
+
+function despejar(w, nivel, valor) {
+  for (const [k, v] of Object.entries(valor).sort(([x], [y]) => x.localeCompare(y))) {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      w.w(nivel, `${rotuloCampo(k)}:\n`);
+      despejar(w, nivel + 1, v);
+    } else if (Array.isArray(v)) {
+      w.w(nivel, `${rotuloCampo(k)}:\n`);
+      for (const x of v) w.w(nivel + 1, `${x && typeof x === 'object' ? JSON.stringify(x) : x}\n`);
+    } else w.w(nivel, `${rotuloCampo(k)}:\t${v}\n`);
+  }
+}
+
+/** O describe genérico (tipos de CRD): os campos como estão, com os nomes "humanizados". */
+function descreverCr(w, o, ctx) {
+  w.w(0, `Name:\t${o.metadata.name}\n`);
+  if (o.metadata.namespace) w.w(0, `Namespace:\t${o.metadata.namespace}\n`);
+  labels(w, 'Labels', o.metadata.labels);
+  anotacoes(w, 'Annotations', o.metadata.annotations);
+  w.w(0, `API Version:\t${o.apiVersion}\n`);
+  w.w(0, `Kind:\t${o.kind}\n`);
+  const meta = Object.fromEntries(Object.entries(o.metadata).filter(([k]) => !['name', 'namespace', 'labels', 'annotations', 'managedFields'].includes(k)));
+  w.w(0, 'Metadata:\n');
+  despejar(w, 1, meta);
+  for (const k of Object.keys(o).filter((x) => !['apiVersion', 'kind', 'metadata'].includes(x))) despejar(w, 0, { [k]: o[k] });
+  escreverEventos(w, ctx.eventos, ctx.agora);
+}
 
 /** Texto do describe de um objeto. */
 export function descrever(cluster, obj) {
   const eventos = cluster.eventos.filter((e) => e.involvedObject.uid === obj.metadata.uid);
   const w = new Escritor();
-  DESCRITORES[obj.kind](w, obj, { cluster, agora: cluster.agora, eventos });
+  (DESCRITORES[obj.kind] ?? descreverCr)(w, obj, { cluster, agora: cluster.agora, eventos });
   return w.texto();
 }

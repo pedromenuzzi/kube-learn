@@ -1,0 +1,10 @@
+NAME                        READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/prod-loja   0/4     4            0           0s
+
+NAME                TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+service/prod-loja   ClusterIP   10.96.119.252   <none>        80/TCP    0s
+
+NAME                                    DATA   AGE
+configmap/kube-root-ca.crt              1      1s
+configmap/prod-loja-config-2t8k2d7f8h   2      1s
+exit=0

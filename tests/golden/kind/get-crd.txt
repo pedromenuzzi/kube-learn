@@ -1,0 +1,3 @@
+NAME                     SCOPE        VERSIONS      CREATED AT
+backups.kube-learn.dev   Namespaced   v1(storage)   2026-10-21T11:13:12Z
+exit=0

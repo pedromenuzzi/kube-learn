@@ -1,0 +1,2 @@
+customresourcedefinition.apiextensions.k8s.io "backups.kube-learn.dev" deleted
+exit=0

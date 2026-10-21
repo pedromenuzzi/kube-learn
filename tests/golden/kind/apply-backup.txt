@@ -1,0 +1,2 @@
+backup.kube-learn.dev/diario created
+exit=0

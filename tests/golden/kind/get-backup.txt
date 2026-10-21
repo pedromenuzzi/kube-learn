@@ -1,0 +1,3 @@
+NAME     BANCO   HORARIO     AGE
+diario   loja    0 3 * * *   0s
+exit=0

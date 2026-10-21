@@ -1,0 +1,4 @@
+NAME   	NAMESPACE	REVISION	UPDATED                                	STATUS  	CHART     	APP VERSION
+loja   	default  	3       	2026-10-21 08:13:04.300801832 -0300 -03	deployed	loja-1.0.0	1.0        
+vitrine	vendas   	1       	2026-10-21 08:13:09.342027673 -0300 -03	deployed	loja-1.0.0	1.0        
+exit=0

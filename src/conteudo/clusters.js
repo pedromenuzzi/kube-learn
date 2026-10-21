@@ -1,6 +1,8 @@
 // Os clusters de partida dos exercícios: nodes e o que já estava aplicado antes do aluno chegar.
 import { criarCluster, NODES_PADRAO } from '../k8s/cluster.js';
 import { kubectl } from '../k8s/kubectl/index.js';
+import { criarRepositorio } from '../k8s/gitops.js';
+import { helm, REPO_PADRAO } from '../k8s/helm.js';
 import { yaml } from './util.js';
 import { PARTIDA5 } from './nivel5.js';
 import { PARTIDA6 } from './nivel6.js';
@@ -463,11 +465,13 @@ export function montarCluster(nome = 'vazio', semente = nome) {
     c.avancar('1m');
   }
   // Comandos que "alguém" rodou antes do aluno chegar (cada um seguido de 1 minuto).
-  // Uma função faz o que o kubectl não faz (ex.: derrubar um node).
+  if (def.repoHelm) helm(c, `helm repo add kube-learn ${REPO_PADRAO}`);
+  if (def.gitops) criarRepositorio(c, def.gitops);
+  // Uma função faz o que o kubectl não faz (ex.: derrubar um node); "helm ..." roda o helm.
   for (const linha of def.comandos ?? []) {
     if (typeof linha === 'function') linha(c);
     else {
-      const r = kubectl(c, linha);
+      const r = linha.startsWith('helm ') ? helm(c, linha) : kubectl(c, linha);
       if (r.codigo) throw new Error(`cluster ${nome}: ${linha}: ${r.saida}`);
     }
     c.avancar('1m');

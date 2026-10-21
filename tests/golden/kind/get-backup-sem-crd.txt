@@ -1,0 +1,2 @@
+Error from server (NotFound): Unable to list "kube-learn.dev/v1, Resource=backups": the server could not find the requested resource (get backups.kube-learn.dev)
+exit=1

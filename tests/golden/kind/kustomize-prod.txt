@@ -1,0 +1,55 @@
+apiVersion: v1
+data:
+  COR: verde
+  MOEDA: BRL
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/part-of: loja
+  name: prod-loja-config-2t8k2d7f8h
+  namespace: prod
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/part-of: loja
+  name: prod-loja
+  namespace: prod
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: loja
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/part-of: loja
+  name: prod-loja
+  namespace: prod
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: loja
+  template:
+    metadata:
+      labels:
+        app: loja
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: prod-loja-config-2t8k2d7f8h
+        image: kubelearn/loja:1.1
+        name: loja
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 250m
+            memory: 128Mi
+exit=0

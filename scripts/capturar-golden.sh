@@ -1451,3 +1451,327 @@ cap apply-psa-ok kc apply -f /tmp/kl-psa-ok.yaml
 cap label-ns-baseline kc label ns cofre pod-security.kubernetes.io/enforce=baseline --overwrite
 cap apply-privilegiado kc apply -f /tmp/kl-privilegiado.yaml
 cap describe-ns-psa kc describe ns cofre
+
+# ---------- Fase 8 · nível 10: Helm (um chart local, o mesmo do simulador), Kustomize e CRD ----------
+H=${HELM:-helm}
+mkdir -p /tmp/charts/loja/templates /tmp/k/base /tmp/k/overlays/prod
+cat > /tmp/charts/loja/Chart.yaml <<'Y'
+apiVersion: v2
+name: loja
+description: A loja do kube-learn (Deployment, Service e, se quiser, um Ingress).
+type: application
+version: 1.0.0
+appVersion: "1.0"
+Y
+cat > /tmp/charts/loja/values.yaml <<'Y'
+# Quantos atendentes (pods) a loja tem.
+replicaCount: 2
+
+image:
+  repository: kubelearn/loja
+  # Vazio: usa a appVersion do chart.
+  tag: ""
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  host: loja.local
+
+resources: {}
+Y
+cat > /tmp/charts/loja/templates/deployment.yaml <<'Y'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Values.image.tag | default .Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: loja
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        ports:
+        - name: http
+          containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+        {{- with .Values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+Y
+cat > /tmp/charts/loja/templates/service.yaml <<'Y'
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+  - name: http
+    port: {{ .Values.service.port }}
+    targetPort: http
+Y
+cat > /tmp/charts/loja/templates/ingress.yaml <<'Y'
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  rules:
+  - host: {{ .Values.ingress.host }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Release.Name }}
+            port:
+              number: {{ .Values.service.port }}
+{{- end }}
+Y
+cat > /tmp/charts/loja/templates/NOTES.txt <<'Y'
+A loja {{ .Release.Name }} está no ar, com {{ .Values.replicaCount }} atendentes (versão {{ .Values.image.tag | default .Chart.AppVersion }}).
+
+Para testar do seu computador:
+  kubectl port-forward svc/{{ .Release.Name }} 8080:{{ .Values.service.port }}
+  curl http://localhost:8080
+Y
+cat > /tmp/valores-vitrine.yaml <<'Y'
+replicaCount: 1
+image:
+  tag: "1.1"
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+Y
+cat > /tmp/k/base/kustomization.yaml <<'Y'
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- deployment.yaml
+- service.yaml
+labels:
+- pairs:
+    app.kubernetes.io/part-of: loja
+configMapGenerator:
+- name: loja-config
+  literals:
+  - COR=azul
+  - MOEDA=BRL
+Y
+cat > /tmp/k/base/deployment.yaml <<'Y'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loja
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loja
+  template:
+    metadata:
+      labels:
+        app: loja
+    spec:
+      containers:
+      - name: loja
+        image: kubelearn/loja:1.0
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: loja-config
+Y
+cat > /tmp/k/base/service.yaml <<'Y'
+apiVersion: v1
+kind: Service
+metadata:
+  name: loja
+spec:
+  selector:
+    app: loja
+  ports:
+  - port: 80
+    targetPort: 8080
+Y
+cat > /tmp/k/overlays/prod/kustomization.yaml <<'Y'
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../base
+namespace: prod
+namePrefix: prod-
+replicas:
+- name: loja
+  count: 4
+images:
+- name: kubelearn/loja
+  newTag: "1.1"
+configMapGenerator:
+- name: loja-config
+  behavior: merge
+  literals:
+  - COR=verde
+patches:
+- path: recursos.yaml
+Y
+cat > /tmp/k/overlays/prod/recursos.yaml <<'Y'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loja
+spec:
+  template:
+    spec:
+      containers:
+      - name: loja
+        resources:
+          requests:
+            cpu: 250m
+            memory: 128Mi
+Y
+cat > /tmp/kl-crd.yaml <<'Y'
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: backups.kube-learn.dev
+spec:
+  group: kube-learn.dev
+  names:
+    kind: Backup
+    plural: backups
+    singular: backup
+    shortNames:
+    - bkp
+  scope: Namespaced
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            required:
+            - banco
+            - horario
+            properties:
+              banco:
+                type: string
+                description: O banco de dados a copiar.
+              horario:
+                type: string
+                description: Quando copiar, no formato do cron.
+              guardar:
+                type: integer
+                minimum: 1
+                default: 7
+                description: Quantas cópias guardar.
+    additionalPrinterColumns:
+    - name: Banco
+      type: string
+      jsonPath: .spec.banco
+    - name: Horario
+      type: string
+      jsonPath: .spec.horario
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+Y
+cat > /tmp/kl-backup.yaml <<'Y'
+apiVersion: kube-learn.dev/v1
+kind: Backup
+metadata:
+  name: diario
+spec:
+  banco: loja
+  horario: "0 3 * * *"
+Y
+cat > /tmp/kl-backup-ruim.yaml <<'Y'
+apiVersion: kube-learn.dev/v1
+kind: Backup
+metadata:
+  name: ruim
+spec:
+  banco: loja
+  guardar: 0
+Y
+
+cap helm-install $H install loja /tmp/charts/loja
+cap helm-list $H list
+cap helm-status $H status loja
+cap helm-get-values $H get values loja
+cap helm-get-values-all $H get values loja --all
+cap helm-install-de-novo $H install loja /tmp/charts/loja
+cap helm-upgrade $H upgrade loja /tmp/charts/loja --set replicaCount=3 --set image.tag=1.1
+cap helm-history $H history loja
+cap helm-rollback $H rollback loja 1
+cap helm-history-rollback $H history loja
+cap helm-rollback-inexistente $H rollback loja 9
+cap helm-template $H template loja /tmp/charts/loja --set ingress.enabled=true --set replicaCount=4
+cap helm-show-values $H show values /tmp/charts/loja
+cap helm-secrets kc get secrets -l owner=helm
+cap helm-deploy-labels kc get deploy loja --show-labels
+cap helm-anotacoes kc get deploy loja -o jsonpath='{.metadata.annotations}'
+cap helm-install-ns $H install vitrine /tmp/charts/loja -n vendas --create-namespace -f /tmp/valores-vitrine.yaml
+cap helm-list-A $H list -A
+cap helm-get-values-vitrine $H get values vitrine -n vendas
+cap helm-uninstall $H uninstall vitrine -n vendas
+cap helm-status-inexistente $H status nada
+cap kustomize-base kc kustomize /tmp/k/base
+cap kustomize-prod kc kustomize /tmp/k/overlays/prod
+kc create namespace prod >/dev/null 2>&1
+cap apply-k kc apply -k /tmp/k/overlays/prod
+cap get-k kc get deploy,svc,cm -n prod
+cap kustomize-inexistente kc kustomize /tmp/k/nada
+cap apply-crd kc apply -f /tmp/kl-crd.yaml
+kc wait --for=condition=Established crd/backups.kube-learn.dev --timeout=30s >/dev/null 2>&1
+cap get-crd kc get crd backups.kube-learn.dev
+cap apply-backup kc apply -f /tmp/kl-backup.yaml
+cap get-backup kc get backups
+cap get-bkp-yaml kc get bkp diario -o yaml
+cap explain-backup kc explain backup.spec
+cap backup-invalido kc apply -f /tmp/kl-backup-ruim.yaml
+cap api-resources-crd kc api-resources --api-group=kube-learn.dev
+cap delete-crd kc delete crd backups.kube-learn.dev
+cap get-backup-sem-crd kc get backups

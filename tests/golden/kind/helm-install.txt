@@ -1,0 +1,14 @@
+NAME: loja
+LAST DEPLOYED: Wed Oct 21 08:12:57 2026
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+NOTES:
+A loja loja está no ar, com 2 atendentes (versão 1.0).
+
+Para testar do seu computador:
+  kubectl port-forward svc/loja 8080:80
+  curl http://localhost:8080
+exit=0

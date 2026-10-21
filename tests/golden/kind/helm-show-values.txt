@@ -1,0 +1,19 @@
+# Quantos atendentes (pods) a loja tem.
+replicaCount: 2
+
+image:
+  repository: kubelearn/loja
+  # Vazio: usa a appVersion do chart.
+  tag: ""
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  host: loja.local
+
+resources: {}
+
+exit=0

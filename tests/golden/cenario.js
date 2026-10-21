@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { criarCluster } from '../../src/k8s/cluster.js';
 import { kubectl } from '../../src/k8s/kubectl/index.js';
 import { nodePronto } from '../../src/k8s/scheduler.js';
+import { helm } from '../../src/k8s/helm.js';
 
 const WEB = `apiVersion: apps/v1
 kind: Deployment
@@ -113,7 +114,7 @@ metadata:
 
 // Os manifestos das fases novas vêm direto do script (os blocos "cat > /tmp/... <<'Y'"), para não divergirem.
 const SCRIPT = readFileSync(new URL('../../scripts/capturar-golden.sh', import.meta.url), 'utf8');
-for (const [, caminho, texto] of SCRIPT.matchAll(/cat > (\/tmp\/[\w.-]+) <<'Y'\n([\s\S]*?)\nY\n/g)) ARQUIVOS[caminho] ??= `${texto}\n`;
+for (const [, caminho, texto] of SCRIPT.matchAll(/cat > (\/tmp\/[\w./-]+) <<'Y'\n([\s\S]*?)\nY\n/g)) ARQUIVOS[caminho] ??= `${texto}\n`;
 
 /** Roda o cenário e devolve { nome: saída + "exit=N\n" }, como os arquivos capturados. */
 export function rodarCenario() {
@@ -130,7 +131,7 @@ export function rodarCenario() {
     metricas: true, // o kind do golden tem o metrics-server (para o nível 6)
   });
   const saidas = {};
-  const k = (cmd) => kubectl(c, cmd, { arquivos: ARQUIVOS });
+  const k = (cmd) => (cmd.startsWith('helm ') ? helm(c, cmd, { arquivos: ARQUIVOS }) : kubectl(c, cmd, { arquivos: ARQUIVOS }));
   const cap = (nome, cmd) => {
     const r = k(cmd);
     saidas[nome] = `${r.saida}exit=${r.codigo}\n`;
@@ -530,5 +531,44 @@ export function rodarCenario() {
   cap('label-ns-baseline', 'kubectl label ns cofre pod-security.kubernetes.io/enforce=baseline --overwrite');
   cap('apply-privilegiado', 'kubectl apply -f /tmp/kl-privilegiado.yaml');
   cap('describe-ns-psa', 'kubectl describe ns cofre');
+
+  // Fase 8 · nível 10: Helm (o chart local do script é o mesmo do catálogo), Kustomize e CRD
+  cap('helm-install', 'helm install loja /tmp/charts/loja');
+  cap('helm-list', 'helm list');
+  cap('helm-status', 'helm status loja');
+  cap('helm-get-values', 'helm get values loja');
+  cap('helm-get-values-all', 'helm get values loja --all');
+  cap('helm-install-de-novo', 'helm install loja /tmp/charts/loja');
+  cap('helm-upgrade', 'helm upgrade loja /tmp/charts/loja --set replicaCount=3 --set image.tag=1.1');
+  cap('helm-history', 'helm history loja');
+  cap('helm-rollback', 'helm rollback loja 1');
+  cap('helm-history-rollback', 'helm history loja');
+  cap('helm-rollback-inexistente', 'helm rollback loja 9');
+  cap('helm-template', 'helm template loja /tmp/charts/loja --set ingress.enabled=true --set replicaCount=4');
+  cap('helm-show-values', 'helm show values /tmp/charts/loja');
+  cap('helm-secrets', 'kubectl get secrets -l owner=helm');
+  cap('helm-deploy-labels', 'kubectl get deploy loja --show-labels');
+  cap('helm-anotacoes', "kubectl get deploy loja -o jsonpath='{.metadata.annotations}'");
+  cap('helm-install-ns', 'helm install vitrine /tmp/charts/loja -n vendas --create-namespace -f /tmp/valores-vitrine.yaml');
+  cap('helm-list-A', 'helm list -A');
+  cap('helm-get-values-vitrine', 'helm get values vitrine -n vendas');
+  cap('helm-uninstall', 'helm uninstall vitrine -n vendas');
+  cap('helm-status-inexistente', 'helm status nada');
+  cap('kustomize-base', 'kubectl kustomize /tmp/k/base');
+  cap('kustomize-prod', 'kubectl kustomize /tmp/k/overlays/prod');
+  k('kubectl create namespace prod');
+  cap('apply-k', 'kubectl apply -k /tmp/k/overlays/prod');
+  cap('get-k', 'kubectl get deploy,svc,cm -n prod');
+  cap('kustomize-inexistente', 'kubectl kustomize /tmp/k/nada');
+  cap('apply-crd', 'kubectl apply -f /tmp/kl-crd.yaml');
+  cap('get-crd', 'kubectl get crd backups.kube-learn.dev');
+  cap('apply-backup', 'kubectl apply -f /tmp/kl-backup.yaml');
+  cap('get-backup', 'kubectl get backups');
+  cap('get-bkp-yaml', 'kubectl get bkp diario -o yaml');
+  cap('explain-backup', 'kubectl explain backup.spec');
+  cap('backup-invalido', 'kubectl apply -f /tmp/kl-backup-ruim.yaml');
+  cap('api-resources-crd', 'kubectl api-resources --api-group=kube-learn.dev');
+  cap('delete-crd', 'kubectl delete crd backups.kube-learn.dev');
+  cap('get-backup-sem-crd', 'kubectl get backups');
   return { saidas, cluster: c };
 }

@@ -1,0 +1,9 @@
+USER-SUPPLIED VALUES:
+image:
+  tag: "1.1"
+replicaCount: 1
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+exit=0

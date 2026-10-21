@@ -1,0 +1,29 @@
+NAME: loja
+LAST DEPLOYED: Wed Oct 21 08:12:57 2026
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+RESOURCES:
+==> v1/Service
+NAME   TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
+loja   ClusterIP   10.96.202.45   <none>        80/TCP    2s
+
+==> v1/Deployment
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE
+loja   0/2     2            0           2s
+
+==> v1/Pod(related)
+NAME                    READY   STATUS    RESTARTS   AGE
+loja-7588c64765-dwz2k   0/1     Pending   0          2s
+loja-7588c64765-rgqxp   0/1     Pending   0          1s
+
+
+TEST SUITE: None
+NOTES:
+A loja loja está no ar, com 2 atendentes (versão 1.0).
+
+Para testar do seu computador:
+  kubectl port-forward svc/loja 8080:80
+  curl http://localhost:8080
+exit=0

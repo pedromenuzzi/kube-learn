@@ -1,0 +1,17 @@
+apiVersion: kube-learn.dev/v1
+kind: Backup
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"kube-learn.dev/v1","kind":"Backup","metadata":{"annotations":{},"name":"diario","namespace":"default"},"spec":{"banco":"loja","horario":"0 3 * * *"}}
+  creationTimestamp: "2026-10-21T11:13:14Z"
+  generation: 1
+  name: diario
+  namespace: default
+  resourceVersion: "853"
+  uid: 010090ab-1806-4722-aa43-d30f7737bf61
+spec:
+  banco: loja
+  guardar: 7
+  horario: 0 3 * * *
+exit=0

@@ -1,0 +1,4 @@
+configmap/prod-loja-config-2t8k2d7f8h created
+service/prod-loja created
+deployment.apps/prod-loja created
+exit=0

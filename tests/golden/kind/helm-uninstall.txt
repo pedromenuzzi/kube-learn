@@ -1,0 +1,2 @@
+release "vitrine" uninstalled
+exit=0

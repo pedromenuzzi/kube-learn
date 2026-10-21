@@ -1,0 +1,4 @@
+The Backup "ruim" is invalid: 
+* spec.guardar: Invalid value: 0: spec.guardar in body should be greater than or equal to 1
+* spec.horario: Required value
+exit=1

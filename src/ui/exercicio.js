@@ -5,7 +5,7 @@ import { XP } from '../conteudo/util.js';
 import { rodarLinha } from '../k8s/linha.js';
 import { explicar as explicarSaida } from '../k8s/explicacoes.js';
 import { explicar as explicarCampo } from '../k8s/esquema.js';
-import { RECURSOS, acharRecurso } from '../k8s/recursos.js';
+import { todosOsRecursos, acharRecurso } from '../k8s/recursos.js';
 import { palavras } from '../k8s/kubectl/argv.js';
 import { rodarTestes } from '../verificacoes.js';
 import { ler, gravar, CHAVES, registrarResultado, registrarDia } from '../armazenamento.js';
@@ -225,7 +225,7 @@ export function montarExercicio(raiz, item) {
       const r = acharRecurso(tipo);
       return r ? opcoes(estado.cluster.listar(r.kind, r.namespaced ? estado.cluster.contexto.namespace : undefined).map((o) => `${tipo}/${o.metadata.name}`)) : [];
     }
-    if (COM_TIPO.has(sub) && ps.length === 3) return opcoes(RECURSOS.map((r) => r.plural));
+    if (COM_TIPO.has(sub) && ps.length === 3) return opcoes(todosOsRecursos().map((r) => r.plural));
     if (['logs', 'exec'].includes(sub)) return opcoes(estado.cluster.listar('Pod', estado.cluster.contexto.namespace).map((p) => p.metadata.name));
     if (COM_TIPO.has(sub) && ps.length >= 4) {
       const r = acharRecurso(ps[2]);

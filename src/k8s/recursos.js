@@ -33,17 +33,25 @@ export const RECURSOS = [
   { kind: 'ClusterRoleBinding', plural: 'clusterrolebindings', singular: 'clusterrolebinding', curtos: [], grupo: 'rbac.authorization.k8s.io', versao: 'v1', namespaced: false },
   { kind: 'PodDisruptionBudget', plural: 'poddisruptionbudgets', singular: 'poddisruptionbudget', curtos: ['pdb'], grupo: 'policy', versao: 'v1', namespaced: true },
   { kind: 'PriorityClass', plural: 'priorityclasses', singular: 'priorityclass', curtos: ['pc'], grupo: 'scheduling.k8s.io', versao: 'v1', namespaced: false },
+  { kind: 'CustomResourceDefinition', plural: 'customresourcedefinitions', singular: 'customresourcedefinition', curtos: ['crd', 'crds'], grupo: 'apiextensions.k8s.io', versao: 'v1', namespaced: false },
   { kind: 'StorageClass', plural: 'storageclasses', singular: 'storageclass', curtos: ['sc'], grupo: 'storage.k8s.io', versao: 'v1', namespaced: false },
 ];
 
 const POR_KIND = Object.fromEntries(RECURSOS.map((r) => [r.kind, r]));
 
-export const recursoDoKind = (kind) => POR_KIND[kind];
+// Os tipos que os CRDs do cluster em uso acrescentaram (cada cluster tem os seus; quem usa o cluster ativa a lista).
+let extras = [];
+export const usarRecursosExtras = (lista) => {
+  extras = lista;
+};
+export const todosOsRecursos = () => [...RECURSOS, ...extras];
+
+export const recursoDoKind = (kind) => POR_KIND[kind] ?? extras.find((r) => r.kind === kind);
 
 /** 'po', 'pods', 'Pod', 'deployments.apps', 'deploy' → recurso (ou undefined). */
 export function acharRecurso(nome) {
   const n = nome.toLowerCase();
-  return RECURSOS.find((r) => {
+  return todosOsRecursos().find((r) => {
     const nomes = [r.plural, r.singular, r.kind.toLowerCase(), ...r.curtos];
     if (r.grupo) nomes.push(`${r.plural}.${r.grupo}`, `${r.singular}.${r.grupo}`, `${r.plural}.${r.grupo}.${r.versao}`);
     return nomes.includes(n);

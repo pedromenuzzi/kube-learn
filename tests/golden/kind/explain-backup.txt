@@ -1,0 +1,21 @@
+GROUP:      kube-learn.dev
+KIND:       Backup
+VERSION:    v1
+
+FIELD: spec <Object>
+
+
+DESCRIPTION:
+    <empty>
+FIELDS:
+  banco	<string> -required-
+    O banco de dados a copiar.
+
+  guardar	<integer>
+    Quantas cópias guardar.
+
+  horario	<string> -required-
+    Quando copiar, no formato do cron.
+
+
+exit=0
