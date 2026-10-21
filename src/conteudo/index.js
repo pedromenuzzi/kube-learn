@@ -8,6 +8,12 @@ export const ITENS = NIVEIS.flatMap((n) => n.itens);
 const POR_ID = new Map([...ITENS, ...TROUBLESHOOTING].map((i) => [i.id, i]));
 export const acharItem = (id) => POR_ID.get(id);
 
+/** O item que vem depois deste: na trilha, o seguinte da ordem dos níveis; na seção Troubleshooting, o próximo incidente. */
+export function proximoDe(item) {
+  const lista = item.secao ? TROUBLESHOOTING : ITENS;
+  return lista[lista.indexOf(item) + 1] ?? null;
+}
+
 /** O "exercício" do playground: sem testes, com um arquivo de exemplo. */
 export const PLAYGROUND = {
   id: 'livre',

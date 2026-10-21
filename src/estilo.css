@@ -170,7 +170,7 @@ h1.pixel { font-size: 1.3rem; line-height: 1.5; }
 /* No celular (e no tablet em pé), a navegação vira uma barra de abas embaixo (fácil de alcançar com o polegar). */
 @media (max-width: 55.99rem) {
   .topo-dentro { padding: 0.45rem 1rem; min-height: 3.25rem; }
-  .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: var(--topo-fundo); backdrop-filter: saturate(1.6) blur(12px); -webkit-backdrop-filter: saturate(1.6) blur(12px); border-top: 1px solid var(--borda); padding: 0.3rem 0.5rem calc(0.3rem + env(safe-area-inset-bottom)); }
+  .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: color-mix(in srgb, var(--superficie) 96%, transparent); backdrop-filter: saturate(1.6) blur(12px); -webkit-backdrop-filter: saturate(1.6) blur(12px); border-top: 1px solid var(--borda); padding: 0.3rem 0.5rem calc(0.3rem + env(safe-area-inset-bottom)); }
   .nav ul { width: 100%; justify-content: space-around; background: none; border: 0; padding: 0; }
   .nav li { flex: 1; }
   .nav a { flex-direction: column; gap: 0.15rem; width: 100%; padding: 0.35rem 0.25rem; border-radius: var(--raio); font-size: 0.72rem; }
@@ -425,6 +425,10 @@ dialog.preferencias p:last-child { justify-content: flex-end; }
 .leitura-acoes .proxima { margin-left: auto; }
 .resposta-aluno input, .form-nome input { min-width: min(18rem, 100%); }
 
+/* a página que não existe */
+.nao-encontrada { padding: 2rem 0 1rem; }
+.nao-encontrada .acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-top: 1.5rem; }
+
 /* os chamados da seção Troubleshooting */
 .chamados { list-style: none; padding: 0; margin: 1.25rem 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr)); gap: 0.85rem; }
 .chamado { display: flex; flex-direction: column; gap: 0.5rem; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio-g); padding: 1rem 1.1rem; box-shadow: var(--sombra-1); }
@@ -477,11 +481,23 @@ blockquote.relato footer::before { content: '— '; }
   .ex-acoes .botao, .ex-acoes .botao-forte { flex: 1; }
   .ex-acoes .separador { display: none; }
   .ex-acoes .rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .janela .abas { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .abas [role=tab] { flex: none; }
 }
-.ex-aviso { margin: 0; min-height: 1.5em; font-weight: 700; }
-.ex-aviso:empty { min-height: 0; }
+/* O aviso da tela do exercício flutua embaixo, no centro: aparece sem empurrar as janelas. */
+.ex-aviso { position: fixed; left: 50%; bottom: 1.25rem; z-index: 60; transform: translateX(-50%); display: flex; align-items: center; gap: 0.6rem; width: max-content; max-width: min(42rem, calc(100vw - 2rem)); padding: 0.55rem 0.55rem 0.55rem 1rem; border-radius: var(--raio-g); border: 1px solid var(--borda-forte); border-left: 4px solid var(--destaque); background: var(--superficie); color: var(--texto); box-shadow: var(--sombra-2); font-weight: 700; transition: opacity var(--anim), transform var(--anim); }
+.ex-aviso:empty { opacity: 0; transform: translate(-50%, 0.75rem); pointer-events: none; }
+.ex-aviso.ok { border-left-color: var(--ok); }
+.ex-aviso.ok > .icone { color: var(--ok); }
+.ex-aviso.falha { border-left-color: var(--ruim); }
+.ex-aviso.falha > .icone { color: var(--ruim); }
+.ex-aviso > .icone { flex: none; width: 1.15rem; height: 1.15rem; }
+.ex-aviso .aviso-texto { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.85rem; min-width: 0; }
+.ex-aviso a { display: inline-flex; align-items: center; gap: 0.3rem; }
+.ex-aviso .aviso-fechar { flex: none; display: inline-grid; place-items: center; width: 2rem; height: 2rem; min-height: 0; padding: 0; border: 0; border-radius: 999px; background: none; color: var(--suave); }
+.ex-aviso .aviso-fechar:hover { background: var(--superficie-2); color: var(--texto); }
+.ex-aviso .aviso-fechar .icone { width: 1rem; height: 1rem; }
+@media (max-width: 55.99rem) {
+  .ex-aviso { bottom: calc(4.9rem + env(safe-area-inset-bottom)); }
+}
 
 /* janelas móveis e redimensionáveis */
 .janelas { display: flex; gap: 0; height: max(34rem, calc(100vh - 15rem)); }
@@ -533,6 +549,10 @@ pre.manual, .solucao pre { white-space: pre-wrap; font-size: 0.85rem; background
 
 /* arquivos e editor */
 .ex-arquivos { display: flex; align-items: flex-end; gap: 0.5rem; padding: 0.35rem 0.5rem 0; background: var(--superficie-2); border-bottom: 1px solid var(--borda); }
+.janela .abas [role=tab] { padding-inline: 0.55rem; gap: 0.35rem; }
+/* Numa janela estreita (em qualquer tela), as abas ficam só com o texto: cabem numa linha. */
+.janela .corpo { container-type: inline-size; }
+@container (max-width: 34rem) { .abas [role=tab] .icone { display: none; } }
 .ex-arquivos .abas { flex: 1; border-bottom: 0; background: none; padding: 0; }
 .arquivo { display: inline-flex; align-items: center; }
 .abas.arquivos { list-style: none; margin: 0; }
@@ -568,7 +588,8 @@ pre.manual, .solucao pre { white-space: pre-wrap; font-size: 0.85rem; background
 .term-info { color: #8b949e; }
 .term-caixa { margin: 0.5rem 0; padding: 0.6rem 0.8rem; border-left: 3px solid #d29922; border-radius: 0 8px 8px 0; background: #161f2e; font-family: var(--fonte); font-size: 0.9rem; }
 .term-caixa p { margin: 0.15rem 0; }
-.term-caixa-titulo { font-weight: 700; }
+.term-caixa-titulo { font-weight: 700; display: flex; align-items: center; gap: 0.4rem; }
+.term-caixa-titulo .icone { flex: none; width: 1.05rem; height: 1.05rem; color: var(--espera); }
 .term-caixa-vida { color: #9aa7b8; font-style: italic; }
 .term-caixa code { color: var(--term-cmd); background: none; border: 0; }
 .term-linha { display: flex; gap: 0.5rem; padding: 0.55rem 0.9rem; border-top: 1px solid #1f2a3c; font-family: var(--mono); font-size: 0.86rem; background: color-mix(in srgb, var(--term-fundo) 85%, #000); }

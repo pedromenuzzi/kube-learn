@@ -21,7 +21,7 @@ test('missão de YAML: copia a solução, aplica, passa nos visíveis e entrega'
 
   await page.getByRole('button', { name: 'Entregar' }).click();
   await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
-  await expect(page.locator('#lado-testes')).toContainText('2 de 2 testes passou');
+  await expect(page.locator('#lado-testes')).toContainText('2 de 2 testes passaram');
 
   // O progresso fica salvo: a lista de missões mostra ✅.
   await page.goto('#/trilha');

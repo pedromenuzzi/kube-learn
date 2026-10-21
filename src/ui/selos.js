@@ -19,7 +19,7 @@ export function svgSelo(nivel, { tamanho = 160 } = {}) {
     <rect x="43" y="29" width="1" height="5" fill="#f5c518"/>
     <rect x="0" y="42" width="56" height="3" fill="#2a6fb0"/>
     <text x="28" y="55" text-anchor="middle" font-family="'Press Start 2P', monospace" font-size="4.6" fill="#f5c518">LACRADO</text>
-    <text x="28" y="63" text-anchor="middle" font-family="'Press Start 2P', monospace" font-size="3.4" fill="#ffffff">NÍVEL ${nivel.numero}</text>
+    <text x="28" y="63.4" text-anchor="middle" font-family="'Atkinson Hyperlegible', sans-serif" font-weight="700" font-size="4.6" letter-spacing="0.35" fill="#ffffff">NÍVEL ${nivel.numero}</text>
   </svg>`;
 }
 

@@ -1,6 +1,6 @@
 // A tela das lições sem cluster e dos quizzes: o texto, a comparação com a vida real e, no quiz, a pergunta.
 import { XP } from '../conteudo/util.js';
-import { ITENS, NIVEIS } from '../conteudo/index.js';
+import { NIVEIS, proximoDe } from '../conteudo/index.js';
 import { registrarResultado, registrarDia, ler, CHAVES } from '../armazenamento.js';
 import { hojeLocal } from '../jogo/gamificacao.js';
 import { escapar } from './util.js';
@@ -20,8 +20,7 @@ export function conferirQuiz(item, escolha) {
 }
 
 export function montarLeitura(raiz, item) {
-  const indice = ITENS.indexOf(item);
-  const proximo = ITENS[indice + 1];
+  const proximo = proximoDe(item);
   const nivel = NIVEIS[item.nivel];
   const jaFeito = ler(CHAVES.progresso, {})[item.id]?.status === 'resolvido';
   raiz.innerHTML = `
@@ -31,6 +30,7 @@ export function montarLeitura(raiz, item) {
       <header class="ex-topo">
         <h1>${escapar(item.titulo)}</h1>
         <span class="chip chip-${item.tipo}">${item.tipo === 'quiz' ? 'Quiz' : 'Lição'}</span><span class="chip">${XP[item.tipo]} XP</span>
+        ${jaFeito && item.tipo === 'quiz' ? `<span class="chip chip-ok">${icone('certo')} Resolvido</span>` : ''}
       </header>
       <div class="leitura-texto">${item.enunciado}</div>
       ${item.tipo === 'quiz' ? `
@@ -42,7 +42,7 @@ export function montarLeitura(raiz, item) {
       </form>` : ''}
       <div class="quiz-retorno" role="status" aria-live="polite"></div>
       ${item.vidaReal ? `
-      <aside class="caixa-vida" aria-label="Na vida real">
+      <aside class="caixa-vida" aria-label="Na vida real"${item.tipo === 'quiz' && !jaFeito ? ' hidden' : ''}>
         <p><b>Na vida real:</b> ${escapar(item.vidaReal)}</p>
         ${item.limite ? `<p><b>Onde a comparação quebra:</b> ${escapar(item.limite)}</p>` : ''}
       </aside>` : ''}
@@ -61,6 +61,7 @@ export function montarLeitura(raiz, item) {
     registrarResultado(item.id, r.certa);
     retorno.className = `quiz-retorno ${r.certa ? 'ok' : 'falha'}`;
     retorno.innerHTML = `<p><b>${r.certa ? `Certo! +${XP.quiz} XP.` : 'Ainda não.'}</b> ${r.explicacao}</p>`;
+    if (r.certa) raiz.querySelector('.caixa-vida')?.removeAttribute('hidden');
   });
   raiz.querySelector('[data-acao=lida]')?.addEventListener('click', (e) => {
     registrarDia(hojeLocal());

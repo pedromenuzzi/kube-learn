@@ -1,6 +1,7 @@
 // O terminal: digita uma linha, mostra a saída, guarda o histórico (↑/↓), completa com Tab, acompanha -w e -f
 // (as linhas novas chegam a cada tique do relógio) e vira o shell do contêiner no `exec -it`.
 import { escapar } from './util.js';
+import { icone } from './icones.js';
 
 const PROMPT = 'aluno@kube-learn:~$';
 const MAX_LINHAS = 1500;
@@ -41,7 +42,7 @@ export function criarTerminal(raiz, { executar, completar }) {
   const caixa = (c) => {
     const div = document.createElement('div');
     div.className = 'term-caixa';
-    div.innerHTML = `<p class="term-caixa-titulo">🏠 ${escapar(c.titulo)}</p><p>${c.texto}</p>${c.vidaReal ? `<p class="term-caixa-vida">Na vida real: ${escapar(c.vidaReal)}</p>` : ''}`;
+    div.innerHTML = `<p class="term-caixa-titulo">${icone('lampada')} ${escapar(c.titulo)}</p><p>${c.texto}</p>${c.vidaReal ? `<p class="term-caixa-vida">Na vida real: ${escapar(c.vidaReal)}</p>` : ''}`;
     saida.append(div);
     rolar();
   };

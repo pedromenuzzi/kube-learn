@@ -1,6 +1,7 @@
 // A tela do exercício (e do playground): missão, editor de arquivos, terminal ligado a um cluster simulado
 // que anda no tempo (1 segundo por segundo), painéis do cluster e os testes.
 import { montarCluster } from '../conteudo/clusters.js';
+import { proximoDe } from '../conteudo/index.js';
 import { XP } from '../conteudo/util.js';
 import { rodarLinha } from '../k8s/linha.js';
 import { explicar as explicarSaida } from '../k8s/explicacoes.js';
@@ -61,6 +62,7 @@ export function montarExercicio(raiz, item) {
         <h1>${escapar(item.titulo)}</h1>
         ${item.projeto ? `<span class="chip chip-projeto">${icone('arvore')} ${escapar(item.projeto.titulo)} · etapa ${item.projeto.etapa} de ${item.projeto.total}</span>` : ''}
         ${item.dificuldade ? `<span class="chip chip-${item.dificuldade}">${DIFICULDADE[item.dificuldade]}</span>${item.secao ? '' : `<span class="chip">${XP[item.dificuldade]} XP</span>`}` : ''}
+        ${ler(CHAVES.progresso, {})[item.id]?.status === 'resolvido' ? `<span class="chip chip-ok">${icone('certo')} Resolvida</span>` : ''}
       </header>
       <div class="ex-acoes">
         ${temArquivos ? `<button type="button" class="botao" data-acao="aplicar" title="Ctrl+Enter">${icone('play')} Aplicar</button>` : `<button type="button" class="botao" data-acao="conferir" title="Ctrl+Enter">${icone('certo')} Conferir</button>`}
@@ -71,7 +73,7 @@ export function montarExercicio(raiz, item) {
         <button type="button" data-acao="arrumacao" title="Volta as janelas para o lugar e o tamanho de começo">${icone('janelas')}<span class="rotulo">Arrumação padrão</span></button>
         <span class="relogio" aria-hidden="true"></span>
       </div>
-      <p class="ex-aviso" role="status" aria-live="polite"></p>
+      <div class="ex-aviso" role="status" aria-live="polite"></div>
       <div class="ex-janelas"></div>
     </div>`;
 
@@ -108,6 +110,16 @@ export function montarExercicio(raiz, item) {
 
   const $ = (s) => raiz.querySelector(s);
   const aviso = $('.ex-aviso');
+  let tempoDoAviso = 0;
+  /** O aviso flutua sobre a tela (não empurra as janelas) e some sozinho; o de missão cumprida fica, com o link da próxima. */
+  const avisar = (texto, { tipo = 'info', proximo } = {}) => {
+    clearTimeout(tempoDoAviso);
+    aviso.className = `ex-aviso ${tipo}`;
+    aviso.innerHTML = `${tipo === 'info' ? '' : icone(tipo === 'ok' ? 'certo' : 'fechar')}<div class="aviso-texto"><span>${escapar(texto)}</span>`
+      + (proximo ? `<a href="#/ex/${proximo.id}">Próxima: ${escapar(proximo.titulo)} ${icone('seguir')}</a>` : '')
+      + `</div><button type="button" class="aviso-fechar" data-acao="fechar-aviso" aria-label="Fechar o aviso">${icone('fechar')}</button>`;
+    if (!proximo) tempoDoAviso = setTimeout(() => aviso.replaceChildren(), tipo === 'info' ? 4000 : 8000);
+  };
 
   // ---------- lado: missão, vida real, manual, solução, testes ----------
   $('#lado-missao').innerHTML = `
@@ -119,7 +131,7 @@ export function montarExercicio(raiz, item) {
   $('.resposta-aluno')?.addEventListener('submit', (e) => {
     e.preventDefault();
     estado.resposta = e.target.resposta.value;
-    aviso.textContent = 'Resposta guardada. Agora clique em Conferir.';
+    avisar('Resposta guardada. Agora clique em Conferir.');
   });
   $('#resposta-aluno')?.addEventListener('input', (e) => { estado.resposta = e.target.value; });
   if (item.vidaReal) {
@@ -265,7 +277,7 @@ export function montarExercicio(raiz, item) {
     const ok = resultados.filter((r) => r.ok).length;
     const ocultosNaoRodados = !todos ? item.testes.filter((t) => t.oculto).length : 0;
     $('#lado-testes').innerHTML = `
-      <p class="resumo ${ok === total ? 'ok' : 'falha'}">${ok} de ${total} teste${total > 1 ? 's' : ''} passou</p>
+      <p class="resumo ${ok === total ? 'ok' : 'falha'}">${ok} de ${total} teste${total > 1 ? 's' : ''} ${ok === 1 ? 'passou' : 'passaram'}</p>
       <ol class="testes">${resultados.map((t) => `
         <li class="${t.ok ? 'ok' : 'falha'}">
           <p>${icone(t.ok ? 'certo' : 'fechar')} ${t.oculto ? `${icone('cadeado')} ` : ''}${escapar(t.descricao)}</p>
@@ -276,7 +288,7 @@ export function montarExercicio(raiz, item) {
   }
 
   function testar(todos) {
-    aviso.textContent = todos ? 'Rodando todos os testes, inclusive os ocultos…' : 'Rodando os testes visíveis…';
+    avisar(todos ? 'Rodando todos os testes, inclusive os ocultos…' : 'Rodando os testes visíveis…');
     registrarDia(hojeLocal());
     setTimeout(() => {
       const resultados = rodarTestes(item, {
@@ -286,11 +298,11 @@ export function montarExercicio(raiz, item) {
       if (todos) {
         const resolvido = ok === total;
         registrarResultado(item.id, resolvido);
-        aviso.textContent = resolvido
-          ? item.secao ? 'Incidente resolvido! O morador agradece.' : `Missão cumprida! +${XP[item.dificuldade] ?? 0} XP. Mais um contêiner embarcado no seu navio.`
-          : `${ok} de ${total} testes passaram. Veja o que faltou na aba Testes.`;
+        if (resolvido && !$('.ex-topo .chip-ok')) $('.ex-topo').insertAdjacentHTML('beforeend', `<span class="chip chip-ok">${icone('certo')} Resolvida</span>`);
+        if (resolvido) avisar(item.secao ? 'Incidente resolvido! O morador agradece.' : `Missão cumprida! +${XP[item.dificuldade] ?? 0} XP. Mais um contêiner embarcado no seu navio.`, { tipo: 'ok', proximo: proximoDe(item) });
+        else avisar(`${ok} de ${total} testes passaram. Veja o que faltou na aba Testes.`, { tipo: 'falha' });
       } else {
-        aviso.textContent = `Testes visíveis: ${ok} de ${total} passaram${ok === total ? '. Agora é só entregar.' : '. Veja a aba Testes.'}`;
+        avisar(`Testes visíveis: ${ok} de ${total} passaram${ok === total ? '. Agora é só entregar.' : '. Veja a aba Testes.'}`, { tipo: ok === total ? 'ok' : 'falha' });
       }
       abasLado.selecionar('testes');
     }, 30);
@@ -311,8 +323,9 @@ export function montarExercicio(raiz, item) {
       estado.cluster.avancar('30s');
       terminal.tique();
       atualizarPaineis();
-      aviso.textContent = 'O relógio do cluster andou 30 segundos.';
+      avisar('O relógio do cluster andou 30 segundos.');
     },
+    'fechar-aviso': () => aviso.replaceChildren(),
     resetar() {
       if (!confirm('Voltar o cluster para o começo da missão? (Seus arquivos ficam.)')) return;
       estado.cluster = montarCluster(item.cluster, `${item.id}:aluno`);
@@ -364,6 +377,7 @@ export function montarExercicio(raiz, item) {
   return {
     destruir() {
       clearInterval(relogio);
+      clearTimeout(tempoDoAviso);
       document.removeEventListener('keydown', teclas);
       editor?.destruir();
       janelas.destruir();
