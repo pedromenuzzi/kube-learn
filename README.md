@@ -7,6 +7,9 @@ missão resolvida embarca mais um contêiner no seu navio em pixel art, e a pilh
 
 **Acesse:** https://pedromenuzzi.github.io/kube-learn/
 
+**Em português e em inglês:** o botão PT | EN do topo troca o idioma na hora, em qualquer tela (in English too: just
+click EN at the top).
+
 **Versão 1.0:** a trilha completa, com os níveis 0 a 11 (contêineres; cluster, kubectl e Pods; Deployments;
 Services, Ingress e Gateway API; configuração e armazenamento; Jobs, CronJobs e DaemonSets; saúde e recursos;
 scheduling e manutenção; segurança; troubleshooting; Helm, Kustomize, CRDs e GitOps; e os projetos), com 32 lições,

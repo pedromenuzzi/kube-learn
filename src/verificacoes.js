@@ -40,6 +40,7 @@ import { resumoPod } from './k8s/kubectl/tabelas.js';
 import { canonico } from './k8s/aleatorio.js';
 import { pode as podeFazer, quemE } from './k8s/seguranca.js';
 import { parseDuracao } from './k8s/unidades.js';
+import { t } from './i18n.js';
 
 /** Uma requisição de teste: de um pod, de dentro do cluster (sem pod) ou de fora (o computador do aluno). */
 function pedir(cluster, q) {
@@ -51,7 +52,7 @@ function pedir(cluster, q) {
 }
 
 const PASSOS_PADRAO = [{ comando: 'kubectl apply -f .' }, { avancar: '1m' }];
-const mostrar = (v) => (v === undefined ? 'nada' : JSON.stringify(v));
+const mostrar = (v) => (v === undefined ? t('nada') : JSON.stringify(v));
 
 /** Lê um caminho como 'spec.template.spec.containers[0].image' ou 'metadata.annotations["kubernetes.io/change-cause"]'. */
 export function ler(obj, caminho) {
@@ -70,32 +71,33 @@ const podsDo = (c, seletor, ns = 'default') => {
 };
 
 function comparar(valor, regra, rotulo) {
-  if ('igual' in regra) return [canonico(valor) === canonico(regra.igual), `${rotulo} = ${mostrar(regra.igual)}`, `veio ${mostrar(valor)}`];
+  const veio = t('veio {valor}', { valor: mostrar(valor) });
+  if ('igual' in regra) return [canonico(valor) === canonico(regra.igual), `${rotulo} = ${mostrar(regra.igual)}`, veio];
   if ('contem' in regra) {
     const ok = Array.isArray(valor) ? valor.includes(regra.contem) : String(valor ?? '').includes(regra.contem);
-    return [ok, `${rotulo} contém ${mostrar(regra.contem)}`, `veio ${mostrar(valor)}`];
+    return [ok, t('{alvo} contém {valor}', { alvo: rotulo, valor: mostrar(regra.contem) }), veio];
   }
-  if ('regex' in regra) return [new RegExp(regra.regex).test(valor && typeof valor === 'object' ? JSON.stringify(valor) : String(valor ?? '')), `${rotulo} combina com /${regra.regex}/`, `veio ${mostrar(valor)}`];
+  if ('regex' in regra) return [new RegExp(regra.regex).test(valor && typeof valor === 'object' ? JSON.stringify(valor) : String(valor ?? '')), t('{alvo} combina com /{re}/', { alvo: rotulo, re: regra.regex }), veio];
   const deveExistir = regra.existe ?? true;
-  return [(valor !== undefined) === deveExistir, `${rotulo} ${deveExistir ? 'existe' : 'não existe'}`, `veio ${mostrar(valor)}`];
+  return [(valor !== undefined) === deveExistir, deveExistir ? t('{alvo} existe', { alvo: rotulo }) : t('{alvo} não existe', { alvo: rotulo }), veio];
 }
 
 const REGRAS = {
   semErros(r, ctx) {
     const falhou = ctx.resultados.find((x) => x.codigo !== 0);
-    return [!falhou, 'os comandos rodaram sem erro', falhou ? falhou.saida.trim().split('\n')[0] : ''];
+    return [!falhou, t('os comandos rodaram sem erro'), falhou ? falhou.saida.trim().split('\n')[0] : ''];
   },
   erro(r, ctx) {
     const ok = ctx.resultados.some((x) => x.codigo !== 0 && x.saida.includes(r.erro));
-    return [ok, `o comando falha com "${r.erro}"`, 'nenhum comando falhou com esse texto'];
+    return [ok, t('o comando falha com "{erro}"', { erro: r.erro }), t('nenhum comando falhou com esse texto')];
   },
   objeto(r, ctx) {
     const { recurso, nome } = separar(r.objeto);
     const obj = recurso && ctx.cluster.obter(recurso.kind, recurso.namespaced ? r.ns ?? 'default' : null, nome);
-    if (!obj && r.existe === false && !r.campo) return [true, `${r.objeto} não existe`];
-    if (obj && r.existe === false && !r.campo) return [false, `${r.objeto} não existe`, 'ainda existe'];
-    if (!obj) return [false, `${r.objeto}${r.campo ? `: ${r.campo}` : ''} existe`, `${pluralQualificado(recurso ?? { plural: r.objeto, grupo: '' })} "${nome}" não existe`];
-    if (!r.campo) return [true, `${r.objeto} existe`];
+    if (!obj && r.existe === false && !r.campo) return [true, t('{alvo} não existe', { alvo: r.objeto })];
+    if (obj && r.existe === false && !r.campo) return [false, t('{alvo} não existe', { alvo: r.objeto }), t('ainda existe')];
+    if (!obj) return [false, t('{alvo} existe', { alvo: `${r.objeto}${r.campo ? `: ${r.campo}` : ''}` }), t('{alvo} não existe', { alvo: `${pluralQualificado(recurso ?? { plural: r.objeto, grupo: '' })} "${nome}"` })];
+    if (!r.campo) return [true, t('{alvo} existe', { alvo: r.objeto })];
     return comparar(ler(obj, r.campo), r, `${r.objeto}: ${r.campo}`);
   },
   pods(r, ctx) {
@@ -111,17 +113,17 @@ const REGRAS = {
         detalhe = d;
       }
     };
-    if (r.quantidade !== undefined) conferir(lista.length === r.quantidade, `${r.quantidade} pods`, `há ${lista.length}`);
-    if (r.prontos !== undefined) conferir(prontos.length === r.prontos, `${r.prontos} prontos`, `${prontos.length} prontos de ${lista.length}`);
-    if (r.fase) conferir(lista.length > 0 && lista.every((p) => p.status?.phase === r.fase), `fase ${r.fase}`, lista.map((p) => `${p.metadata.name}: ${p.status?.phase}`).join(', ') || 'nenhum pod');
+    if (r.quantidade !== undefined) conferir(lista.length === r.quantidade, `${r.quantidade} pods`, t('há {n}', { n: lista.length }));
+    if (r.prontos !== undefined) conferir(prontos.length === r.prontos, t('{n} prontos', { n: r.prontos }), t('{n} prontos de {total}', { n: prontos.length, total: lista.length }));
+    if (r.fase) conferir(lista.length > 0 && lista.every((p) => p.status?.phase === r.fase), t('fase {fase}', { fase: r.fase }), lista.map((p) => `${p.metadata.name}: ${p.status?.phase}`).join(', ') || t('nenhum pod'));
     if (r.imagem) {
       const outras = lista.filter((p) => p.spec.containers[0].image !== r.imagem);
-      conferir(lista.length > 0 && !outras.length, `com a imagem ${r.imagem}`, outras.length ? `${outras[0].metadata.name} usa ${outras[0].spec.containers[0].image}` : 'nenhum pod');
+      conferir(lista.length > 0 && !outras.length, t('com a imagem {imagem}', { imagem: r.imagem }), outras.length ? t('{pod} usa {imagem}', { pod: outras[0].metadata.name, imagem: outras[0].spec.containers[0].image }) : t('nenhum pod'));
     }
-    if (r.node) conferir(lista.length > 0 && lista.every((p) => p.spec.nodeName === r.node), `no node ${r.node}`, lista.map((p) => `${p.metadata.name}: ${p.spec.nodeName ?? 'sem node'}`).join(', '));
+    if (r.node) conferir(lista.length > 0 && lista.every((p) => p.spec.nodeName === r.node), t('no node {node}', { node: r.node }), lista.map((p) => `${p.metadata.name}: ${p.spec.nodeName ?? t('sem node')}`).join(', '));
     if (r.reinicios?.max !== undefined) {
       const muito = lista.find((p) => (p.status?.containerStatuses ?? []).some((s) => s.restartCount > r.reinicios.max));
-      conferir(!muito, `até ${r.reinicios.max} reinícios`, muito ? `${muito.metadata.name} reiniciou mais` : '');
+      conferir(!muito, t('até {n} reinícios', { n: r.reinicios.max }), muito ? t('{pod} reiniciou mais', { pod: muito.metadata.name }) : '');
     }
     return [ok, `pods ${r.pods}: ${partes.join(', ')}`, detalhe];
   },
@@ -129,13 +131,13 @@ const REGRAS = {
     const lista = r.status.includes('=') ? podsDo(ctx.cluster, r.status, r.ns) : [ctx.cluster.obter('Pod', r.ns ?? 'default', separar(r.status).nome)].filter(Boolean);
     const motivos = lista.map((p) => resumoPod(p, ctx.cluster.agora).status);
     const ultimos = lista.flatMap((p) => (p.status?.containerStatuses ?? []).map((s) => s.lastState?.terminated?.reason)).filter(Boolean);
-    return [motivos.includes(r.motivo) || ultimos.includes(r.motivo), `${r.status} mostra ${r.motivo}`, motivos.length ? `está ${motivos.join(', ')}` : 'pod não encontrado'];
+    return [motivos.includes(r.motivo) || ultimos.includes(r.motivo), t('{alvo} mostra {motivo}', { alvo: r.status, motivo: r.motivo }), motivos.length ? t('está {valor}', { valor: motivos.join(', ') }) : t('pod não encontrado')];
   },
   endpoints(r, ctx) {
     const { nome } = separar(r.endpoints, 'svc');
     const ep = ctx.cluster.obter('Endpoints', r.ns ?? 'default', nome);
     const n = (ep?.subsets ?? []).reduce((s, x) => s + (x.addresses?.length ?? 0), 0);
-    return [n === r.quantidade, `o Service ${nome} tem ${r.quantidade} pods prontos atrás dele`, `tem ${n}`];
+    return [n === r.quantidade, t('o Service {nome} tem {n} pods prontos atrás dele', { nome, n: r.quantidade }), t('tem {n}', { n })];
   },
   requisicao(r, ctx) {
     const q = r.requisicao;
@@ -143,8 +145,9 @@ const REGRAS = {
     const obtido = res.erro ?? res.status;
     const statusOk = obtido === (q.status ?? 200);
     const corpoOk = !q.corpo || new RegExp(q.corpo).test(res.corpo ?? '');
-    const detalhe = statusOk ? `veio ${obtido}, mas sem /${q.corpo}/ na resposta: ${mostrar((res.corpo ?? '').trim().slice(0, 80))}` : `veio ${obtido}`;
-    return [statusOk && corpoOk, `${q.url} responde ${q.status ?? 200}${q.corpo ? ` com /${q.corpo}/` : ''}`, detalhe];
+    const detalhe = statusOk ? t('veio {valor}, mas sem /{re}/ na resposta: {corpo}', { valor: obtido, re: q.corpo, corpo: mostrar((res.corpo ?? '').trim().slice(0, 80)) }) : t('veio {valor}', { valor: obtido });
+    const pedido = { url: q.url, status: q.status ?? 200, re: q.corpo };
+    return [statusOk && corpoOk, q.corpo ? t('{url} responde {status} com /{re}/', pedido) : t('{url} responde {status}', pedido), detalhe];
   },
   distribuicao(r, ctx) {
     const q = r.distribuicao;
@@ -152,46 +155,48 @@ const REGRAS = {
     let n = 0;
     for (let i = 0; i < (q.vezes ?? 100); i++) if (re.test(pedir(ctx.cluster, q).corpo ?? '')) n++;
     const [min, max] = q.entre;
-    return [n >= min && n <= max, `de ${q.vezes ?? 100} requisições a ${q.url}, entre ${min} e ${max} casam com /${q.corpo}/`, `foram ${n}`];
+    return [n >= min && n <= max, t('de {vezes} requisições a {url}, entre {min} e {max} casam com /{re}/', { vezes: q.vezes ?? 100, url: q.url, min, max, re: q.corpo }), t('foram {n}', { n })];
   },
   dns(r, ctx) {
     const q = r.dns;
     const origem = q.de ? ctx.cluster.obter('Pod', q.ns ?? 'default', separar(q.de).nome) : null;
     const res = resolver(ctx.cluster, q.nome, origem?.metadata.namespace ?? 'default');
     const n = res?.ips?.length ?? 0;
-    return [n === q.quantidade, `${q.nome} resolve para ${q.quantidade} endereço${q.quantidade === 1 ? '' : 's'}`, res ? `resolve para ${n}` : 'não resolve'];
+    const esperado = { nome: q.nome, n: q.quantidade };
+    return [n === q.quantidade, q.quantidade === 1 ? t('{nome} resolve para {n} endereço', esperado) : t('{nome} resolve para {n} endereços', esperado), res ? t('resolve para {n}', { n }) : t('não resolve')];
   },
   rollout(r, ctx) {
     const { nome } = separar(r.rollout, 'deployment');
     if (r.semMistura) {
       const max = ctx.versoes.get(nome) ?? 0;
-      return [max <= 1, `deployment/${nome} nunca rodou duas versões ao mesmo tempo`, `chegou a ${max} versões juntas`];
+      return [max <= 1, t('deployment/{nome} nunca rodou duas versões ao mesmo tempo', { nome }), t('chegou a {n} versões juntas', { n: max })];
     }
     const min = ctx.minimos.get(nome);
-    return [min !== undefined && min >= r.minDisponivel, `deployment/${nome} nunca ficou com menos de ${r.minDisponivel} pods prontos`, `chegou a ${min ?? '?'}`];
+    return [min !== undefined && min >= r.minDisponivel, t('deployment/{nome} nunca ficou com menos de {n} pods prontos', { nome, n: r.minDisponivel }), t('chegou a {n}', { n: min ?? '?' })];
   },
   evento(r, ctx) {
     const ok = ctx.cluster.eventos.some((e) => e.reason === r.evento.motivo && (!r.evento.objeto || `${e.involvedObject.kind.toLowerCase()}/${e.involvedObject.name}` === r.evento.objeto));
-    return [ok, `aconteceu um evento ${r.evento.motivo}`, 'não aconteceu'];
+    return [ok, t('aconteceu um evento {motivo}', { motivo: r.evento.motivo }), t('não aconteceu')];
   },
   env(r, ctx) {
     const q = r.env;
     const lista = podsDo(ctx.cluster, q.pods, q.ns).filter(estaPronto);
     const valores = lista.map((p) => ctx.cluster.kubelet.estado(p, p.spec.containers[0].name)?.env?.[q.nome]);
     const casa = (v) => (q.regex ? new RegExp(q.regex).test(v ?? '') : v === q.igual);
-    return [lista.length > 0 && valores.every(casa), `${q.nome}${q.regex ? ` combina com /${q.regex}/` : `=${q.igual}`} dentro dos pods ${q.pods}`, lista.length ? `veio ${mostrar(valores[0])}` : 'nenhum pod pronto'];
+    return [lista.length > 0 && valores.every(casa), q.regex ? t('{nome} combina com /{re}/ dentro dos pods {pods}', { nome: q.nome, re: q.regex, pods: q.pods }) : t('{nome}={valor} dentro dos pods {pods}', { nome: q.nome, valor: q.igual, pods: q.pods }), lista.length ? t('veio {valor}', { valor: mostrar(valores[0]) }) : t('nenhum pod pronto')];
   },
   saida(r, ctx) {
     const re = new RegExp(r.saida);
-    return [ctx.resultados.some((x) => re.test(x.saida)), `a saída de um comando do teste combina com /${r.saida}/`, ctx.resultados.length ? `veio ${mostrar(ctx.resultados.at(-1).saida.trim().split('\n')[0])}` : 'nenhum comando rodou'];
+    return [ctx.resultados.some((x) => re.test(x.saida)), t('a saída de um comando do teste combina com /{re}/', { re: r.saida }), ctx.resultados.length ? t('veio {valor}', { valor: mostrar(ctx.resultados.at(-1).saida.trim().split('\n')[0]) }) : t('nenhum comando rodou')];
   },
   vigia(r, ctx) {
     const { falhas, total } = ctx.vigia ?? { falhas: 0, total: 0 };
-    return [total > 0 && falhas <= r.vigia.maxFalhas, `um cliente pedindo ${ctx.urlVigiada} a cada segundo teve no máximo ${r.vigia.maxFalhas} erro${r.vigia.maxFalhas === 1 ? '' : 's'}`, `teve ${falhas} erros em ${total} pedidos`];
+    const vigia = { url: ctx.urlVigiada, n: r.vigia.maxFalhas };
+    return [total > 0 && falhas <= r.vigia.maxFalhas, r.vigia.maxFalhas === 1 ? t('um cliente pedindo {url} a cada segundo teve no máximo {n} erro', vigia) : t('um cliente pedindo {url} a cada segundo teve no máximo {n} erros', vigia), t('teve {falhas} erros em {total} pedidos', { falhas, total })];
   },
   comando(r, ctx) {
     const re = new RegExp(r.comando);
-    return [ctx.historico.some((l) => re.test(l.trim())), `você usou um comando que combina com /${r.comando}/`, 'nenhum comando parecido no histórico'];
+    return [ctx.historico.some((l) => re.test(l.trim())), t('você usou um comando que combina com /{re}/', { re: r.comando }), t('nenhum comando parecido no histórico')];
   },
   resposta(r, ctx) {
     const dada = String(ctx.resposta ?? '').trim();
@@ -202,23 +207,24 @@ const REGRAS = {
       const obj = ctx.cluster?.obter(recurso.kind, recurso.namespaced ? r.resposta.ns ?? 'default' : null, nome);
       ok = !!obj && dada.toLowerCase() === String(ler(obj, r.resposta.campo)).toLowerCase();
     } else ok = dada.toLowerCase() === String(r.resposta).toLowerCase();
-    return [ok, 'a resposta está certa', dada ? 'não é essa' : 'você ainda não respondeu (o campo fica na aba Missão)'];
+    return [ok, t('a resposta está certa'), dada ? t('não é essa') : t('você ainda não respondeu (o campo fica na aba Missão)')];
   },
   pode(r, ctx) {
     const q = r.pode;
     const rec = acharRecurso(q.recurso);
     const ns = rec.namespaced ? q.ns ?? 'default' : undefined;
     const deixa = podeFazer(ctx.cluster, quemE(q.quem), { verbo: q.verbo, recurso: rec.plural, grupo: rec.grupo, sub: q.sub, ns, nome: q.nome });
-    const acao = `${q.verbo} ${q.sub ? `${q.recurso}/${q.sub}` : q.recurso}${ns ? ` no namespace ${ns}` : ''}`;
-    return [deixa === q.resposta, `${q.quem} ${q.resposta ? 'pode' : 'não pode'} ${acao}`, deixa ? 'pode' : 'não pode'];
+    const verbo = `${q.verbo} ${q.sub ? `${q.recurso}/${q.sub}` : q.recurso}`;
+    const acao = { quem: q.quem, acao: ns ? t('{acao} no namespace {ns}', { acao: verbo, ns }) : verbo };
+    return [deixa === q.resposta, q.resposta ? t('{quem} pode {acao}', acao) : t('{quem} não pode {acao}', acao), deixa ? t('pode') : t('não pode')];
   },
   release(r, ctx) {
     const q = r.release;
     const rev = ctx.cluster.helm?.releases.get(`${q.ns ?? 'default'}/${q.nome}`)?.at(-1);
-    if (!rev) return [false, `a release ${q.nome} existe`, 'não existe (helm list)'];
-    const confere = [['status', rev.status], ['revisao', rev.revisao], ['descricao', rev.descricao]].filter(([k]) => q[k] !== undefined);
+    if (!rev) return [false, t('a release {nome} existe', { nome: q.nome }), t('não existe (helm list)')];
+    const confere = [['status', rev.status, 'status'], ['revisao', rev.revisao, t('revisao')], ['descricao', rev.descricao, t('descricao')]].filter(([k]) => q[k] !== undefined);
     const errado = confere.find(([k, v]) => v !== q[k]);
-    return [!errado, `a release ${q.nome}: ${confere.map(([k]) => `${k} ${q[k]}`).join(', ') || 'existe'}`, errado ? `${errado[0]} é ${errado[1]}` : ''];
+    return [!errado, t('a release {nome}: {campos}', { nome: q.nome, campos: confere.map(([k, , rotulo]) => `${rotulo} ${q[k]}`).join(', ') || t('existe') }), errado ? t('{campo} é {valor}', { campo: errado[2], valor: errado[1] }) : ''];
   },
   espalhamento(r, ctx) {
     const q = r.espalhamento;
@@ -229,11 +235,11 @@ const REGRAS = {
     }
     const valores = [...conta.values()];
     const dif = valores.length ? Math.max(...valores) - Math.min(...valores) : 0;
-    return [dif <= q.maxSkew, `os pods ${q.pods} estão espalhados por ${q.chave} (diferença de no máximo ${q.maxSkew})`, [...conta].map(([k, n]) => `${k}: ${n}`).join(', ')];
+    return [dif <= q.maxSkew, t('os pods {pods} estão espalhados por {chave} (diferença de no máximo {n})', { pods: q.pods, chave: q.chave, n: q.maxSkew }), [...conta].map(([k, n]) => `${k}: ${n}`).join(', ')];
   },
   contexto(r, ctx) {
     const atual = ctx.cluster.contexto.namespace;
-    return [atual === r.contexto.namespace, `o namespace padrão do kubectl é ${r.contexto.namespace}`, `está ${atual}`];
+    return [atual === r.contexto.namespace, t('o namespace padrão do kubectl é {ns}', { ns: r.contexto.namespace }), t('está {valor}', { valor: atual })];
   },
 };
 
@@ -295,7 +301,7 @@ export function rodarTeste(item, teste, indice, { arquivos = {}, historico = [],
     }
   }
   ctx.cluster?.ativar(); // os tipos dos CRDs deste cluster
-  const regras = ctx.cluster ? teste.regras.map((r) => conferir(r, ctx)) : [{ ok: false, mensagem: 'o cluster do terminal', detalhe: 'abra o exercício e use o terminal' }];
+  const regras = ctx.cluster ? teste.regras.map((r) => conferir(r, ctx)) : [{ ok: false, mensagem: t('o cluster do terminal'), detalhe: t('abra o exercício e use o terminal') }];
   return { descricao: teste.descricao, oculto: !!teste.oculto, ok: regras.every((r) => r.ok), regras };
 }
 

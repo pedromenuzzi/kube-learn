@@ -1,0 +1,590 @@
+{
+  "imagem": {
+    "termo": "Image",
+    "definicao": "The ready-made package with the program and everything it needs to run (libraries, files, default configuration).",
+    "vidaReal": "A prefab module: it always leaves the factory the same and arrives at the construction site ready to go.",
+    "limite": "The image doesn’t change once it’s built. To change it, you build another version (another tag).",
+    "exemplo": "nginx:1.27"
+  },
+  "conteiner": {
+    "termo": "Container",
+    "definicao": "A program running from an image, isolated from the other programs on the machine.",
+    "vidaReal": "The prefab module installed and working.",
+    "limite": "Several containers come out of the same image at the same time, and each one can die and be replaced in seconds.",
+    "exemplo": "docker run nginx:1.27"
+  },
+  "registry": {
+    "termo": "Registry",
+    "definicao": "The server images are downloaded from (Docker Hub, registry.k8s.io, ghcr.io...).",
+    "vidaReal": "The factory and warehouse for prefab parts.",
+    "limite": "A registry can be private: then you need a password (imagePullSecrets) to download.",
+    "exemplo": "registry.k8s.io/coredns/coredns:v1.12.4"
+  },
+  "tag": {
+    "termo": "Tag",
+    "definicao": "The image’s version label, after the colon.",
+    "vidaReal": "The model or batch of the prefab part (v1, v2).",
+    "limite": "“latest” doesn’t mean “the newest”: it’s just a tag like any other, and it can change without warning.",
+    "exemplo": "nginx:1.27  (tag 1.27)"
+  },
+  "cluster": {
+    "termo": "Cluster",
+    "definicao": "The set of machines (nodes) managed by Kubernetes, plus the control plane that runs them.",
+    "vidaReal": "A condo: several buildings and a management office.",
+    "limite": "In a cluster the “buildings” (nodes) are identical, replaceable machines; nobody lives in a specific node.",
+    "exemplo": "kubectl cluster-info"
+  },
+  "control-plane": {
+    "termo": "Control plane",
+    "definicao": "The components that make decisions and store the cluster’s state: API Server, etcd, scheduler and controller manager.",
+    "vidaReal": "The condo’s management office.",
+    "limite": "In a managed cluster (EKS, GKE, AKS) you don’t even see the management office: the provider takes care of it.",
+    "exemplo": "kubectl get pods -n kube-system"
+  },
+  "api-server": {
+    "termo": "API Server",
+    "definicao": "The cluster’s front door: it receives every request (from kubectl and from the components themselves), checks it and saves it.",
+    "vidaReal": "The doorman (Apolinário): every request goes through him.",
+    "limite": "It doesn’t run anything by itself: it only records; the ones who act are the controllers and the kubelet.",
+    "exemplo": "kubectl get pods  (a request to the API Server)"
+  },
+  "etcd": {
+    "termo": "etcd",
+    "definicao": "The key-value database where the cluster stores all its objects.",
+    "vidaReal": "The management office’s record book (Etelvina, the archivist).",
+    "limite": "Losing etcd means losing the cluster’s memory: that’s why it has backups and replicas.",
+    "exemplo": "kubectl get pod etcd-control-plane -n kube-system"
+  },
+  "scheduler": {
+    "termo": "Scheduler",
+    "definicao": "Chooses which node each new pod will run on, based on space, rules and preferences.",
+    "vidaReal": "The real-estate agent (Shirley): she finds a building with room for each new apartment.",
+    "limite": "She only chooses once. After the pod is born, it never changes nodes; if the node goes down, another pod is born.",
+    "exemplo": "Events: Scheduled  Successfully assigned default/web to node-1"
+  },
+  "controller": {
+    "termo": "Controller",
+    "definicao": "A loop that compares the desired state (spec) with the actual one (status) and fixes the difference, nonstop.",
+    "vidaReal": "The inspector (Conceição): she compares the blueprint with the construction and orders fixes.",
+    "limite": "It doesn’t do everything at once: it fixes one step, looks again, fixes another.",
+    "exemplo": "deployment-controller, replicaset-controller"
+  },
+  "kubelet": {
+    "termo": "kubelet",
+    "definicao": "The agent on each node that creates and watches over the containers of that node’s pods.",
+    "vidaReal": "The building’s caretaker (Kleber): he looks after the apartments in his building.",
+    "limite": "If the kubelet stops, the node becomes NotReady; 5 minutes later, only pods with an owner (Deployment, StatefulSet) are reborn on other nodes.",
+    "exemplo": "kubectl describe node node-1"
+  },
+  "node": {
+    "termo": "Node",
+    "definicao": "A machine (physical or virtual) in the cluster, where pods run.",
+    "vidaReal": "A building in the condo, with power (CPU) and space (memory).",
+    "limite": "Nodes are alike and replaceable: there’s no “main building”.",
+    "exemplo": "kubectl get nodes"
+  },
+  "pod": {
+    "termo": "Pod",
+    "definicao": "The smallest unit in Kubernetes: one or more containers that share the same network (IP) and the same volumes, always on the same node.",
+    "vidaReal": "An apartment: it has its own address, and whoever lives there shares the space.",
+    "limite": "A broken apartment isn’t repaired: the pod is replaced by another one, with another name and another IP.",
+    "exemplo": "kubectl run web --image=nginx:1.27"
+  },
+  "kubectl": {
+    "termo": "kubectl",
+    "definicao": "The command line for talking to the cluster.",
+    "vidaReal": "The intercom to the front gate.",
+    "limite": "It only talks to the front gate (API Server), never directly to the buildings or the apartments.",
+    "exemplo": "kubectl get pods -o wide"
+  },
+  "manifesto": {
+    "termo": "Manifest (YAML)",
+    "definicao": "The file that describes an object: apiVersion, kind, metadata and spec.",
+    "vidaReal": "The blueprint: it says how you want things to end up, not how to get there.",
+    "limite": "A blueprint doesn’t guarantee the construction: the object can be rejected (wrong field) or get stuck (an image that doesn’t exist).",
+    "exemplo": "kubectl apply -f web.yaml"
+  },
+  "declarativo": {
+    "termo": "Declarative × imperative",
+    "definicao": "Declarative: you describe the desired state and the cluster gets there. Imperative: you give every order yourself.",
+    "vidaReal": "Handing over the blueprint × giving orders brick by brick.",
+    "limite": "The two live side by side: commands like kubectl scale are imperative, but they change the desired state the controllers chase.",
+    "exemplo": "kubectl apply (declarative)  ×  kubectl create (imperative)"
+  },
+  "reconciliacao": {
+    "termo": "Reconciliation",
+    "definicao": "The cycle of looking at the actual state, comparing it with the desired one and acting to bring the two closer.",
+    "vidaReal": "The thermostat: it compares the temperature with the one you want and turns the AC on or off.",
+    "limite": "A thermostat has a single sensor; Kubernetes has dozens of controllers, each one looking after one type of object.",
+    "exemplo": "Deleted a pod from a Deployment? Another one is born on its own."
+  },
+  "namespace": {
+    "termo": "Namespace",
+    "definicao": "A logical division of the cluster: names are unique inside it.",
+    "vidaReal": "A company that rents apartments in several buildings; each company can have its own “meeting-room”.",
+    "limite": "On its own, a namespace doesn’t isolate the network or limit resources: for that there’s NetworkPolicy and ResourceQuota.",
+    "exemplo": "kubectl get pods -n kube-system"
+  },
+  "label": {
+    "termo": "Label and selector",
+    "definicao": "Key=value tags on objects, and the rule that picks objects by their tags.",
+    "vidaReal": "Tags on the door (“team: support”) and “everyone with tag X”.",
+    "limite": "Labels aren’t unique: two objects with the same tag get picked together, like it or not.",
+    "exemplo": "kubectl get pods -l app=web"
+  },
+  "sidecar": {
+    "termo": "Sidecar",
+    "definicao": "A helper container in the same pod as the main one (logs, proxy, sync).",
+    "vidaReal": "The roommate who helps out the main tenant.",
+    "limite": "It’s born and dies with the pod; you can’t scale the helper separately from the main tenant.",
+    "exemplo": "containers: [app, coletor-de-logs]"
+  },
+  "replicaset": {
+    "termo": "ReplicaSet",
+    "definicao": "Keeps a number of identical pods running: it creates the missing ones and deletes the extras.",
+    "vidaReal": "A contract: “always 3 apartments occupied”.",
+    "limite": "It only checks the count and the labels: if a stray pod has the same labels, it gets “adopted”.",
+    "exemplo": "kubectl get rs"
+  },
+  "deployment": {
+    "termo": "Deployment",
+    "definicao": "Manages ReplicaSets to swap the pods’ version a little at a time (rolling update) and lets you go back (rollback).",
+    "vidaReal": "A renovation in stages: it swaps one apartment at a time, without closing the condo, and it can be undone.",
+    "limite": "Without a readinessProbe, Kubernetes thinks “started” means “ready”: a version that crashes after a few seconds makes it through the renovation.",
+    "exemplo": "kubectl rollout status deploy/web"
+  },
+  "rolling-update": {
+    "termo": "maxSurge and maxUnavailable",
+    "definicao": "The limits of the gradual swap: how many extra pods can exist and how many can be unavailable during the swap.",
+    "vidaReal": "How many extra temporary apartments can open / how many can be closed during the renovation.",
+    "limite": "With both at zero the swap would never move; that’s why Kubernetes forces maxUnavailable 1 in that case.",
+    "exemplo": "maxSurge: 1 · maxUnavailable: 0"
+  },
+  "recreate": {
+    "termo": "Recreate",
+    "definicao": "The strategy that deletes all the old pods before creating the new ones.",
+    "vidaReal": "Closing the whole condo to renovate it.",
+    "limite": "There’s a stretch of time with no one serving: use it only when two versions can’t run together.",
+    "exemplo": "strategy: { type: Recreate }"
+  },
+  "rollback": {
+    "termo": "Rollback",
+    "definicao": "Taking the Deployment back to an earlier revision of the template.",
+    "vidaReal": "Undoing the renovation and going back to the old design.",
+    "limite": "Only the pod template goes back: deleted data or database migrations don’t come back.",
+    "exemplo": "kubectl rollout undo deploy/web"
+  },
+  "service": {
+    "termo": "Service",
+    "definicao": "A fixed address (IP and DNS name) for a group of pods picked by labels, which spreads the connections among them.",
+    "vidaReal": "The company’s fixed phone extension: people move between apartments, the extension stays.",
+    "limite": "The extension only rings in apartments that are ready (readiness); if none is ready, the call is refused.",
+    "exemplo": "kubectl expose deploy web --port=80"
+  },
+  "endpoints": {
+    "termo": "Endpoints",
+    "definicao": "The current list of IPs and ports of the ready pods behind a Service.",
+    "vidaReal": "The list of apartments behind the phone extension.",
+    "limite": "It changes all the time, on its own: never write pod IPs by hand.",
+    "exemplo": "kubectl get endpoints web"
+  },
+  "nodeport": {
+    "termo": "NodePort",
+    "definicao": "A Service that opens the same port (30000–32767) on every node.",
+    "vidaReal": "A numbered intercom at the door of every building.",
+    "limite": "It’s a high port, exposed on every node: great for testing, bad for production.",
+    "exemplo": "type: NodePort"
+  },
+  "loadbalancer": {
+    "termo": "LoadBalancer",
+    "definicao": "A Service that asks the cloud provider for a load balancer with an external IP.",
+    "vidaReal": "The street-side front gate, with turnstiles that spread people out.",
+    "limite": "Outside the cloud (kind, minikube) the external IP stays <pending> without some extra help (MetalLB, cloud-provider-kind).",
+    "exemplo": "type: LoadBalancer"
+  },
+  "headless": {
+    "termo": "Headless Service",
+    "definicao": "A Service with no IP of its own (clusterIP: None): the DNS name returns the IP of each ready pod. It’s what gives each pod in a StatefulSet its name (db-0.db).",
+    "vidaReal": "Instead of the main extension, a list with each clerk’s direct extension.",
+    "limite": "Without a Service IP there’s no rotation: the caller picks the pod (and has to deal with pods that come and go).",
+    "exemplo": "clusterIP: None"
+  },
+  "dns": {
+    "termo": "Cluster DNS",
+    "definicao": "Every Service gets a name: service.namespace.svc.cluster.local.",
+    "vidaReal": "The full address: name, company, neighborhood and city.",
+    "limite": "Within the same namespace the short name is enough; from another namespace, you need the name with the namespace.",
+    "exemplo": "curl http://web.loja.svc.cluster.local"
+  },
+  "ingress": {
+    "termo": "Ingress",
+    "definicao": "HTTP rules (host and path) that take traffic from outside to the Services, through a controller.",
+    "vidaReal": "The front desk: “/finance, block B”.",
+    "limite": "The most widely used controller, ingress-nginx, was retired in 2026; the new way is the Gateway API.",
+    "exemplo": "path: /api → service api"
+  },
+  "gateway-api": {
+    "termo": "Gateway API",
+    "definicao": "The evolution of Ingress: Gateway (the entrance, run by the platform) and HTTPRoute (each team’s rules).",
+    "vidaReal": "The condo’s front gate (run by the management office), with a sign for each company.",
+    "limite": "They’re new resources (CRDs) and need an implementation installed in the cluster.",
+    "exemplo": "kind: HTTPRoute"
+  },
+  "configmap": {
+    "termo": "ConfigMap",
+    "definicao": "Plain-text settings that pods use as environment variables or files.",
+    "vidaReal": "The bulletin board.",
+    "limite": "Changing the ConfigMap doesn’t change the variables of a pod that’s already running: the pod has to be restarted.",
+    "exemplo": "kubectl create configmap cfg --from-literal=COR=azul"
+  },
+  "secret": {
+    "termo": "Secret",
+    "definicao": "Sensitive data (passwords, tokens) that pods use as variables or files.",
+    "vidaReal": "A sealed envelope.",
+    "limite": "It’s an envelope, not a safe: the content is only base64, which anyone can decode. Real protection comes from RBAC and encryption in etcd.",
+    "exemplo": "echo czNncjNkMA== | base64 -d"
+  },
+  "base64": {
+    "termo": "base64",
+    "definicao": "A way to write any data using only letters, numbers, + and /. It’s how Secrets store their values.",
+    "vidaReal": "Writing the password in Morse code: it gets in the way of a quick glance, but anyone with the chart can decode it.",
+    "limite": "It’s not encryption: it’s for storing binary data as text, not for protecting it. Whoever reads the Secret reads the password.",
+    "exemplo": "echo -n tijolo | base64"
+  },
+  "volume": {
+    "termo": "Volume",
+    "definicao": "A folder that a pod’s containers mount (volumeMounts). The type says where the content comes from: empty (emptyDir), a ConfigMap, a Secret or a disk (PVC).",
+    "vidaReal": "A cabinet installed in the apartment: it can come empty, with the notices from the bulletin board, or with the things from the storage unit in the garage.",
+    "limite": "Mounting over a folder hides what the image had there: nginx’s default page disappears when the ConfigMap takes its place.",
+    "exemplo": "volumeMounts: [{ name: dados, mountPath: /dados }]"
+  },
+  "emptydir": {
+    "termo": "emptyDir",
+    "definicao": "An empty volume that’s born with the pod and deleted along with it.",
+    "vidaReal": "The work desk: it’s gone in the move.",
+    "limite": "It survives a container restart, but not the pod being replaced.",
+    "exemplo": "volumes: [{ name: tmp, emptyDir: {} }]"
+  },
+  "pv-pvc": {
+    "termo": "PersistentVolume and PVC",
+    "definicao": "The PV is a piece of the cluster’s disk; the PVC is a pod’s request for a disk (size and access mode).",
+    "vidaReal": "The storage unit in the garage and the request to rent it.",
+    "limite": "A ReadWriteOnce disk mounts on only one node at a time: two pods on different nodes don’t share the same storage unit.",
+    "exemplo": "kubectl get pvc"
+  },
+  "storageclass": {
+    "termo": "StorageClass",
+    "definicao": "The kind of disk (fast, cheap...) and who creates it when a PVC asks for one.",
+    "vidaReal": "The kind of storage unit: climate-controlled or regular.",
+    "limite": "Without a default StorageClass, a PVC with no class stays Pending forever.",
+    "exemplo": "kubectl get storageclass"
+  },
+  "statefulset": {
+    "termo": "StatefulSet",
+    "definicao": "Like a Deployment, but each pod has a fixed name (db-0, db-1) and its own disk.",
+    "vidaReal": "Numbered apartments (101, 102...), each one always with the same storage unit.",
+    "limite": "A fixed name isn’t a fixed IP: the db-0 pod can come back with another IP, but with the same DNS name.",
+    "exemplo": "db-0.db.default.svc.cluster.local"
+  },
+  "daemonset": {
+    "termo": "DaemonSet",
+    "definicao": "Ensures one pod on every node (or on the chosen nodes).",
+    "vidaReal": "The fire extinguisher: one in every building, including the ones built later.",
+    "limite": "It has no “replicas”: the number of pods is the number of nodes.",
+    "exemplo": "kube-proxy, log collectors"
+  },
+  "job": {
+    "termo": "Job",
+    "definicao": "Runs pods until a number of them finish successfully, then stops.",
+    "vidaReal": "A one-off construction job: the facade got painted, done.",
+    "limite": "If the program fails, the Job tries again up to the backoffLimit; after that it gives up.",
+    "exemplo": "kubectl create job backup --image=busybox:1.36"
+  },
+  "cronjob": {
+    "termo": "CronJob",
+    "definicao": "Creates a Job at scheduled times (cron syntax).",
+    "vidaReal": "Trash pickup every Tuesday at 7 a.m.",
+    "limite": "The time is the cluster’s clock (usually UTC), not yours.",
+    "exemplo": "schedule: \"0 7 * * 2\""
+  },
+  "init-container": {
+    "termo": "Init container",
+    "definicao": "A container that runs and finishes before the main ones start.",
+    "vidaReal": "The painting crew that gets the apartment ready before the move-in.",
+    "limite": "If it fails, the pod doesn’t leave Init: the main containers don’t even start.",
+    "exemplo": "initContainers: [espera-banco]"
+  },
+  "sidecar-nativo": {
+    "termo": "Native sidecar",
+    "definicao": "An init container with restartPolicy: Always: it starts before the app, keeps running beside it and exits when the app finishes.",
+    "vidaReal": "The doorman who works alongside the resident: arrives before, stays all day and leaves when the resident goes out.",
+    "limite": "A sidecar written as a regular container never finishes, and a Job with it never becomes Complete.",
+    "exemplo": "initContainers: [{ name: logs, restartPolicy: Always }]"
+  },
+  "backofflimit": {
+    "termo": "backoffLimit",
+    "definicao": "How many failures a Job accepts before giving up. Between one attempt and the next, the wait doubles (10s, 20s, 40s...).",
+    "vidaReal": "The bricklayer comes back to try again, a little later each time, until the contract says “enough”.",
+    "limite": "Trying again doesn’t fix a mistake in the command: read the log before raising the limit.",
+    "exemplo": "backoffLimit: 2"
+  },
+  "liveness": {
+    "termo": "Liveness probe",
+    "definicao": "A periodic “is the program alive?” check. If it fails, the kubelet restarts the container.",
+    "vidaReal": "The building manager knocks on the door: “you alive?” If nobody answers, restart.",
+    "limite": "A check that’s too strict restarts a program that’s just slow, and makes the problem worse.",
+    "exemplo": "livenessProbe: httpGet /healthz"
+  },
+  "readiness": {
+    "termo": "Readiness probe",
+    "definicao": "A periodic “can it take traffic?” check. While it fails, the pod is taken out of the Service’s endpoints.",
+    "vidaReal": "“Ready for visitors yet?” Until it is, the phone extension sends nobody over.",
+    "limite": "Readiness doesn’t restart anything: a pod can stay “not ready” forever, still running.",
+    "exemplo": "readinessProbe: httpGet /pronto"
+  },
+  "startup": {
+    "termo": "Startup probe",
+    "definicao": "A “has it finished starting up?” check. Until it passes, the other checks wait.",
+    "vidaReal": "The deadline for the move: until then, nobody chases you.",
+    "limite": "It only counts at the start; once it passes, it doesn’t run again.",
+    "exemplo": "startupProbe: failureThreshold 30"
+  },
+  "requests": {
+    "termo": "Requests",
+    "definicao": "The minimum CPU and memory reserved for the container; the scheduler only places the pod where that fits.",
+    "vidaReal": "The contracted power: it only goes to a building where it fits.",
+    "limite": "Reserving isn’t using: a pod can reserve a lot and use little, and the space sits idle.",
+    "exemplo": "resources.requests: { cpu: 100m, memory: 128Mi }"
+  },
+  "limits": {
+    "termo": "Limits",
+    "definicao": "The maximum CPU and memory. Go over the memory limit and the container is killed (OOMKilled); over the CPU limit, it gets slow.",
+    "vidaReal": "The circuit breaker (memory) and reduced water pressure (CPU).",
+    "limite": "The circuit breaker trips the container, not the whole pod: it restarts and can go down again (CrashLoopBackOff).",
+    "exemplo": "resources.limits: { memory: 256Mi }"
+  },
+  "hpa": {
+    "termo": "HorizontalPodAutoscaler",
+    "definicao": "Raises and lowers the replicas on its own, based on usage (CPU, memory or custom metrics).",
+    "vidaReal": "Hiring temp staff for Black Friday and letting them go afterward.",
+    "limite": "It needs requests set and metrics in the cluster; without them, it does nothing.",
+    "exemplo": "kubectl autoscale deploy web --max=10 --cpu=70%"
+  },
+  "oomkilled": {
+    "termo": "OOMKilled",
+    "definicao": "The container went over limits.memory and the kernel killed it (exit code 137). It restarts, and goes into CrashLoopBackOff if it keeps happening.",
+    "vidaReal": "The circuit breaker that trips when too many appliances are switched on at once.",
+    "limite": "Raising the limit only helps if the program really needs that much; if it leaks memory, it just delays the next crash.",
+    "exemplo": "Last State: Terminated, Reason: OOMKilled"
+  },
+  "qos": {
+    "termo": "QoS class",
+    "definicao": "Guaranteed (requests = limits), Burstable (something declared) or BestEffort (nothing): the order of who goes first when the node runs out of memory.",
+    "vidaReal": "Whoever contracted guaranteed power is the last to lose electricity during rationing.",
+    "limite": "It doesn’t protect a pod from its own limit: a Guaranteed pod that goes over limits.memory dies just the same.",
+    "exemplo": "QoS Class: Guaranteed"
+  },
+  "metrics-server": {
+    "termo": "metrics-server",
+    "definicao": "The component that measures CPU and memory for pods and nodes. kubectl top and the HPA’s numbers come from it.",
+    "vidaReal": "The meter reader who checks each apartment’s meter.",
+    "limite": "It doesn’t come installed in kind (or in many clusters): without it, “Metrics API not available”. And it only keeps the present, not the history.",
+    "exemplo": "kubectl top pods"
+  },
+  "resourcequota": {
+    "termo": "ResourceQuota",
+    "definicao": "A namespace’s ceiling: how many pods, and how much requests and limits added up.",
+    "vidaReal": "Each company’s power quota in the condo.",
+    "limite": "It counts what’s declared, not what’s used: and, with a CPU or memory quota, every container must declare requests and limits.",
+    "exemplo": "kubectl describe quota"
+  },
+  "limitrange": {
+    "termo": "LimitRange",
+    "definicao": "Per-container rules in a namespace: default requests and limits for anyone who declared nothing, plus minimums and maximums.",
+    "vidaReal": "The default consumption label the management office puts on anyone who arrives without one.",
+    "limite": "It only applies to pods created afterward: whoever was already running doesn’t get the label.",
+    "exemplo": "defaultRequest: { cpu: 100m }"
+  },
+  "taint": {
+    "termo": "Taint and toleration",
+    "definicao": "A taint marks a node to repel pods; a toleration lets a pod go there anyway.",
+    "vidaReal": "A restricted building: only people with authorization get in.",
+    "limite": "A toleration allows, it doesn’t force: to send the pod there, use nodeSelector or affinity.",
+    "exemplo": "kubectl taint node node-1 gpu=sim:NoSchedule"
+  },
+  "affinity": {
+    "termo": "nodeSelector and nodeAffinity",
+    "definicao": "Rules for choosing which nodes the pod must (required) or prefers to (preferred) run on, by the nodes’ labels.",
+    "vidaReal": "“I want a building with a generator.”",
+    "limite": "A required rule that no node meets leaves the pod Pending forever; and the rule only counts on arrival: it doesn’t remove whoever already lives there.",
+    "exemplo": "nodeSelector: { energia: gerador }"
+  },
+  "drain": {
+    "termo": "cordon and drain",
+    "definicao": "cordon: the node stops receiving new pods. drain: on top of that, it removes the pods already on it.",
+    "vidaReal": "Closing off the building to new residents / emptying the building for the renovation.",
+    "limite": "A standalone pod (no Deployment or ReplicaSet) deleted by drain doesn’t come back anywhere.",
+    "exemplo": "kubectl drain node-1 --ignore-daemonsets"
+  },
+  "pdb": {
+    "termo": "PodDisruptionBudget",
+    "definicao": "How many pods in a group must stay ready (minAvailable) or may leave (maxUnavailable) during maintenance. drain respects it: with no slack, it waits.",
+    "vidaReal": "“At least 2 elevators working”, even during maintenance.",
+    "limite": "It only applies to whoever evicts through the API (drain, node autoscaler): it doesn’t protect against a node going down, a bug or kubectl delete.",
+    "exemplo": "minAvailable: 2"
+  },
+  "antiafinidade": {
+    "termo": "podAntiAffinity",
+    "definicao": "A rule for a pod to stay away from other pods (picked by labels): on another node, or in another zone, depending on the topologyKey.",
+    "vidaReal": "Not keeping both backup copies in the same building.",
+    "limite": "When required, it leaves the extra replica Pending if there aren’t enough buildings. For “separate them if you can”, use preferred.",
+    "exemplo": "topologyKey: kubernetes.io/hostname"
+  },
+  "espalhamento": {
+    "termo": "topologySpreadConstraints",
+    "definicao": "Spreads a group’s pods across nodes or zones, with a maximum difference (maxSkew) between the fullest and the emptiest domain.",
+    "vidaReal": "Spreading a chain’s stores across neighborhoods, without packing one and leaving another empty.",
+    "limite": "Tainted nodes count as an empty domain: in kind, with topologyKey hostname, the control plane leaves replicas Pending.",
+    "exemplo": "maxSkew: 1, whenUnsatisfiable: DoNotSchedule"
+  },
+  "priorityclass": {
+    "termo": "PriorityClass and preemption",
+    "definicao": "An importance number for pods. When there’s no room, the scheduler removes lower-priority pods to place the more important one.",
+    "vidaReal": "The ambulance that cuts the line (and moves the parked car out of the spot).",
+    "limite": "Whoever gets removed really leaves: without a Deployment behind it, it doesn’t come back; with one, it goes back in line (Pending).",
+    "exemplo": "priorityClassName: critico"
+  },
+  "node-notready": {
+    "termo": "Node NotReady",
+    "definicao": "The node stopped reporting in (kubelet stopped, network or machine down). About 5 minutes later, its pods are evicted.",
+    "vidaReal": "A power outage in the building.",
+    "limite": "The downed node’s pods stay “Terminating” until it comes back: only the ones with an owner (Deployment, StatefulSet) are reborn somewhere else.",
+    "exemplo": "kubectl get nodes"
+  },
+  "rbac": {
+    "termo": "Role and RoleBinding (RBAC)",
+    "definicao": "The Role says what can be done; the RoleBinding gives that permission to someone.",
+    "vidaReal": "The type of badge / handing the badge to someone.",
+    "limite": "There’s no “deny” in RBAC: everything starts denied and the rules only allow.",
+    "exemplo": "kubectl auth can-i delete pods --as=ana"
+  },
+  "serviceaccount": {
+    "termo": "ServiceAccount",
+    "definicao": "The identity of a program (pod) inside the cluster.",
+    "vidaReal": "A machine’s badge (the elevator’s, the cameras’).",
+    "limite": "Every pod uses one (the “default”), even if you don’t ask for it.",
+    "exemplo": "serviceAccountName: leitor"
+  },
+  "networkpolicy": {
+    "termo": "NetworkPolicy",
+    "definicao": "Rules for who can connect to whom, between pods.",
+    "vidaReal": "The internal doors and turnstiles.",
+    "limite": "With no policy at all, everything is open; and a policy only works if the cluster’s network plugin implements it.",
+    "exemplo": "policyTypes: [Ingress]"
+  },
+  "clusterrole": {
+    "termo": "ClusterRole and ClusterRoleBinding",
+    "definicao": "The badge that’s valid across the whole cluster (ClusterRole) and handing it to someone in every namespace (ClusterRoleBinding). Some come ready-made: view, edit, admin and cluster-admin.",
+    "vidaReal": "The master badge, which opens the doors of every block.",
+    "limite": "A RoleBinding that points to a ClusterRole only counts in its own namespace: to count in all of them, it has to be a ClusterRoleBinding.",
+    "exemplo": "kubectl create clusterrolebinding auditoria --clusterrole=view --user=auditoria"
+  },
+  "securitycontext": {
+    "termo": "securityContext",
+    "definicao": "The security options of the pod and of each container: which user it runs as (runAsUser, runAsNonRoot), whether the disk is read-only and what powers the program has.",
+    "vidaReal": "Nobody gets the master key (root): each resident uses the key to their own apartment.",
+    "limite": "It limits the damage if the program is broken into, but it doesn’t fix the program: a flaw is still there, just with less power.",
+    "exemplo": "runAsNonRoot: true"
+  },
+  "pod-security": {
+    "termo": "Pod Security Admission",
+    "definicao": "The rules a namespace imposes on pods, by label: privileged, baseline or restricted, in enforce (rejects) or warn (warns) mode.",
+    "vidaReal": "Each block’s fire code.",
+    "limite": "In a namespace with enforce, the Deployment is created (with just a Warning), but the pods are rejected: the symptom is READY 0/1 and the reason is in the ReplicaSet.",
+    "exemplo": "pod-security.kubernetes.io/enforce=restricted"
+  },
+  "events": {
+    "termo": "Events",
+    "definicao": "Records of what happened to each object (scheduled, image pulled, failed...).",
+    "vidaReal": "The front gate’s logbook.",
+    "limite": "They disappear after an hour: look right away.",
+    "exemplo": "kubectl get events --sort-by=.lastTimestamp"
+  },
+  "logs": {
+    "termo": "Logs",
+    "definicao": "What the container’s program wrote to its output.",
+    "vidaReal": "Each resident’s diary.",
+    "limite": "If the container restarted, the previous diary is in --previous; the one before that is already lost.",
+    "exemplo": "kubectl logs web --previous"
+  },
+  "crashloopbackoff": {
+    "termo": "CrashLoopBackOff",
+    "definicao": "The container crashes right after starting, and the kubelet waits longer and longer to restart it (10s, 20s, 40s... up to 5 min).",
+    "vidaReal": "The resident faints every time they walk in, and the building manager waits longer and longer before trying again.",
+    "limite": "It’s not an error in itself: it’s the symptom. The cause is in the logs (--previous) and in describe.",
+    "exemplo": "kubectl describe pod web"
+  },
+  "imagepullbackoff": {
+    "termo": "ImagePullBackOff",
+    "definicao": "The kubelet couldn’t pull the image and is waiting to try again.",
+    "vidaReal": "The prefab module never arrived: the order had the wrong model.",
+    "limite": "It could be the name, the tag, a private registry without a password, or a download limit.",
+    "exemplo": "Failed to pull image \"ngnix:1.27\""
+  },
+  "pending": {
+    "termo": "Pending",
+    "definicao": "The pod exists but isn’t running yet: no node (FailedScheduling) or waiting for something (a volume, an image).",
+    "vidaReal": "Waiting in the lobby: no building has room or authorization.",
+    "limite": "Pending can last forever if no node fits: the reason is in the Events.",
+    "exemplo": "0/3 nodes are available: 3 Insufficient memory."
+  },
+  "createcontainerconfigerror": {
+    "termo": "CreateContainerConfigError",
+    "definicao": "The kubelet can’t put together the container’s configuration: a ConfigMap or Secret (or one of its keys) is missing, or runAsNonRoot doesn’t match the image.",
+    "vidaReal": "The move got stuck at the door: the envelope with the password (or the bulletin board) the resident needs never arrived.",
+    "limite": "As soon as what’s missing shows up, the kubelet tries again on its own: no need to delete the pod.",
+    "exemplo": "Error: configmap \"vitrine-config\" not found"
+  },
+  "helm": {
+    "termo": "Helm",
+    "definicao": "A package manager: a chart is a template of manifests; the values.yaml picks the options.",
+    "vidaReal": "The builder’s standard design; the values.yaml is the finishes you pick.",
+    "limite": "The chart hides the manifests: when something breaks, you still need to read the generated YAML (helm template).",
+    "exemplo": "helm install loja ./chart -f values.yaml"
+  },
+  "release": {
+    "termo": "Release (Helm)",
+    "definicao": "An installation of a chart, with a name and a history: each upgrade or rollback is a new revision.",
+    "vidaReal": "A job the builder delivered, with a record of every renovation.",
+    "limite": "The history lives in Secrets in the namespace (sh.helm.release.v1...): delete the Secrets and Helm forgets the job, while the objects stay there, ownerless.",
+    "exemplo": "helm history loja"
+  },
+  "kustomize": {
+    "termo": "Kustomize",
+    "definicao": "Builds variations of manifests (dev, prod) from a base, without templates.",
+    "vidaReal": "The same blueprint with adjustments for each city.",
+    "limite": "It only applies changes on top of the base: it has no logic (ifs and loops) like Helm does.",
+    "exemplo": "kubectl apply -k overlays/prod"
+  },
+  "overlay": {
+    "termo": "Base and overlay (Kustomize)",
+    "definicao": "The base has the shared YAML; each overlay points to the base and lists only that environment’s adjustments (namespace, replicas, image, patches).",
+    "vidaReal": "The headquarters’ blueprint and each branch’s sheet of adjustments.",
+    "limite": "An overlay can’t see variables or conditions: it only merges and swaps fields. Real logic calls for Helm.",
+    "exemplo": "kubectl apply -k overlays/prod"
+  },
+  "gitops": {
+    "termo": "GitOps",
+    "definicao": "Git holds the desired state, and a tool (Argo CD, Flux) applies it and fixes the cluster on its own.",
+    "vidaReal": "The blueprint filed at the notary, with an inspector who sets the construction straight on his own.",
+    "limite": "A change made directly in the cluster gets undone by the inspector: the way is always through Git.",
+    "exemplo": "Argo CD syncs the repository"
+  },
+  "crd-operator": {
+    "termo": "CRD and Operator",
+    "definicao": "A CRD creates a new type of object in the API; the Operator is the controller that knows how to take care of it.",
+    "vidaReal": "A new form at the management office / the specialist who knows how to handle it.",
+    "limite": "On its own, the CRD only stores the form: without the Operator, nothing happens.",
+    "exemplo": "kind: Postgres (from an operator)"
+  }
+}

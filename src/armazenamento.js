@@ -9,7 +9,7 @@ export const CHAVES = {
   arquivos: 'arquivos:', // arquivos:<idDoItem> → { nome: conteúdo } que o aluno escreveu
   dias: 'dias', // ['AAAA-MM-DD', ...]: os dias em que o aluno estudou (para a sequência 🔥)
   janelas: 'janelas', // a arrumação das janelas da tela do exercício
-  preferencias: 'preferencias', // { tema, texto, movimento }
+  preferencias: 'preferencias', // { tema, texto, movimento, som, idioma }
   revisao: 'revisao', // { [idDoTermo]: { caixa, proxima } }: os cartões da revisão do dia
   nome: 'nome', // o nome que vai no certificado (só se você escrever)
 };
@@ -20,7 +20,7 @@ export const DESCRICOES = {
   'arquivos:': 'Os arquivos que você escreveu em cada missão.',
   dias: 'Os dias em que você estudou (para a sequência 🔥).',
   janelas: 'Onde você deixou as janelas da tela do exercício.',
-  preferencias: 'Tema, tamanho do texto, reduzir movimento e efeitos sonoros.',
+  preferencias: 'Tema, tamanho do texto, reduzir movimento, efeitos sonoros e idioma.',
   revisao: 'Em que caixa está cada cartão da revisão e quando ele volta.',
   nome: 'O nome que você escreveu para o certificado.',
 };

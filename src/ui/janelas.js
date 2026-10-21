@@ -3,6 +3,7 @@
 // setas nos divisores. A arrumação fica salva no navegador. No celular, as janelas ficam empilhadas.
 import { ler, gravar, CHAVES } from '../armazenamento.js';
 import { escapar } from './util.js';
+import { t } from '../i18n.js';
 
 export const MAX_COLUNAS = 3;
 const MIN_LARGURA = 15;
@@ -151,7 +152,12 @@ export function redimensionarJanelas(arrumacao, c, j, delta) {
 // ---------- DOM ----------
 const CHAVE = CHAVES.janelas;
 const SETAS = { cima: '↑', baixo: '↓', esquerda: '←', direita: '→' };
-const NOMES = { cima: 'para cima', baixo: 'para baixo', esquerda: 'para a esquerda', direita: 'para a direita' };
+const NOMES = {
+  cima: (janela) => t('Mover {janela} para cima', { janela }),
+  baixo: (janela) => t('Mover {janela} para baixo', { janela }),
+  esquerda: (janela) => t('Mover {janela} para a esquerda', { janela }),
+  direita: (janela) => t('Mover {janela} para a direita', { janela }),
+};
 
 /**
  * Monta as janelas. `janelas`: { id: { titulo, corpo (elemento) } }. Os corpos são movidos, nunca recriados
@@ -168,9 +174,9 @@ export function montarJanelas(raiz, janelas, { aoMudar } = {}) {
     q.setAttribute('aria-labelledby', `janela-${id}`);
     q.innerHTML = `
       <header class="janela-topo">
-        <span class="alca" aria-hidden="true" title="Arraste para mudar de lugar">⠿</span>
+        <span class="alca" aria-hidden="true" title="${t('Arraste para mudar de lugar')}">⠿</span>
         <h2 id="janela-${id}">${escapar(janelas[id].titulo)}</h2>
-        <span class="janela-mover">${Object.entries(SETAS).map(([d, s]) => `<button type="button" class="mini" data-mover="${d}" aria-label="Mover ${escapar(janelas[id].titulo)} ${NOMES[d]}">${s}</button>`).join('')}</span>
+        <span class="janela-mover">${Object.entries(SETAS).map(([d, s]) => `<button type="button" class="mini" data-mover="${d}" aria-label="${NOMES[d](escapar(janelas[id].titulo))}">${s}</button>`).join('')}</span>
       </header>`;
     const corpo = document.createElement('div');
     corpo.className = 'janela-corpo';
@@ -183,12 +189,12 @@ export function montarJanelas(raiz, janelas, { aoMudar } = {}) {
   function desenhar() {
     raiz.replaceChildren();
     arrumacao.colunas.forEach((col, c) => {
-      if (c > 0) raiz.append(divisor('vertical', c - 1, `Largura entre as colunas ${c} e ${c + 1}`, arrumacao.colunas[c - 1].largura));
+      if (c > 0) raiz.append(divisor('vertical', c - 1, t('Largura entre as colunas {a} e {b}', { a: c, b: c + 1 }), arrumacao.colunas[c - 1].largura));
       const coluna = document.createElement('div');
       coluna.className = 'coluna';
       coluna.style.flexBasis = `${col.largura}%`;
       col.janelas.forEach((j, i) => {
-        if (i > 0) coluna.append(divisor('horizontal', i - 1, `Altura entre ${janelas[col.janelas[i - 1].id].titulo} e ${janelas[j.id].titulo}`, col.janelas[i - 1].altura, c));
+        if (i > 0) coluna.append(divisor('horizontal', i - 1, t('Altura entre {a} e {b}', { a: janelas[col.janelas[i - 1].id].titulo, b: janelas[j.id].titulo }), col.janelas[i - 1].altura, c));
         quadros[j.id].style.flexBasis = `${j.altura}%`;
         coluna.append(quadros[j.id]);
       });

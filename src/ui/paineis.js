@@ -4,15 +4,16 @@ import { resumoPod, enderecosEndpoints, alvosHpa } from '../k8s/kubectl/tabelas.
 import { kubectl } from '../k8s/kubectl/index.js';
 import { nodePronto, usoDoNode } from '../k8s/scheduler.js';
 import { cpuMili, bytes } from '../k8s/unidades.js';
+import { t } from '../i18n.js';
 
 const CLASSE = (status) => (status === 'Running' ? 'ok' : /Completed|Succeeded/.test(status) ? 'fim' : /Pending|ContainerCreating|Terminating/.test(status) ? 'espera' : 'ruim');
 const ICONE = (status) => ({ Running: '✅', Pending: '⏳', ContainerCreating: '⏳', Terminating: '🚚', Completed: '🏁', Succeeded: '🏁', CrashLoopBackOff: '💥', ImagePullBackOff: '📦', ErrImagePull: '📦', Error: '❌', CreateContainerConfigError: '✉️' }[status] ?? '⚠️');
 
 /** A legenda fixa do mapa (fica fora da parte que se redesenha a cada segundo). */
 export const htmlLegendaMapa = (sistema) => `
-  <p class="mapa-legenda">🏢 cada node é um prédio, cada pod um apartamento.
-    <span>✅ rodando</span> <span>⏳ subindo</span> <span>💥 caindo</span> <span>📦 imagem não veio</span> <span>🚚 saindo</span> <span>🏁 terminou</span></p>
-  <p><label><input type="checkbox" name="sistema"${sistema ? ' checked' : ''}> Mostrar a administração (kube-system e local-path-storage)</label></p>`;
+  <p class="mapa-legenda">🏢 ${t('cada node é um prédio, cada pod um apartamento.')}
+    <span>✅ ${t('rodando')}</span> <span>⏳ ${t('subindo')}</span> <span>💥 ${t('caindo')}</span> <span>📦 ${t('imagem não veio')}</span> <span>🚚 ${t('saindo')}</span> <span>🏁 ${t('terminou')}</span></p>
+  <p><label><input type="checkbox" name="sistema"${sistema ? ' checked' : ''}> ${t('Mostrar a administração (kube-system e local-path-storage)')}</label></p>`;
 
 const barra = (rotulo, usado, total, texto) => {
   const pct = total ? Math.min(100, Math.round((usado / total) * 100)) : 0;
@@ -29,7 +30,7 @@ export function htmlCluster(c, { sistema = false } = {}) {
   const apto = (p) => {
     const r = resumoPod(p, c.agora);
     return `<li class="pod pod-${CLASSE(r.status)}"><span aria-hidden="true">${ICONE(r.status)}</span> <span class="pod-nome">${escapar(p.metadata.name)}</span>
-      <span class="pod-status">${escapar(r.status)}</span> <span class="pod-ns">${r.pronto}${r.reinicios !== '0' ? ` · ${escapar(r.reinicios)} reinícios` : ''}${p.metadata.namespace !== 'default' ? ` · ${escapar(p.metadata.namespace)}` : ''}</span></li>`;
+      <span class="pod-status">${escapar(r.status)}</span> <span class="pod-ns">${r.pronto}${r.reinicios !== '0' ? ` · ${t('{n} reinícios', { n: escapar(r.reinicios) })}` : ''}${p.metadata.namespace !== 'default' ? ` · ${escapar(p.metadata.namespace)}` : ''}</span></li>`;
   };
   const predio = (n) => {
     const uso = usoDoNode(c, n.metadata.name);
@@ -37,10 +38,10 @@ export function htmlCluster(c, { sistema = false } = {}) {
     const meus = pods.filter((p) => p.spec.nodeName === n.metadata.name);
     const cp = n.metadata.labels['node-role.kubernetes.io/control-plane'] !== undefined;
     return `<li class="node${nodePronto(n) ? '' : ' node-caido'}">
-      <h4>🏢 ${escapar(n.metadata.name)} <span class="node-status">${nodePronto(n) ? 'Ready' : 'NotReady'}${cp ? ' · administração' : ''}${n.spec.unschedulable ? ' · interditado' : ''}</span></h4>
-      ${barra('CPU', uso.cpu, cpuMili(cap.cpu), `${cpuTxt(uso.cpu)} de ${cap.cpu}`)}
-      ${barra('Memória', uso.memoria, bytes(cap.memory), `${memTxt(uso.memoria)} de ${memTxt(bytes(cap.memory))}`)}
-      ${meus.length ? `<ul class="pods">${meus.map(apto).join('')}</ul>` : '<p class="vazio">nenhum pod</p>'}
+      <h4>🏢 ${escapar(n.metadata.name)} <span class="node-status">${nodePronto(n) ? 'Ready' : 'NotReady'}${cp ? ` · ${t('administração')}` : ''}${n.spec.unschedulable ? ` · ${t('interditado')}` : ''}</span></h4>
+      ${barra('CPU', uso.cpu, cpuMili(cap.cpu), t('{usado} de {total}', { usado: cpuTxt(uso.cpu), total: cap.cpu }))}
+      ${barra(t('Memória'), uso.memoria, bytes(cap.memory), t('{usado} de {total}', { usado: memTxt(uso.memoria), total: memTxt(bytes(cap.memory)) }))}
+      ${meus.length ? `<ul class="pods">${meus.map(apto).join('')}</ul>` : `<p class="vazio">${t('nenhum pod')}</p>`}
     </li>`;
   };
   const servicos = c.listar('Service').filter((s) => sistema || s.metadata.namespace !== 'kube-system').filter((s) => s.metadata.name !== 'kubernetes');
@@ -49,17 +50,17 @@ export function htmlCluster(c, { sistema = false } = {}) {
     const n = (ep?.subsets ?? []).reduce((t, x) => t + (x.addresses?.length ?? 0), 0);
     const externo = s.status?.loadBalancer?.ingress?.[0]?.ip;
     return `<li class="${n ? '' : 'pod-ruim'}">📞 <b>${escapar(s.metadata.name)}</b>${s.metadata.namespace !== 'default' ? ` (${escapar(s.metadata.namespace)})` : ''}
-      <span class="pod-ns">${escapar(s.spec.type)} · ${escapar(s.spec.clusterIP)}${externo ? ` · externo ${externo}` : ''}</span> → ${n ? `${n} pod${n > 1 ? 's' : ''} pronto${n > 1 ? 's' : ''}` : 'ninguém atende'}</li>`;
+      <span class="pod-ns">${escapar(s.spec.type)} · ${escapar(s.spec.clusterIP)}${externo ? ` · ${t('externo {ip}', { ip: externo })}` : ''}</span> → ${n ? (n > 1 ? t('{n} pods prontos', { n }) : t('{n} pod pronto', { n })) : t('ninguém atende')}</li>`;
   };
   const portarias = [
-    ...c.listar('Ingress').map((i) => `<li>🚪 <b>${escapar(i.metadata.name)}</b> (Ingress) <span class="pod-ns">${escapar((i.spec.rules ?? []).map((r) => r.host ?? '*').join(', '))} · ${escapar(i.status?.loadBalancer?.ingress?.[0]?.ip ?? 'sem endereço')}</span></li>`),
-    ...c.listar('Gateway').map((g) => `<li>🚪 <b>${escapar(g.metadata.name)}</b> (Gateway) <span class="pod-ns">${escapar(g.status?.addresses?.[0]?.value ?? 'sem endereço')}</span></li>`),
+    ...c.listar('Ingress').map((i) => `<li>🚪 <b>${escapar(i.metadata.name)}</b> (Ingress) <span class="pod-ns">${escapar((i.spec.rules ?? []).map((r) => r.host ?? '*').join(', '))} · ${escapar(i.status?.loadBalancer?.ingress?.[0]?.ip ?? t('sem endereço'))}</span></li>`),
+    ...c.listar('Gateway').map((g) => `<li>🚪 <b>${escapar(g.metadata.name)}</b> (Gateway) <span class="pod-ns">${escapar(g.status?.addresses?.[0]?.value ?? t('sem endereço'))}</span></li>`),
   ];
   return `<ul class="mapa">
       ${c.listar('Node').map(predio).join('')}
-      ${semNode.length ? `<li class="node node-lobby"><h4>⏳ esperando lugar no lobby (Pending)</h4><ul class="pods">${semNode.map(apto).join('')}</ul></li>` : ''}
+      ${semNode.length ? `<li class="node node-lobby"><h4>⏳ ${t('esperando lugar no lobby (Pending)')}</h4><ul class="pods">${semNode.map(apto).join('')}</ul></li>` : ''}
     </ul>
-    ${servicos.length || portarias.length ? `<h4 class="mapa-sub">Ramais e portarias</h4><ul class="ramais">${[...portarias, ...servicos.map(ramal)].join('')}</ul>` : ''}`;
+    ${servicos.length || portarias.length ? `<h4 class="mapa-sub">${t('Ramais e portarias')}</h4><ul class="ramais">${[...portarias, ...servicos.map(ramal)].join('')}</ul>` : ''}`;
 }
 
 /** Árvore: Deployment → ReplicaSet → Pods, Service → endpoints, e o que mais existir no namespace default. */
@@ -93,16 +94,16 @@ export function htmlRecursos(c, ns = 'default') {
       const ep = c.obter('Endpoints', ns, s.metadata.name);
       return `<li><span class="tipo">service</span> ${escapar(s.metadata.name)} ${escapar(s.spec.clusterIP ?? '')} → <span class="${ep && enderecosEndpoints(ep) !== '<none>' ? '' : 'pod-ruim'}">${escapar(ep ? enderecosEndpoints(ep) : '<none>')}</span></li>`;
     }),
-    ...c.listar('HorizontalPodAutoscaler', ns).map((h) => `<li><span class="tipo">hpa</span> ${escapar(h.metadata.name)} → ${escapar(h.spec.scaleTargetRef.name)} <span class="pod-ns">${escapar(alvosHpa(h))} · ${h.status?.currentReplicas ?? 0} réplicas</span></li>`),
+    ...c.listar('HorizontalPodAutoscaler', ns).map((h) => `<li><span class="tipo">hpa</span> ${escapar(h.metadata.name)} → ${escapar(h.spec.scaleTargetRef.name)} <span class="pod-ns">${escapar(alvosHpa(h))} · ${t('{n} réplicas', { n: h.status?.currentReplicas ?? 0 })}</span></li>`),
     ...c.listar('ResourceQuota', ns).map((q) => `<li><span class="tipo">quota</span> ${escapar(q.metadata.name)} <span class="pod-ns">${escapar(Object.keys(q.spec.hard ?? {}).sort().map((k) => `${k}: ${q.status?.used?.[k] ?? 0}/${q.spec.hard[k]}`).join(', '))}</span></li>`),
     ...c.listar('ConfigMap', ns).filter((m) => m.metadata.name !== 'kube-root-ca.crt').map((m) => `<li><span class="tipo">configmap</span> ${escapar(m.metadata.name)}</li>`),
     ...c.listar('Secret', ns).map((s) => `<li><span class="tipo">secret</span> ${escapar(s.metadata.name)}</li>`),
     ...c.listar('PersistentVolumeClaim', ns).map((v) => `<li><span class="tipo">pvc</span> ${escapar(v.metadata.name)} <span class="${v.status?.phase === 'Bound' ? 'pod-ok' : 'pod-espera'}">${escapar(v.metadata.deletionTimestamp ? 'Terminating' : v.status?.phase ?? 'Pending')}</span>${v.status?.capacity?.storage ? ` ${escapar(v.status.capacity.storage)}` : ''}</li>`),
   ];
-  return itens.length ? `<ul class="arvore">${itens.join('')}</ul>` : `<p class="vazio">Nada no namespace ${ns} ainda.</p>`;
+  return itens.length ? `<ul class="arvore">${itens.join('')}</ul>` : `<p class="vazio">${t('Nada no namespace {ns} ainda.', { ns })}</p>`;
 }
 
 export function htmlEventos(c) {
   const r = kubectl(c, 'kubectl get events -A --field-selector metadata.namespace!=kube-system');
-  return `<pre class="eventos">${escapar(r.saida.trim() || 'Nenhum evento.')}</pre>`;
+  return `<pre class="eventos">${escapar(r.saida.trim() || t('Nenhum evento.'))}</pre>`;
 }

@@ -1,0 +1,162 @@
+{
+  "n10-licao-helm": {
+    "titulo": "The builder’s standard design: Helm",
+    "enunciado": "\n      <p>Installing a real application usually takes several manifests (Deployment, Service, Ingress, ConfigMap...).\n         <b>Helm</b> packages it all into a <b>chart</b>, with the knobs you can turn in a <b>values</b> file:</p>\n      <pre><code>helm repo add kube-learn https://pedromenuzzi.github.io/kube-learn/charts\nhelm show values kube-learn/loja            # what you can tweak\nhelm install loja kube-learn/loja --set replicaCount=3\nhelm list                                   # the releases in the namespace</code></pre>\n      <ul>\n        <li><b>Release</b>: one installation of the chart, with a name (<code>loja</code>). Each change is a new <b>revision</b>.</li>\n        <li><b>Values</b>: <code>--set key=value</code> or <code>-f valores.yaml</code>. <code>helm get values loja</code>\n            shows what you chose.</li>\n        <li><code>helm upgrade loja kube-learn/loja --set image.tag=1.1</code>: a new revision. Watch out: with new values,\n            the upgrade starts from the chart’s defaults; to keep the previous ones, use <code>--reuse-values</code>.</li>\n        <li><code>helm rollback loja 1</code>: goes back to revision 1 (and that becomes a new revision). <code>helm history\n            loja</code> shows them all.</li>\n        <li><code>helm template</code>: shows the manifests the chart would generate, without installing anything.</li>\n      </ul>\n      <p>Helm stores each revision in a Secret in the namespace (<code>sh.helm.release.v1.loja.v1</code>...). Don’t delete those\n         Secrets: without them, Helm forgets the release.</p>",
+    "vidaReal": "The builder has a standard shop design (the chart). You only pick the finishes (the values): how many clerks, which version, whether there’s a front desk facing the street. Each finished job is a release, with a history.",
+    "limite": "The standard design only lets you change what it planned for in the values: a finish the chart doesn’t know about is ignored, without warning."
+  },
+  "n10-instalar": {
+    "titulo": "The builder’s first job",
+    "enunciado": "\n      <p><b>From the terminal</b>, add the <code>kube-learn</code> repository\n         (<code>https://pedromenuzzi.github.io/kube-learn/charts</code>) and install the <code>kube-learn/loja</code> chart with the release name\n         <code>loja</code>.</p>",
+    "dica": "helm repo add kube-learn https://pedromenuzzi.github.io/kube-learn/charts and helm install loja kube-learn/loja",
+    "vidaReal": "Register the builder (the repository) and order the standard shop design.",
+    "limite": "The repository is just the catalog: nothing gets installed until helm install.",
+    "comoSaber": "<code>helm list</code> shows the <code>loja</code> release as <i>deployed</i>, and the 2 pods come up.",
+    "testes": [
+      {
+        "descricao": "the shop installed by Helm"
+      }
+    ]
+  },
+  "n10-valores": {
+    "titulo": "The finishes the design ignored",
+    "enunciado": "\n      <p>The <code>valores.yaml</code> asks for 3 clerks and version 1.1, but with names the chart doesn’t know. Look up the right\n         names (<code>helm show values kube-learn/loja</code>), fix the file and install the <code>loja</code> release\n         with it (<code>-f valores.yaml</code>).</p>",
+    "dica": "replicaCount: 3 and image: { tag: \"1.1\" }. Then: helm install loja kube-learn/loja -f valores.yaml",
+    "vidaReal": "They asked for “three clerks and version 1.1” with the wrong names on the form: the builder delivered the default, without complaining.",
+    "limite": "Helm doesn’t warn you about an unknown value: always check with helm show values (what exists) and helm get values (what was used).",
+    "comoSaber": "Three pods with the <code>kubelearn/loja:1.1</code> image.",
+    "testes": [
+      {
+        "descricao": "three clerks on version 1.1"
+      }
+    ]
+  },
+  "n10-upgrade": {
+    "titulo": "Upgrade without losing what you already chose",
+    "enunciado": "\n      <p>The <code>loja</code> release was installed with <code>--set replicaCount=4</code>. Upgrade it to version\n         <b>1.1</b> (<code>image.tag</code>) <b>keeping the 4 replicas</b>.</p>",
+    "dica": "helm upgrade loja kube-learn/loja --reuse-values --set image.tag=1.1 (or repeat replicaCount=4).",
+    "vidaReal": "The renovation only asks for the new version, but the job sheet was filled in from scratch: the 4 clerks that had been agreed on are gone.",
+    "limite": "With no new values, the upgrade reuses the old ones; with any --set or -f, it starts from the chart’s defaults.",
+    "comoSaber": "<code>helm get values loja</code> shows replicaCount 4 and tag 1.1; there are 4 pods on version 1.1.",
+    "testes": [
+      {
+        "descricao": "4 clerks on version 1.1"
+      }
+    ]
+  },
+  "n10-rollback": {
+    "titulo": "Bring back the job that worked",
+    "enunciado": "\n      <p>Revision 2 of the <code>loja</code> release swapped the image for a broken version. Using <b>Helm</b> (not\n         kubectl), go back to the revision that worked.</p>",
+    "dica": "helm history loja and helm rollback loja 1",
+    "vidaReal": "Yesterday’s renovation left the shop crashing. The builder keeps the blueprints of every delivery: just ask for the previous one back.",
+    "limite": "A rollback is a new revision (3, same as 1): the history never goes backward, only forward.",
+    "comoSaber": "<code>helm history loja</code> shows revision 3, <i>Rollback to 1</i>, and the pods become ready again.",
+    "testes": [
+      {
+        "descricao": "the shop is back on the good revision"
+      }
+    ]
+  },
+  "n10-template": {
+    "titulo": "Look at the blueprint before building",
+    "enunciado": "\n      <p>Without installing anything, see what the <code>kube-learn/loja</code> chart would create with the Ingress turned on\n         (<code>--set ingress.enabled=true</code>). How many objects does it create?</p>",
+    "dica": "helm template loja kube-learn/loja --set ingress.enabled=true (each object starts with ---).",
+    "vidaReal": "Ask the builder for the printed blueprint, with the finishes you chose, before signing off on the job.",
+    "limite": "The template shows what would be created, but doesn’t check whether it fits in the cluster: quota, permissions and duplicate names only show up at install.",
+    "rotuloResposta": "How many objects",
+    "testes": [
+      {
+        "descricao": "you read the blueprint",
+        "msgs": {
+          "0": "you used helm template"
+        }
+      }
+    ]
+  },
+  "n10-licao-kustomize": {
+    "titulo": "The same blueprint in every city: Kustomize",
+    "enunciado": "\n      <p><b>Kustomize</b> already comes with kubectl. Instead of templates, it starts from plain YAML (the <b>base</b>) and applies\n         <b>tweaks</b> listed in a <code>kustomization.yaml</code>:</p>\n      <pre><code>base/\n  kustomization.yaml   # resources: [deployment.yaml, service.yaml]\n  deployment.yaml\n  service.yaml\noverlays/prod/\n  kustomization.yaml   # resources: [../../base] + the production tweaks</code></pre>\n      <ul>\n        <li><code>namespace</code>, <code>namePrefix</code>, <code>labels</code>: apply to every object.</li>\n        <li><code>replicas</code> and <code>images</code> (<code>newTag</code>): the number of pods and the version, without a patch.</li>\n        <li><code>patches</code>: a piece of YAML merged on top (e.g. resources only in production).</li>\n        <li><code>configMapGenerator</code>: generates the ConfigMap with a <b>hash suffix</b>. Change the content and the name changes,\n            so the Deployment that uses it gets updated: the pods are replaced on their own.</li>\n      </ul>\n      <pre><code>kubectl kustomize overlays/prod     # shows the result\nkubectl apply -k overlays/prod      # applies it</code></pre>\n      <p>In the editor, folders show up in the file name (<code>overlays/prod/kustomization.yaml</code>).</p>",
+    "vidaReal": "The shop’s blueprint is the same in every city; each branch just writes down its own tweaks (how many clerks, which version) on a separate sheet.",
+    "limite": "Kustomize only tweaks YAML that already exists: it has no logic (if, for each). For that, there’s Helm."
+  },
+  "n10-kustomize-base": {
+    "titulo": "The blueprint’s base",
+    "enunciado": "\n      <p>The <code>kustomization.yaml</code> forgot the <code>service.yaml</code>. Add it to <code>resources</code> and\n         put the label <code>app.kubernetes.io/part-of: loja</code> on every object (with <code>labels</code>).</p>",
+    "dica": "labels: [{ pairs: { app.kubernetes.io/part-of: loja } }]",
+    "vidaReal": "The blueprint’s cover sheet lists the pages and the stamp that goes on all of them. Someone forgot a page and the stamp.",
+    "limite": "Kustomize only reads what’s listed in resources: a file forgotten in the folder simply doesn’t exist for it.",
+    "comoSaber": "<code>kubectl kustomize .</code> shows the Service, and both objects with the label.",
+    "testes": [
+      {
+        "descricao": "the complete base, with the stamp"
+      }
+    ]
+  },
+  "n10-overlay-prod": {
+    "titulo": "The production branch",
+    "enunciado": "\n      <p>The <code>overlays/prod</code> overlay already puts everything in the <code>prod</code> namespace with the <code>prod-</code> prefix.\n         Add to it: <b>3 replicas</b> of the shop (<code>replicas</code>) and the image at tag <b>1.1</b>\n         (<code>images</code>), without touching the base.</p>",
+    "dica": "replicas: [{ name: loja, count: 3 }] and images: [{ name: kubelearn/loja, newTag: \"1.1\" }] (by the original name, without the prefix).",
+    "vidaReal": "The big branch uses the same blueprint, with more clerks and the new version, written down on its own sheet.",
+    "limite": "The overlay doesn’t change the base: the other branches (dev, staging) keep the original.",
+    "comoSaber": "<code>kubectl kustomize overlays/prod</code> shows <code>prod-loja</code> with 3 replicas and image 1.1.",
+    "testes": [
+      {
+        "descricao": "production with 3 replicas of version 1.1"
+      },
+      {
+        "descricao": "the base is unchanged (1 replica, version 1.0)"
+      }
+    ]
+  },
+  "n10-gerador": {
+    "titulo": "Change the color without calling anyone",
+    "enunciado": "\n      <p>The shop reads its color from a ConfigMap (<code>COR=azul</code>). Changing the ConfigMap to green and applying it doesn’t help: pods\n         that are already running don’t reread their variables.</p>\n      <p>Replace <code>configmap.yaml</code> with a <b>configMapGenerator</b> with <code>COR=verde</code> in\n         <code>kustomization.yaml</code>. The name gets a hash, the Deployment starts pointing to it, and the pods get\n         replaced on their own.</p>",
+    "dica": "configMapGenerator: [{ name: loja-config, literals: [COR=verde] }] and remove configmap.yaml from resources.",
+    "vidaReal": "Changing the notice on the board doesn’t change what the clerks already read. With a new board (another name), everyone is told they need to read it again.",
+    "limite": "The old ConfigMaps (with the old hash) are left behind: clean them up now and then, or use prune.",
+    "comoSaber": "After <code>kubectl apply -k .</code>, the new pods have <code>COR=verde</code>.",
+    "testes": [
+      {
+        "descricao": "the new pods are green"
+      }
+    ]
+  },
+  "n10-licao-crd-gitops": {
+    "titulo": "New forms and the notary’s inspector",
+    "enunciado": "\n      <h2>CRD and operator</h2>\n      <p>A <b>CustomResourceDefinition</b> teaches the API a new type: after it, <code>kubectl get backups</code> works\n         just like <code>get pods</code>, with the fields validated by the CRD’s schema. But the CRD only stores. The one who acts is an\n         <b>operator</b>: a program (in a Deployment) that watches those objects and does the work, creating CronJobs,\n         StatefulSets or whatever it takes.</p>\n      <pre><code>kubectl get crd\nkubectl explain backup.spec       # the fields the CRD accepts\nkubectl get backups               # the objects of the new type</code></pre>\n      <h2>GitOps</h2>\n      <p>In GitOps, what counts is what’s in <b>git</b>: a controller (Argo CD, Flux) applies the repository to the cluster and,\n         with <i>self-heal</i>, undoes any change made by hand. To change something, you change git:</p>\n      <pre><code>git add loja.yaml\ngit commit -m \"loja with 5 clerks\"\ngit push</code></pre>\n      <p>In this simulator, the inspector checks the repository every 30 seconds (and right after each push).</p>",
+    "vidaReal": "The management office accepts a new form (“backup request”) and hires a specialist who knows how to handle that request. And the official blueprint is filed at the notary, with an inspector who sets the building straight on his own.",
+    "limite": "A form without a specialist does nothing: the CRD only teaches the API to store the request; the one who acts is the operator."
+  },
+  "n10-crd": {
+    "titulo": "The backup form",
+    "enunciado": "\n      <p>The cluster has the <code>backups.kube-learn.dev</code> CRD and the backup operator running. Write the\n         <code>noturno</code> (nightly) Backup: database <code>loja</code>, every day at 03:00 (<code>0 3 * * *</code>), keeping 3 copies.\n         The file uses field names the CRD doesn’t know: look up the right ones with <code>kubectl explain backup.spec</code>.</p>",
+    "dica": "spec: { banco: loja, horario: \"0 3 * * *\", guardar: 3 }",
+    "vidaReal": "The backup form has fields with specific names. Filled out in English, with other names, the management office sends it back unread.",
+    "limite": "The management office checks the form (the schema), but not the content: a time that never comes is accepted all the same.",
+    "comoSaber": "<code>kubectl get backups</code> shows the nightly one, and the operator creates the <code>backup-noturno</code> CronJob.",
+    "testes": [
+      {
+        "descricao": "the nightly backup, and the operator created the CronJob",
+        "msgs": {
+          "2": "the operator created the backup-noturno CronJob"
+        }
+      }
+    ]
+  },
+  "n10-gitops": {
+    "titulo": "Through the notary",
+    "enunciado": "\n      <p>The shop in this cluster is managed with GitOps: the <code>loja.yaml</code> in the editor is the repository. The manager wants\n         <b>5 clerks</b>. Try <code>kubectl scale deployment loja --replicas=5</code>, wait about 30 seconds\n         (<b>+30s</b>) and watch the inspector put it back to 3.</p>\n      <p>Then do it the right way: change <code>loja.yaml</code>, commit and push.</p>",
+    "dica": "replicas: 5 in loja.yaml, and in the terminal: git add loja.yaml, git commit -m \"loja with 5 clerks\", git push",
+    "vidaReal": "The building follows the blueprint filed at the notary. Changing a wall by hand doesn’t help: the inspector comes by and redoes it the way the blueprint says.",
+    "limite": "The inspector only fixes what the blueprint declares: what isn’t in git (an object created by hand) it doesn’t see.",
+    "comoSaber": "After the push, the inspector applies it and the shop ends up with 5 pods (and stays that way, even after 30 seconds).",
+    "testes": [
+      {
+        "descricao": "5 clerks, through git",
+        "msgs": {
+          "0": "you did the git push"
+        }
+      }
+    ]
+  }
+}

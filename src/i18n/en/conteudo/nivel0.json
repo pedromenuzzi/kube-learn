@@ -1,0 +1,192 @@
+{
+  "n0-funciona-na-minha-maquina": {
+    "titulo": "“It works on my machine”",
+    "enunciado": "\n      <p>Every program depends on things around it: a language version (Node 22, Python 3.12), libraries, configuration\n         files, environment variables. On the computer of whoever wrote it, all of that is there. On the server, a piece may\n         be missing, or be a different version. That’s how the most famous phrase in computing is born: <b>“it works on my machine”</b>.</p>\n      <p>A <b>container</b> solves this by packaging the program <b>together</b> with everything it needs. The package runs the\n         same on your laptop, on the company server and in the cloud, because it brings its own “plot of land” along.</p>\n      <h2>What goes inside</h2>\n      <ul>\n        <li>the program (your code, already compiled or ready to run);</li>\n        <li>what it uses: the language, the libraries and the files;</li>\n        <li>the command that starts it all.</li>\n      </ul>\n      <p>What does <b>not</b> go inside: an entire operating system. The container uses the core (kernel) of the machine it runs on;\n         that’s why it starts in seconds and takes up megabytes, not gigabytes like a virtual machine.</p>",
+    "vidaReal": "A house built brick by brick on each client’s lot: every build turns out a little different, because the lot, the bricklayer and the materials change.",
+    "limite": "A program doesn’t “crumble” bit by bit like a house: either it finds what it needs, or it stops working all at once."
+  },
+  "n0-imagem-e-conteiner": {
+    "titulo": "Image and container",
+    "enunciado": "\n      <p>Two words everyone mixes up at first:</p>\n      <ul>\n        <li><b>Image</b>: the finished package, at rest, that never changes. It’s a file (actually, a set of layers) stored\n            in a registry.</li>\n        <li><b>Container</b>: the image <b>running</b>. It has a live process, memory in use, a network address.</li>\n      </ul>\n      <p>From the same <code>nginx:1.27</code> image you can run 1, 3 or 300 containers. If a container breaks, nobody\n         fixes it: you throw it away and create another one from the same image. That’s what Kubernetes does all day long.</p>\n      <h2>Layers</h2>\n      <p>An image is made of stacked layers: the base system, then the language, then the libraries, then your\n         code. Identical layers are downloaded only once and reused, like precast slabs that serve several\n         buildings.</p>\n      <h2>The Dockerfile</h2>\n      <p>The image’s recipe is called a <b>Dockerfile</b>. Each instruction becomes a layer:</p>\n      <pre><code>FROM node:22-alpine        # the base: minimal Linux with Node 22\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci                 # installs the dependencies\nCOPY . .                   # your code\nCMD [\"node\", \"server.js\"]  # the command that runs when the container starts</code></pre>",
+    "vidaReal": "The image is the prefab module that always leaves the factory the same; the container is that module installed and working on the site.",
+    "limite": "A real module becomes just one house; an image becomes as many containers as you want, at the same time."
+  },
+  "n0-registry-e-tags": {
+    "titulo": "Registry and tags: the image’s address",
+    "enunciado": "\n      <p>Every image has a full address, in the format <code>registry/repository:tag</code>:</p>\n      <pre><code>ghcr.io/minha-empresa/api:2.3.1\n└──┬──┘ └──────┬──────┘ └─┬─┘\nregistry   repository     tag</code></pre>\n      <ul>\n        <li><b>Registry</b>: the server that stores the images (Docker Hub, <code>ghcr.io</code>, <code>registry.k8s.io</code>...).\n            If you don’t write the registry, Docker Hub (<code>docker.io</code>) is assumed.</li>\n        <li><b>Repository</b>: the image name. On Docker Hub, the official images live under <code>library/</code>:\n            <code>nginx</code> is, in full, <code>docker.io/library/nginx</code>.</li>\n        <li><b>Tag</b>: the version. Without a tag, <code>latest</code> is assumed.</li>\n      </ul>\n      <h2>The danger of <code>latest</code></h2>\n      <p><code>latest</code> doesn’t mean “the newest”: it’s just a tag like any other, which the image owner can\n         point at another version whenever they like. Today <code>nginx:latest</code> is one version; tomorrow, another. In production,\n         always use a fixed tag (<code>nginx:1.27</code>), so you know exactly what’s running.</p>",
+    "vidaReal": "The registry is the precast factory and warehouse; the tag is the model or batch you order.",
+    "limite": "A real factory doesn’t swap the “current batch” model without telling you; in a registry, the latest tag can change at any time."
+  },
+  "n0-por-que-orquestrar": {
+    "titulo": "Why orchestrate?",
+    "enunciado": "\n      <p>Running one container is easy. Running hundreds, across several machines, all the time, is another story:</p>\n      <ul>\n        <li><b>Where</b> does each one run? Which machine has room for it?</li>\n        <li>It <b>crashed</b> at 3 a.m.: who starts another one?</li>\n        <li>A <b>new version</b> is out: how do you swap it without taking the site down?</li>\n        <li><b>Black Friday</b> is here: how do you go from 3 to 30 copies?</li>\n        <li>How does one container <b>find another</b>, if their addresses change all the time?</li>\n      </ul>\n      <p>An <b>orchestrator</b> answers all of this. You describe what you want (“3 copies of this image, reachable by this\n         name”) and it makes it happen, and keeps making it happen: if something drifts from what was agreed, it fixes it.</p>\n      <p>The orchestrator that won is <b>Kubernetes</b>. It doesn’t build images (that’s Docker’s job, or Buildah’s...) and doesn’t\n         write your code: it <b>manages</b> containers that already exist.</p>",
+    "vidaReal": "A little house you can look after yourself. A condo with 500 apartments needs a management office: someone to assign, repair, count and replace.",
+    "limite": "A condo’s management office is made of people; Kubernetes’s is made of programs that act on their own, in seconds, without asking permission."
+  },
+  "n0-kubernetes-timoneiro": {
+    "titulo": "Kubernetes, the helmsman",
+    "enunciado": "\n      <p><b>Kubernetes</b> comes from the Greek κυβερνήτης: <i>helmsman</i>, the one who holds the wheel. That’s why the logo is a ship’s wheel\n         and containers became the cargo metaphor. Many people write <b>K8s</b>: a K, 8 letters in the middle, an s.</p>\n      <p>It was born at Google, inspired by an internal system called Borg, and became an open project in 2014. Today it’s looked after\n         by the CNCF (Cloud Native Computing Foundation) and runs in practically every cloud.</p>\n      <h2>The core idea: desired state</h2>\n      <p>You don’t order Kubernetes to “start a container”. You <b>declare</b>: “I want 3 copies of the store on version 1.1”. Kubernetes\n         compares what you want with what exists and acts to make the two match. And it keeps comparing forever.\n         This idea (desired × actual, fix the difference) shows up in <b>all</b> the rest of the path.</p>\n      <p>In the next level you’ll see the condo from the inside: the management office, the buildings and the apartments.</p>",
+    "vidaReal": "The helmsman doesn’t row or build the ship: they hold the agreed course, adjusting the wheel all the time.",
+    "limite": "A helmsman decides where to go; in Kubernetes, you decide the course (in the YAML). It just holds it."
+  },
+  "n0-quiz-imagem-conteiner": {
+    "titulo": "Quiz: image or container?",
+    "enunciado": "<p>Which sentence is <b>right</b>?</p>",
+    "vidaReal": "The prefab module (image) and the module installed and working (container).",
+    "limite": "Several containers come from the same image at the same time.",
+    "alternativas": [
+      {
+        "texto": "The container is the image running: it has a live process and uses memory.",
+        "explicacao": "Right. The image is the package at rest; the container is the image in execution."
+      },
+      {
+        "texto": "The image is the container after it stops.",
+        "explicacao": "No: the image exists before (it’s where the container comes from) and stays the same after."
+      },
+      {
+        "texto": "Each image can only have one container at a time.",
+        "explicacao": "No: from the same image you get as many containers as you want, at the same time."
+      },
+      {
+        "texto": "To change the program, you edit the image that already exists.",
+        "explicacao": "No: images aren’t edited. You build a new image (another tag)."
+      }
+    ]
+  },
+  "n0-quiz-quantos": {
+    "titulo": "Quiz: how many containers?",
+    "enunciado": "<p>You downloaded the <code>nginx:1.27</code> image once. How many containers can you run with it?</p>",
+    "vidaReal": "From one module design, the factory delivers as many as you order.",
+    "limite": "At the factory, each module costs material; containers from the same image share the layers on disk.",
+    "alternativas": [
+      {
+        "texto": "One: for another, you have to download it again.",
+        "explicacao": "No need to download it again: the image is already on disk and gets reused."
+      },
+      {
+        "texto": "As many as the machine can handle, all from the same image.",
+        "explicacao": "Right. The limit is the machine’s memory and CPU, not the image."
+      },
+      {
+        "texto": "Two: a main one and a spare.",
+        "explicacao": "There’s no such limit. A spare is your decision (replicas), not the image’s."
+      }
+    ]
+  },
+  "n0-quiz-referencia": {
+    "titulo": "Quiz: write the reference",
+    "enunciado": "<p>Write the image reference for <b>nginx</b>, version <b>1.27</b>, from Docker Hub, in the shortest form that works.</p>",
+    "vidaReal": "An order to the factory has to say which factory, which module and which model.",
+    "limite": "If you forget the model (the tag), the registry assumes latest, and doesn’t tell you.",
+    "explicacao": "<code>nginx:1.27</code>. In full it would be <code>docker.io/library/nginx:1.27</code>, but the registry and the <code>library/</code> can be left out.",
+    "dicaErro": "The format is name:tag (the Docker Hub registry can be left out)."
+  },
+  "n0-quiz-partes": {
+    "titulo": "Quiz: the parts of the address",
+    "enunciado": "<p>In <code>ghcr.io/minha-empresa/api:2.3.1</code>, which part is the <b>registry</b>?</p>",
+    "vidaReal": "Factory (registry), module (repository) and model (tag).",
+    "limite": "An address without a registry goes to Docker Hub, even if you meant another one.",
+    "alternativas": [
+      {
+        "texto": "<code>ghcr.io</code>",
+        "explicacao": "Right: the registry is the server (here, GitHub’s). <code>minha-empresa/api</code> is the repository and <code>2.3.1</code> the tag."
+      },
+      {
+        "texto": "<code>minha-empresa</code>",
+        "explicacao": "That’s the “folder” (organization) inside the registry: it’s part of the repository."
+      },
+      {
+        "texto": "<code>api</code>",
+        "explicacao": "That’s the image name, the last part of the repository."
+      },
+      {
+        "texto": "<code>2.3.1</code>",
+        "explicacao": "That’s the tag (the version)."
+      }
+    ]
+  },
+  "n0-quiz-latest": {
+    "titulo": "Quiz: what is latest?",
+    "enunciado": "<p>About the <code>latest</code> tag, what is true?</p>",
+    "vidaReal": "Ordering “the current batch model” and getting a different model with every delivery.",
+    "limite": "Some companies set up the registry with immutable tags; then latest doesn’t change. But don’t count on it.",
+    "alternativas": [
+      {
+        "texto": "It’s always the newest published version.",
+        "explicacao": "That’s the classic mistake: it points wherever the owner wants, and it can be stuck on an old version."
+      },
+      {
+        "texto": "It’s an ordinary tag, which can start pointing at another version at any moment.",
+        "explicacao": "Right. That’s why, in production, you use fixed tags, like <code>nginx:1.27</code>."
+      },
+      {
+        "texto": "Kubernetes doesn’t accept images with latest.",
+        "explicacao": "It does (and it even downloads them again every time). It’s just not a good idea."
+      }
+    ]
+  },
+  "n0-quiz-dockerfile": {
+    "titulo": "Quiz: read the Dockerfile",
+    "enunciado": "\n      <pre><code>FROM python:3.12-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install -r requirements.txt\nCOPY . .\nCMD [\"python\", \"app.py\"]</code></pre>\n      <p>When a container from this image starts, which command does it run?</p>",
+    "vidaReal": "The factory’s recipe: each step is a layer of the module.",
+    "limite": "Running the recipe (the build) is Docker’s job; Kubernetes only uses the finished image.",
+    "alternativas": [
+      {
+        "texto": "<code>pip install -r requirements.txt</code>",
+        "explicacao": "RUN runs when the image is <b>built</b>, not for each container."
+      },
+      {
+        "texto": "<code>python app.py</code>",
+        "explicacao": "Right: CMD is the container’s default command. In Kubernetes, you can override it with <code>command</code> and <code>args</code>."
+      },
+      {
+        "texto": "<code>COPY . .</code>",
+        "explicacao": "COPY puts files inside the image during the build."
+      }
+    ]
+  },
+  "n0-quiz-vm": {
+    "titulo": "Quiz: container or virtual machine?",
+    "enunciado": "<p>Why does a container start in seconds, while a virtual machine takes longer?</p>",
+    "vidaReal": "An apartment shares the building’s structure (foundation, water, power); a house has all of its own.",
+    "limite": "A container’s isolation is weaker than a virtual machine’s: a serious kernel bug affects all of them.",
+    "alternativas": [
+      {
+        "texto": "Because the container uses the kernel of the machine it runs on, instead of booting an entire operating system.",
+        "explicacao": "Right: there’s no system “boot”. The container is an isolated process."
+      },
+      {
+        "texto": "Because the container has no files.",
+        "explicacao": "It does: the image’s files. What it doesn’t have is its own kernel."
+      },
+      {
+        "texto": "Because the container only runs small programs.",
+        "explicacao": "It runs programs of any size (databases included)."
+      }
+    ]
+  },
+  "n0-quiz-papel-k8s": {
+    "titulo": "Quiz: what does Kubernetes do?",
+    "enunciado": "<p>Which of these tasks is <b>not</b> Kubernetes’s job?</p>",
+    "vidaReal": "The condo’s management office assigns, repairs and counts; it doesn’t manufacture the modules.",
+    "limite": "Some cloud services bundle the build and Kubernetes into one package, but they’re different tools.",
+    "alternativas": [
+      {
+        "texto": "Recreating a container that crashed.",
+        "explicacao": "That one is its job: keeping the desired state."
+      },
+      {
+        "texto": "Spreading the containers across the machines.",
+        "explicacao": "That one is its job (the scheduler’s)."
+      },
+      {
+        "texto": "Building the image from the Dockerfile.",
+        "explicacao": "Right: building images is the job of Docker, Buildah, Kaniko... Kubernetes uses the finished image."
+      },
+      {
+        "texto": "Swapping the version without taking the site down.",
+        "explicacao": "That one is its job (the Deployment’s rolling update)."
+      }
+    ]
+  }
+}

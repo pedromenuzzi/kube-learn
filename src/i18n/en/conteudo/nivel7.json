@@ -1,0 +1,198 @@
+{
+  "n7-licao-scheduler": {
+    "titulo": "The real-estate agent picks the building",
+    "enunciado": "\n      <p>Every new pod goes through the <b>scheduler</b>, in two steps:</p>\n      <ol>\n        <li><b>Filter</b>: crosses out the nodes that won’t do (closed off, with a taint the pod doesn’t tolerate, missing the\n            requested label, short on CPU or memory, affinity and spread rules).</li>\n        <li><b>Score</b>: among the ones left, prefers the one that meets the preferences, spreads the replicas and is the\n            least busy.</li>\n      </ol>\n      <p>If no node passes the filter, the pod stays <b>Pending</b>, and the reason is in the events:</p>\n      <pre><code>0/3 nodes are available: 1 node(s) had untolerated taint(s),\n2 node(s) didn't match Pod's node affinity/selector.</code></pre>\n      <p>Read it like this: 3 buildings, none of them worked; 1 had a restriction sign (the control plane), 2 didn’t have the requested label.</p>\n      <h2>Choosing where to live</h2>\n      <ul>\n        <li><code>nodeSelector</code>: “only in a building with these labels”. Simple and mandatory.</li>\n        <li><code>affinity.nodeAffinity</code>: the same, with more features (In, NotIn, Exists) and in two strengths:\n            <b>required</b> (mandatory: with no node that meets it, Pending) or <b>preferred</b> (if possible).</li>\n        <li><code>affinity.podAntiAffinity</code>: away from certain pods (the two backup copies in different buildings);\n            <code>podAffinity</code>: close to them. The <code>topologyKey</code> says what “close” means: the same node\n            (<code>kubernetes.io/hostname</code>) or the same zone (<code>topology.kubernetes.io/zone</code>).</li>\n        <li><code>topologySpreadConstraints</code>: spread a group across nodes or zones, with a maximum difference\n            (<code>maxSkew</code>) between the fullest and the emptiest.</li>\n      </ul>\n      <h2>Restricted building: taints and tolerations</h2>\n      <p>A <b>taint</b> is a sign on the node that repels pods (<code>kubectl taint nodes node-2 dedicado=gpu:NoSchedule</code>).\n         A <b>toleration</b> on the pod says “I’m allowed in”. Effects: <code>NoSchedule</code> (no new pod gets in),\n         <code>PreferNoSchedule</code> (avoid it, if possible) and <code>NoExecute</code> (and also evicts whoever is already there).</p>\n      <p><b>The gotcha</b>: a toleration <b>allows</b>, it doesn’t <b>require</b>. To send the pod to the restricted building, combine\n         the toleration with a nodeSelector (or affinity). The kind control plane has a taint: that’s why your pods never go\n         there.</p>",
+    "vidaReal": "The real-estate agent (the scheduler) gets each new apartment, crosses out the buildings that won’t do and, among the ones left, picks the best.",
+    "limite": "The agent only picks on arrival: a pod never changes nodes on its own. If the node goes bad later, all that happens is a new pod being created (and only if there’s a Deployment)."
+  },
+  "n7-gerador": {
+    "titulo": "The building with a generator",
+    "enunciado": "\n      <p>In the condo, only <code>node-2</code> has a generator: it has the label <code>energia=gerador</code>\n         (check with <code>kubectl get nodes --show-labels</code>).</p>\n      <p>Make the 2 replicas of <code>caixa</code> (the cash register) run <b>only</b> in the building with the generator.</p>",
+    "dica": "spec.template.spec.nodeSelector: { energia: gerador }",
+    "vidaReal": "The store wants the cash register in a building with a generator: if the power goes out, sales keep going.",
+    "limite": "nodeSelector is mandatory: if the generator building fills up or is closed off, the new caixa waits at the door (Pending).",
+    "comoSaber": "<code>kubectl get pods -o wide</code>: the NODE column shows node-2 for both.",
+    "testes": [
+      {
+        "descricao": "both caixa replicas in the generator building"
+      }
+    ]
+  },
+  "n7-etiqueta-no-predio": {
+    "titulo": "A label on the building",
+    "enunciado": "\n      <p>The <code>busca</code> (search) pod is <b>Pending</b>. Find the reason (<code>kubectl describe pod NAME</code>, in the Events)\n         and, <b>from the terminal</b>, put the label it asks for on <code>node-1</code>.</p>",
+    "dica": "kubectl label node node-1 disco=ssd",
+    "vidaReal": "The search engine only accepts a building with a fast disk. node-1 has an SSD, but nobody put the label on the door.",
+    "limite": "A label is just a label: Kubernetes doesn’t check whether the node really has an SSD. A wrong label sends the pod to the wrong place.",
+    "comoSaber": "Within a few seconds the pod leaves Pending and goes to node-1.",
+    "testes": [
+      {
+        "descricao": "busca running on node-1"
+      }
+    ]
+  },
+  "n7-preferencia": {
+    "titulo": "Generator, if possible",
+    "enunciado": "\n      <p><code>node-2</code> (the one with the generator) is closed off for renovation, and <code>vitrine</code> (the showcase) is stuck <b>Pending</b>:\n         its affinity is <b>required</b> (<code>required...</code>).</p>\n      <p>Switch it to a <b>preferred</b> affinity (<code>preferredDuringSchedulingIgnoredDuringExecution</code>, weight 100):\n         vitrine opens right away, in another building, and goes back to preferring the generator once it’s back up.</p>",
+    "dica": "preferred: [{ weight: 100, preference: { matchExpressions: [...] } }] (without the nodeSelectorTerms)",
+    "vidaReal": "The showcase can open in any building; it just prefers the one with the generator. But the request said “only with a generator”, and that one is under renovation.",
+    "limite": "A preference doesn’t move anyone afterwards: when the generator building comes back, vitrine stays where it is until the pods are replaced.",
+    "comoSaber": "The 2 replicas become ready on node-1.",
+    "testes": [
+      {
+        "descricao": "vitrine opens even with the generator under renovation"
+      },
+      {
+        "descricao": "the renovation ends and, on the next rollout, vitrine moves to the generator building"
+      }
+    ]
+  },
+  "n7-backups-separados": {
+    "titulo": "Backups in different buildings",
+    "enunciado": "\n      <p><code>backup</code> has 2 replicas. Make sure two replicas are <b>never</b> on the same node, with a\n         <b>required anti-affinity</b> between its pods (<code>topologyKey: kubernetes.io/hostname</code>).</p>\n      <p>If someone ever asks for more replicas than there are buildings, the extra one must wait (Pending), not share a building.</p>",
+    "dica": "affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution: [{ labelSelector: { matchLabels: { app: backup } }, topologyKey: kubernetes.io/hostname }]",
+    "vidaReal": "Keeping both backup copies in the same building is having just one copy: if the building catches fire, both are gone.",
+    "limite": "With the required rule, when buildings run short the extra copy waits (Pending). For “keep them apart if possible”, use preferred.",
+    "comoSaber": "<code>kubectl get pods -o wide</code>: each replica on its own node.",
+    "testes": [
+      {
+        "descricao": "both copies up"
+      },
+      {
+        "descricao": "with 3 replicas and 2 buildings, the third one waits"
+      }
+    ]
+  },
+  "n7-zonas": {
+    "titulo": "Half in each neighborhood",
+    "enunciado": "\n      <p>The nodes have the <code>topology.kubernetes.io/zone</code> label: <code>node-1</code> and <code>node-2</code> in\n         <code>zona-a</code>, <code>node-3</code> in <code>zona-b</code>.</p>\n      <p><code>site</code> has 6 replicas. Spread them across the <b>zones</b>, with a maximum difference of 1 (3 and 3), using\n         <code>topologySpreadConstraints</code>.</p>",
+    "dica": "topologySpreadConstraints: [{ maxSkew: 1, topologyKey: topology.kubernetes.io/zone, whenUnsatisfiable: DoNotSchedule, labelSelector: {...} }]",
+    "vidaReal": "The condo has two neighborhoods: A, with two buildings, and B, with one. If one neighborhood loses power, half the shops have to stay open.",
+    "limite": "Spreading by node isn’t spreading by zone: 2 per building leaves 4 in neighborhood A and only 2 in B.",
+    "comoSaber": "<code>kubectl get pods -o wide</code>: 3 replicas on node-3 and 3 split between node-1 and node-2.",
+    "testes": [
+      {
+        "descricao": "3 replicas in each zone"
+      }
+    ]
+  },
+  "n7-predio-restrito": {
+    "titulo": "The restricted building",
+    "enunciado": "\n      <p><code>node-2</code> has the GPU, the label <code>dedicado=gpu</code> and the taint <code>dedicado=gpu:NoSchedule</code>.</p>\n      <p><code>treino</code> (training) already asks for the right building (nodeSelector), but it’s <b>Pending</b>. Give it the\n         <b>toleration</b> for the building’s taint.</p>",
+    "dica": "tolerations: [{ key: dedicado, operator: Equal, value: gpu, effect: NoSchedule }]",
+    "vidaReal": "The GPU building has a sign: “authorized personnel only”. The training job has the right address, but not the authorization.",
+    "limite": "The authorization (toleration) doesn’t take anyone there: the nodeSelector does. With only the toleration, the pod can land in any building.",
+    "comoSaber": "The treino pod becomes ready on node-2.",
+    "testes": [
+      {
+        "descricao": "treino runs in the GPU building"
+      },
+      {
+        "descricao": "loja stays out of the restricted building"
+      }
+    ]
+  },
+  "n7-tirar-a-placa": {
+    "titulo": "The forgotten sign",
+    "enunciado": "\n      <p><code>impressao</code> (printing) only runs on <code>node-1</code> (that’s where the printer is), and its pod is\n         <b>Pending</b>. Find out what’s blocking it (<code>kubectl describe node node-1</code>) and, <b>from the terminal</b>,\n         take the sign down.</p>",
+    "dica": "kubectl taint nodes node-1 obra=sim:NoSchedule-  (the “-” at the end removes it)",
+    "vidaReal": "The renovation on node-1 is over, but nobody took down the “under renovation” sign: the printer, which only exists there, was left unattended.",
+    "limite": "Removing the NoSchedule taint doesn’t bring back whoever left: it only lets the next ones in.",
+    "comoSaber": "<code>kubectl describe node node-1</code> shows <code>Taints: &lt;none&gt;</code>, and the pod becomes ready.",
+    "testes": [
+      {
+        "descricao": "the sign is gone and printing is back",
+        "msgs": {
+          "0": "node-1 has no more taints"
+        }
+      }
+    ]
+  },
+  "n7-licao-manutencao": {
+    "titulo": "Renovating the building: cordon, drain and PDB",
+    "enunciado": "\n      <p>Swapping a disk, updating the system, rebooting the machine: every now and then a node needs maintenance.</p>\n      <ul>\n        <li><code>kubectl cordon node-1</code>: <b>closes it off</b>. No new pod gets in; whoever is there stays\n            (STATUS <code>Ready,SchedulingDisabled</code>).</li>\n        <li><code>kubectl drain node-1 --ignore-daemonsets</code>: closes it off and <b>empties</b> it, evicting the pods one by one.\n            Pods with an owner (Deployment, StatefulSet) are reborn on another node. drain refuses unless you allow it:\n            <code>--ignore-daemonsets</code> (DaemonSet pods stay: one per node, on purpose),\n            <code>--delete-emptydir-data</code> (the work desk is wiped) and <code>--force</code> (a pod with no owner\n            <b>doesn’t come back</b>).</li>\n        <li><code>kubectl uncordon node-1</code>: frees the node. Nobody comes back on their own: only the next pods can go there.</li>\n      </ul>\n      <h2>The PodDisruptionBudget</h2>\n      <p>drain evicts through the <b>eviction API</b>, which respects <b>PDBs</b>: “from this group, at least 2 always ready”\n         (<code>minAvailable: 2</code>) or “at most 1 out” (<code>maxUnavailable: 1</code>). With no slack, the eviction is refused\n         and drain retries every 5 seconds, while the replacements come up on another node:</p>\n      <pre><code>error when evicting pods/\"loja-...\" -n \"default\" (will retry after 5s):\nCannot evict pod as it would violate the pod's disruption budget.</code></pre>\n      <h2>When the building goes down</h2>\n      <p>If the kubelet stops (power, network, machine), the node turns <b>NotReady</b> in about 50 seconds and gets the\n         <code>node.kubernetes.io/unreachable</code> taint. Its pods leave the Services and, 5 minutes later (the default\n         300 s toleration), they are evicted: the ones from a Deployment are reborn on another node; a standalone pod stays\n         <b>Terminating</b> forever and doesn’t come back.</p>\n      <h2>Priority</h2>\n      <p>A <b>PriorityClass</b> gives an importance number (<code>priorityClassName</code> on the pod). With no room, the\n         scheduler can <b>remove</b> lower-priority pods to make way for the more important one (preemption), like the ambulance\n         that cuts to the front.</p>",
+    "vidaReal": "To renovate a building, the management office closes off the entrance (cordon), moves the residents to other buildings (drain) and agrees beforehand on how many elevators must keep running (PDB).",
+    "limite": "The agreement (PDB) covers planned renovation. A power outage doesn’t ask permission: the building goes down with whoever is inside."
+  },
+  "n7-interditar": {
+    "titulo": "Close off the building",
+    "enunciado": "\n      <p><b>From the terminal</b>, close off <code>node-2</code> to new pods, without removing the ones already there.</p>",
+    "dica": "kubectl cordon node-2",
+    "vidaReal": "There’s renovation work on node-2 next week: starting today, no new resident moves in. Those who already live there stay.",
+    "limite": "Closing it off doesn’t empty it: the pods there stay until a drain (or until they die on their own).",
+    "comoSaber": "<code>kubectl get nodes</code> shows <code>Ready,SchedulingDisabled</code> on node-2, and loja still has 3 pods.",
+    "testes": [
+      {
+        "descricao": "node-2 closed off, loja intact"
+      }
+    ]
+  },
+  "n7-esvaziar": {
+    "titulo": "Empty it for the renovation",
+    "enunciado": "\n      <p><b>From the terminal</b>, empty <code>node-1</code> with <code>kubectl drain</code> (DaemonSet pods stay:\n         use the right option). Then pretend you swapped the disk and <b>hand</b> the node back to the condo.</p>",
+    "dica": "kubectl drain node-1 --ignore-daemonsets and, afterwards, kubectl uncordon node-1",
+    "vidaReal": "node-1 is getting a new disk: move everyone to the other buildings, do the swap and hand the building back to the condo.",
+    "limite": "Handing the building back (uncordon) doesn’t bring the residents back: they stay where they are until someone replaces the pods.",
+    "comoSaber": "loja still has 3 ready pods, all on node-2, and node-1 is back to <code>Ready</code>.",
+    "testes": [
+      {
+        "descricao": "node-1 emptied and handed back",
+        "msgs": {
+          "0": "you used kubectl drain",
+          "2": "node-1 accepts pods again"
+        }
+      }
+    ]
+  },
+  "n7-pdb": {
+    "titulo": "At least two elevators",
+    "enunciado": "\n      <p>The 3 <code>loja</code> replicas are on <code>node-1</code>, which is going into maintenance. The PDB left in\n         <code>pdb.yaml</code> should guarantee <b>at least 2 ready</b> during the drain, but it doesn’t protect anyone\n         (check <code>kubectl get pdb</code> after applying).</p>\n      <p>Fix the PDB.</p>",
+    "dica": "The PDB’s selector must match the labels of the loja pods (app: loja).",
+    "vidaReal": "Agreed with the management office: during the renovation, at least 2 of the store’s elevators keep running. But the agreement was written with the wrong name.",
+    "limite": "The PDB only applies to whoever evicts through the API (drain, node autoscaler). A kubectl delete or a node going down ignores it.",
+    "comoSaber": "<code>kubectl get pdb</code> shows <code>ALLOWED DISRUPTIONS 1</code> (3 ready, 2 required).",
+    "testes": [
+      {
+        "descricao": "the PDB protects loja"
+      },
+      {
+        "descricao": "during the drain, the PDB holds the line and loja moves entirely to node-2",
+        "msgs": {
+          "0": "drain waited for the PDB"
+        }
+      }
+    ]
+  },
+  "n7-prioridade": {
+    "titulo": "The ambulance goes first",
+    "enunciado": "\n      <p>The nodes are full: 4 <code>relatorios</code> (reports) replicas ask for 900m of CPU each. <code>pagamento</code>\n         (payments, 500m) is <b>Pending</b> due to <code>Insufficient cpu</code>.</p>\n      <p>In <code>pagamento.yaml</code>, create a <b>PriorityClass</b> <code>critico</code> (value 100000) and use it in\n         pagamento. The scheduler will remove a report to free up the spot.</p>",
+    "dica": "Two documents in the file (separated by ---): the PriorityClass (apiVersion scheduling.k8s.io/v1, value: 100000) and the Deployment with priorityClassName: critico.",
+    "vidaReal": "The condo is packed with reports, and payments just arrived: without them, the store can’t sell. The ambulance goes first and tows the parked car out of the spot.",
+    "limite": "Whoever is removed really leaves: the evicted report goes back to the queue (Pending) and only runs when there’s room to spare.",
+    "comoSaber": "pagamento becomes ready, and one report turns Pending (in its Events: <i>Preempted</i>).",
+    "testes": [
+      {
+        "descricao": "pagamento cut to the front",
+        "msgs": {
+          "2": "a report was removed to free up the spot"
+        }
+      }
+    ]
+  },
+  "n7-predio-caiu": {
+    "titulo": "Power outage",
+    "enunciado": "\n      <p><code>node-2</code> went down. Look at the nodes and the pods (<code>-o wide</code>) and answer: which pod <b>won’t come back\n         on its own</b>?</p>",
+    "dica": "kubectl get nodes and kubectl get pods -o wide: who is Terminating on node-2 and has no replacement?",
+    "vidaReal": "node-2 lost power a few minutes ago. The store has already reopened in another building; someone was left behind.",
+    "limite": "Kubernetes doesn’t know whether the building went down or just lost its phone: that’s why it waits 5 minutes and leaves the pods “Terminating” until it hears back.",
+    "rotuloResposta": "The pod name",
+    "testes": [
+      {
+        "descricao": "you found who was left behind",
+        "msgs": {
+          "0": "you looked at the pods"
+        }
+      }
+    ]
+  }
+}
