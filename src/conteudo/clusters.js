@@ -459,6 +459,7 @@ export const CLUSTERS = {
   // Nível 11 (os projetos)
   'projeto-loja': { manifestos: juntar(INGRESS_CLASS, PARTIDA11.cliente) },
   'projeto-canario': { manifestos: GATEWAY },
+  'projeto-black-friday': { metricas: true },
 };
 
 /** Monta o cluster de partida (sempre igual para a mesma semente). */
