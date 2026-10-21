@@ -9,6 +9,7 @@ import { PARTIDA6 } from './nivel6.js';
 import { PARTIDA7 } from './nivel7.js';
 import { PARTIDA8 } from './nivel8.js';
 import { PARTIDA9 } from './nivel9.js';
+import { PARTIDA10 } from './nivel10.js';
 
 const LOJA = (replicas, versao) => yaml`
   apiVersion: apps/v1
@@ -447,6 +448,13 @@ export const CLUSTERS = {
   'cofre-restrito': { manifestos: PARTIDA8.cofre },
   // Nível 9: um cluster quebrado por incidente (nivel9.js)
   ...PARTIDA9,
+  // Nível 10
+  'helm-repo': { repoHelm: true },
+  'helm-loja-4': { repoHelm: true, comandos: ['helm install loja kube-learn/loja --set replicaCount=4'] },
+  'helm-quebrado': { repoHelm: true, comandos: ['helm install loja kube-learn/loja', 'helm upgrade loja kube-learn/loja --set image.tag=2.0-bugada'] },
+  'loja-azul': { manifestos: PARTIDA10.corAzul },
+  'operador-backup': { manifestos: PARTIDA10.operador },
+  'gitops-loja': { gitops: { 'loja.yaml': PARTIDA10.lojaGit } },
 };
 
 /** Monta o cluster de partida (sempre igual para a mesma semente). */

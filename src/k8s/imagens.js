@@ -267,6 +267,18 @@ export const IMAGENS = {
       }),
     },
   },
+  // O operador de backup: vigia os Backups (o CRD backups.kube-learn.dev) e cria um CronJob para cada um (crds.js).
+  'docker.io/kubelearn/operador-backup': {
+    tamanho: 14120331, puxaEm: 1200, digest: '0be4a7000be4a7000be4a7000be4a7000be4a7000be4a7000be4a7000be4a700',
+    tags: {
+      '1.0': {
+        env: { PATH: '/usr/local/bin:/usr/bin:/bin' }, entrypoint: ['/operador'], comando: ['/operador'], binarios: ['/operador'],
+        servidor: { portas: [] },
+        logs: () => ['{"level":"info","msg":"operador de backup no ar: vigiando os Backups (kube-learn.dev/v1)"}'],
+        memoria: '12Mi', cpu: 1, paraEm: 0,
+      },
+    },
+  },
   // Imagens didáticas (busybox por baixo): um diário com uma senha no log e um cofre com um arquivo dentro.
   'docker.io/kubelearn/diario': {
     tamanho: 2217006, puxaEm: 1000, digest: 'd1a71000d1a71000d1a71000d1a71000d1a71000d1a71000d1a71000d1a71000',

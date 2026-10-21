@@ -44,12 +44,28 @@ function base64(r, decodificar) {
   }
 }
 
+/** O "> arquivo" do fim da linha, se estiver fora de aspas (o de dentro de um sh -c '...' é do contêiner). */
+function redirecionamento(linha) {
+  let aspas = null;
+  for (let i = 0; i < linha.length; i++) {
+    const ch = linha[i];
+    if (aspas) {
+      if (ch === aspas) aspas = null;
+    } else if (ch === '"' || ch === "'") aspas = ch;
+    else if (ch === '>') {
+      const m = linha.slice(i).match(/^(>>?)\s*(\S+)\s*$/);
+      return m && linha.slice(0, i).trim() ? [null, linha.slice(0, i).trimEnd(), m[1], m[2]] : null;
+    }
+  }
+  return null;
+}
+
 /** → resultado do kubectl/curl (com `arquivoGravado` quando houve `>`), ou um erro se o nome do arquivo não serve. */
 export function rodarLinha(cluster, linha, arquivos) {
   const cano = linha.match(/^(.*\S)\s*\|\s*base64(\s+(?:-d|--decode))?\s*$/);
   if (cano) return base64(rodarLinha(cluster, cano[1], arquivos), !!cano[2]);
   if (/^\s*echo\b/.test(linha)) return eco(linha);
-  const m = linha.match(/^(.*?)\s+(>>?)\s*(\S+)\s*$/);
+  const m = redirecionamento(linha);
   const comando = m ? m[1] : linha;
   const ehCurl = /^\s*curl\b/.test(comando);
   if (/^\s*git\b/.test(linha)) return git(cluster, linha, arquivos);

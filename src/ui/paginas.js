@@ -12,7 +12,7 @@ const jornadaAtual = () => calcularJornada(NIVEIS, ler(CHAVES.progresso, {}));
 const ICONE_SALA = { concluido: 'certo', proximo: 'seguir', bloqueado: 'cadeado' };
 const ROTULO = { concluido: 'resolvida', tentado: 'tentada', proximo: 'próxima', disponivel: 'disponível', bloqueado: 'bloqueada' };
 const SITUACAO = { bloqueado: 'Bloqueado', carregando: 'Carregando', pronto: 'Pronto', lacrado: 'Lacrado!' };
-const TIPO = { licao: ['Lição', 'chip-licao'], quiz: ['Quiz', 'chip-quiz'], facil: ['Fácil', 'chip-facil'], medio: ['Médio', 'chip-medio'], dificil: ['Difícil', 'chip-dificil'] };
+const DIFICULDADE = { facil: 'Fácil', medio: 'Médio', dificil: 'Difícil' };
 
 function placar(j) {
   const dias = sequenciaDeDias(ler(CHAVES.dias, []), hojeLocal());
@@ -54,12 +54,31 @@ export function paginaInicio() {
 
 const sala = (i) => {
   const marca = `<span class="sala-marca" aria-hidden="true">${ICONE_SALA[i.estado] ? icone(ICONE_SALA[i.estado]) : ''}</span>`;
-  const [tipo, classe] = TIPO[i.tipo === 'problema' ? i.dificuldade : i.tipo] ?? ['', ''];
-  const resto = `<span class="chip ${classe}">${tipo}</span><span class="sala-xp">${i.xp} XP</span>`;
+  // Prática (no terminal ou no editor, com cluster e testes), lição ou quiz: o chip diz o que a missão é.
+  const chip = i.tipo === 'problema'
+    ? `<span class="chip chip-${i.dificuldade}" title="${i.terminal ? 'Prática no terminal' : 'Prática no editor'}">${icone(i.terminal ? 'terminal' : 'editor')}<span class="chip-texto">Prática · ${DIFICULDADE[i.dificuldade]}</span></span>`
+    : i.tipo === 'licao'
+      ? `<span class="chip chip-licao">${icone('livro')}<span class="chip-texto">Lição</span></span>`
+      : `<span class="chip chip-quiz">${icone('lista')}<span class="chip-texto">Quiz</span></span>`;
+  const resto = `${chip}<span class="sala-xp">${i.xp} XP</span>`;
   return `<li class="sala-${i.estado}">${i.estado === 'bloqueado'
     ? `<span>${marca}<span class="sala-titulo">${escapar(i.titulo)} <span class="visualmente-oculto">(bloqueada)</span></span>${resto}</span>`
     : `<a href="#/ex/${i.id}">${marca}<span class="sala-titulo">${escapar(i.titulo)} <span class="visualmente-oculto">(${ROTULO[i.estado]})</span></span>${resto}</a>`}</li>`;
 };
+
+/** "2 leituras · 12 práticas (5 no terminal)": o que o nível tem. */
+function contagem(itens) {
+  const leituras = itens.filter((i) => i.tipo === 'licao').length;
+  const quizzes = itens.filter((i) => i.tipo === 'quiz').length;
+  const praticas = itens.filter((i) => i.tipo === 'problema');
+  const noTerminal = praticas.filter((i) => i.terminal).length;
+  const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+  return [
+    leituras && plural(leituras, 'lição', 'lições'),
+    praticas.length && `${plural(praticas.length, 'prática', 'práticas')}${noTerminal ? ` (${noTerminal} no terminal)` : ''}`,
+    quizzes && plural(quizzes, 'quiz', 'quizzes'),
+  ].filter(Boolean).join(' · ');
+}
 
 // Cada nível é um cartão que abre e fecha; abertos ficam só os que estão em andamento (o resto é um resumo).
 function nivel(n) {
@@ -77,6 +96,7 @@ function nivel(n) {
         </summary>
         <div class="nivel-corpo">
           <p class="nota">${escapar(n.descricao)}</p>
+          ${n.itens.length ? `<p class="nivel-conta">${contagem(n.itens)}</p>` : ''}
           ${n.emObra ? '<p class="nota">As missões deste nível ainda estão sendo escritas.</p>' : ''}
           ${!n.emObra && !n.desbloqueado ? '<p class="nota">Abre quando o nível anterior tiver 70% das missões resolvidas.</p>' : ''}
           ${n.concluido ? `<div class="nivel-selo"><p><b>Lacrado!</b> Nível concluído. <a href="${linkCompartilhar()}" target="_blank" rel="noopener">Compartilhar no LinkedIn</a></p></div>` : ''}
