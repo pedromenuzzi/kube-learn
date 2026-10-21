@@ -609,7 +609,7 @@ As estimativas são em sessões do Claude no esforço alto. Cada fase termina co
 | **4. Conteúdo MVP** ✅ | Níveis 0 a 3 (~13 lições e ~48 exercícios) e ~45 termos no glossário | A trilha inteira passa. **🚀 v0.1** | 4 |
 | **5. Revisão e certificados** ✅ | Revisão do dia, o navio no lugar do prédio, lacre por nível, certificado final, mapa do cluster, página de privacidade | **v0.2** | 2 |
 | **6. Níveis 4 a 6** ✅ | Motor (volumes, StatefulSet, Jobs, DaemonSet, probes, limits, HPA, quotas) e conteúdo; o mar se mexe na página inicial | **v0.3** | 5 |
-| **7. Níveis 7 a 9** | Motor (scheduling avançado, drain, RBAC, NetworkPolicy, PSA) e os 20 incidentes | **v0.4** | 5 |
+| **7. Níveis 7 a 9** ✅ | Motor (scheduling avançado, drain, RBAC, NetworkPolicy, PSA) e os 20 incidentes | **v0.4** | 5 |
 | **8. Níveis 10 e 11** | Helm e Kustomize simulados, CRD, os 8 projetos, lição do kind | **v1.0 🏙️** | 4 |
 
 O MVP vai da Fase 0 à 4, em cerca de 12 sessões. O total é de umas 28.

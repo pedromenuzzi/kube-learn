@@ -255,6 +255,9 @@ export const GLOSSARIO = [
   t('pending', 9, 'Pending', 'O pod existe mas ainda não roda: sem node (FailedScheduling) ou esperando algo (volume, imagem).',
     'Esperando no lobby: nenhum prédio tem espaço ou autorização.',
     'Pending pode durar para sempre se nenhum node servir: o motivo está nas Events.', '0/3 nodes are available: 3 Insufficient memory.'),
+  t('createcontainerconfigerror', 9, 'CreateContainerConfigError', 'O kubelet não consegue montar a configuração do contêiner: falta um ConfigMap ou Secret (ou uma chave dele), ou o runAsNonRoot não bate com a imagem.',
+    'A mudança travou na porta: o envelope com a senha (ou o quadro de avisos) que o morador precisa não chegou.',
+    'Assim que o que falta aparece, o kubelet tenta de novo sozinho: não precisa apagar o pod.', 'Error: configmap "vitrine-config" not found'),
 
   // ---------- 10 · Ecossistema ----------
   t('helm', 10, 'Helm', 'Gerenciador de pacotes: um chart é um modelo de manifestos; os values.yaml escolhem as opções.',

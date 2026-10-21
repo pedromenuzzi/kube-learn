@@ -7,12 +7,14 @@ missão resolvida embarca mais um contêiner no seu navio em pixel art, e a pilh
 
 **Acesse:** https://pedromenuzzi.github.io/kube-learn/
 
-**Versão 0.3:** os níveis 0 a 6 (contêineres; cluster, kubectl e Pods; Deployments; Services, Ingress e Gateway
-API; configuração e armazenamento; Jobs, CronJobs e DaemonSets; saúde e recursos), com 21 lições, 8 quizzes e 78
-missões, um glossário de 74 termos, a revisão do dia, os lacres de cada nível e o navio em pixel art na página
-inicial, com o mar em movimento. O simulador agora tem volumes e discos (PVC, StorageClass), StatefulSet, Job,
-CronJob, DaemonSet, init containers e sidecars, probes, OOMKilled, `kubectl top`, HPA, ResourceQuota e LimitRange,
-conferidos contra 207 saídas de um kind de verdade. O plano completo está em [`PLANO.md`](PLANO.md).
+**Versão 0.4:** os níveis 0 a 9 (contêineres; cluster, kubectl e Pods; Deployments; Services, Ingress e Gateway
+API; configuração e armazenamento; Jobs, CronJobs e DaemonSets; saúde e recursos; scheduling e manutenção;
+segurança; troubleshooting), com 27 lições, 8 quizzes e 122 missões, um glossário de 82 termos, a revisão do dia,
+os lacres de cada nível e o navio em pixel art na página inicial, com o mar em movimento. O nível 9 é só de
+incidentes: 20 clusters que chegam quebrados, cada um com o relato de um morador. O simulador agora também tem
+afinidade, espalhamento, taints, cordon, drain, PodDisruptionBudget, prioridade e preempção, node caindo, RBAC
+(`auth can-i`, `--as`), NetworkPolicy, securityContext e Pod Security Admission, conferidos contra 309 saídas de
+um kind de verdade. O plano completo está em [`PLANO.md`](PLANO.md).
 
 ## Desenvolvimento
 

@@ -65,7 +65,7 @@ function tokens(script) {
   return saida;
 }
 
-/** Script → lista de nós { argv, sep } e { enquanto: [nós] } (while true; do ...; done). */
+/** Script → lista de nós { argv, sep } e { enquanto: [nós], condicao: [nós], ate } (while/until COND; do ...; done). */
 export function analisar(script) {
   const lista = tokens(script);
   let i = 0;
@@ -93,9 +93,8 @@ export function analisar(script) {
       }
       if (argv.length === 0 && t.palavra === fim) return nos;
       if (argv.length === 0 && (t.palavra === 'while' || t.palavra === 'until')) {
-        while (i < lista.length && lista[i].palavra !== 'do') i++; // a condição: tratamos como "true"
-        i++;
-        nos.push({ enquanto: bloco('done'), sep });
+        const condicao = bloco('do');
+        nos.push({ enquanto: bloco('done'), condicao, ate: t.palavra === 'until', sep });
         continue;
       }
       argv.push(t.palavra);
@@ -123,6 +122,10 @@ export function* rodar(nos, ctx) {
     if (no.sep === '||' && codigo === 0) continue;
     if (no.enquanto) {
       for (;;) {
+        // while: repete enquanto a condição dá certo; until: enquanto ela falha.
+        const c = yield* rodar(no.condicao, ctx);
+        if (c?.sair) return c;
+        if ((c.codigo === 0) === no.ate) break;
         const r = yield* rodar(no.enquanto, ctx);
         if (r?.sair) return r;
         if (++semDormir > 200) { // laço sem sleep: não trava o simulador
@@ -130,6 +133,8 @@ export function* rodar(nos, ctx) {
           yield { dormir: 1000 };
         }
       }
+      codigo = 0;
+      continue;
     }
     const valor = (nome) => (nome === '?' ? String(codigo) : ctx.env[nome]);
     const argv = no.argv.map((p) => expandir(p, valor)).filter((p) => !/^\d?>&?\S*$|^2>&1$/.test(p));
