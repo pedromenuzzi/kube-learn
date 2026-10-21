@@ -1,7 +1,9 @@
 // A tela das lições sem cluster e dos quizzes: o texto, a comparação com a vida real e, no quiz, a pergunta.
 import { XP } from '../conteudo/util.js';
 import { NIVEIS, proximoDe } from '../conteudo/index.js';
-import { registrarResultado, registrarDia, ler, CHAVES } from '../armazenamento.js';
+import { registrarDia, ler, CHAVES } from '../armazenamento.js';
+import { registrarComFesta } from './festa.js';
+import { abrirFeedback } from './feedback.js';
 import { hojeLocal } from '../jogo/gamificacao.js';
 import { escapar } from './util.js';
 import { icone } from './icones.js';
@@ -50,6 +52,7 @@ export function montarLeitura(raiz, item) {
         ${item.tipo === 'licao' ? `<button type="button" class="botao" data-acao="lida"${jaFeito ? ' disabled' : ''}>${icone('certo')} ${jaFeito ? 'Lida' : 'Marquei como lida'}</button>` : ''}
         ${proximo ? `<a class="botao-secundario proxima" href="#/ex/${proximo.id}">Próxima: ${escapar(proximo.titulo)} ${icone('seguir')}</a>` : ''}
       </p>
+      <p class="leitura-feedback"><button type="button" class="link-botao" data-acao="feedback">${icone('balao')} Conte como foi ${item.tipo === 'quiz' ? 'este quiz' : 'esta lição'}</button></p>
     </article>`;
 
   const retorno = raiz.querySelector('.quiz-retorno');
@@ -58,14 +61,17 @@ export function montarLeitura(raiz, item) {
     const escolha = new FormData(e.target).get('escolha');
     const r = conferirQuiz(item, escolha);
     registrarDia(hojeLocal());
-    registrarResultado(item.id, r.certa);
+    registrarComFesta(item, r.certa);
+    resposta = r.certa ? 'acertou o quiz' : `errou o quiz (escolheu: ${item.alternativas ? item.alternativas[Number(escolha)]?.texto : escolha})`;
     retorno.className = `quiz-retorno ${r.certa ? 'ok' : 'falha'}`;
     retorno.innerHTML = `<p><b>${r.certa ? `Certo! +${XP.quiz} XP.` : 'Ainda não.'}</b> ${r.explicacao}</p>`;
     if (r.certa) raiz.querySelector('.caixa-vida')?.removeAttribute('hidden');
   });
+  let resposta = null; // para o feedback
+  raiz.querySelector('[data-acao=feedback]').addEventListener('click', () => abrirFeedback(item, () => ({ testes: resposta })));
   raiz.querySelector('[data-acao=lida]')?.addEventListener('click', (e) => {
     registrarDia(hojeLocal());
-    registrarResultado(item.id, true);
+    registrarComFesta(item, true);
     e.currentTarget.innerHTML = `${icone('certo')} Lida`;
     e.currentTarget.disabled = true;
     retorno.className = 'quiz-retorno ok';

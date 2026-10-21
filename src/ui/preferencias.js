@@ -1,8 +1,9 @@
 // Preferências de acessibilidade: tema (automático, claro, escuro, alto contraste), tamanho do texto e
-// reduzir movimento. Aplicadas como atributos no <html> (o CSS faz o resto) e guardadas no navegador.
+// reduzir movimento e os efeitos sonoros. Aplicadas como atributos no <html> (o CSS faz o resto) e guardadas no navegador.
 import { ler, gravar, CHAVES } from '../armazenamento.js';
+import { tocar } from './sons.js';
 
-const PADRAO = { tema: 'auto', texto: '100', movimento: 'normal' };
+const PADRAO = { tema: 'auto', texto: '100', movimento: 'normal', som: 'desligado' };
 
 export function aplicarPreferencias(p = ler(CHAVES.preferencias, PADRAO)) {
   const h = document.documentElement;
@@ -29,6 +30,7 @@ export function montarPreferencias(botao, aoMudar) {
       <p><label for="pref-texto">Tamanho do texto</label>
         <select id="pref-texto" name="texto">${['100', '112', '125', '150'].map((v) => `<option value="${v}">${v}%</option>`).join('')}</select></p>
       <p><label><input type="checkbox" name="movimento" value="reduzido"> Reduzir movimento</label></p>
+      <p><label><input type="checkbox" name="som" value="ligado"> Efeitos sonoros nas comemorações</label></p>
       <p><button type="submit" class="botao">Fechar</button></p>
     </form>`;
   document.body.append(dialogo);
@@ -38,10 +40,12 @@ export function montarPreferencias(botao, aoMudar) {
     form.tema.value = p.tema;
     form.texto.value = p.texto;
     form.movimento.checked = p.movimento === 'reduzido';
+    form.som.checked = p.som === 'ligado';
   };
-  form.addEventListener('change', () => {
-    const p = { tema: form.tema.value, texto: form.texto.value, movimento: form.movimento.checked ? 'reduzido' : 'normal' };
+  form.addEventListener('change', (e) => {
+    const p = { tema: form.tema.value, texto: form.texto.value, movimento: form.movimento.checked ? 'reduzido' : 'normal', som: form.som.checked ? 'ligado' : 'desligado' };
     gravar(CHAVES.preferencias, p);
+    if (e.target.name === 'som' && form.som.checked) tocar('embarque'); // uma amostra do som
     aplicarPreferencias(p);
     aoMudar?.();
   });

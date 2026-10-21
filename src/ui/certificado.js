@@ -65,6 +65,8 @@ export function paginaPrivacidade() {
       <p>O que o site guarda fica <b>só neste navegador</b> (no <code>localStorage</code>, com o prefixo <code>kube-learn:</code>):</p>
       <table class="tabela-simples"><thead><tr><th>Chave</th><th>O que guarda</th></tr></thead>
         <tbody>${Object.entries(DESCRICOES).map(([k, d]) => `<tr><td><code>${k}</code></td><td>${d}</td></tr>`).join('')}</tbody></table>
+      <p>O botão <b>Feedback</b> também não envia nada sozinho: ele abre uma issue no GitHub já preenchida (pública, na
+         sua conta, só se você clicar em enviar lá) ou copia o texto para você mandar por onde quiser.</p>
       <p>Pela LGPD, os dados são seus: dá para baixar uma cópia ou apagar tudo a qualquer momento.</p>
       <p class="acoes"><button type="button" class="botao" data-baixar>${icone('baixar')} Baixar meus dados</button>
         <button type="button" class="botao-perigo" data-apagar>${icone('lixeira')} Apagar meus dados</button></p>

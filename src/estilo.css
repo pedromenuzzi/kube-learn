@@ -204,7 +204,7 @@ main.entrando { animation: entrar 260ms cubic-bezier(0.2, 0.7, 0.3, 1); }
 /* ---------- botões ---------- */
 button { font: inherit; cursor: pointer; color: var(--texto); }
 button:disabled { cursor: not-allowed; opacity: 0.6; }
-button:not(.botao-icone, .aba-arquivo, [role=tab], .divisor), .botao, .botao-secundario {
+button:not(.botao-icone, .aba-arquivo, [role=tab], .divisor, .link-botao), .botao, .botao-secundario {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
   min-height: 2.5rem; padding: 0.45rem 1rem; border-radius: var(--raio);
   border: 1px solid var(--borda); background: var(--superficie); color: var(--texto);
@@ -212,8 +212,8 @@ button:not(.botao-icone, .aba-arquivo, [role=tab], .divisor), .botao, .botao-sec
   box-shadow: var(--sombra-1);
   transition: background var(--anim), border-color var(--anim), color var(--anim), box-shadow var(--anim), transform 80ms ease;
 }
-button:not(.botao-icone, .aba-arquivo, [role=tab], .divisor):hover:not(:disabled), .botao-secundario:hover { border-color: var(--borda-forte); background: var(--superficie-2); color: var(--texto); }
-button:not(.botao-icone, .aba-arquivo, [role=tab], .divisor):active:not(:disabled), .botao:active { transform: translateY(1px); }
+button:not(.botao-icone, .aba-arquivo, [role=tab], .divisor, .link-botao):hover:not(:disabled), .botao-secundario:hover { border-color: var(--borda-forte); background: var(--superficie-2); color: var(--texto); }
+button:not(.botao-icone, .aba-arquivo, [role=tab], .divisor, .link-botao):active:not(:disabled), .botao:active { transform: translateY(1px); }
 .botao, button.botao { background: var(--destaque); border-color: var(--destaque); color: var(--texto-botao); box-shadow: 0 1px 2px rgb(15 27 45 / 12%), inset 0 1px 0 rgb(255 255 255 / 14%); }
 .botao:hover, button.botao:hover:not(:disabled) { background: var(--destaque-forte); border-color: var(--destaque-forte); color: var(--texto-botao); }
 button.botao-forte, .botao-forte { background: var(--ok); border-color: var(--ok); color: var(--texto-botao); }
@@ -380,18 +380,18 @@ canvas.navio { image-rendering: pixelated; width: 100%; height: auto; display: b
 .termo pre { margin: 0.2rem 0 0; background: var(--superficie-2); border: 1px solid var(--borda); padding: 0.4rem 0.6rem; border-radius: var(--raio-p); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.82rem; }
 
 /* ---------- diálogo de acessibilidade ---------- */
-dialog.preferencias { background: var(--superficie); color: var(--texto); border: 1px solid var(--borda); border-radius: var(--raio-g); padding: 0; width: min(28rem, calc(100vw - 2rem)); box-shadow: var(--sombra-3); }
-dialog.preferencias[open] { animation: aparecer 200ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+:is(dialog.preferencias, dialog.feedback) { background: var(--superficie); color: var(--texto); border: 1px solid var(--borda); border-radius: var(--raio-g); padding: 0; width: min(28rem, calc(100vw - 2rem)); box-shadow: var(--sombra-3); }
+:is(dialog.preferencias, dialog.feedback)[open] { animation: aparecer 200ms cubic-bezier(0.2, 0.7, 0.3, 1); }
 @keyframes aparecer { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
-dialog.preferencias::backdrop { background: rgb(5 10 20 / 55%); backdrop-filter: blur(2px); }
-dialog.preferencias form { padding: 1.4rem 1.5rem; display: grid; gap: 1rem; }
-dialog.preferencias h2 { margin: 0; font-size: 1.2rem; }
-dialog.preferencias fieldset { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
-dialog.preferencias legend { font-weight: 700; margin-bottom: 0.5rem; padding: 0; }
-dialog.preferencias fieldset label { display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.7rem; border: 1px solid var(--borda); border-radius: var(--raio); cursor: pointer; transition: border-color var(--anim), background var(--anim); }
-dialog.preferencias fieldset label:has(input:checked) { border-color: var(--destaque); background: var(--destaque-suave); }
-dialog.preferencias p { margin: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
-dialog.preferencias p:last-child { justify-content: flex-end; }
+:is(dialog.preferencias, dialog.feedback)::backdrop { background: rgb(5 10 20 / 55%); backdrop-filter: blur(2px); }
+:is(dialog.preferencias, dialog.feedback) form { padding: 1.4rem 1.5rem; display: grid; gap: 1rem; }
+:is(dialog.preferencias, dialog.feedback) h2 { margin: 0; font-size: 1.2rem; }
+:is(dialog.preferencias, dialog.feedback) fieldset { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+:is(dialog.preferencias, dialog.feedback) legend { font-weight: 700; margin-bottom: 0.5rem; padding: 0; }
+:is(dialog.preferencias, dialog.feedback) fieldset label { display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.7rem; border: 1px solid var(--borda); border-radius: var(--raio); cursor: pointer; transition: border-color var(--anim), background var(--anim); }
+:is(dialog.preferencias, dialog.feedback) fieldset label:has(input:checked) { border-color: var(--destaque); background: var(--destaque-suave); }
+:is(dialog.preferencias, dialog.feedback) p { margin: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
+:is(dialog.preferencias, dialog.feedback) p:last-child { justify-content: flex-end; }
 
 /* ---------- leitura (lições e quizzes) ---------- */
 .leitura { max-width: 46rem; margin: 0 auto; }
@@ -424,6 +424,54 @@ dialog.preferencias p:last-child { justify-content: flex-end; }
 .leitura-acoes { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between; margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--borda); }
 .leitura-acoes .proxima { margin-left: auto; }
 .resposta-aluno input, .form-nome input { min-width: min(18rem, 100%); }
+
+/* o link "Conte como foi" no fim das lições e quizzes */
+.leitura-feedback { margin: 1.25rem 0 0; text-align: center; }
+.link-botao { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.5rem; border: 0; border-radius: var(--raio-p); background: none; color: var(--suave); font-weight: 700; font-size: 0.9rem; text-decoration: underline; text-underline-offset: 3px; }
+.link-botao:hover { color: var(--destaque); }
+.link-botao .icone { width: 1rem; height: 1rem; }
+
+/* o diálogo de feedback (o resto do visual é o das preferências) */
+dialog.feedback { width: min(34rem, calc(100vw - 2rem)); }
+dialog.feedback h2 { display: flex; align-items: center; gap: 0.5rem; }
+dialog.feedback fieldset.reacoes { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+dialog.feedback fieldset.reacoes legend { width: 100%; }
+dialog.feedback p.campo { display: grid; gap: 0.35rem; justify-content: stretch; }
+dialog.feedback textarea { width: 100%; resize: vertical; font: inherit; }
+dialog.feedback .acoes-feedback { justify-content: flex-start; }
+dialog.feedback .fb-estado:empty { display: none; }
+
+/* ---------- as comemorações (festa.js) ---------- */
+/* o contêiner que chega de helicóptero: pixel art ampliada, embaixo, sem bloquear nada */
+.festa-embarque { position: fixed; left: 50%; bottom: 6rem; z-index: 70; transform: translateX(-50%); pointer-events: none; animation: festa-sumir 400ms ease 2000ms forwards; }
+.festa-embarque canvas { display: block; width: 216px; height: 132px; image-rendering: pixelated; border-radius: 14px; border: 3px solid var(--superficie); box-shadow: var(--sombra-3); }
+.festa-xp { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); font-size: 1rem; color: #f5c518; white-space: nowrap; opacity: 0; text-shadow: 2px 0 #1d3557, -2px 0 #1d3557, 0 2px #1d3557, 0 -2px #1d3557; animation: festa-xp 900ms cubic-bezier(0.2, 0.7, 0.3, 1) 1300ms forwards; }
+@keyframes festa-xp { from { opacity: 0; transform: translate(-50%, 14px) scale(0.8); } 30% { opacity: 1; transform: translate(-50%, 0) scale(1.15); } to { opacity: 1; transform: translate(-50%, -6px) scale(1); } }
+@keyframes festa-sumir { to { opacity: 0; } }
+
+/* o nível que abre: uma faixa embaixo do topo */
+.festa-faixa { position: fixed; left: 50%; top: 4.6rem; z-index: 65; transform: translateX(-50%); display: flex; align-items: center; gap: 0.7rem; width: max-content; max-width: calc(100vw - 2rem); padding: 0.5rem 0.5rem 0.5rem 1rem; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent); background: var(--superficie); box-shadow: var(--sombra-2); animation: festa-descer 380ms cubic-bezier(0.2, 0.8, 0.3, 1.2); }
+.festa-faixa > .icone { flex: none; color: var(--ok); }
+.festa-faixa a { font-weight: 700; white-space: nowrap; }
+.festa-faixa .aviso-fechar { flex: none; display: inline-grid; place-items: center; width: 2rem; height: 2rem; min-height: 0; padding: 0; border: 0; border-radius: 999px; background: none; color: var(--suave); }
+.festa-faixa .aviso-fechar .icone { width: 1rem; height: 1rem; }
+@keyframes festa-descer { from { opacity: 0; transform: translate(-50%, -1rem); } }
+
+/* o lacre carimbado e o navio carregado: um cartão no centro (não modal) */
+dialog.festa-cartao { position: fixed; inset: 0; z-index: 80; margin: auto; width: min(27rem, calc(100vw - 2rem)); height: max-content; max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.6rem 1.5rem 1.4rem; text-align: center; color: var(--texto); background: var(--superficie); border: 1px solid var(--borda-forte); border-radius: var(--raio-g); box-shadow: var(--sombra-3), 0 0 0 100vmax rgb(5 10 20 / 35%); animation: aparecer 220ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+dialog.festa-cartao h2 { margin: 0.9rem 0 0.5rem; font-size: 1.25rem; }
+dialog.festa-cartao p { margin: 0; color: var(--suave); }
+dialog.festa-cartao .acoes { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.6rem 1rem; margin-top: 1.25rem; }
+dialog.festa-cartao canvas.navio { width: auto; max-width: 100%; max-height: min(42dvh, 20rem); margin: 0 auto; border-radius: var(--raio); }
+.festa-selo { position: relative; display: inline-block; }
+.festa-selo svg { display: block; animation: festa-carimbo 560ms cubic-bezier(0.25, 0.9, 0.3, 1.25) 120ms both; }
+.festa-selo::after { content: ''; position: absolute; inset: 8%; border-radius: 12px; border: 3px solid #f5c518; opacity: 0; animation: festa-onda 700ms ease-out 520ms; pointer-events: none; }
+@keyframes festa-carimbo { from { opacity: 0; transform: scale(2.3) rotate(-16deg); } 55% { opacity: 1; transform: scale(0.92) rotate(-2deg); } to { opacity: 1; transform: scale(1) rotate(-4deg); } }
+@keyframes festa-onda { from { opacity: 0.9; transform: scale(0.9); } to { opacity: 0; transform: scale(1.35); } }
+@media (max-width: 55.99rem) {
+  .festa-embarque { bottom: calc(10.5rem + env(safe-area-inset-bottom)); }
+  .festa-faixa { top: 3.9rem; border-radius: var(--raio-g); }
+}
 
 /* a página que não existe */
 .nao-encontrada { padding: 2rem 0 1rem; }

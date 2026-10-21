@@ -12,7 +12,32 @@ const A = 6; // altura de uma fileira
 export const CORES = ['#c0392b', '#2e86c1', '#27ae60', '#e67e22', '#8e44ad', '#16a085', '#d35400', '#34495e', '#e84393', '#795548', '#7f8c8d', '#f1c40f'];
 
 const cor = (nome, padrao) => getComputedStyle(document.documentElement).getPropertyValue(nome).trim() || padrao;
-const tamanho = (item) => (item.dificuldade === 'medio' || item.dificuldade === 'dificil' ? 2 : 1);
+export const tamanho = (item) => (item.dificuldade === 'medio' || item.dificuldade === 'dificil' ? 2 : 1);
+
+/**
+ * Um contêiner de `largura` vagas (1 = 20 pés, 2 = 40 pés) com o canto em (x, y), na cor do nível, com o lacre dourado
+ * se o nível fechou. `r(cor, x, y, w, h)` pinta um retângulo. Ocupa a fileira inteira (A pixels): assenta no convés e no
+ * contêiner de baixo; a linha escura embaixo separa os dois.
+ */
+export function pintarConteiner(r, x, y, largura, cor, comLacre = false) {
+  const w = largura * C - 1;
+  r(cor, x, y, w, A);
+  for (let k = x + 1; k < x + w - 1; k += 2) r('#00000030', k, y + 1, 1, A - 2);
+  r('#ffffff40', x, y, w, 1);
+  r('#00000040', x, y + A - 1, w, 1);
+  if (comLacre) r('#f5c518', x + w - 2, y + 2, 1, 2);
+}
+
+/** O helicóptero com o centro em cx e o topo da cabine em hy; `gira` alterna a hélice. O cabo fica com quem chama. */
+export function pintarHelicoptero(r, cx, hy, gira) {
+  r('#e9c46a', cx - 5, hy, 10, 4);
+  r('#a8dadc', cx + 2, hy + 1, 3, 2);
+  r('#e9c46a', cx - 11, hy + 1, 6, 1);
+  r('#3a3a3a', cx - 12, hy - (gira ? 1 : 0), 1, gira ? 3 : 1);
+  r('#3a3a3a', gira ? cx - 8 : cx - 4, hy - 2, gira ? 17 : 9, 1);
+  r('#3a3a3a', cx, hy - 1, 1, 1);
+  r('#3a3a3a', cx - 4, hy + 5, 9, 1);
+}
 
 /** Arruma os contêineres no convés, da esquerda para a direita e de baixo para cima: [{ item, fileira, vaga, largura }]. */
 export function empilhar(itens) {
@@ -35,7 +60,7 @@ const desvio = (fileira) => Math.round(Math.max(0, fileira - 5) ** 1.5 * 0.25);
 
 const mod = (a, n) => ((a % n) + n) % n;
 const QUADROS_POR_SEGUNDO = 12; // movimento de videogame antigo (e pouca CPU)
-const semMovimento = () => document.documentElement.dataset.movimento === 'reduzido' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+export const semMovimento = () => document.documentElement.dataset.movimento === 'reduzido' || matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /**
  * Desenha o navio da jornada (calcularJornada) num <canvas>, estreito no celular e largo com mar dos lados, e anima:
@@ -69,15 +94,7 @@ export function desenharNavio(canvas, jornada) {
   const x0 = W > 300 ? W - 160 : W - COMPRIMENTO - 14;
   const xc = x0 + 30;
   const posicao = (l) => [xc + l.vaga * C + desvio(l.fileira), mar - 10 - (l.fileira + 1) * A];
-  // Ocupa a fileira inteira (A pixels): assenta no convés e no contêiner de baixo; a linha escura embaixo separa os dois.
-  const conteiner = (x, y, l) => {
-    const w = l.largura * C - 1;
-    r(corDoNivel[l.item.nivel], x, y, w, A);
-    for (let k = x + 1; k < x + w - 1; k += 2) r('#00000030', k, y + 1, 1, A - 2);
-    r('#ffffff40', x, y, w, 1);
-    r('#00000040', x, y + A - 1, w, 1);
-    if (lacrado[l.item.nivel]) r('#f5c518', x + w - 2, y + 2, 1, 2);
-  };
+  const conteiner = (x, y, l) => pintarConteiner(r, x, y, l.largura, corDoNivel[l.item.nivel], lacrado[l.item.nivel]);
 
   // Um quadro no instante t (em segundos). O navio segue para a direita: o cenário escorrega para a esquerda.
   const quadro = (t) => {
@@ -168,15 +185,8 @@ export function desenharNavio(canvas, jornada) {
       conteiner(x, cy, vindo);
       const cx = x + Math.floor((vindo.largura * C) / 2);
       const hy = cy - 9;
-      const gira = f % 2 === 0;
       r('#3a3a3a', cx, hy + 4, 1, 5); // cabo
-      r('#e9c46a', cx - 5, hy, 10, 4);
-      r('#a8dadc', cx + 2, hy + 1, 3, 2);
-      r('#e9c46a', cx - 11, hy + 1, 6, 1);
-      r('#3a3a3a', cx - 12, hy - (gira ? 1 : 0), 1, gira ? 3 : 1);
-      r('#3a3a3a', gira ? cx - 8 : cx - 4, hy - 2, gira ? 17 : 9, 1);
-      r('#3a3a3a', cx, hy - 1, 1, 1);
-      r('#3a3a3a', cx - 4, hy + 5, 9, 1);
+      pintarHelicoptero(r, cx, hy, f % 2 === 0);
     }
   };
 
