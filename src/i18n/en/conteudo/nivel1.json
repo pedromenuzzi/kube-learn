@@ -1,1 +1,258 @@
-{}
+{
+  "n1-licao-condominio": {
+    "titulo": "The condo from the inside",
+    "enunciado": "\n      <p>A Kubernetes cluster is a <b>condo</b>: several <b>buildings</b> (the <b>nodes</b>, the machines) and a\n         <b>management office</b> (the <b>control plane</b>). The <b>apartments</b> are the <b>pods</b>: where the containers live.</p>\n      <h2>The management office (and who works there)</h2>\n      <p>To help you remember, each component became a character whose name starts like the component’s:</p>\n      <table class=\"tabela-simples\">\n        <thead><tr><th>Character</th><th>Component</th><th>What they do</th></tr></thead>\n        <tbody>\n          <tr><td><b>Apo</b>linário, the doorman</td><td><b>API</b> Server</td><td>Every request goes through him: yours (via kubectl) and the other components’. He checks it and writes it down.</td></tr>\n          <tr><td><b>Et</b>elvina, the archivist</td><td><b>et</b>cd</td><td>Keeps the book with everything in it: what exists, how it should be, who lives where.</td></tr>\n          <tr><td><b>Sh</b>irley, the real-estate agent</td><td><b>Sch</b>eduler</td><td>Picks which building each new apartment goes in, based on available space.</td></tr>\n          <tr><td><b>Con</b>ceicao, the inspector</td><td><b>Con</b>troller manager</td><td>Compares desired with actual, all the time, and orders the difference fixed.</td></tr>\n          <tr><td><b>K</b>leber, the caretaker</td><td><b>k</b>ubelet</td><td>One in each building: creates and watches the containers in his building’s apartments.</td></tr>\n        </tbody>\n      </table>\n      <h2>The path of a request</h2>\n      <ol>\n        <li>You call Apolinário on the intercom (<code>kubectl</code>): “I want a pod with nginx”.</li>\n        <li>He checks the request and writes it in Etelvina’s book.</li>\n        <li>Shirley sees an apartment with no building and picks one with room.</li>\n        <li>That building’s Kleber sees the new apartment, downloads the image and starts the container.</li>\n      </ol>\n      <p>In the simulator, the management office lives on the <code>control-plane</code> node. See it with\n         <code>kubectl get pods -n kube-system</code>: there you’ll find etcd, the API Server, the scheduler and the controller manager.</p>",
+    "vidaReal": "The cluster is a condo: several buildings (nodes) and a management office (the control plane) that takes care of everything.",
+    "limite": "In a real condo, each resident picks the building. Here the management office picks, and the apartment (pod) never changes buildings: if the building goes down, a new apartment is born somewhere else."
+  },
+  "n1-licao-pod-yaml": {
+    "titulo": "Anatomy of a YAML file",
+    "enunciado": "\n      <p>Everything in Kubernetes is described in a <b>manifest</b> (YAML) with four parts:</p>\n      <ul>\n        <li><code>apiVersion</code>: the API version (Pod is <code>v1</code>; Deployment is <code>apps/v1</code>);</li>\n        <li><code>kind</code>: the object type;</li>\n        <li><code>metadata</code>: the name, the namespace and the labels;</li>\n        <li><code>spec</code>: how you want it to be.</li>\n      </ul>\n      <p>Once applied, the object gets one more part, the <code>status</code>, which the cluster itself writes: it’s the\n         “how it is right now”. Compare <code>kubectl get pod ola -o yaml</code> with the file in the editor.</p>\n      <p>In YAML, <b>indentation</b> (2 spaces, never TAB) says what’s inside what, and <code>-</code> starts a list\n         item (each container is an item of <code>containers</code>).</p>\n      <p><b>To finish:</b> click ▶ Apply and then ⬆ Submit. Also try <code>kubectl get pods</code>\n         and <code>kubectl describe pod ola</code>.</p>",
+    "vidaReal": "The manifest is the apartment’s blueprint: it says how it should be, not how to build it.",
+    "limite": "A wrong blueprint can be rejected by the doorman (a field that doesn’t exist) or accepted and cause trouble later (an image that doesn’t exist).",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      }
+    ]
+  },
+  "n1-licao-kubectl": {
+    "titulo": "kubectl: the intercom to the doorman",
+    "enunciado": "\n      <p>The commands you’ll use every day:</p>\n      <table class=\"tabela-simples\">\n        <thead><tr><th>Command</th><th>What for</th></tr></thead>\n        <tbody>\n          <tr><td><code>kubectl get pods</code></td><td>Lists them (add <code>-o wide</code> to see IP and node, <code>-A</code> for all namespaces).</td></tr>\n          <tr><td><code>kubectl describe pod NAME</code></td><td>The full record, with the <b>Events</b> at the end: the incident log.</td></tr>\n          <tr><td><code>kubectl logs NAME</code></td><td>The container’s diary (what the program wrote).</td></tr>\n          <tr><td><code>kubectl exec NAME -- COMMAND</code></td><td>Runs a command inside the container (stepping into the apartment).</td></tr>\n          <tr><td><code>kubectl apply -f FILE</code></td><td>Creates or updates from the blueprint (YAML).</td></tr>\n          <tr><td><code>kubectl delete pod NAME</code></td><td>Deletes it.</td></tr>\n          <tr><td><code>kubectl explain pod.spec</code></td><td>The manual for every field.</td></tr>\n        </tbody>\n      </table>\n      <h2>Reading <code>kubectl get pods</code></h2>\n      <pre><code>NAME   READY   STATUS    RESTARTS   AGE\nweb    1/1     Running   0          2m</code></pre>\n      <ul>\n        <li><b>READY</b>: ready containers / total in the pod.</li>\n        <li><b>STATUS</b>: Running, Pending (no spot yet), ContainerCreating, CrashLoopBackOff (crashing and coming back),\n            ImagePullBackOff (the image didn’t download)...</li>\n        <li><b>RESTARTS</b>: how many times the container has restarted. A rising number is a sign of trouble.</li>\n        <li><b>AGE</b>: how long the pod has existed.</li>\n      </ul>\n      <p>In this site’s terminal, the <b>Tab</b> key completes commands and names, and <b>↑</b> repeats the previous command.</p>",
+    "vidaReal": "kubectl is the intercom: you talk to the doorman (API Server), never directly to the buildings.",
+    "limite": "The intercom only works if you know the resident’s right name (and the company’s: the namespace)."
+  },
+  "n1-quantos-nodes": {
+    "titulo": "How many buildings does the condo have?",
+    "enunciado": "<p>Use the terminal to find out <b>how many nodes</b> the cluster has, counting the control plane. Write the number in the field below.</p>",
+    "dica": "kubectl get nodes",
+    "vidaReal": "Counting the condo’s buildings, including the management office’s.",
+    "limite": "Condo buildings don’t vanish; nodes join and leave the cluster (and, in the cloud, they can be created on demand).",
+    "rotuloResposta": "How many nodes?",
+    "testes": [
+      {
+        "descricao": "you counted the nodes",
+        "msgs": {
+          "0": "you listed the nodes"
+        }
+      }
+    ]
+  },
+  "n1-primeiro-pod": {
+    "titulo": "Laying the cornerstone: the first pod",
+    "enunciado": "\n      <p>Complete the file to create a <b>Pod</b>:</p>\n      <ul>\n        <li>named <code>recepcao</code>;</li>\n        <li>with a container named <code>web</code>, from the <code>nginx:1.27</code> image.</li>\n      </ul>",
+    "dica": "kind: Pod · metadata.name · spec.containers: - name / image",
+    "vidaReal": "The condo’s first apartment: an address with a resident inside.",
+    "limite": "A standalone apartment, with no contract (Deployment), isn’t rebuilt if it disappears. In the next level you’ll see how to fix that.",
+    "comoSaber": "<code>kubectl get pod recepcao</code> shows <code>1/1 Running</code>.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "the pod becomes Running"
+      }
+    ]
+  },
+  "n1-kubectl-run": {
+    "titulo": "A pod straight over the intercom",
+    "enunciado": "<p>Without writing YAML, create a pod from the terminal named <code>porteiro</code> with the <code>httpd:2.4</code> image.</p>",
+    "dica": "kubectl run NAME --image=IMAGE",
+    "vidaReal": "Ordering an apartment by phone, without drawing the blueprint: quick for testing.",
+    "limite": "An order by phone isn’t saved in a file: to repeat it tomorrow, or in another cluster, the blueprint (YAML) is better.",
+    "comoSaber": "<code>kubectl get pod porteiro</code> shows Running.",
+    "testes": [
+      {
+        "descricao": "the porteiro pod is running",
+        "msgs": {
+          "0": "you used kubectl run"
+        }
+      }
+    ]
+  },
+  "n1-em-que-node": {
+    "titulo": "Which building does the mystery live in?",
+    "enunciado": "<p>The <code>misterio</code> pod is running on some node. Find out <b>which one</b> and write the node’s name.</p>",
+    "dica": "-o wide adds the IP and NODE columns. describe shows it too.",
+    "vidaReal": "Finding out which building in the condo an apartment is in.",
+    "limite": "Here the “building” was picked by the real-estate agent (the scheduler), not by the resident. To pin a specific building there are dedicated rules (level 7).",
+    "rotuloResposta": "Node name",
+    "testes": [
+      {
+        "descricao": "you found the node",
+        "msgs": {
+          "0": "you looked up the node with kubectl (-o wide or describe)"
+        }
+      }
+    ]
+  },
+  "n1-diario": {
+    "titulo": "Read the construction log",
+    "enunciado": "<p>The <code>diario</code> pod writes everything to its log. One of the entries has the <b>construction site’s Wi-Fi password</b>. What is it?</p>",
+    "dica": "kubectl logs NAME",
+    "vidaReal": "The construction log: everything that happened is written down there.",
+    "limite": "The container’s log disappears when the pod is deleted. To really keep it, logs get shipped somewhere else.",
+    "rotuloResposta": "The password",
+    "testes": [
+      {
+        "descricao": "you found the password",
+        "msgs": {
+          "0": "you read the logs"
+        }
+      }
+    ]
+  },
+  "n1-cofre": {
+    "titulo": "Get into the apartment and open the safe",
+    "enunciado": "\n      <p>Inside the container of the <code>cofre</code> pod, in the <code>/cofre</code> folder, there’s a file with the combination.\n         Find out what it is.</p>\n      <p>You can run a single command (<code>kubectl exec cofre -- ls /cofre</code>) or open a shell\n         (<code>kubectl exec -it cofre -- sh</code>, and <code>exit</code> to leave).</p>",
+    "dica": "kubectl exec cofre -- cat /cofre/...",
+    "vidaReal": "Stepping into the apartment to look in a drawer.",
+    "limite": "Poking around inside the container is good for investigating, but whatever you change there disappears when the pod is recreated.",
+    "rotuloResposta": "The combination",
+    "testes": [
+      {
+        "descricao": "you opened the safe",
+        "msgs": {
+          "0": "you got into the container (kubectl exec)"
+        }
+      }
+    ]
+  },
+  "n1-labels": {
+    "titulo": "Little signs on the door",
+    "enunciado": "\n      <p>The <code>balcao</code> pod needs two labels:</p>\n      <ul><li><code>app: loja</code></li><li><code>time: vendas</code></li></ul>\n      <p>After applying, try a search by label: <code>kubectl get pods -l time=vendas</code>.</p>",
+    "dica": "metadata.labels is a map: key: value, one per line.",
+    "vidaReal": "Signs on the door say whose apartment it is: “team: sales”.",
+    "limite": "Labels aren’t unique: several apartments can have the same one, and whoever searches by that label gets all of them.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "the label search finds the pod"
+      }
+    ]
+  },
+  "n1-seletor": {
+    "titulo": "How many are on the support team?",
+    "enunciado": "<p>Some pods have the <code>equipe</code> (team) label. How many pods have <code>equipe=suporte</code>? Use kubectl’s label selector.</p>",
+    "dica": "kubectl get pods -l key=value (and --show-labels shows all the labels)",
+    "vidaReal": "“Every apartment with the label equipe: suporte.”",
+    "limite": "The selector doesn’t know the actual “team”, only the label. A pod with the wrong label is left out (or sneaks in uninvited).",
+    "rotuloResposta": "How many pods?",
+    "testes": [
+      {
+        "descricao": "you filtered by label",
+        "msgs": {
+          "0": "you used the label selector (-l)"
+        }
+      }
+    ]
+  },
+  "n1-namespaces": {
+    "titulo": "Two companies, the same meeting room",
+    "enunciado": "\n      <p>Create two <b>namespaces</b>, <code>financeiro</code> (finance) and <code>rh</code> (HR), and a pod named\n         <code>sala-de-reuniao</code> (image <code>nginx:1.27</code>) in <b>each one</b>.</p>\n      <p>In a single file, separate the objects with <code>---</code>. Then take a look: <code>kubectl get pods -A</code>.</p>",
+    "dica": "kind: Namespace only needs metadata.name. In the pod, metadata.namespace says where it lives.",
+    "vidaReal": "Each company in the condo can have its own “sala-de-reuniao”: the name repeats, but the full address, with the company, doesn’t.",
+    "limite": "A namespace separates names, but on its own it locks nothing: one company’s pods still talk to the other’s.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      }
+    ]
+  },
+  "n1-contexto": {
+    "titulo": "Work directly in the sales company",
+    "enunciado": "\n      <p>Typing <code>-n vendas</code> in every command gets tiring. Change your kubectl’s <b>default namespace</b> to\n         <code>vendas</code> (sales). After that, a plain <code>kubectl get pods</code> should show the <code>caixa</code> pod.</p>",
+    "dica": "kubectl config set-context --current --namespace=...",
+    "vidaReal": "Setting up the intercom to ring the sales company directly, without saying its name every time.",
+    "limite": "It’s just a shortcut in your kubectl: other users keep their own namespace.",
+    "comoSaber": "<code>kubectl config get-contexts</code> shows <code>vendas</code> in the NAMESPACE column.",
+    "testes": [
+      {
+        "descricao": "the default namespace is vendas",
+        "msgs": {
+          "0": "you used kubectl config set-context"
+        }
+      }
+    ]
+  },
+  "n1-dry-run": {
+    "titulo": "Ask Apolinário for a draft",
+    "enunciado": "\n      <p>Writing YAML from scratch is slow. kubectl generates the draft for you, without creating anything:</p>\n      <ol>\n        <li>generate the YAML of a <code>rascunho</code> (draft) pod with the <code>nginx:1.27</code> image using\n            <code>--dry-run=client -o yaml</code> and save it to the <code>rascunho.yaml</code> file (with <code>&gt; rascunho.yaml</code>);</li>\n        <li>apply the file.</li>\n      </ol>\n      <p>The file shows up in the editor: you can tweak it before applying. (On the CKAD exam, this trick saves a lot of time.)</p>",
+    "dica": "kubectl run rascunho --image=nginx:1.27 --dry-run=client -o yaml > rascunho.yaml",
+    "vidaReal": "Asking the management office for a pre-filled draft blueprint, instead of drawing one from scratch.",
+    "limite": "The draft only comes with the basics: you still complete the blueprint before ordering the build.",
+    "testes": [
+      {
+        "descricao": "the draft became a pod",
+        "msgs": {
+          "0": "you generated the draft with --dry-run=client",
+          "1": "you applied the file"
+        }
+      }
+    ]
+  },
+  "n1-explain": {
+    "titulo": "The technical manual",
+    "enunciado": "\n      <p>You want the container’s program to run in a specific folder. Use <code>kubectl explain</code> to find\n         <b>which container field</b> sets the working folder.</p>",
+    "dica": "kubectl explain pod.spec.containers",
+    "vidaReal": "The management office’s technical manual: every blueprint field explained.",
+    "limite": "The manual says what each field is, not which value to use in your case.",
+    "rotuloResposta": "Field name",
+    "testes": [
+      {
+        "descricao": "you found the field",
+        "msgs": {
+          "0": "you used kubectl explain"
+        }
+      }
+    ]
+  },
+  "n1-colegas": {
+    "titulo": "Roommates",
+    "enunciado": "\n      <p>Create the <code>dupla</code> (pair) pod (label <code>app: dupla</code>) with <b>two containers</b>:</p>\n      <ul>\n        <li><code>web</code>: <code>nginx:1.27</code>;</li>\n        <li><code>assistente</code>: <code>busybox:1.36</code>, with the command <code>sleep 3600</code> (without a command\n            that keeps running, busybox exits right away).</li>\n      </ul>\n      <p>READY should show <code>2/2</code>. To see the logs of one of them or step into it, use <code>-c NAME</code>.</p>",
+    "dica": "command: [\"sleep\", \"3600\"] in the second item of containers.",
+    "vidaReal": "Two residents sharing the same apartment: the main tenant and an assistant.",
+    "limite": "Pod roommates are born, move and die together: you can’t scale just the assistant.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "both containers become ready (2/2)"
+      }
+    ]
+  },
+  "n1-intruso": {
+    "titulo": "There’s an intruder in the building",
+    "enunciado": "<p>A pod named <code>intruso</code> showed up in the default namespace. Delete it (and only it).</p>",
+    "dica": "kubectl delete pod NAME",
+    "vidaReal": "Vacating an apartment.",
+    "limite": "Deleting a pod is final: it doesn’t come back, because nobody (no contract) asked for it to exist.",
+    "testes": [
+      {
+        "descricao": "the intruder left and the others stayed",
+        "msgs": {
+          "0": "you used kubectl delete"
+        }
+      }
+    ]
+  },
+  "n1-vitrine": {
+    "titulo": "The vitrine won’t open",
+    "enunciado": "\n      <p>The <code>vitrine</code> (shop window) pod is stuck. Investigate with <code>kubectl describe</code> (look at the Events at the end)\n         and fix it: it should run <b>nginx</b>, version <code>1.27</code>.</p>",
+    "dica": "In a pod, the image can be swapped: kubectl set image pod/vitrine vitrine=...",
+    "vidaReal": "The vitrine’s prefab module never arrived: someone wrote the wrong model on the order.",
+    "limite": "Here you fix the order yourself; in a Deployment, the right way is to fix the YAML and apply it again.",
+    "comoSaber": "<code>kubectl get pod vitrine</code> shows Running.",
+    "testes": [
+      {
+        "descricao": "the vitrine is open",
+        "msgs": {
+          "0": "you investigated with describe"
+        }
+      }
+    ]
+  }
+}

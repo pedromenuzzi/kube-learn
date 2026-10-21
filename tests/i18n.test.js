@@ -8,7 +8,9 @@ import { join } from 'node:path';
 import { textosDoArquivo } from '../scripts/textos.mjs';
 import * as EN from '../src/i18n/en/index.js';
 import { REGRAS, STATUS } from '../src/k8s/explicacoes.js';
-import { NIVEIS } from '../src/conteudo/index.js';
+import { ITENS, NIVEIS, TROUBLESHOOTING } from '../src/conteudo/index.js';
+import { GLOSSARIO } from '../src/conteudo/glossario.js';
+import { textosDoItem, textosDoTermo, trocarConteudo } from '../src/conteudo/traducao.js';
 
 const ARQUIVOS = ['nivel0', 'nivel1', 'nivel2', 'nivel3', 'nivel4', 'nivel5', 'nivel6', 'nivel7', 'nivel8', 'nivel9', 'nivel10', 'nivel11', 'troubleshooting', 'glossario'];
 const MARCAS = [/<code>/g, /<pre>/g, /<li>/g, /<h2>/g, /<tr>/g, /<p>/g, /<blockquote/g];
@@ -16,7 +18,8 @@ const contar = (s, re) => (s.match(re) ?? []).length;
 
 /** Parece português? (fora do código: o que está em <code>, <pre> e o YAML/kubectl das dicas fica como está) */
 export function pareceportugues(s) {
-  const prosa = s.replace(/https?:\/\/\S+/g, '').replace(/<pre>[\s\S]*?<\/pre>/g, '').replace(/<code>[\s\S]*?<\/code>/g, '').replace(/<[^>]+>/g, ' ').replace(/\S*[-_=/.:{}]\S*/g, ' '); // sem nomes de recurso, caminhos e chave=valor
+  // (os nomes das personagens ficam como são)
+  const prosa = s.replace(/Conceição|Apolinário/g, '').replace(/https?:\/\/\S+/g, '').replace(/<pre>[\s\S]*?<\/pre>/g, '').replace(/<code>[\s\S]*?<\/code>/g, '').replace(/<[^>]+>/g, ' ').replace(/\S*[-_=/.:{}]\S*/g, ' '); // sem nomes de recurso, caminhos e chave=valor
   return /[ãõç]|\b(não|você|também|está|então|porque|quando|sem|isso|esse|essa|são|pelo|pela|uma|com|para|que)\b/i.test(prosa);
 }
 
@@ -58,6 +61,18 @@ describe('inglês', () => {
       const caixa = r.t(['x', 'alfa', 'beta', 'gama', 'delta', 'in the namespace "x"']);
       for (const c of ['titulo', 'texto', 'vidaReal']) expect(pareceportugues(caixa[c] ?? ''), `${r.re.source}.${c}`).toBe(false);
     }
+  });
+
+  it('ida e volta: trocar para o inglês e voltar devolve o português exato', () => {
+    const antes = [...ITENS, ...TROUBLESHOOTING].map(textosDoItem);
+    const termos = GLOSSARIO.map(textosDoTermo);
+    const niveis = NIVEIS.map((n) => n.titulo);
+    trocarConteudo(EN);
+    expect(NIVEIS[0].titulo).toBe(EN.niveis[0].titulo);
+    trocarConteudo(null);
+    expect([...ITENS, ...TROUBLESHOOTING].map(textosDoItem)).toEqual(antes);
+    expect(GLOSSARIO.map(textosDoTermo)).toEqual(termos);
+    expect(NIVEIS.map((n) => n.titulo)).toEqual(niveis);
   });
 
   it('os níveis', () => {

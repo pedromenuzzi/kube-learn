@@ -1,1 +1,172 @@
-{}
+{
+  "n5-licao-jobs": {
+    "titulo": "The one-off job and the scheduled pickup: Job and CronJob",
+    "enunciado": "\n      <p>A Deployment is for what <b>can’t stop</b> (the store that stays open). For what needs to <b>finish</b> (generating a\n         report, migrating the database, taking a backup), use a <b>Job</b>:</p>\n      <pre><code>apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: relatorio\nspec:\n  completions: 3      # must succeed 3 times\n  parallelism: 2      # at most 2 at the same time\n  backoffLimit: 6     # how many failures to accept before giving up\n  template:\n    spec:\n      restartPolicy: Never   # or OnFailure (never Always)\n      containers:\n      - name: relatorio\n        image: busybox:1.36\n        command: [\"sh\", \"-c\", \"echo gerando relatorio\"]</code></pre>\n      <p>A pod that finishes well becomes <code>Completed</code> (the log is still there: <code>kubectl logs job/relatorio</code>). One\n         that fails makes way for another, with a growing wait (10s, 20s, 40s...). Past the <code>backoffLimit</code>, the Job becomes\n         <code>Failed</code>. To wait for the end in a script: <code>kubectl wait --for=condition=complete job/relatorio</code>.</p>\n      <h2>CronJob: the Job with a set time</h2>\n      <p>The CronJob creates a Job at each time in its <code>schedule</code>, in cron format: <b>minute hour day month day-of-week</b>.</p>\n      <ul>\n        <li><code>*/5 * * * *</code>: every 5 minutes;</li>\n        <li><code>0 3 * * *</code>: every day at 3 a.m.;</li>\n        <li><code>0 7 * * 2</code>: every Tuesday at 7 a.m. (Sunday is 0).</li>\n      </ul>\n      <p>To test without waiting for the time: <code>kubectl create job teste --from=cronjob/NAME</code>. The CronJob keeps the\n         latest Jobs (3 that succeeded and 1 that failed, by default) and deletes the older ones.</p>",
+    "vidaReal": "The Job is a contract job: the bricklayer comes, does the work and leaves (if it goes wrong, he tries again). The CronJob is the garbage pickup: every Tuesday at 7 a.m., without anyone having to ask.",
+    "limite": "The “try again” has a limit (backoffLimit) and waits longer and longer between attempts: an error in the command doesn’t fix itself."
+  },
+  "n5-licao-daemonset-init": {
+    "titulo": "The fire extinguisher in every building and the inspection before the move",
+    "enunciado": "\n      <h2>DaemonSet: one pod on each node</h2>\n      <p>Log collection, networking, monitoring: some things need to run on <b>every</b> node. The <b>DaemonSet</b> guarantees one\n         pod per node, and puts the pod on every new node by itself. The cluster itself uses it: see\n         <code>kubectl get ds -n kube-system</code> (<code>kube-proxy</code> and the <code>kindnet</code> network).</p>\n      <p>There are no <code>replicas</code>: the number of nodes is what counts. To pick the nodes, use\n         <code>nodeSelector</code>; to get onto a node with a taint (like the control plane), use <code>tolerations</code>.</p>\n      <h2>Init container: before everything else</h2>\n      <p>The <code>initContainers</code> run <b>before</b> the app’s containers, in order, and each one must finish\n         successfully. Good for preparing files, waiting for a database, migrating data. Meanwhile, the pod shows\n         <code>Init:0/1</code>; if one fails, <code>Init:Error</code> or <code>Init:CrashLoopBackOff</code>.</p>\n      <h2>Sidecar: alongside, from start to finish</h2>\n      <p>An init container with <code>restartPolicy: Always</code> becomes a <b>sidecar</b>: it starts before the app, keeps running\n         next to it (shipping logs, acting as a proxy) and exits when the app finishes. In a Job this matters: a regular container\n         that never finishes leaves the Job stuck forever.</p>",
+    "vidaReal": "The DaemonSet is the condo rule: every building has a fire extinguisher, including the one that’s finished tomorrow. The init container is the inspection: the move only comes in after it’s done. The sidecar is the doorman who works alongside the resident.",
+    "limite": "The extinguisher only goes to the buildings that accept it: the management office (the control plane) has a taint, and the DaemonSet only gets in there with the toleration."
+  },
+  "n5-primeiro-job": {
+    "titulo": "The first contract job",
+    "enunciado": "\n      <p>Create the Job <code>boas-vindas</code> (image <code>busybox:1.36</code>) that writes <b>obra concluída</b> (“work done”) to the\n         log and finishes.</p>",
+    "dica": "command: [\"sh\", \"-c\", \"echo obra concluída\"], and restartPolicy Never or OnFailure.",
+    "vidaReal": "Calling the bricklayer for a single job: he does it and leaves.",
+    "limite": "The bricklayer leaves, but the receipt (the Completed pod and the log) stays until someone throws it away.",
+    "comoSaber": "<code>kubectl get jobs</code> shows <code>Complete</code>; <code>kubectl logs job/boas-vindas</code> shows the phrase.",
+    "testes": [
+      {
+        "descricao": "the Job finishes",
+        "msgs": {
+          "1": "the Job boas-vindas finished successfully"
+        }
+      },
+      {
+        "descricao": "the log has the phrase"
+      }
+    ]
+  },
+  "n5-politica": {
+    "titulo": "The bricklayer who never leaves",
+    "enunciado": "\n      <p>This Job is rejected when you apply it. Read the error and fix it (the work itself is right).</p>",
+    "dica": "A Job accepts restartPolicy OnFailure or Never. Always is for what can’t stop (Deployment).",
+    "vidaReal": "The contract says “when you finish, start over”: that’s not a contract job, it’s a permanent position.",
+    "limite": "Kubernetes rejects the contract right at the door: it doesn’t even create the Job.",
+    "testes": [
+      {
+        "descricao": "the Job is accepted and finishes",
+        "msgs": {
+          "1": "the Job medicao finished successfully"
+        }
+      }
+    ]
+  },
+  "n5-mutirao": {
+    "titulo": "All hands on deck",
+    "enunciado": "\n      <p>The Job <code>paredes</code> (walls) needs to finish <b>6 times</b>, and each wall takes about 10 seconds. As it is,\n         it builds one at a time. Adjust it to build <b>3 at the same time</b>: the test waits 40 seconds at most.</p>",
+    "dica": "spec.completions (how many times) and spec.parallelism (how many at the same time).",
+    "vidaReal": "Six walls to put up and only one bricklayer: it works, but it takes a while. With three bricklayers at the same time, it’s done in two rounds.",
+    "limite": "More bricklayers only help if there’s room on the site: with no free CPU on the nodes, the extra pods wait (Pending).",
+    "comoSaber": "<code>kubectl get pods -l job-name=paredes -w</code>: three pods at a time.",
+    "testes": [
+      {
+        "descricao": "the 6 walls are done within 40 seconds",
+        "msgs": {
+          "1": "at least 3 bricklayers at the same time",
+          "2": "the Job paredes finished successfully 6 times"
+        }
+      }
+    ]
+  },
+  "n5-erro-de-digitacao": {
+    "titulo": "The migration that never finishes",
+    "enunciado": "\n      <p>The Job <code>migracao</code> is failing. Find out why in the logs (<code>kubectl logs job/migracao</code>) and\n         fix the file. Hint: a Job can’t change its command; delete it and create it again\n         (<code>kubectl delete job migracao</code> and apply).</p>",
+    "dica": "The log says “sh: exti: not found”: the command has a typo.",
+    "vidaReal": "The bricklayer tries, fails, comes back later, fails again: the blueprint has a mistake and he has no way of guessing it.",
+    "limite": "Kubernetes doesn’t read the log: it only sees that the command exited with an error (a code other than 0) and tries again.",
+    "testes": [
+      {
+        "descricao": "the migration finishes",
+        "msgs": {
+          "0": "the Job migracao finished successfully"
+        }
+      }
+    ]
+  },
+  "n5-coleta": {
+    "titulo": "The garbage pickup",
+    "enunciado": "\n      <p>Create the CronJob <code>limpeza</code> (cleanup) that runs <b>every 5 minutes</b> (the work is already in the file).</p>",
+    "dica": "The schedule in cron format: minute hour day month day-of-week. “Every 5” is */5.",
+    "vidaReal": "The pickup comes every 5 minutes, on its own, without anyone calling to ask for it.",
+    "limite": "The truck leaves on time even if the previous pickup hasn’t finished yet (unless the rule says Forbid).",
+    "comoSaber": "<code>kubectl get cronjob</code> shows the schedule; after 5 minutes, <code>kubectl get jobs</code> shows the first Job.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "the pickup comes on its own",
+        "msgs": {
+          "0": "a Job from limpeza ran and finished"
+        }
+      }
+    ]
+  },
+  "n5-coleta-agora": {
+    "titulo": "Test the pickup without waiting",
+    "enunciado": "\n      <p>The CronJob <code>backup</code> runs every day at 3 a.m. Run it <b>now</b>, by creating a Job named\n         <code>teste</code> from it, and tell how many files the backup copied (it’s in the log).</p>",
+    "dica": "kubectl create job teste --from=cronjob/backup; then kubectl logs job/teste.",
+    "vidaReal": "The backup runs at 3 in the morning. Nobody is going to stay up to see if it works: you ask for an extra run now.",
+    "limite": "The extra run counts as a regular Job: it doesn’t change the CronJob’s schedule.",
+    "rotuloResposta": "How many files?",
+    "testes": [
+      {
+        "descricao": "the backup ran now",
+        "msgs": {
+          "0": "you created the Job from the CronJob"
+        }
+      }
+    ]
+  },
+  "n5-extintor": {
+    "titulo": "A fire extinguisher in every building",
+    "enunciado": "\n      <p>Create the DaemonSet <code>extintor</code> (the extinguisher; image <code>busybox:1.36</code>, command <code>sleep infinity</code>), so\n         there’s one pod on each worker node. The hidden tests will build a new building.</p>",
+    "dica": "It looks like a Deployment without replicas: kind DaemonSet, selector, template.",
+    "vidaReal": "Every building has a fire extinguisher, including the one the builder hands over next week.",
+    "limite": "A closed-off building (with a taint) doesn’t get the extinguisher without a toleration.",
+    "comoSaber": "<code>kubectl get ds</code> shows DESIRED 2; <code>kubectl get pods -o wide</code>, one pod on node-1 and another on node-2.",
+    "testes": [
+      {
+        "descricao": "one extinguisher on each worker node"
+      },
+      {
+        "descricao": "the new building gets the extinguisher too"
+      }
+    ]
+  },
+  "n5-extintor-na-administracao": {
+    "titulo": "An extinguisher in the management office too",
+    "enunciado": "\n      <p>The DaemonSet <code>extintor</code> is on node-1 and node-2, but not on <code>control-plane</code>. Find out why\n         (<code>kubectl describe node control-plane</code>, under Taints) and get the extinguisher there too.</p>",
+    "dica": "A toleration for the key node-role.kubernetes.io/control-plane, effect NoSchedule (operator Exists).",
+    "vidaReal": "The condo’s management office is a building with a “staff only” sign. The extinguisher gets in if it’s authorized.",
+    "limite": "The toleration allows entry, it doesn’t force it: in a Deployment, the pod might or might not go to the management office.",
+    "testes": [
+      {
+        "descricao": "one extinguisher on each of the 3 nodes"
+      }
+    ]
+  },
+  "n5-vistoria": {
+    "titulo": "The inspection before the move",
+    "enunciado": "\n      <p>The <code>painel</code> (dashboard) only opens if the file <code>/config/pronto</code> exists, and the one that creates the file is\n         the <code>preparo</code> (prep) container. Both start together, and the dashboard crashes (see <code>kubectl logs painel -c painel</code>).\n         Make <code>preparo</code> run <b>before</b> and finish first, without the dashboard restarting.</p>",
+    "dica": "Move preparo from containers to initContainers (at the same level). A pod can’t change after it’s created: kubectl delete pod painel and apply.",
+    "vidaReal": "The move and the inspection arrived together: the truck unloads before the inspector gives the OK, and everything goes back onto the truck.",
+    "limite": "The inspection (init) runs once, when the pod starts; if the app restarts later, it doesn’t run again.",
+    "comoSaber": "<code>kubectl get pod painel</code> goes through <code>Init:0/1</code> and reaches <code>1/1 Running</code> with 0 restarts.",
+    "testes": [
+      {
+        "descricao": "the dashboard opens on the first try"
+      }
+    ]
+  },
+  "n5-sidecar": {
+    "titulo": "The Job that never finishes",
+    "enunciado": "\n      <p>The Job <code>medicao</code> has two containers: <code>medicao</code> (the measurement), which finishes in seconds, and\n         <code>enviador</code> (the sender), which sends the report nonstop. Because of it, the Job never becomes <code>Complete</code>.\n         Turn <code>enviador</code> into a real <b>sidecar</b>.</p>",
+    "dica": "A sidecar is an init container with restartPolicy: Always. A Job can’t change its template: delete the Job and apply again.",
+    "vidaReal": "The measuring is done, but the messenger carrying the report stays on the site forever, and the contract job is never marked as finished.",
+    "limite": "The sidecar exits when the app finishes; if the app never finishes (a server), the sidecar stays too.",
+    "comoSaber": "<code>kubectl get jobs</code> shows <code>Complete</code>; <code>kubectl get pods</code>, the pod <code>Completed</code>.",
+    "testes": [
+      {
+        "descricao": "the measurement finishes and so does the Job",
+        "msgs": {
+          "1": "the Job medicao finished successfully"
+        }
+      }
+    ]
+  }
+}

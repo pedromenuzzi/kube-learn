@@ -1,1 +1,208 @@
-{}
+{
+  "n2-licao-replicaset": {
+    "titulo": "The contract: always N apartments occupied",
+    "enunciado": "\n      <p>A standalone pod (like the ones in the previous level) <b>doesn’t come back</b> if it’s deleted or if its node goes\n         down: nobody asked for it to exist again. That’s what the <b>ReplicaSet</b> is for: a contract that says “I always want N identical pods.”</p>\n      <p>It has three parts in its <code>spec</code>:</p>\n      <ul>\n        <li><code>replicas</code>: how many;</li>\n        <li><code>selector</code>: how it recognizes its own pods (by their labels);</li>\n        <li><code>template</code>: the mold for each new pod (it’s a whole pod, minus the name).</li>\n      </ul>\n      <p>The controller (Conceição, the inspector) compares all the time: fewer pods with those labels? Create one. More? Delete one.\n         This is called <b>reconciliation</b>, and it’s the heart of Kubernetes.</p>\n      <h2>The labels gotcha</h2>\n      <p>The <code>selector</code> has to match the labels in the <code>template</code>: otherwise the ReplicaSet would create pods\n         it doesn’t recognize itself, and Kubernetes rejects the YAML. And if you remove the label from a pod, the ReplicaSet “lets go” of\n         that pod and creates another one in its place.</p>\n      <p>In practice, almost nobody creates a ReplicaSet by hand: the <b>Deployment</b> does it, coming up next.</p>",
+    "vidaReal": "A contract that says “always 3 apartments occupied by the support team”: if one empties out, the management office fills another.",
+    "limite": "The contract only checks the tag on the door (the labels): a stranger’s apartment with the same tag counts as “part of the team.”"
+  },
+  "n2-licao-deployment": {
+    "titulo": "Deployment: the renovation in stages",
+    "enunciado": "\n      <p>The <b>Deployment</b> manages ReplicaSets for you. When the template changes (another image, another variable), it creates\n         a <b>new ReplicaSet</b> and moves the pods from the old one to the new one, a little at a time: the <b>rolling update</b>.</p>\n      <pre><code>deployment/loja\n└── replicaset/loja-6fdbb7c54b   (the suffix is a hash of the template)\n    ├── pod/loja-6fdbb7c54b-8m9n7\n    ├── pod/loja-6fdbb7c54b-9zjrw\n    └── pod/loja-6fdbb7c54b-s742d</code></pre>\n      <p>The everyday commands:</p>\n      <ul>\n        <li><code>kubectl rollout status deploy/loja</code>: follows the rollout until it’s done;</li>\n        <li><code>kubectl rollout history deploy/loja</code>: the revisions (each old ReplicaSet is one);</li>\n        <li><code>kubectl rollout undo deploy/loja</code>: goes back to the previous revision;</li>\n        <li><code>kubectl scale deploy/loja --replicas=5</code>: changes the count (this does <b>not</b> create a revision).</li>\n      </ul>\n      <p><b>To finish:</b> apply the Deployment in the editor and look at the Deployment → ReplicaSet → Pods tree in the\n         🌳 Resources tab. Then, ⬆ Submit.</p>",
+    "vidaReal": "A renovation in stages: swap one apartment at a time, without closing the condo, and keep the old plans so you can undo it.",
+    "limite": "In a real renovation someone checks that the new apartment turned out fine; here, without a readinessProbe (level 6), “the program started” already counts as ready.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      }
+    ]
+  },
+  "n2-replicaset": {
+    "titulo": "A 3-apartment contract",
+    "enunciado": "\n      <p>The <code>suporte</code> (support) pod is standalone: if it goes down, it doesn’t come back. Replace the file with a <b>ReplicaSet</b> named\n         <code>suporte</code>, with <b>3 replicas</b>, that creates pods with the label <code>app: suporte</code> and the container\n         <code>web</code> (<code>nginx:1.27</code>).</p>\n      <p>Then delete one of the pods and watch another one be born.</p>",
+    "dica": "kind: ReplicaSet (apps/v1) · spec: replicas, selector.matchLabels, template (metadata.labels + spec)",
+    "vidaReal": "Trading the standalone apartment for a contract: “always 3 for support.”",
+    "limite": "The ReplicaSet doesn’t change versions: changing the template doesn’t touch the pods that already exist. For that, use a Deployment.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "the pods are deleted and the contract recreates all 3"
+      }
+    ]
+  },
+  "n2-deployment": {
+    "titulo": "From standalone apartment to Deployment",
+    "enunciado": "\n      <p>Turn the standalone loja pod into a <b>Deployment</b> named <code>loja</code>, with <b>3 replicas</b> of the image\n         <code>kubelearn/loja:1.0</code> (label <code>app: loja</code>, port <code>8080</code>).</p>",
+    "dica": "kind: Deployment (apps/v1). The template is the pod from before, without metadata.name.",
+    "vidaReal": "The loja app stops being a standalone apartment and gets a contract with renovation in stages.",
+    "limite": "The Deployment takes care of the pods, not the data: if loja kept files inside the container, they’d vanish with every swap.",
+    "comoSaber": "<code>kubectl get deploy loja</code> shows <code>3/3</code>, and the 🌳 Resources tab shows the tree.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "a pod goes down and the Deployment replaces it"
+      }
+    ]
+  },
+  "n2-seletor-torto": {
+    "titulo": "The tag doesn’t match the contract",
+    "enunciado": "\n      <p>This Deployment is rejected when you apply it. Read the error (and the 🏠 box under it) and fix the YAML, keeping the\n         selector <code>app: loja</code>.</p>",
+    "dica": "spec.selector.matchLabels must be contained in spec.template.metadata.labels.",
+    "vidaReal": "The contract says “team: loja,” but the door plates say “lojinha”: the inspector would never find the apartments.",
+    "limite": "Here the doorman rejects the request right away; with ReplicaSets created by hand, a selector that’s too broad can “adopt” other people’s pods.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "the 3 pods come up"
+      }
+    ]
+  },
+  "kubectl-escalar": {
+    "titulo": "Black Friday: more replicas from the terminal",
+    "enunciado": "<p>Black Friday is here. Set <code>deployment/loja</code> to <b>5 replicas</b>, using <b>only the terminal</b> (no YAML editing).</p>",
+    "dica": "kubectl scale deployment loja --replicas=...",
+    "vidaReal": "Hiring temp staff for Black Friday: the contract goes from 3 to 5 occupied apartments, and the management office handles the rest.",
+    "limite": "Here you change the number by hand. To follow the demand on its own, there’s the HPA (level 6).",
+    "comoSaber": "<code>kubectl get deploy loja</code> shows <code>5/5</code>.",
+    "testes": [
+      {
+        "descricao": "loja has 5 ready replicas",
+        "msgs": {
+          "0": "you used kubectl scale"
+        }
+      }
+    ]
+  },
+  "n2-autocura": {
+    "titulo": "It comes back on its own",
+    "enunciado": "\n      <p>Delete loja’s pods (one, or all at once with <code>-l app=loja</code>) and watch with\n         <code>kubectl get pods -w</code> or in the 🗺️ Map tab. How many ready pods does loja have once everything calms down?</p>",
+    "dica": "kubectl delete pod NAME (or -l app=loja)",
+    "vidaReal": "An apartment under the contract emptied out? The inspector notices and fills another one right away.",
+    "limite": "The pod that comes back is a different one: new name, new IP, none of what was inside the old one.",
+    "rotuloResposta": "How many ready pods?",
+    "testes": [
+      {
+        "descricao": "loja recovered",
+        "msgs": {
+          "0": "you deleted loja’s pods"
+        }
+      }
+    ]
+  },
+  "deploy-rolling-sem-indisponibilidade": {
+    "titulo": "Update without taking anyone down",
+    "enunciado": "\n      <p>The loja app is running version <code>1.0</code> with 3 replicas. Version <code>1.1</code> just arrived.</p>\n      <ul>\n        <li>switch the image to <code>kubelearn/loja:1.1</code>;</li>\n        <li>and make sure <b>no pod</b> becomes unavailable during the switch:\n          <code>maxUnavailable: 0</code> (it may create <b>1</b> extra pod at a time: <code>maxSurge: 1</code>).</li>\n      </ul>\n      <p>After applying, follow along in the terminal: <code>kubectl get pods -w</code> or\n         <code>kubectl rollout status deploy/loja</code>.</p>",
+    "dica": "In spec: strategy → rollingUpdate → maxSurge: 1 and maxUnavailable: 0.",
+    "vidaReal": "A renovation in stages: open the new apartment, wait for it to be ready, and only then close the old one. The condo is never left without service.",
+    "limite": "In a real renovation someone checks that the apartment turned out fine. Here, without a readinessProbe, Kubernetes thinks “started” = “ready.”",
+    "comoSaber": "The 3 new pods become ready and, during the switch, there are never fewer than 3 pods serving.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "rollout complete, with nobody unavailable"
+      }
+    ]
+  },
+  "n2-set-image": {
+    "titulo": "The new version from the terminal",
+    "enunciado": "\n      <p>Update loja to <code>kubelearn/loja:1.1</code> from the terminal (the container is named <code>loja</code>) and\n         follow it to the end with <code>kubectl rollout status</code>.</p>",
+    "dica": "kubectl set image deployment/loja loja=...",
+    "vidaReal": "Ordering the renovation over the intercom: “switch the loja apartments to model 1.1.”",
+    "limite": "A change made from the terminal doesn’t stay in the file: the next time the old YAML is applied, the version goes back to 1.0.",
+    "testes": [
+      {
+        "descricao": "loja is on 1.1",
+        "msgs": {
+          "0": "you used kubectl set image",
+          "1": "you followed it with rollout status"
+        }
+      }
+    ]
+  },
+  "n2-rollback": {
+    "titulo": "The renovation went wrong",
+    "enunciado": "\n      <p>Someone updated loja to <code>2.0-bugada</code> (buggy). The new pod keeps crashing (check\n         <code>kubectl get pods</code> and <code>kubectl logs ... --previous</code>), but the 3 old pods hold the fort,\n         thanks to the rolling update.</p>\n      <p>Go back to the previous version.</p>",
+    "dica": "kubectl rollout undo deployment/...",
+    "vidaReal": "The new apartment turned out unlivable: the renovation stops and you order it undone, going back to the previous plans.",
+    "limite": "The rollback restores the pod template; if the new version had changed a database, that wouldn’t go back with it.",
+    "comoSaber": "All 3 loja pods are back on 1.0, with none in CrashLoopBackOff.",
+    "testes": [
+      {
+        "descricao": "loja is back on 1.0",
+        "msgs": {
+          "0": "you undid it with rollout undo"
+        }
+      }
+    ]
+  },
+  "n2-historico": {
+    "titulo": "Go back two steps",
+    "enunciado": "\n      <p>The loja app has already gone through three versions. The customer complained about the current one, and the previous one has a problem too. Check the history\n         and go back to the revision from the <b>store’s grand opening</b>.</p>",
+    "dica": "kubectl rollout history ... and kubectl rollout undo ... --to-revision=N",
+    "vidaReal": "Looking at the renovation log and choosing which old plans to go back to.",
+    "limite": "The log only keeps the latest renovations (revisionHistoryLimit, 10 by default): older ones are deleted.",
+    "comoSaber": "The pods go back to <code>kubelearn/loja:1.0</code>.",
+    "testes": [
+      {
+        "descricao": "loja is back to its grand opening",
+        "msgs": {
+          "0": "you checked the history",
+          "1": "you picked the revision with --to-revision"
+        }
+      }
+    ]
+  },
+  "n2-change-cause": {
+    "titulo": "Write down why you renovated",
+    "enunciado": "\n      <p>Update loja to <code>kubelearn/loja:1.1</code> and record the reason in the Deployment’s\n         <code>kubernetes.io/change-cause</code> annotation, with the text <code>versao 1.1: carrinho novo</code> (“version 1.1: new cart”).</p>\n      <p>Afterwards, <code>kubectl rollout history deploy/loja</code> shows the reason in the CHANGE-CAUSE column.</p>",
+    "dica": "metadata.annotations: { kubernetes.io/change-cause: \"...\" } (in quotes, because of the colon)",
+    "vidaReal": "Writing in the renovation log why each one was done.",
+    "limite": "The annotation is just text: nobody checks whether the reason is true.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "the history shows the reason"
+      }
+    ]
+  },
+  "n2-recreate": {
+    "titulo": "Full renovation: close everything and reopen",
+    "enunciado": "\n      <p>The report generator writes to a file that <b>two versions can’t use at the same time</b>. Update it to\n         <code>nginx:1.28</code> in a way that the old pods <b>all</b> leave before the new ones come in.</p>",
+    "dica": "spec.strategy.type: Recreate",
+    "vidaReal": "A renovation that requires closing the whole floor: you can’t have the old plans and the new ones working together.",
+    "limite": "Closing everything has a price: during the switch, nobody is serving. Use it only when running both versions together breaks something.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "the two versions never ran together"
+      }
+    ]
+  },
+  "n2-maxsurge": {
+    "titulo": "Lightning renovation",
+    "enunciado": "\n      <p>Today the loja app has <b>4 replicas</b> and <code>1.1</code> needs to go in <b>as fast as possible</b>, without\n         ever dropping below 4 ready pods.</p>\n      <p>Adjust the strategy to create <b>all</b> the new pods at once and only then remove the old ones, and switch the image.</p>",
+    "dica": "maxSurge takes a number or a percentage: 100% of 4 is 4. And maxUnavailable: 0.",
+    "vidaReal": "Opening all the new apartments at once next to the old ones and only then closing the old ones: fast, but it needs spare room.",
+    "limite": "The extra room is real: for a while, the cluster has to fit twice the pods. In a tight cluster, the new ones would stay Pending.",
+    "comoSaber": "The switch happens in a few seconds and there are never fewer than 4 ready pods.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "within 5 seconds, the 4 new replicas are ready, with no gap"
+      }
+    ]
+  }
+}

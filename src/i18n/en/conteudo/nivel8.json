@@ -1,1 +1,182 @@
-{}
+{
+  "n8-licao-rbac": {
+    "titulo": "Badges: who can do what",
+    "enunciado": "\n      <p>Every action in the cluster is a <b>request to the API</b> (“list pods in the loja namespace”), and <b>RBAC</b> decides\n         whether whoever asked is allowed. There are four pieces:</p>\n      <ul>\n        <li><b>Role</b>: a type of badge inside one namespace. A list of rules: <i>these verbs</i> (get, list, watch,\n            create, update, patch, delete) <i>on these resources</i> (pods, pods/log, deployments...).</li>\n        <li><b>ClusterRole</b>: the same, valid across the whole cluster (or reused in several namespaces). Some come ready-made:\n            <code>view</code> (read only, except Secrets), <code>edit</code>, <code>admin</code> and <code>cluster-admin</code>.</li>\n        <li><b>RoleBinding</b>: hands a badge (Role or ClusterRole) to someone, <b>inside one namespace</b>.</li>\n        <li><b>ClusterRoleBinding</b>: hands out a ClusterRole across the whole cluster.</li>\n      </ul>\n      <p>“Someone” is a <b>user</b> (User), a <b>group</b> (Group) or a <b>ServiceAccount</b>: the machine badge that\n         pods use to talk to the API (<code>spec.serviceAccountName</code>; if you don’t set it, it’s <code>default</code>).</p>\n      <h2>Ask before you try</h2>\n      <pre><code>kubectl auth can-i delete pods --as=ana -n loja          # no\nkubectl auth can-i list pods --as=system:serviceaccount:loja:painel -n loja</code></pre>\n      <p><code>--as</code> asks “as if I were” someone else (you, the admin, are allowed to). Without permission, the answer is a\n         <code>Forbidden</code> that says exactly what was missing:</p>\n      <pre><code>Error from server (Forbidden): pods is forbidden: User \"ana\" cannot list resource \"pods\"\nin API group \"\" in the namespace \"default\"</code></pre>\n      <p><b>The catch</b>: a RoleBinding that points to a ClusterRole is valid only in the RoleBinding’s namespace. To make it\n         valid in all of them, use a ClusterRoleBinding.</p>",
+    "vidaReal": "Everyone in the condo has a badge. The badge type (Role) says which doors it opens; the handover (RoleBinding) says who got which badge.",
+    "limite": "Badges only add up: there’s no “can do everything except delete.” To deny something, just don’t grant it."
+  },
+  "n8-quem-apaga": {
+    "titulo": "Who can delete?",
+    "enunciado": "\n      <p>In the <code>loja</code> namespace, <b>ana</b>, <b>bruno</b> and <b>carla</b> have different badges. Only one of them can\n         <b>delete pods</b> there. Who?</p>",
+    "dica": "kubectl auth can-i delete pods --as=NAME -n loja, for each of them.",
+    "vidaReal": "Three employees, three badges. Before sending someone to fix the problem, find out who has the right key.",
+    "limite": "can-i answers by the rules, not by intent: if someone was given more than they should have, it still says “yes.”",
+    "rotuloResposta": "The name (ana, bruno or carla)",
+    "testes": [
+      {
+        "descricao": "you found who has the key",
+        "msgs": {
+          "0": "you asked kubectl auth can-i"
+        }
+      }
+    ]
+  },
+  "n8-cracha-de-leitura": {
+    "titulo": "Read-only badge",
+    "enunciado": "\n      <p>Give <b>ana</b>, only in the <code>loja</code> namespace, permission to <b>read pods and their logs</b> (get, list and watch on\n         <code>pods</code> and <code>pods/log</code>). No deleting.</p>\n      <p>The file already has the <code>leitor</code> Role, but with one verb too many. Fix it and hand over the badge (RoleBinding).</p>",
+    "dica": "Remove delete from the Role and add a RoleBinding (subjects: kind User, name ana; roleRef: kind Role, name leitor).",
+    "vidaReal": "ana will keep an eye on the store: she needs to see the apartments and read each one’s diary, without touching anything.",
+    "limite": "Reading logs can expose sensitive data: a read-only badge needs care too.",
+    "comoSaber": "<code>kubectl auth can-i list pods --as=ana -n loja</code> says yes; with <code>delete</code>, no.",
+    "testes": [
+      {
+        "descricao": "ana reads, but doesn’t delete"
+      }
+    ]
+  },
+  "n8-cracha-pelo-terminal": {
+    "titulo": "A badge from the terminal",
+    "enunciado": "\n      <p><b>From the terminal</b>, in the <code>loja</code> namespace: create the <code>atualizador</code> Role (get, list, create and update\n         on <code>deployments</code>) and hand it to <b>bruno</b> with the <code>bruno-atualizador</code> RoleBinding.</p>",
+    "dica": "kubectl create role atualizador --verb=get,list,create,update --resource=deployments -n loja and kubectl create rolebinding bruno-atualizador --role=atualizador --user=bruno -n loja",
+    "vidaReal": "bruno handles the store’s updates: viewing, creating and updating Deployments. The management office issues the badge on the spot, over the counter.",
+    "limite": "create role doesn’t check whether the resource makes sense for the job: you’re the one who picks the bare minimum.",
+    "comoSaber": "<code>kubectl auth can-i update deployments --as=bruno -n loja</code> says yes.",
+    "testes": [
+      {
+        "descricao": "bruno updates Deployments in loja"
+      }
+    ]
+  },
+  "n8-conta-do-painel": {
+    "titulo": "The machine badge",
+    "enunciado": "\n      <p>The <code>painel</code> pod uses the <code>painel</code> ServiceAccount, which doesn’t exist: the apply is rejected.</p>\n      <p>In the same file, <b>before</b> the pod, create the <code>painel</code> ServiceAccount, a <code>ver-pods</code> Role\n         (get, list and watch on pods) and a <code>painel-ver-pods</code> RoleBinding that hands the Role to the ServiceAccount.</p>",
+    "dica": "In the RoleBinding’s subjects: kind: ServiceAccount, name: painel, namespace: default.",
+    "vidaReal": "The front gate’s panel is a machine: it needs a badge of its own (like the elevator’s, or the cameras’), one that opens only what it uses.",
+    "limite": "Every pod has a badge, even if it’s just “default.” Giving permissions to default gives them to every pod in the namespace.",
+    "comoSaber": "The pod comes up, and <code>kubectl auth can-i list pods --as=system:serviceaccount:default:painel</code> says yes.",
+    "testes": [
+      {
+        "descricao": "painel comes up and sees only pods"
+      }
+    ]
+  },
+  "n8-auditoria": {
+    "titulo": "The auditor sees everything",
+    "enunciado": "\n      <p>The <b>auditoria</b> (auditor) user should be able to read (the <code>view</code> ClusterRole) in <b>every</b> namespace, but the badge\n         was handed over with a RoleBinding in <code>default</code>: in <code>kube-system</code> she sees nothing.</p>\n      <p>Replace it with a <b>ClusterRoleBinding</b>.</p>",
+    "dica": "kind: ClusterRoleBinding, with no namespace in metadata.",
+    "vidaReal": "The auditor needs to look at every block of the condo without touching anything. The badge was handed over only at one block’s front gate.",
+    "limite": "view doesn’t show Secrets: even the auditor needs a separate badge to read passwords (and should almost never have one).",
+    "comoSaber": "<code>kubectl auth can-i list pods --as=auditoria -n kube-system</code> says yes.",
+    "testes": [
+      {
+        "descricao": "auditoria reads in every namespace, without touching anything"
+      }
+    ]
+  },
+  "n8-licao-netpol": {
+    "titulo": "Turnstiles: who talks to whom",
+    "enunciado": "\n      <p>By default, every pod talks to every pod, in any namespace. A <b>NetworkPolicy</b> picks pods\n         (<code>podSelector</code>) and, from then on, <b>only lets through what it allows</b>:</p>\n      <ul>\n        <li><code>ingress</code>: who they accept connections from (<code>from</code>) and on which ports.</li>\n        <li><code>egress</code>: who they can talk to (<code>to</code>).</li>\n        <li>The peers in <code>from</code>/<code>to</code>: <code>podSelector</code> (pods in the same namespace),\n            <code>namespaceSelector</code> (pods in other namespaces, by the namespace’s label, such as\n            <code>kubernetes.io/metadata.name</code>) or <code>ipBlock</code>.</li>\n      </ul>\n      <pre><code># deny all ingress to the pods in the namespace\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress</code></pre>\n      <p>Rules <b>add up</b>: a pod picked by two policies accepts whatever either of them allows. Watch out for\n         <code>ingress: [{}]</code>: an empty rule allows everything.</p>\n      <h2>The DNS catch</h2>\n      <p>Closed a pod’s <b>outbound</b> traffic (egress)? It stops talking to DNS (<code>kube-dns</code>, port 53, UDP and TCP)\n         and no name resolves: <code>wget: bad address 'api'</code>. Open port 53 to kube-dns along with it.</p>\n      <p>The policies are enforced by the network plugin (CNI). kindnet enforces them; some plugins don’t, and then the policy\n         is just decoration.</p>",
+    "vidaReal": "Without inner turnstiles, any visitor who got into the condo can walk through every block. NetworkPolicy installs turnstiles and says who gets through.",
+    "limite": "With no policy at all, everything stays open: you need a “deny all” rule to close things off, and then you open what’s needed."
+  },
+  "n8-nega-tudo": {
+    "titulo": "Deny all",
+    "enunciado": "\n      <p>In the <code>rede</code> namespace, right now any pod can call <code>api</code>. The file has a\n         <code>nega-tudo</code> (deny-all) policy that should block incoming traffic to <b>all</b> pods in the namespace, but it blocks nothing.</p>\n      <p>Fix it.</p>",
+    "dica": "“ingress: [{}]” is a rule that allows everything. With no ingress rule at all, nothing gets in.",
+    "vidaReal": "A block’s first turnstile is the one that shuts everything: after that, you open what’s needed.",
+    "limite": "It only closes the way in: the pods in there can still go out wherever they want (for that, an Egress policy).",
+    "comoSaber": "From inside curioso, <code>kubectl exec curioso -n rede -- wget -q -O- -T 3 http://api</code> gives <i>download timed out</i>.",
+    "testes": [
+      {
+        "descricao": "nobody reaches api"
+      }
+    ]
+  },
+  "n8-so-a-vitrine": {
+    "titulo": "Only vitrine gets through",
+    "enunciado": "\n      <p>The <code>rede</code> namespace has <code>nega-tudo</code> in place. Allow traffic into <code>api</code> only from\n         <code>app=vitrine</code> pods. The file already has the policy, but vitrine is still blocked.</p>",
+    "dica": "The rule’s port is the one on the receiving container (nginx listens on 80), not some other one.",
+    "vidaReal": "The api’s block is closed. The vitrine pod (the storefront) needs a turnstile pass; curioso (the nosy one) doesn’t.",
+    "limite": "The turnstile trusts the label: any pod with the label app=vitrine gets through too. Who can set labels is a matter of RBAC.",
+    "comoSaber": "The vitrine pod gets the nginx page; curioso gets <i>download timed out</i>.",
+    "testes": [
+      {
+        "descricao": "vitrine gets through, curioso doesn’t"
+      }
+    ]
+  },
+  "n8-dns": {
+    "titulo": "No DNS, no names",
+    "enunciado": "\n      <p>The <code>saida-da-vitrine</code> policy lets vitrine talk only to api, on port 80. But from inside it,\n         <code>wget http://api</code> gives <code>bad address 'api'</code>.</p>\n      <p>Add an egress rule for <b>DNS</b>: the <code>k8s-app=kube-dns</code> pods in the\n         <code>kube-system</code> namespace, port 53, UDP and TCP.</p>",
+    "dica": "A second item in egress, with to: [{ namespaceSelector: {...kube-system}, podSelector: {...kube-dns} }] and the two 53 ports.",
+    "vidaReal": "They allowed vitrine to talk only to api, and forgot that, to find api, it asks the switchboard operator (DNS) for the address.",
+    "limite": "Using the IP directly, vitrine would reach api: the only thing blocked was the name lookup.",
+    "comoSaber": "<code>kubectl exec vitrine -n rede -- wget -q -O- -T 3 http://api</code> shows the nginx page.",
+    "testes": [
+      {
+        "descricao": "vitrine finds api by name"
+      }
+    ]
+  },
+  "n8-outro-bloco": {
+    "titulo": "The neighbor from the other block",
+    "enunciado": "\n      <p>The <code>rede</code> namespace is closed off (<code>nega-tudo</code>). The <code>coletor</code> pod, in the\n         <code>monitoramento</code> namespace, needs to call api. The policy in the file uses only a <code>podSelector</code>, which looks for\n         pods in its <b>own</b> namespace, <code>rede</code>.</p>\n      <p>Replace it with a <b>namespaceSelector</b> for the <code>monitoramento</code> namespace.</p>",
+    "dica": "namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoramento } }",
+    "vidaReal": "The metrics collector lives in another block (the monitoramento namespace). The api’s turnstile needs to recognize whoever comes from there.",
+    "limite": "Allowing a whole namespace allows any pod created there later, too. Combine it with a podSelector to tighten it.",
+    "comoSaber": "<code>kubectl exec coletor -n monitoramento -- wget -q -O- -T 3 http://api.rede</code> shows the nginx page.",
+    "testes": [
+      {
+        "descricao": "coletor gets through, curioso doesn’t"
+      }
+    ]
+  },
+  "n8-licao-seguranca": {
+    "titulo": "The fire code",
+    "enunciado": "\n      <p>By default, the program in most images runs as <b>root</b> inside the container. If it gets hacked, the\n         attacker starts out with the master key. The <code>securityContext</code> (on the pod or on each container) tightens this:</p>\n      <ul>\n        <li><code>runAsUser: 1000</code>: runs as a regular user. <code>runAsNonRoot: true</code>: refuses to start as root\n            (<code>CreateContainerConfigError</code>: <i>container has runAsNonRoot and image will run as root</i>).</li>\n        <li><code>readOnlyRootFilesystem: true</code>: the container’s disk becomes read-only; the program writes only to volumes\n            (an <code>emptyDir</code> where it needs one).</li>\n        <li><code>allowPrivilegeEscalation: false</code> and <code>capabilities: { drop: [\"ALL\"] }</code>: no gaining\n            power after it starts.</li>\n        <li><code>seccompProfile: { type: RuntimeDefault }</code>: the default filter for system calls.</li>\n      </ul>\n      <h2>Pod Security Admission</h2>\n      <p>The fire marshals of each block: a label on the namespace picks the standard and the mode.</p>\n      <pre><code>kubectl label ns cofre pod-security.kubernetes.io/enforce=restricted</code></pre>\n      <ul>\n        <li>Standards: <code>privileged</code> (no rules), <code>baseline</code> (no privileged, hostNetwork, hostPath...)\n            and <code>restricted</code> (baseline plus the securityContext above).</li>\n        <li>Modes: <code>enforce</code> rejects the pod, <code>warn</code> only warns.</li>\n      </ul>\n      <p>The catch: a <b>Deployment</b> in a restricted namespace is created with a <i>Warning</i>, but its pods are rejected.\n         The symptom is <code>READY 0/1</code>, and the reason is in <code>kubectl describe rs</code> (<i>FailedCreate</i>).</p>",
+    "vidaReal": "Nobody gets the master key: each resident runs with the key to their own apartment. And the fire marshals (Pod Security) don’t let in anyone who asks for more than they should.",
+    "limite": "The standards look at what the pod asks for, not at what the program does: a buggy program is still buggy, just with less power."
+  },
+  "n8-sem-root": {
+    "titulo": "No master key",
+    "enunciado": "\n      <p>Make the <code>relatorio</code> (report) pod run as user <b>1000</b> (<code>runAsUser</code>) and refuse to start as root\n         (<code>runAsNonRoot</code>), in the pod’s <code>securityContext</code>.</p>",
+    "dica": "spec.securityContext: { runAsUser: 1000, runAsNonRoot: true }",
+    "vidaReal": "The report runs with the condo’s master key for no reason. Give it a regular resident’s key.",
+    "limite": "Running as a regular user doesn’t protect the data the program already reads: it only limits the damage if it gets hacked.",
+    "comoSaber": "<code>kubectl exec relatorio -- id</code> shows <code>uid=1000</code>.",
+    "testes": [
+      {
+        "descricao": "the report runs as user 1000",
+        "msgs": {
+          "1": "the id inside the container is 1000"
+        }
+      }
+    ]
+  },
+  "n8-somente-leitura": {
+    "titulo": "Read-only disk",
+    "enunciado": "\n      <p><code>vitrine</code> (nginx) got <code>readOnlyRootFilesystem: true</code> and went into CrashLoopBackOff.\n         Check the reason in the logs (<code>kubectl logs deploy/vitrine</code>).</p>\n      <p>Without removing read-only, give nginx two <code>emptyDir</code> volumes: at <code>/var/cache/nginx</code> and at\n         <code>/var/run</code>.</p>",
+    "dica": "volumes: [{ name: cache, emptyDir: {} }, { name: run, emptyDir: {} }] and the volumeMounts in the container.",
+    "vidaReal": "They sealed the apartment’s walls (nobody writes on them), but nginx needs a desk to work at and a spot for the day’s badge.",
+    "limite": "Whatever the program writes to the emptyDir is gone when the pod leaves: it’s just the work desk.",
+    "comoSaber": "The vitrine pod becomes ready, with its disk still read-only.",
+    "testes": [
+      {
+        "descricao": "vitrine starts with a read-only disk"
+      }
+    ]
+  },
+  "n8-normas-dos-bombeiros": {
+    "titulo": "The safe’s fire code",
+    "enunciado": "\n      <p>The <code>cofre</code> (safe) namespace has <code>pod-security.kubernetes.io/enforce=restricted</code>. The\n         <code>guarda</code> (guard) Deployment gets created, but stays at <code>0/1</code>: its pods are rejected\n         (<code>kubectl describe rs -n cofre</code> tells you what’s missing).</p>\n      <p>Adjust the pod’s and the container’s <code>securityContext</code> until guarda comes up.</p>",
+    "dica": "On the pod: runAsNonRoot: true, runAsUser: 1000, seccompProfile.type: RuntimeDefault. On the container: allowPrivilegeEscalation: false and capabilities.drop: [\"ALL\"].",
+    "vidaReal": "The safe’s block follows the strictest fire code. The guard was hired, but the front gate won’t let him in the way he showed up.",
+    "limite": "Passing the standard doesn’t make the program secure: it only ensures it starts without powers it doesn’t need.",
+    "comoSaber": "<code>kubectl get deploy -n cofre</code> shows <code>1/1</code>.",
+    "testes": [
+      {
+        "descricao": "the guard got into the safe"
+      }
+    ]
+  }
+}

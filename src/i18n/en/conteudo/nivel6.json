@@ -1,1 +1,197 @@
-{}
+{
+  "n6-licao-probes": {
+    "titulo": "The building manager who knocks on the door: probes",
+    "enunciado": "\n      <p>Kubernetes knows whether the <b>process</b> is running, but not whether it is <b>working</b>. That’s what\n         <b>probes</b> are for: checks the kubelet runs on each container:</p>\n      <ul>\n        <li><b>readinessProbe</b>: “can it take customers?” While it fails, the pod stays <b>out of the Service’s\n            endpoints</b> (READY 0/1), but it isn’t restarted. This is what lets an update go out with no errors for customers.</li>\n        <li><b>livenessProbe</b>: “is it alive?” If it fails several times in a row (failureThreshold), the container is\n            <b>restarted</b>. It’s for a hung program, one that keeps running without answering.</li>\n        <li><b>startupProbe</b>: “has it finished starting up?” Until it passes, the other two wait. For apps that are slow\n            to start, without having to loosen the liveness probe.</li>\n      </ul>\n      <pre><code>readinessProbe:\n  httpGet:              # or tcpSocket: { port: 8080 }, or exec: { command: [...] }\n    path: /healthz\n    port: 8080\n  initialDelaySeconds: 0\n  periodSeconds: 10     # how often\n  failureThreshold: 3   # how many failures in a row before acting</code></pre>\n      <p>Where to look: <code>kubectl describe pod NAME</code> shows the probes (<code>Liveness:</code>, <code>Readiness:</code>) and,\n         in the Events, every failure (<i>Unhealthy</i>) and every liveness restart (<i>Killing</i>).</p>\n      <p><b>The classic gotcha</b>: a tight liveness probe on a program that is slow to start kills the container before it\n         gets ready, forever (CrashLoopBackOff). Use a startupProbe.</p>",
+    "vidaReal": "Every so often the building manager stops by and asks: “anyone alive in there?” (liveness), “can you take customers?” (readiness) and, on the first day, “done with the move?” (startup).",
+    "limite": "The building manager only knows what the door answers: if the answer lies (always “all good”), they don’t notice the problem."
+  },
+  "n6-licao-recursos": {
+    "titulo": "The contracted power and the circuit breaker: requests and limits",
+    "enunciado": "\n      <pre><code>resources:\n  requests:        # what the scheduler reserves on the node\n    cpu: 250m      # 250 millicores = a quarter of a CPU\n    memory: 128Mi\n  limits:          # the maximum\n    cpu: 500m      # go over it: the container gets slower (throttling)\n    memory: 256Mi  # go over it: the container is killed (OOMKilled)</code></pre>\n      <ul>\n        <li><b>requests</b>: the scheduler only places the pod on a node where the sum of requests fits. A request that’s\n            too big = a <code>Pending</code> pod (<i>Insufficient cpu</i>).</li>\n        <li><b>memory limits</b>: go over, and the kernel kills the container, the reason becomes <code>OOMKilled</code> (exit\n            code 137) and it restarts (and goes into CrashLoopBackOff if it keeps happening).</li>\n        <li><b>CPU limits</b>: the container doesn’t die, it just gets capped: <code>kubectl top</code> shows it stuck at the\n            limit.</li>\n      </ul>\n      <h2>QoS classes</h2>\n      <p>When a node runs out of memory, whoever asked for the least guarantee goes first: <b>BestEffort</b> (nothing\n         declared), then <b>Burstable</b> (something declared) and last <b>Guaranteed</b> (requests = limits, for CPU and\n         memory, in every container). See it in <code>kubectl describe pod NAME</code>, on the <code>QoS Class</code> line.</p>\n      <h2>How much each one uses</h2>\n      <p><code>kubectl top pods</code> and <code>kubectl top nodes</code> show current usage. The one measuring it is the\n         <b>metrics-server</b>, which kind doesn’t ship installed (without it: <i>Metrics API not available</i>); the clusters\n         in this level already come with it.</p>",
+    "vidaReal": "The request is the contracted power: the building only takes the resident if the grid can handle it. The limit is the circuit breaker: go over on memory and it trips (the container dies); on CPU, the lights just dim (it gets slow).",
+    "limite": "On the power grid, everyone can draw more than they contracted at the same time and the building goes dark; in Kubernetes, the request is really reserved on the node."
+  },
+  "n6-licao-escala": {
+    "titulo": "Black Friday temps and the condo quota",
+    "enunciado": "\n      <h2>HorizontalPodAutoscaler</h2>\n      <pre><code>kubectl autoscale deployment loja --cpu=50% --min=2 --max=8</code></pre>\n      <p>The HPA looks at the pods’ CPU usage as a <b>percentage of the request</b> and computes\n         <code>replicas = ⌈current replicas × usage / target⌉</code>. That’s why the pods <b>need requests</b>: without them,\n         the target shows <code>&lt;unknown&gt;</code> and nothing happens. Watch it with <code>kubectl get hpa -w</code>.</p>\n      <p>Careful: the HPA changes the Deployment’s <code>spec.replicas</code>. If your YAML also sets <code>replicas</code>, every\n         <code>apply</code> fights with it.</p>\n      <h2>ResourceQuota and LimitRange</h2>\n      <ul>\n        <li><b>ResourceQuota</b>: a namespace’s ceiling (pods, requests and limits added up). A pod that goes over is refused\n            (<i>exceeded quota</i>), and, with a CPU or memory quota, every container must declare requests and limits\n            (<i>must specify</i>).</li>\n        <li><b>LimitRange</b>: <b>default</b> values for whoever declared nothing, plus minimums and maximums per container.</li>\n      </ul>\n      <p>When a Deployment can’t create pods, the error doesn’t show up on apply: it’s in the ReplicaSet’s Events\n         (<code>kubectl describe rs</code>, <i>FailedCreate</i>). See the usage with <code>kubectl describe quota</code>.</p>",
+    "vidaReal": "The HPA is the temp-staff manager, who hires temps when the line grows and lets them go when things calm down. The ResourceQuota is each company’s power quota in the condo; the LimitRange, the rules for whoever shows up without saying how much they’ll use.",
+    "limite": "The manager is slow: checks the line every 15 seconds and waits 5 minutes before letting anyone go (so as not to fire and rehire every minute)."
+  },
+  "n6-pronto-para-atender": {
+    "titulo": "Update with zero errors, for real",
+    "enunciado": "\n      <p>Version 2.1 of loja (<code>kubelearn/loja:2.1-aquece</code>) warms up its cache for 20 seconds before serving. Update\n         loja to it <b>without a single customer getting an error</b>: a customer will request <code>http://loja</code> every\n         second during the switch. When it’s ready, loja answers <code>200</code> on <code>/healthz</code> (port 8080).</p>",
+    "dica": "Change the image and add a readinessProbe httpGet on /healthz, port 8080. Without it, the new pod counts as ready before it opens the port.",
+    "vidaReal": "The new clerk arrives, but is still booting up the computer. Without the question “can you serve yet?”, the front gate already sends customers their way.",
+    "limite": "Readiness only protects traffic coming through the Service: anyone talking straight to the pod’s IP skips the building manager.",
+    "comoSaber": "During the switch, <code>kubectl get pods -w</code>: the new pods stay <code>0/1</code> for about 20 seconds.",
+    "testes": [
+      {
+        "descricao": "the switch to 2.1 with no errors for customers"
+      }
+    ]
+  },
+  "n6-loja-travada": {
+    "titulo": "The frozen store",
+    "enunciado": "\n      <p>After about 40 seconds up, loja freezes: the process keeps running, the pod stays <code>Running</code>,\n         but requests go unanswered (check the logs). Make Kubernetes <b>notice and restart</b> the frozen\n         container.</p>",
+    "dica": "A livenessProbe httpGet on /healthz, port 8080.",
+    "vidaReal": "The clerk is in the chair, eyes open, but doesn’t answer anyone. From the outside, everything looks normal.",
+    "limite": "Restarting fixes the symptom, not the cause: the deadlock comes back. Liveness buys time until someone fixes the program.",
+    "comoSaber": "<code>kubectl get pods -w</code>: the RESTARTS column goes up; <code>kubectl describe pod NAME</code> shows <i>Container loja failed liveness probe, will be restarted</i>.",
+    "testes": [
+      {
+        "descricao": "the kubelet restarts the frozen loja",
+        "msgs": {
+          "1": "the kubelet killed a container because of the liveness probe"
+        }
+      }
+    ]
+  },
+  "n6-subida-lenta": {
+    "titulo": "The store that takes a while to wake up",
+    "enunciado": "\n      <p>Version 3.0 of loja migrates the database when it starts (about 45 seconds). Its livenessProbe is tight, and the\n         pods never leave <code>CrashLoopBackOff</code>. Without loosening the liveness probe, get loja up.</p>",
+    "dica": "A startupProbe (httpGet /healthz, port 8080) with failureThreshold × periodSeconds greater than 45 seconds: until it passes, the liveness probe waits.",
+    "vidaReal": "The building manager knocks 3 times in 15 seconds and, with no answer, breaks the door down. But the move takes 45 seconds: they break in every time, and the move never finishes.",
+    "limite": "You could loosen the liveness probe (initialDelaySeconds), but then a real freeze also takes longer to notice.",
+    "comoSaber": "<code>kubectl get pods</code>: <code>1/1 Running</code>, with 0 restarts.",
+    "testes": [
+      {
+        "descricao": "loja starts without restarting"
+      }
+    ]
+  },
+  "n6-pergunta-errada": {
+    "titulo": "The wrong question",
+    "enunciado": "\n      <p>The loja pods are <code>Running</code>, but <code>0/1</code>, and the <code>loja</code> Service has no endpoints.\n         Find the reason in the Events (<code>kubectl describe pod NAME</code>) and fix it. loja reports its health on\n         <code>/healthz</code>.</p>",
+    "dica": "The readinessProbe asks on a path loja doesn’t know (404).",
+    "vidaReal": "To find out whether the shop has opened, the building manager asks “is the meeting room free?”: the answer is always “no idea”, and the shop never opens.",
+    "limite": "A wrong readiness probe doesn’t take anything down: it just quietly keeps the pod out of the Service, which sometimes takes a while for anyone to notice.",
+    "testes": [
+      {
+        "descricao": "the phone extension rings again"
+      }
+    ]
+  },
+  "n6-potencia-demais": {
+    "titulo": "Too much power",
+    "enunciado": "\n      <p>One of the 3 loja pods is <code>Pending</code>. Check the reason (<code>kubectl describe pod NAME</code>, under Events) and\n         how much loja really uses (<code>kubectl top pods</code>). Adjust the request so all 3 fit.</p>",
+    "dica": "resources.requests.cpu: 1500m is too much. loja uses just a few millicores; 250m is plenty.",
+    "vidaReal": "Each shop asked for 1.5 kW of contracted power, but each building only has 2 kW: the third shop doesn’t fit anywhere.",
+    "limite": "The request isn’t what the program uses: it’s what gets reserved. The shop uses far less, and the reservation still takes up the space.",
+    "comoSaber": "<code>kubectl get pods</code>: 3 pods <code>Running</code>.",
+    "testes": [
+      {
+        "descricao": "all 3 loja pods fit"
+      }
+    ]
+  },
+  "n6-disjuntor": {
+    "titulo": "The circuit breaker that trips",
+    "enunciado": "\n      <p>The <code>relatorio</code> (report) keeps restarting. Find the reason (<code>kubectl describe pod NAME</code>: the\n         <i>Last State</i> and the <i>Reason</i>) and fix it. The report loads a spreadsheet of about 300Mi.</p>",
+    "dica": "OOMKilled: the container went over limits.memory. Raise the limit (512Mi leaves some room).",
+    "vidaReal": "The report turns on the AC, the oven and the shower at the same time on a 10 A circuit breaker: it trips every time.",
+    "limite": "A bigger circuit breaker fixes it if the report really needs that much; if it leaks memory, it only delays the crash.",
+    "comoSaber": "<code>kubectl get pods</code>: <code>1/1 Running</code> and the restarts stop.",
+    "testes": [
+      {
+        "descricao": "the report stays up"
+      }
+    ]
+  },
+  "n6-garantido": {
+    "titulo": "The guaranteed vault",
+    "enunciado": "\n      <p>Give the <code>caixa-forte</code> (vault) pod the <b>Guaranteed</b> QoS: the last one out when the node runs out of memory.</p>",
+    "dica": "requests and limits equal, for both cpu and memory.",
+    "vidaReal": "During a blackout, the generators serve those who contracted guaranteed power first.",
+    "limite": "Guaranteed isn’t immortal: a Guaranteed pod still dies if it goes over its own memory limit.",
+    "comoSaber": "<code>kubectl describe pod caixa-forte</code> shows <code>QoS Class: Guaranteed</code>.",
+    "testes": [
+      {
+        "descricao": "the pod is Guaranteed"
+      }
+    ]
+  },
+  "n6-quem-gasta": {
+    "titulo": "Who’s using it all?",
+    "enunciado": "\n      <p>Which pod in the default namespace is using the <b>most memory</b>?</p>",
+    "dica": "kubectl top pods (or with --sort-by=memory).",
+    "vidaReal": "The electricity bill came in high: the building manager checks each apartment’s meter.",
+    "limite": "The meter shows right now, not the history: for yesterday’s peak, you need a monitoring tool (Prometheus).",
+    "rotuloResposta": "The pod name",
+    "testes": [
+      {
+        "descricao": "you found the big spender",
+        "msgs": {
+          "0": "you used kubectl top"
+        }
+      }
+    ]
+  },
+  "n6-autoscale": {
+    "titulo": "The temp-staff manager",
+    "enunciado": "\n      <p>From the terminal, create an HPA for <code>deployment/loja</code>: a target of <b>50% CPU</b>, minimum <b>2</b> and maximum\n         <b>6</b> replicas.</p>",
+    "dica": "kubectl autoscale deployment loja --cpu=50% --min=2 --max=6",
+    "vidaReal": "Hiring a manager with the rule: “keep the clerks busy half the time, with at least 2 and at most 6”.",
+    "limite": "The manager only hires if there’s room: with no space on the nodes, the temps wait at the door (Pending).",
+    "comoSaber": "<code>kubectl get hpa</code> shows <code>cpu: N%/50%</code>, MINPODS 2 and MAXPODS 6.",
+    "testes": [
+      {
+        "descricao": "the HPA is up"
+      }
+    ]
+  },
+  "n6-black-friday": {
+    "titulo": "Black Friday",
+    "enunciado": "\n      <p>Black Friday has started: the <code>carga</code> (load) pod is sending requests nonstop to loja, and the HPA exists, but\n         loja is still at 2 replicas. <code>kubectl get hpa</code> shows <code>&lt;unknown&gt;</code>. Find the reason\n         (<code>kubectl describe hpa loja</code>) and make the HPA work.</p>",
+    "dica": "The HPA computes CPU as a percentage of the request: loja needs resources.requests.cpu (100m, for example). Don’t write replicas in the Deployment: the HPA is in charge of them now.",
+    "vidaReal": "The manager got the order “keep the clerks at 50% of capacity”, but nobody said what each one’s capacity is: they can’t do the math and don’t hire anyone.",
+    "limite": "The HPA reacts in minutes, not seconds: for a sudden spike, it’s good to start with some headroom (minReplicas).",
+    "comoSaber": "<code>kubectl get hpa -w</code>: the target stops being <code>&lt;unknown&gt;</code> and the replicas go up.",
+    "testes": [
+      {
+        "descricao": "the HPA hires temps",
+        "msgs": {
+          "1": "loja went past 2 replicas",
+          "2": "the HPA can measure the CPU"
+        }
+      }
+    ]
+  },
+  "n6-cota": {
+    "titulo": "The condo quota",
+    "enunciado": "\n      <p>In the <code>vendas</code> namespace, the <code>loja</code> Deployment can’t create any pods. Find the reason\n         (<code>kubectl describe rs -n vendas</code>, under Events, and <code>kubectl describe quota -n vendas</code>) and fix\n         the Deployment so it fits within the quota.</p>",
+    "dica": "The quota has requests.cpu and limits.memory: every container must declare both. Each loja pod can ask for 250m of CPU and a 256Mi memory limit.",
+    "vidaReal": "The condo gave the Vendas (Sales) company a power quota and requires every appliance to come with an energy label. An appliance without a label doesn’t get in.",
+    "limite": "The quota adds up what’s declared, not what’s used: an exaggerated request takes up quota even with the shop idle.",
+    "comoSaber": "<code>kubectl get pods -n vendas</code>: 2 pods <code>Running</code>.",
+    "testes": [
+      {
+        "descricao": "the vendas loja opens within the quota"
+      }
+    ]
+  },
+  "n6-regras-padrao": {
+    "titulo": "The rules for whoever shows up without a label",
+    "enunciado": "\n      <p>The <code>compras</code> namespace has a quota that requires requests and limits, and the team doesn’t want to touch\n         every Deployment. Create a <b>LimitRange</b> named <code>padrao</code> that gives every container with nothing declared:\n         a request of <code>100m</code> CPU and <code>64Mi</code> memory, and a limit of <code>250m</code> and\n         <code>128Mi</code>. The compras loja must start without changing the Deployment.</p>",
+    "dica": "kind LimitRange, spec.limits with type Container, defaultRequest and default.",
+    "vidaReal": "Instead of turning away every appliance without a label, the management office sticks a default label on at the entrance.",
+    "limite": "The default applies to everyone: an appliance that uses much more than the default will trip the circuit breaker (the default limit).",
+    "comoSaber": "<code>kubectl get pods -n compras</code>: 2 pods <code>Running</code> (the ReplicaSet retries on its own, within a few seconds).",
+    "testes": [
+      {
+        "descricao": "the compras loja starts with the default rules"
+      }
+    ]
+  },
+  "n6-teto": {
+    "titulo": "The per-appliance ceiling",
+    "enunciado": "\n      <p>The loja in <code>compras</code> doesn’t create any pods (check the ReplicaSet’s Events in the <code>compras</code> namespace).\n         Fix the Deployment.</p>",
+    "dica": "The namespace’s LimitRange has a memory max of 512Mi: loja’s limits.memory has to fit.",
+    "vidaReal": "The condo rule says: no appliance with a circuit breaker above 512. Yours came with 1000.",
+    "limite": "The ceiling is per container; to cap the namespace’s total, use the quota (ResourceQuota).",
+    "testes": [
+      {
+        "descricao": "loja fits under the ceiling"
+      }
+    ]
+  }
+}

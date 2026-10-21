@@ -44,10 +44,10 @@ function mesclar(pt, en) {
 
 /** `en`: o pacote src/i18n/en/index.js, ou null para voltar ao português. */
 export function trocarConteudo(en) {
-  for (const item of [...ITENS, ...TROUBLESHOOTING, PLAYGROUND]) {
-    item._pt ??= textosDoItem(item);
-    aplicarTextos(item, en ? mesclar(item._pt, en.itens[item.id]) : item._pt);
-  }
+  const itens = [...ITENS, ...TROUBLESHOOTING, PLAYGROUND];
+  // O português de todos antes de trocar qualquer um: há regras de teste (com a mensagem) compartilhadas entre missões.
+  for (const item of itens) item._pt ??= textosDoItem(item);
+  for (const item of itens) aplicarTextos(item, en ? mesclar(item._pt, en.itens[item.id]) : item._pt);
   for (const g of GLOSSARIO) {
     g._pt ??= textosDoTermo(g);
     Object.assign(g, en ? mesclar(g._pt, en.glossario[g.id]) : g._pt);

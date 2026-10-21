@@ -1,1 +1,567 @@
-{}
+{
+  "n11-licao-projetos": {
+    "titulo": "The projects: all together",
+    "enunciado": "\n      <p>Each project has <b>5 stages</b>. Each stage <b>starts from your files from the previous stage</b> (if you did it; if not,\n         from the reference solution) and asks for something new. The tests apply all the files to a fresh cluster, so\n         everything you’ve built has to keep working.</p>\n      <ul>\n        <li><b>The full store</b>: API, Redis, the storefront and the way in through the Ingress.</li>\n        <li><b>The blog with a database</b>: Secret, a StatefulSet with a disk and the backup.</li>\n        <li><b>Zero-downtime deploy</b>: readiness, the rolling update strategy and a PDB.</li>\n        <li><b>Canary</b>: two versions and the traffic split through the Gateway API.</li>\n        <li><b>Black Friday</b>: requests and limits, the HPA under load, the quota and the LimitRange.</li>\n        <li><b>Multi-team</b>: one namespace per team, RBAC, quotas and NetworkPolicy.</li>\n        <li><b>Hardening</b>: no root, no privileges, a read-only disk, Pod Security and least access.</li>\n        <li><b>Dev and prod</b>: the same store in two environments, with Helm and with Kustomize.</li>\n      </ul>\n      <p>A tip from people who do this every day: <code>kubectl apply -f .</code>, <code>kubectl get all</code> and\n         <code>kubectl describe</code> solve almost everything. When you get stuck, the Solution tab has the reference for each stage.</p>",
+    "vidaReal": "Until now, each mission was a single room. Now it’s the whole construction job: foundation, walls, plumbing and finishing, one stage after another.",
+    "limite": "On a real job, nobody rebuilds the foundation at every stage. Here, the tests set everything up again on a clean cluster: whatever you forgot in one stage shows up in the next."
+  },
+  "n11-loja-1": {
+    "titulo": "The API and its phone extension",
+    "enunciado": "<p><code>api.yaml</code> has the API Deployment with 1 replica. Bump it to <b>2 replicas</b> and add the\n                    <code>api</code> Service (port 80, to the pods’ 8080).</p>",
+    "dica": "replicas: 2 and, in the same file after a ---, the Service with selector app: api, port 80 and targetPort 8080.",
+    "vidaReal": "First, the service counter (the API) and the fixed phone extension to reach it.",
+    "limite": "The phone extension only exists for people inside the condo: from outside, nobody can get in yet.",
+    "testes": [
+      {
+        "descricao": "the API answers on its phone extension"
+      }
+    ],
+    "projeto": "The full store"
+  },
+  "n11-loja-2": {
+    "titulo": "The cache",
+    "enunciado": "<p><code>redis.yaml</code> has the Redis Deployment. Add the <code>redis</code> Service (port 6379) and,\n                    in <code>api.yaml</code>, the <code>REDIS_HOST=redis</code> variable on the API.</p>",
+    "dica": "Service redis: port 6379, targetPort 6379. On the API: env: [{ name: REDIS_HOST, value: redis }].",
+    "vidaReal": "The API gets a fridge (Redis) so it doesn’t have to fetch everything from the stockroom every time.",
+    "limite": "The fridge’s address is written into the API (REDIS_HOST): renaming the Service breaks the link.",
+    "testes": [
+      {
+        "descricao": "the API knows where the cache is"
+      }
+    ],
+    "projeto": "The full store"
+  },
+  "n11-loja-3": {
+    "titulo": "The storefront",
+    "enunciado": "<p><code>vitrine.yaml</code> (the storefront) has nginx mounting the <code>vitrine-html</code> ConfigMap, which doesn’t exist. Create the\n                    ConfigMap with an <code>index.html</code> containing <code>Loja do kube-learn</code>, and the\n                    <code>vitrine</code> Service (port 80).</p>",
+    "dica": "ConfigMap vitrine-html with data: { index.html: \"<h1>Loja do kube-learn</h1>\" } and the vitrine Service (port 80, targetPort 80).",
+    "vidaReal": "The storefront (nginx) shows the page pinned on the bulletin board (the ConfigMap).",
+    "limite": "nginx reads the file from the volume on every request: changing the ConfigMap changes the page a few seconds later, with no restart.",
+    "testes": [
+      {
+        "descricao": "the storefront shows the page"
+      }
+    ],
+    "projeto": "The full store"
+  },
+  "n11-loja-4": {
+    "titulo": "The street door",
+    "enunciado": "<p><code>entrada.yaml</code> sends <code>loja.local</code> to the storefront. Add the <code>/api</code> path to the\n                    <code>api</code> Service.</p>",
+    "dica": "One more item in paths: path /api, pathType Prefix, backend service api, port 80.",
+    "vidaReal": "The front gate’s front desk: whoever asks for “loja.local” goes to the storefront; whoever asks for “/api” goes to the API counter.",
+    "limite": "The Ingress picks the longest path: /api beats / for anyone asking for /api/anything.",
+    "testes": [
+      {
+        "descricao": "the store opens from outside"
+      }
+    ],
+    "projeto": "The full store"
+  },
+  "n11-loja-5": {
+    "titulo": "Ready for the public",
+    "enunciado": "<p>On the API: a <b>readinessProbe</b> on <code>/healthz</code> (port 8080) and <b>requests</b> of 100m CPU and 64Mi\n                    memory. On the storefront: a readinessProbe on <code>/</code> (port 80). An API update must not\n                    leave anyone hanging.</p>",
+    "dica": "readinessProbe: { httpGet: { path: /healthz, port: 8080 } } and resources: { requests: { cpu: 100m, memory: 64Mi } }.",
+    "vidaReal": "Before opening the doors: the building manager checks who’s ready, and each clerk says how much power they need.",
+    "limite": "The readinessProbe only protects you if the answer is honest: a /healthz that always says ok protects against nothing.",
+    "testes": [
+      {
+        "descricao": "the probes and the requests are in place"
+      },
+      {
+        "descricao": "the API switches versions without anyone going unanswered"
+      }
+    ],
+    "projeto": "The full store"
+  },
+  "n11-blog-1": {
+    "titulo": "The password envelope",
+    "enunciado": "<p><code>segredo.yaml</code> has the empty <code>banco</code> (database) Secret. Put the <code>senha</code> (password) key in it (any value you like).</p>",
+    "dica": "stringData: { senha: tijolo-azul-42 }",
+    "vidaReal": "Before calling in the database, the sealed envelope with the password.",
+    "limite": "Sealed isn’t a safe: anyone who can read Secrets in the namespace can read the password (it’s just base64).",
+    "testes": [
+      {
+        "descricao": "the envelope has the password"
+      }
+    ],
+    "projeto": "The blog with a database"
+  },
+  "n11-blog-2": {
+    "titulo": "The database",
+    "enunciado": "<p><code>banco.yaml</code> has the <code>db</code> StatefulSet (postgres), which crashes without a password. Give it\n                    <code>POSTGRES_PASSWORD</code> read from the <code>banco</code> Secret and create the <b>headless</b> Service\n                    <code>db</code> (port 5432).</p>",
+    "dica": "env with valueFrom.secretKeyRef (name: banco, key: senha) and a Service with clusterIP: None.",
+    "vidaReal": "The database’s apartment 0, with a fixed number, and the building’s doorman (the headless Service) who knows how to call it by name.",
+    "limite": "Headless doesn’t spread the calls around: it only gives out each apartment’s address (db-0.db).",
+    "testes": [
+      {
+        "descricao": "the database is up"
+      }
+    ],
+    "projeto": "The blog with a database"
+  },
+  "n11-blog-3": {
+    "titulo": "The database’s disk",
+    "enunciado": "<p>Give the database its own disk: a <code>volumeClaimTemplates</code> <code>dados</code> (data) of 1Gi, mounted at\n                    <code>/var/lib/postgresql/data</code>.</p>",
+    "dica": "volumeClaimTemplates in the StatefulSet spec and the volumeMount with the same name (dados).",
+    "vidaReal": "Apartment 0 gets its own storage unit in the garage: if the resident changes, the unit keeps its stuff.",
+    "limite": "Deleting the StatefulSet doesn’t delete the storage unit (the PVC): the data stays until someone deletes the PVC.",
+    "testes": [
+      {
+        "descricao": "the database has its own disk"
+      },
+      {
+        "descricao": "db-0 comes back with the same disk (and the data)",
+        "msgs": {
+          "0": "the file written earlier is still there"
+        }
+      }
+    ],
+    "projeto": "The blog with a database"
+  },
+  "n11-blog-4": {
+    "titulo": "The blog",
+    "enunciado": "<p><code>blog.yaml</code> has the blog Deployment. Give it the variables <code>DB_HOST=db-0.db</code> and\n                    <code>DB_SENHA</code> (from the <code>banco</code> Secret), and create the <code>blog</code> Service (port 80).</p>",
+    "dica": "env: DB_HOST with value and DB_SENHA with valueFrom.secretKeyRef; Service blog: port 80, targetPort 80.",
+    "vidaReal": "The blog lives in another apartment and calls the database at apartment 0’s fixed address, with the password from the envelope.",
+    "limite": "The db-0.db address always points to the same pod: if the database got replicas, the blog wouldn’t talk to them.",
+    "testes": [
+      {
+        "descricao": "the blog finds the database",
+        "msgs": {
+          "3": "DB_SENHA comes from the banco Secret"
+        }
+      }
+    ],
+    "projeto": "The blog with a database"
+  },
+  "n11-blog-5": {
+    "titulo": "The backup",
+    "enunciado": "<p><code>backup.yaml</code> has the <code>backup-db</code> CronJob running every minute (for testing). Change it to\n                    <b>every day at 2 AM</b>.</p>",
+    "dica": "schedule: \"0 2 * * *\" (minute hour day month day-of-week).",
+    "vidaReal": "Every night, at 2 AM, someone copies the database into the safe.",
+    "limite": "A backup that’s never been tested isn’t a backup: run the Job by hand every now and then.",
+    "testes": [
+      {
+        "descricao": "the backup runs every day at 2 AM"
+      },
+      {
+        "descricao": "running it by hand works"
+      }
+    ],
+    "projeto": "The blog with a database"
+  },
+  "n11-zero-1": {
+    "titulo": "The store and its phone extension",
+    "enunciado": "<p><code>loja.yaml</code> has the store Deployment (4 replicas). Add the <code>loja</code> Service (port 80 → 8080).</p>",
+    "dica": "Service with selector app: loja, port 80 and targetPort 8080.",
+    "vidaReal": "Four clerks and the store’s fixed phone extension.",
+    "limite": "For now, the phone extension sends customers to any clerk who’s up, ready or not.",
+    "testes": [
+      {
+        "descricao": "the phone extension has 4 clerks"
+      }
+    ],
+    "projeto": "Zero-downtime deploy"
+  },
+  "n11-zero-2": {
+    "titulo": "Only the ready ones serve",
+    "enunciado": "<p>Add a <b>readinessProbe</b> on <code>/healthz</code> (port 8080). The hidden tests swap the store for a version that takes a while to warm up.</p>",
+    "dica": "readinessProbe: { httpGet: { path: /healthz, port: 8080 } }",
+    "vidaReal": "The store’s new version takes 20 seconds to warm up. Without asking whether it’s ready, the phone extension sends customers to clerks still tying their aprons.",
+    "limite": "Readiness doesn’t speed anything up: the clerk still takes just as long, they just don’t get anyone before they’re ready.",
+    "testes": [
+      {
+        "descricao": "the probe is in place"
+      },
+      {
+        "descricao": "the warming-up version doesn’t drop anyone"
+      }
+    ],
+    "projeto": "Zero-downtime deploy"
+  },
+  "n11-zero-3": {
+    "titulo": "Renovating without closing any",
+    "enunciado": "<p>Configure the rolling update to <b>never</b> drop below 4 ready pods: <code>maxUnavailable: 0</code> and <code>maxSurge: 1</code>.</p>",
+    "dica": "spec.strategy: { type: RollingUpdate, rollingUpdate: { maxUnavailable: 0, maxSurge: 1 } }",
+    "vidaReal": "In a step-by-step renovation, a new apartment opens before an old one closes: never fewer than 4 open.",
+    "limite": "Without room for the extra apartment (the maxSurge), the renovation stalls: maxUnavailable 0 needs spare capacity in the cluster.",
+    "testes": [
+      {
+        "descricao": "the strategy is in place"
+      },
+      {
+        "descricao": "the update never goes below 4"
+      }
+    ],
+    "projeto": "Zero-downtime deploy"
+  },
+  "n11-zero-4": {
+    "titulo": "Guaranteed elevators",
+    "enunciado": "<p>Create a <code>pdb.yaml</code> with a PodDisruptionBudget <code>loja</code> that guarantees <b>at least 3</b> ready pods.</p>",
+    "dica": "policy/v1, kind PodDisruptionBudget, spec: { minAvailable: 3, selector: { matchLabels: { app: loja } } }",
+    "vidaReal": "During building maintenance (the drain), at least 3 clerks keep serving.",
+    "limite": "The PDB doesn’t hold up against a power outage: only planned departures (drain).",
+    "testes": [
+      {
+        "descricao": "the PDB lets them leave one at a time"
+      }
+    ],
+    "projeto": "Zero-downtime deploy"
+  },
+  "n11-zero-5": {
+    "titulo": "The new version, with a name",
+    "enunciado": "<p>Update the store to version <b>1.1</b> and note the reason on the Deployment\n                    (<code>kubernetes.io/change-cause: \"versão 1.1\"</code>), so it shows up in <code>kubectl rollout history</code>.\n                    Everything you did before still applies.</p>",
+    "dica": "The Deployment’s metadata.annotations and image: kubelearn/loja:1.1.",
+    "vidaReal": "The renovation gets a sign (“version 1.1”) so everyone knows what changed, and it can be undone.",
+    "limite": "The change-cause is just an annotation: write the truth, because the history shows whatever is there.",
+    "testes": [
+      {
+        "descricao": "version 1.1, with the sign"
+      },
+      {
+        "descricao": "the next update doesn’t drop anyone either"
+      }
+    ],
+    "projeto": "Zero-downtime deploy"
+  },
+  "n11-canario-1": {
+    "titulo": "The stable version",
+    "enunciado": "<p><code>v1.yaml</code> has <code>loja-v1</code> (3 replicas, labels <code>app: loja</code> and\n                    <code>versao: v1</code>). Create the <code>loja-v1</code> Service that selects only the v1 pods.</p>",
+    "dica": "selector: { app: loja, versao: v1 }",
+    "vidaReal": "The usual store, with the version tag on each apartment’s door.",
+    "limite": "The versao label is just a tag: Kubernetes doesn’t know what a version is; the selectors are what use it.",
+    "testes": [
+      {
+        "descricao": "v1 answers on its own phone extension"
+      }
+    ],
+    "projeto": "Canary"
+  },
+  "n11-canario-2": {
+    "titulo": "The canary",
+    "enunciado": "<p><code>v2.yaml</code> has <code>loja-v2</code> (version 1.1, 1 replica, <code>versao: v2</code>). Create the\n                    <code>loja-v2</code> Service, selecting only v2.</p>",
+    "dica": "The same Service as v1, with versao: v2.",
+    "vidaReal": "A single apartment with the new renovation, to see if anyone complains before renovating the whole building.",
+    "limite": "A canary with few visitors takes a while to show defects: give it time (and traffic) before deciding.",
+    "testes": [
+      {
+        "descricao": "each version with its own phone extension"
+      }
+    ],
+    "projeto": "Canary"
+  },
+  "n11-canario-3": {
+    "titulo": "10% to the canary",
+    "enunciado": "<p><code>rota.yaml</code> sends everything from <code>loja.local</code> to v1. Split it: <b>90</b> to\n                    <code>loja-v1</code> and <b>10</b> to <code>loja-v2</code>.</p>",
+    "dica": "backendRefs: [{ name: loja-v1, port: 80, weight: 90 }, { name: loja-v2, port: 80, weight: 10 }]",
+    "vidaReal": "The sign at the front gate sends 1 in every 10 visitors to the renovated apartment.",
+    "limite": "The weight is per connection, not per person: the same customer may land on one version now and the other later.",
+    "testes": [
+      {
+        "descricao": "about 10% reach version 1.1"
+      }
+    ],
+    "projeto": "Canary"
+  },
+  "n11-canario-4": {
+    "titulo": "Half and half",
+    "enunciado": "<p>Switch to <b>50/50</b> and, since v2 is going to get many more visitors, scale <code>loja-v2</code> up to <b>3 replicas</b>.</p>",
+    "dica": "weight: 50 on both and replicas: 3 in v2.yaml.",
+    "vidaReal": "Nobody complained: half the visitors already go to the renovation.",
+    "limite": "Half and half with 3 pods on one side and 1 on the other: the v2 pod gets the same load as the 3 v1 pods combined.",
+    "testes": [
+      {
+        "descricao": "half on version 1.1"
+      }
+    ],
+    "projeto": "Canary"
+  },
+  "n11-canario-5": {
+    "titulo": "The promotion",
+    "enunciado": "<p>Send <b>all</b> the traffic to v2 and shut down v1 (remove <code>v1.yaml</code> and take v1 out of the route).</p>",
+    "dica": "A rule with only loja-v2 (weight 100, or no weight) and delete the v1.yaml file.",
+    "vidaReal": "The renovation was approved: everyone moves to the new apartments, and the old ones close.",
+    "limite": "Once v1 is deleted, going back means bringing v1 up again: keep its YAML until you’re sure.",
+    "testes": [
+      {
+        "descricao": "everyone on version 1.1"
+      }
+    ],
+    "projeto": "Canary"
+  },
+  "n11-bf-1": {
+    "titulo": "The declared consumption",
+    "enunciado": "<p>Give the store <b>requests</b> of 100m CPU and 64Mi memory and <b>limits</b> of 500m and 128Mi.</p>",
+    "dica": "resources: { requests: { cpu: 100m, memory: 64Mi }, limits: { cpu: 500m, memory: 128Mi } }",
+    "vidaReal": "Before Black Friday, each clerk says how much power they need (request) and the most they can draw (limit).",
+    "limite": "The request is a reservation, not a measurement: the pod may use less (waste) or more (up to the limit).",
+    "testes": [
+      {
+        "descricao": "the consumption is declared"
+      }
+    ],
+    "projeto": "Black Friday"
+  },
+  "n11-bf-2": {
+    "titulo": "The manager’s rules",
+    "enunciado": "<p><code>hpa.yaml</code> has a timid HPA. Adjust it: minimum <b>2</b>, maximum <b>8</b>, target of <b>50%</b> CPU.</p>",
+    "dica": "minReplicas: 2, maxReplicas: 8, averageUtilization: 50",
+    "vidaReal": "The temp-staff manager hires temps when the clerks go past half their capacity, and lets them go afterward.",
+    "limite": "They only look at CPU: if the bottleneck is the database, hiring clerks doesn’t help.",
+    "testes": [
+      {
+        "descricao": "the manager knows the rules"
+      }
+    ],
+    "projeto": "Black Friday"
+  },
+  "n11-bf-3": {
+    "titulo": "The sale has started",
+    "enunciado": "<p><code>trafego.yaml</code> has the <code>carga</code> (load) pod, a client that hits the store nonstop, but the address is wrong (check its logs).\n                    Fix it and watch the HPA grow (<code>kubectl get hpa -w</code>, with about <b>+30s</b>).</p>",
+    "dica": "kubectl logs carga (bad address). The Service is named loja: http://loja",
+    "vidaReal": "Customers pour in: the manager sees the clerks at their limit and calls in the temps.",
+    "limite": "The HPA reacts, it doesn’t predict: the first minutes of the sale still catch the store small.",
+    "testes": [
+      {
+        "descricao": "the manager hired temps",
+        "msgs": {
+          "1": "the HPA asked for more than 2 replicas"
+        }
+      }
+    ],
+    "projeto": "Black Friday"
+  },
+  "n11-bf-4": {
+    "titulo": "The company cap",
+    "enunciado": "<p>Apply the <code>teto</code> (cap) quota from <code>cota.yaml</code>. With a CPU and memory quota, every container needs\n                    requests and limits: give the <code>carga</code> pod requests of 50m and 16Mi and limits of 100m and 32Mi.</p>",
+    "dica": "trafego.yaml gets resources; the quota is already done. kubectl applies the files in alphabetical order: the quota (cota.yaml) arrives before the pod.",
+    "vidaReal": "The management office put a cap on the company’s power: and, with a cap, every appliance that comes in needs an energy label.",
+    "limite": "The quota turns away anything that arrives without a label, even the test client: that’s why it comes together with the LimitRange.",
+    "testes": [
+      {
+        "descricao": "everything under the cap"
+      }
+    ],
+    "projeto": "Black Friday"
+  },
+  "n11-bf-5": {
+    "titulo": "The management office’s default",
+    "enunciado": "<p><code>tarefa.yaml</code> is a pod without resources, rejected by the quota. Instead of touching it, create a\n                    <b>LimitRange</b> <code>padrao</code> (default) with a <code>defaultRequest</code> of 50m and 32Mi and a <code>default</code>\n                    (limits) of 100m and 64Mi.</p>",
+    "dica": "kind: LimitRange, spec.limits: [{ type: Container, defaultRequest: {...}, default: {...} }]. The LimitRange has to exist before the pod: put it in cota.yaml.",
+    "vidaReal": "So it doesn’t turn away whoever forgets the label, the management office sticks a default label on anyone who arrives without one.",
+    "limite": "The default only applies to new pods: those already running don’t get the label.",
+    "testes": [
+      {
+        "descricao": "the task got the default and got in"
+      }
+    ],
+    "projeto": "Black Friday"
+  },
+  "n11-equipes-1": {
+    "titulo": "The teams’ floors",
+    "enunciado": "<p><code>andares.yaml</code> creates the <code>time-a</code> and <code>time-b</code> namespaces, and\n                    <code>time-a.yaml</code> puts team A’s API (Deployment and Service) on its floor. <code>time-b.yaml</code>\n                    is empty: write team B’s API and Service, the same as team A’s.</p>",
+    "dica": "Copy time-a.yaml, changing the namespace to time-b.",
+    "vidaReal": "Each team rents a floor (the namespace), with its own API and its own phone extension.",
+    "limite": "A floor alone doesn’t isolate anything: without badges and turnstiles, anyone can walk all over.",
+    "testes": [
+      {
+        "descricao": "both teams are up"
+      }
+    ],
+    "projeto": "Multi-team"
+  },
+  "n11-equipes-2": {
+    "titulo": "The badges",
+    "enunciado": "<p><code>crachas.yaml</code> gives <b>ana</b> the <code>dev</code> role in <code>time-a</code>. Do the same for <b>bruno</b> in <code>time-b</code>.</p>",
+    "dica": "A Role dev and a RoleBinding dev-bruno in the time-b namespace.",
+    "vidaReal": "The user ana has the floor A badge; bruno, the floor B one. Neither opens the other’s door.",
+    "limite": "The dev badge lets you delete everything on the floor: for someone who only looks, a read-only badge.",
+    "testes": [
+      {
+        "descricao": "each one on their own floor"
+      }
+    ],
+    "projeto": "Multi-team"
+  },
+  "n11-equipes-3": {
+    "titulo": "The quotas",
+    "enunciado": "<p><code>cotas.yaml</code> limits <code>time-a</code> to 5 pods. Do the same for <code>time-b</code>.</p>",
+    "dica": "Another ResourceQuota cota, in the time-b namespace, with hard.pods: \"5\".",
+    "vidaReal": "Each team can have up to 5 apartments in the condo.",
+    "limite": "The quota counts the pods that exist: a rollout with maxSurge needs room for the extra pod.",
+    "testes": [
+      {
+        "descricao": "both quotas"
+      }
+    ],
+    "projeto": "Multi-team"
+  },
+  "n11-equipes-4": {
+    "titulo": "Each one on their own floor",
+    "enunciado": "<p><code>catracas.yaml</code> closes <code>time-a</code> to outsiders (only pods from its own\n                    namespace get through). Do the same for <code>time-b</code>. <code>clientes.yaml</code> puts a client on each floor for\n                    the tests.</p>",
+    "dica": "The same so-o-andar NetworkPolicy in the time-b namespace.",
+    "vidaReal": "Each floor’s turnstiles only let in people from that same floor.",
+    "limite": "Whoever has the floor’s badge (RBAC) can change its turnstiles: turnstiles are network, badges are API.",
+    "testes": [
+      {
+        "descricao": "each one on their own floor"
+      }
+    ],
+    "projeto": "Multi-team"
+  },
+  "n11-equipes-5": {
+    "titulo": "The shared API",
+    "enunciado": "<p>Let the <code>time-a</code> pods call the <code>time-b</code> API (a <code>namespaceSelector</code> on team B’s turnstile). The other way around stays closed.</p>",
+    "dica": "In time-b’s so-o-andar: one more item in from, with namespaceSelector { kubernetes.io/metadata.name: time-a }.",
+    "vidaReal": "Team B opens its API’s door to team A (and only to them).",
+    "limite": "Opening to the whole floor opens to any pod team A creates there: tighten it with a podSelector if you need to.",
+    "testes": [
+      {
+        "descricao": "A calls B; B doesn’t call A"
+      }
+    ],
+    "projeto": "Multi-team"
+  },
+  "n11-cofre-1": {
+    "titulo": "The safe without the master key",
+    "enunciado": "<p>Make <code>cofre</code> (the safe) run as user <b>1000</b> and refuse root (<code>runAsNonRoot</code>), in the pod’s securityContext.</p>",
+    "dica": "spec.template.spec.securityContext: { runAsNonRoot: true, runAsUser: 1000 }",
+    "vidaReal": "The safe’s program runs with an ordinary resident’s key, never with the master key.",
+    "limite": "Running without root limits the damage, but it doesn’t replace updating the image with the security fixes.",
+    "testes": [
+      {
+        "descricao": "the safe runs as 1000"
+      }
+    ],
+    "projeto": "Hardening"
+  },
+  "n11-cofre-2": {
+    "titulo": "No superpowers",
+    "enunciado": "<p>On the container: <code>allowPrivilegeEscalation: false</code> and <code>capabilities.drop: [\"ALL\"]</code>. On the pod: <code>seccompProfile.type: RuntimeDefault</code>.</p>",
+    "dica": "Look back at the safe’s fire-code project (level 8): these are exactly the restricted fields.",
+    "vidaReal": "Besides not having the master key, the resident can’t borrow one (privilege escalation), and gives up the special tools.",
+    "limite": "The RuntimeDefault seccomp profile blocks rare system calls: an unusual program may need a profile of its own.",
+    "testes": [
+      {
+        "descricao": "no superpowers"
+      }
+    ],
+    "projeto": "Hardening"
+  },
+  "n11-cofre-3": {
+    "titulo": "Sealed walls",
+    "enunciado": "<p>A read-only container disk (<code>readOnlyRootFilesystem</code>) and an <code>emptyDir</code> at <code>/tmp</code>.</p>",
+    "dica": "readOnlyRootFilesystem: true in the container’s securityContext; volumes: [{ name: tmp, emptyDir: {} }] and the volumeMount at /tmp.",
+    "vidaReal": "The safe’s walls stay sealed; the program only writes on the workbench (/tmp).",
+    "limite": "/tmp is an emptyDir: whatever is there disappears when the pod goes away.",
+    "testes": [
+      {
+        "descricao": "only the workbench accepts writes",
+        "msgs": {
+          "0": "writing to / is refused"
+        }
+      }
+    ],
+    "projeto": "Hardening"
+  },
+  "n11-cofre-4": {
+    "titulo": "The block’s fire code",
+    "enunciado": "<p><code>bloco.yaml</code> creates the <code>cofre</code> namespace with <code>enforce=restricted</code>. Move the Deployment into that namespace.</p>",
+    "dica": "metadata.namespace: cofre on the Deployment.",
+    "vidaReal": "The safe moves into the block with the fire marshals’ strictest code: since it’s already up to code, it gets in without trouble.",
+    "limite": "The code only checks new pods: an old pod, created before the label, keeps running.",
+    "testes": [
+      {
+        "descricao": "the safe passed the fire marshals’ inspection"
+      }
+    ],
+    "projeto": "Hardening"
+  },
+  "n11-cofre-5": {
+    "titulo": "The minimal badge",
+    "enunciado": "<p><code>isola.yaml</code> creates the <code>cofre</code> ServiceAccount (no token) and a NetworkPolicy that blocks\n                    ingress and egress. Make the Deployment use that ServiceAccount, without mounting the token\n                    (<code>automountServiceAccountToken: false</code>).</p>",
+    "dica": "In the pod spec: serviceAccountName: cofre and automountServiceAccountToken: false.",
+    "vidaReal": "The safe doesn’t need to talk to the management office: it goes without a machine badge, and the turnstiles close its way in and out.",
+    "limite": "With no way out at all, not even DNS works: if the program needs something from outside, allow just that.",
+    "testes": [
+      {
+        "descricao": "the safe, isolated"
+      }
+    ],
+    "projeto": "Hardening"
+  },
+  "n11-ambientes-1": {
+    "titulo": "The dev store with Helm",
+    "enunciado": "<p><code>dev.yaml</code> has the dev values. <b>From the terminal</b>, install the <code>loja-dev</code> release of <code>kube-learn/loja</code> with them, in the <code>dev</code> namespace (which doesn’t exist yet).</p>",
+    "dica": "helm install loja-dev kube-learn/loja -f dev.yaml -n dev --create-namespace",
+    "vidaReal": "The builder’s same standard design, with each city’s finishes in a file.",
+    "limite": "Each environment’s values.yaml is code: keep it in git, along with everything else.",
+    "testes": [
+      {
+        "descricao": "the dev store"
+      }
+    ],
+    "projeto": "Helm and Kustomize, dev and prod"
+  },
+  "n11-ambientes-2": {
+    "titulo": "The prod store with Helm",
+    "enunciado": "<p>Finish <code>prod.yaml</code>: 3 replicas, tag <code>\"1.1\"</code> and the Ingress turned on with the host <code>loja.prod</code>. Install the <code>loja-prod</code> release in the <code>prod</code> namespace.</p>",
+    "dica": "replicaCount, image.tag and ingress: { enabled: true, host: loja.prod }. helm install loja-prod kube-learn/loja -f prod.yaml -n prod --create-namespace",
+    "vidaReal": "The big branch: more clerks, the new version and a desk out on the street.",
+    "limite": "Two values files drift apart over time: whatever doesn’t need to differ, leave it at the chart’s defaults.",
+    "testes": [
+      {
+        "descricao": "the prod store"
+      }
+    ],
+    "projeto": "Helm and Kustomize, dev and prod"
+  },
+  "n11-ambientes-3": {
+    "titulo": "The same store, with Kustomize",
+    "enunciado": "<p>The <code>base/</code> folder has the store’s Deployment and Service, but <code>base/kustomization.yaml</code> doesn’t list anything yet. List both under <code>resources</code>. The <code>overlays/dev</code> overlay already uses the base.</p>",
+    "dica": "resources: [deployment.yaml, service.yaml]",
+    "vidaReal": "Another team prefers the common blueprint with adjustment sheets: the base is plain YAML.",
+    "limite": "Helm and Kustomize together on the same object fight each other: pick one per application.",
+    "testes": [
+      {
+        "descricao": "the dev overlay builds the base"
+      }
+    ],
+    "projeto": "Helm and Kustomize, dev and prod"
+  },
+  "n11-ambientes-4": {
+    "titulo": "The prod overlay",
+    "enunciado": "<p>The <code>overlays/prod</code> overlay only puts together the base and the <code>prod-k</code> namespace. Finish its <code>kustomization.yaml</code>: everything in the <code>prod-k</code> namespace, 3 replicas and the image at tag <code>1.1</code>. Use the dev one as a model.</p>",
+    "dica": "resources: [../../base, namespace.yaml], namespace: prod-k, replicas: [{ name: loja, count: 3 }], images: [{ name: kubelearn/loja, newTag: \"1.1\" }]",
+    "vidaReal": "The big branch’s adjustment sheet: its neighborhood, more clerks and the new version.",
+    "limite": "Overlays only see the base: an adjustment everyone wants goes in the base, not copied into every sheet.",
+    "testes": [
+      {
+        "descricao": "prod with 3 replicas of 1.1"
+      }
+    ],
+    "projeto": "Helm and Kustomize, dev and prod"
+  },
+  "n11-ambientes-5": {
+    "titulo": "Each city’s color",
+    "enunciado": "<p>Make the base read the <code>loja-config</code> ConfigMap (an <code>envFrom</code> on the Deployment) and generate that ConfigMap\n                    in each overlay: <code>COR=amarelo</code> in dev and <code>COR=azul</code> in prod.</p>",
+    "dica": "In the base: envFrom: [{ configMapRef: { name: loja-config } }]. In each overlay: configMapGenerator: [{ name: loja-config, literals: [COR=...] }].",
+    "vidaReal": "Each branch paints its storefront a different color: each one’s bulletin board is generated from its own sheet.",
+    "limite": "The hash changes the ConfigMap’s name on every change: anything using the fixed name somewhere else (a script) gets lost.",
+    "testes": [
+      {
+        "descricao": "dev is yellow"
+      },
+      {
+        "descricao": "prod is blue"
+      }
+    ],
+    "projeto": "Helm and Kustomize, dev and prod"
+  },
+  "n11-licao-proximos-passos": {
+    "titulo": "What now? A real cluster",
+    "enunciado": "\n      <p>Everything you did here works on a real cluster: the commands and the YAMLs are the same. Three ways to\n         get started, from the simplest to the most complete:</p>\n      <h2>Killercoda (in the browser)</h2>\n      <p>A real cluster, free, for an hour, with nothing to install: <a href=\"https://killercoda.com/playgrounds\" target=\"_blank\" rel=\"noopener\">killercoda.com/playgrounds</a>.\n         Good for redoing the missions from here with real containers.</p>\n      <h2>kind (on your computer)</h2>\n      <p>The same one that checked this site’s outputs: a cluster inside Docker.</p>\n      <pre><code># with Docker installed\nkind create cluster --name estudo\nkubectl get nodes\nkubectl apply -f loja.yaml\nkind delete cluster --name estudo</code></pre>\n      <p>For 3 nodes like here, a config file with one <code>control-plane</code> and two <code>worker</code>.</p>\n      <h2>minikube</h2>\n      <p>Another local cluster, with ready-made extras (<code>minikube addons enable ingress</code>,\n         <code>minikube addons enable metrics-server</code>, <code>minikube dashboard</code>).</p>\n      <h2>Where to go next</h2>\n      <ul>\n        <li>The official documentation: <a href=\"https://kubernetes.io/docs/home/\" target=\"_blank\" rel=\"noopener\">kubernetes.io/docs</a>.</li>\n        <li>If you want a certification, the <b>CKAD</b> covers almost everything on this path (the exam is hands-on, in a terminal, with\n            access to the documentation).</li>\n        <li>Build your own project: take an application of yours and write the manifests from scratch. That’s where you see what you’ve learned.</li>\n      </ul>\n      <p>Thanks for coming aboard. The ship is fully loaded. 🚢</p>",
+    "vidaReal": "You trained in the model condo. Now it’s time to visit a real construction site: the same kubectl, the same YAMLs, only with real containers running.",
+    "limite": "The simulator mimicked kubectl’s output against a real kind, but it’s a simulator: on a real cluster, images take time, networks fail in new ways and errors don’t come with an explanation underneath."
+  }
+}

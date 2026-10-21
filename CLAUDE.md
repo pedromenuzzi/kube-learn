@@ -7,6 +7,12 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
 
 - **Português do Brasil** nos nomes de arquivos, funções, variáveis e textos (como no DivergeTerraform). A saída do
   `kubectl` simulado fica em **inglês, igual à real**, com a explicação em português embaixo.
+- **Dois idiomas (PT | EN no topo):** o português é a fonte; o inglês fica em `src/i18n/en/` e só é baixado quando
+  alguém escolhe inglês (`src/i18n.js`). Texto de interface: `t('o texto em português', { valores })` (a chave é o
+  português; `{nome}` em vez de `${}`), com a tradução em `src/i18n/en/ui-*.js`. Conteúdo novo (missão, termo,
+  explicação do terminal): a tradução vai em `src/i18n/en/conteudo/<arquivo>.json` (o formato sai de
+  `node scripts/textos.mjs nivelN`) e em `src/i18n/en/explicacoes.js`. `tests/i18n.test.js` confere que nada ficou sem
+  tradução nem com a estrutura diferente. Nomes de recursos, comandos e YAML não se traduzem.
 - **JS puro com módulos ES** e Vite, sem framework de UI. Nada de dependência nova sem necessidade clara.
 - **O motor só cresce com o conteúdo:** um recurso, campo ou comando do simulador entra quando um exercício precisa
   dele.

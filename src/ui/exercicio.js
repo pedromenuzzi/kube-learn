@@ -23,8 +23,12 @@ import { icone } from './icones.js';
 
 const DIFICULDADE = { facil: 'Fácil', medio: 'Médio', dificil: 'Difícil' };
 const SUBCOMANDOS = ['annotate', 'api-resources', 'apply', 'cluster-info', 'config', 'create', 'delete', 'describe', 'exec', 'explain', 'expose', 'get', 'help', 'label', 'logs', 'port-forward', 'rollout', 'run', 'scale', 'set', 'version', 'wait', 'autoscale', 'top'];
+/** "1 de 3 testes passou", "0 de 1 teste passaram": as quatro combinações do resumo, cada uma com a sua tradução. */
+const resumoDosTestes = (ok, total) => (total > 1
+  ? (ok === 1 ? t('{ok} de {total} testes passou', { ok, total }) : t('{ok} de {total} testes passaram', { ok, total }))
+  : (ok === 1 ? t('{ok} de {total} teste passou', { ok, total }) : t('{ok} de {total} teste passaram', { ok, total })));
 const COM_TIPO = new Set(['get', 'describe', 'delete', 'label', 'annotate', 'scale', 'explain', 'edit']);
-const AJUDA = `Este terminal entende o kubectl (experimente: kubectl get pods) e alguns comandos simples:
+const ajuda = () => t(`Este terminal entende o kubectl (experimente: kubectl get pods) e alguns comandos simples:
   ls            lista os arquivos do editor
   cat ARQUIVO   mostra um arquivo
   curl URL      uma requisição do SEU computador (fora do cluster): port-forward, NodePort, LoadBalancer, Ingress
@@ -32,7 +36,7 @@ const AJUDA = `Este terminal entende o kubectl (experimente: kubectl get pods) e
   history       os comandos que você já digitou
   clear         limpa a tela (ou Ctrl+L)
 O relógio do cluster anda sozinho; o botão +30s adianta 30 segundos.
-`;
+`);
 
 /**
  * Os arquivos com que a missão abre: os que o aluno já salvou nela; numa etapa de projeto, os da etapa anterior (os
@@ -66,20 +70,20 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   raiz.innerHTML = `
     <div class="ex${temArquivos ? '' : ' ex-so-terminal'}">
       <header class="ex-topo">
-        <a class="voltar" href="#/${item.secao ?? 'trilha'}">${icone('voltar')}<span class="visualmente-oculto">Voltar ${item.secao ? 'ao ' : 'à '}</span>${item.secao ? 'Troubleshooting' : 'Trilha'}</a>
+        <a class="voltar" href="#/${item.secao ?? 'trilha'}">${icone('voltar')}<span class="visualmente-oculto">${item.secao ? t('Voltar ao') : t('Voltar à')} </span>${item.secao ? 'Troubleshooting' : t('Trilha')}</a>
         <h1>${escapar(item.titulo)}</h1>
-        ${item.projeto ? `<span class="chip chip-projeto">${icone('arvore')} ${escapar(item.projeto.titulo)} · etapa ${item.projeto.etapa} de ${item.projeto.total}</span>` : ''}
-        ${item.dificuldade ? `<span class="chip chip-${item.dificuldade}">${DIFICULDADE[item.dificuldade]}</span>${item.secao ? '' : `<span class="chip">${XP[item.dificuldade]} XP</span>`}` : ''}
-        ${ler(CHAVES.progresso, {})[item.id]?.status === 'resolvido' ? `<span class="chip chip-ok">${icone('certo')} Resolvida</span>` : ''}
+        ${item.projeto ? `<span class="chip chip-projeto">${icone('arvore')} ${escapar(item.projeto.titulo)} · ${t('etapa {etapa} de {total}', item.projeto)}</span>` : ''}
+        ${item.dificuldade ? `<span class="chip chip-${item.dificuldade}">${t(DIFICULDADE[item.dificuldade])}</span>${item.secao ? '' : `<span class="chip">${XP[item.dificuldade]} XP</span>`}` : ''}
+        ${ler(CHAVES.progresso, {})[item.id]?.status === 'resolvido' ? `<span class="chip chip-ok">${icone('certo')} ${t('Resolvida')}</span>` : ''}
       </header>
       <div class="ex-acoes">
-        ${temArquivos ? `<button type="button" class="botao" data-acao="aplicar" title="Ctrl+Enter">${icone('play')} Aplicar</button>` : `<button type="button" class="botao" data-acao="conferir" title="Ctrl+Enter">${icone('certo')} Conferir</button>`}
-        ${item.testes?.length ? `<button type="button" class="botao-forte" data-acao="entregar" title="Ctrl+Shift+Enter">${icone('entregar')} Entregar</button>` : ''}
+        ${temArquivos ? `<button type="button" class="botao" data-acao="aplicar" title="Ctrl+Enter">${icone('play')} ${t('Aplicar')}</button>` : `<button type="button" class="botao" data-acao="conferir" title="Ctrl+Enter">${icone('certo')} ${t('Conferir')}</button>`}
+        ${item.testes?.length ? `<button type="button" class="botao-forte" data-acao="entregar" title="Ctrl+Shift+Enter">${icone('entregar')} ${t('Entregar')}</button>` : ''}
         <span class="separador" aria-hidden="true"></span>
-        <button type="button" data-acao="avancar" title="Adianta o relógio do cluster em 30 segundos">${icone('avancar')} +30s</button>
-        <button type="button" data-acao="resetar">${icone('reiniciar')}<span class="rotulo">Resetar cluster</span></button>
-        <button type="button" data-acao="arrumacao" title="Volta as janelas para o lugar e o tamanho de começo">${icone('janelas')}<span class="rotulo">Arrumação padrão</span></button>
-        <button type="button" data-acao="feedback" title="Conte como foi esta missão">${icone('balao')}<span class="rotulo">Feedback</span></button>
+        <button type="button" data-acao="avancar" title="${t('Adianta o relógio do cluster em 30 segundos')}">${icone('avancar')} +30s</button>
+        <button type="button" data-acao="resetar">${icone('reiniciar')}<span class="rotulo">${t('Resetar cluster')}</span></button>
+        <button type="button" data-acao="arrumacao" title="${t('Volta as janelas para o lugar e o tamanho de começo')}">${icone('janelas')}<span class="rotulo">${t('Arrumação padrão')}</span></button>
+        <button type="button" data-acao="feedback" title="${t('Conte como foi esta missão')}">${icone('balao')}<span class="rotulo">Feedback</span></button>
         <span class="relogio" aria-hidden="true"></span>
       </div>
       <div class="ex-aviso" role="status" aria-live="polite"></div>
@@ -93,27 +97,27 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
     return d;
   };
   const corpos = {
-    missao: { titulo: 'Missão', corpo: corpo(htmlAbas('lado', [
-      { id: 'missao', rotulo: `${icone('alvo')} Missão` },
-      ...(item.vidaReal ? [{ id: 'vida', rotulo: `${icone('casa')} Na vida real` }] : []),
+    missao: { titulo: t('Missão'), corpo: corpo(htmlAbas('lado', [
+      { id: 'missao', rotulo: `${icone('alvo')} ${t('Missão')}` },
+      ...(item.vidaReal ? [{ id: 'vida', rotulo: `${icone('casa')} ${t('Na vida real')}` }] : []),
       ...(item.manual?.length ? [{ id: 'manual', rotulo: `${icone('livro')} Manual` }] : []),
-      ...(item.solucao || item.solucaoTerminal ? [{ id: 'solucao', rotulo: `${icone('lampada')} Solução` }] : []),
-      ...(item.testes?.length ? [{ id: 'testes', rotulo: `${icone('frasco')} Testes` }] : []),
-    ], 'Sobre a missão')) },
+      ...(item.solucao || item.solucaoTerminal ? [{ id: 'solucao', rotulo: `${icone('lampada')} ${t('Solução')}` }] : []),
+      ...(item.testes?.length ? [{ id: 'testes', rotulo: `${icone('frasco')} ${t('Testes')}` }] : []),
+    ], t('Sobre a missão'))) },
     ...(temArquivos ? {
-      arquivos: { titulo: 'Arquivos', corpo: corpo(`
+      arquivos: { titulo: t('Arquivos'), corpo: corpo(`
         <div class="ex-arquivos">
-          <ul class="abas arquivos" aria-label="Arquivos"></ul>
-          <button type="button" class="mini" data-acao="novo-arquivo" aria-label="Novo arquivo">${icone('mais')} arquivo</button>
+          <ul class="abas arquivos" aria-label="${t('Arquivos')}"></ul>
+          <button type="button" class="mini" data-acao="novo-arquivo" aria-label="${t('Novo arquivo')}">${icone('mais')} ${t('arquivo')}</button>
         </div>
         <div class="ex-editor"></div>`) },
     } : {}),
-    paineis: { titulo: 'Terminal e cluster', corpo: corpo(htmlAbas('baixo', [
+    paineis: { titulo: t('Terminal e cluster'), corpo: corpo(htmlAbas('baixo', [
       { id: 'terminal', rotulo: `${icone('terminal')} Terminal` },
-      { id: 'cluster', rotulo: `${icone('mapa')} Mapa` },
-      { id: 'recursos', rotulo: `${icone('arvore')} Recursos` },
-      { id: 'eventos', rotulo: `${icone('lista')} Eventos` },
-    ], 'Terminal e painéis do cluster')) },
+      { id: 'cluster', rotulo: `${icone('mapa')} ${t('Mapa')}` },
+      { id: 'recursos', rotulo: `${icone('arvore')} ${t('Recursos')}` },
+      { id: 'eventos', rotulo: `${icone('lista')} ${t('Eventos')}` },
+    ], t('Terminal e painéis do cluster'))) },
   };
   const janelas = montarJanelas(raiz.querySelector('.ex-janelas'), corpos);
 
@@ -125,36 +129,36 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
     clearTimeout(tempoDoAviso);
     aviso.className = `ex-aviso ${tipo}`;
     aviso.innerHTML = `${tipo === 'info' ? '' : icone(tipo === 'ok' ? 'certo' : 'fechar')}<div class="aviso-texto"><span>${escapar(texto)}</span>`
-      + (proximo ? `<a href="#/ex/${proximo.id}">Próxima: ${escapar(proximo.titulo)} ${icone('seguir')}</a>` : '')
-      + `</div><button type="button" class="aviso-fechar" data-acao="fechar-aviso" aria-label="Fechar o aviso">${icone('fechar')}</button>`;
+      + (proximo ? `<a href="#/ex/${proximo.id}">${t('Próxima: {titulo}', { titulo: escapar(proximo.titulo) })} ${icone('seguir')}</a>` : '')
+      + `</div><button type="button" class="aviso-fechar" data-acao="fechar-aviso" aria-label="${t('Fechar o aviso')}">${icone('fechar')}</button>`;
     if (!proximo) tempoDoAviso = setTimeout(() => aviso.replaceChildren(), tipo === 'info' ? 4000 : 8000);
   };
 
   // ---------- lado: missão, vida real, manual, solução, testes ----------
   $('#lado-missao').innerHTML = `
     <div class="enunciado">${item.enunciado}</div>
-    ${item.comoSaber ? `<h2>Como saber que deu certo</h2><p>${item.comoSaber}</p>` : ''}
-    ${pedeResposta ? `<form class="resposta-aluno"><p><label for="resposta-aluno">${escapar(item.rotuloResposta ?? 'Sua resposta')}</label><br>
-      <input id="resposta-aluno" name="resposta" autocomplete="off" spellcheck="false"> <button type="submit">Guardar resposta</button></p></form>` : ''}
-    ${item.dica ? `<details><summary>Dica</summary><p><code>${escapar(item.dica)}</code></p></details>` : ''}`;
+    ${item.comoSaber ? `<h2>${t('Como saber que deu certo')}</h2><p>${item.comoSaber}</p>` : ''}
+    ${pedeResposta ? `<form class="resposta-aluno"><p><label for="resposta-aluno">${escapar(item.rotuloResposta ?? t('Sua resposta'))}</label><br>
+      <input id="resposta-aluno" name="resposta" autocomplete="off" spellcheck="false"> <button type="submit">${t('Guardar resposta')}</button></p></form>` : ''}
+    ${item.dica ? `<details><summary>${t('Dica')}</summary><p><code>${escapar(item.dica)}</code></p></details>` : ''}`;
   $('.resposta-aluno')?.addEventListener('submit', (e) => {
     e.preventDefault();
     estado.resposta = e.target.resposta.value;
-    avisar('Resposta guardada. Agora clique em Conferir.');
+    avisar(t('Resposta guardada. Agora clique em Conferir.'));
   });
   $('#resposta-aluno')?.addEventListener('input', (e) => { estado.resposta = e.target.value; });
   if (item.vidaReal) {
-    $('#lado-vida').innerHTML = `<p class="vida">${escapar(item.vidaReal)}</p>${item.limite ? `<h2>Onde a comparação quebra</h2><p>${escapar(item.limite)}</p>` : ''}`;
+    $('#lado-vida').innerHTML = `<p class="vida">${escapar(item.vidaReal)}</p>${item.limite ? `<h2>${t('Onde a comparação quebra')}</h2><p>${escapar(item.limite)}</p>` : ''}`;
   }
   if (item.manual?.length) {
     $('#lado-manual').innerHTML = item.manual.map((m) => {
       const [tipo, ...cam] = m.split('.');
       return `<pre class="manual">${escapar(explicarCampo(acharRecurso(tipo), cam).saida)}</pre>`;
-    }).join('') + '<p class="nota">No terminal, <code>kubectl explain</code> mostra o mesmo para qualquer campo.</p>';
+    }).join('') + `<p class="nota">${t('No terminal, <code>kubectl explain</code> mostra o mesmo para qualquer campo.')}</p>`;
   }
   if (item.solucao || item.solucaoTerminal) {
-    $('#lado-solucao').innerHTML = `<p>Tente antes! Se travar, a solução está aqui.</p>
-      <button type="button" data-acao="ver-solucao">Ver a solução</button><div class="solucao" hidden></div>`;
+    $('#lado-solucao').innerHTML = `<p>${t('Tente antes! Se travar, a solução está aqui.')}</p>
+      <button type="button" data-acao="ver-solucao">${t('Ver a solução')}</button><div class="solucao" hidden></div>`;
   }
   const abasLado = ativarAbas(corpos.missao.corpo);
   const abasBaixo = ativarAbas(corpos.paineis.corpo, () => atualizarPaineis());
@@ -173,13 +177,13 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
     lista.innerHTML = Object.keys(estado.arquivos).map((nome) => `
       <li class="arquivo${nome === estado.atual ? ' atual' : ''}">
         <button type="button" class="aba-arquivo"${nome === estado.atual ? ' aria-current="true"' : ''} data-arquivo="${escapar(nome)}">${escapar(nome)}</button>
-        <button type="button" class="mini" data-apagar="${escapar(nome)}" aria-label="Apagar ${escapar(nome)}">${icone('fechar')}</button>
+        <button type="button" class="mini" data-apagar="${escapar(nome)}" aria-label="${t('Apagar {arquivo}', { arquivo: escapar(nome) })}">${icone('fechar')}</button>
       </li>`).join('');
   };
   if (temArquivos) {
     editor = criarEditor($('.ex-editor'), {
       texto: estado.arquivos[estado.atual] ?? '',
-      rotulo: `Editor: ${estado.atual ?? 'sem arquivo'}`,
+      rotulo: `Editor: ${estado.atual ?? t('sem arquivo')}`,
       aoMudar: (texto) => {
         if (!estado.atual) return;
         estado.arquivos[estado.atual] = texto;
@@ -194,16 +198,16 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
         estado.atual = abrir;
         editor.trocar(estado.arquivos[abrir], `Editor: ${abrir}`);
         desenharArquivos();
-      } else if (apagarNome && confirm(`Apagar ${apagarNome}?`)) {
+      } else if (apagarNome && confirm(t('Apagar {arquivo}?', { arquivo: apagarNome }))) {
         delete estado.arquivos[apagarNome];
         estado.atual = Object.keys(estado.arquivos)[0] ?? null;
-        editor.trocar(estado.atual ? estado.arquivos[estado.atual] : '', `Editor: ${estado.atual ?? 'sem arquivo'}`);
+        editor.trocar(estado.atual ? estado.arquivos[estado.atual] : '', `Editor: ${estado.atual ?? t('sem arquivo')}`);
         salvar();
         desenharArquivos();
       } else if (e.target.closest('[data-acao=novo-arquivo]')) {
-        const nome = prompt('Nome do arquivo (termina em .yaml):', 'novo.yaml')?.trim();
+        const nome = prompt(t('Nome do arquivo (termina em .yaml):'), 'novo.yaml')?.trim();
         if (!nome) return;
-        if (!/^[\w.-]+\.ya?ml$/.test(nome)) return alert('Use só letras, números, ponto, hífen e termine em .yaml.');
+        if (!/^[\w.-]+\.ya?ml$/.test(nome)) return alert(t('Use só letras, números, ponto, hífen e termine em .yaml.'));
         estado.arquivos[nome] ??= '';
         estado.atual = nome;
         editor.trocar(estado.arquivos[nome], `Editor: ${nome}`);
@@ -218,7 +222,7 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   function executar(linha) {
     const [cmd, ...args] = palavras(linha);
     if (cmd === 'clear') return { limpar: true };
-    if (cmd === 'help') return { saida: AJUDA };
+    if (cmd === 'help') return { saida: ajuda() };
     if (cmd === 'history') return { saida: terminal.historico.map((l, i) => `  ${i + 1}  ${l}\n`).join('') };
     if (cmd === 'ls') return { saida: `${Object.keys(estado.arquivos).join('  ')}\n` };
     if (cmd === 'cat') {
@@ -228,7 +232,7 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
     }
     if (!['kubectl', 'k', 'curl', 'echo'].includes(cmd)) {
       const texto = `bash: ${cmd}: command not found\n`;
-      return { saida: texto, codigo: 127, partes: [{ fluxo: 'err', texto }], caixas: [{ titulo: 'Aqui o terminal só fala kubectl', texto: 'Use <code>kubectl ...</code>, ou <code>help</code> para ver os outros comandos.' }] };
+      return { saida: texto, codigo: 127, partes: [{ fluxo: 'err', texto }], caixas: [{ titulo: t('Aqui o terminal só fala kubectl'), texto: t('Use <code>kubectl ...</code>, ou <code>help</code> para ver os outros comandos.') }] };
     }
     const r = rodarLinha(estado.cluster, linha, estado.arquivos);
     if (r.arquivoGravado && editor) {
@@ -291,34 +295,34 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
     const ok = resultados.filter((r) => r.ok).length;
     const ocultosNaoRodados = !todos ? item.testes.filter((t) => t.oculto).length : 0;
     $('#lado-testes').innerHTML = `
-      <p class="resumo ${ok === total ? 'ok' : 'falha'}">${ok} de ${total} teste${total > 1 ? 's' : ''} ${ok === 1 ? 'passou' : 'passaram'}</p>
+      <p class="resumo ${ok === total ? 'ok' : 'falha'}">${resumoDosTestes(ok, total)}</p>
       <ol class="testes">${resultados.map((t) => `
         <li class="${t.ok ? 'ok' : 'falha'}">
           <p>${icone(t.ok ? 'certo' : 'fechar')} ${t.oculto ? `${icone('cadeado')} ` : ''}${escapar(t.descricao)}</p>
           <ul>${t.regras.filter((r) => !t.oculto || !r.ok).map((r) => `<li>${r.ok ? '✔' : '✘'} ${escapar(r.mensagem)}${!r.ok && !t.oculto && r.detalhe ? ` <span class="detalhe">(${escapar(r.detalhe)})</span>` : ''}</li>`).join('')}</ul>
         </li>`).join('')}</ol>
-      ${ocultosNaoRodados ? `<p class="nota">${icone('cadeado')} Mais ${ocultosNaoRodados} teste${ocultosNaoRodados > 1 ? 's' : ''} oculto${ocultosNaoRodados > 1 ? 's' : ''} roda${ocultosNaoRodados > 1 ? 'm' : ''} quando você clicar em Entregar.</p>` : ''}`;
+      ${ocultosNaoRodados ? `<p class="nota">${icone('cadeado')} ${ocultosNaoRodados > 1 ? t('Mais {n} testes ocultos rodam quando você clicar em Entregar.', { n: ocultosNaoRodados }) : t('Mais {n} teste oculto roda quando você clicar em Entregar.', { n: ocultosNaoRodados })}</p>` : ''}`;
     return { ok, total };
   }
 
   let ultimoTeste = null; // para o feedback
   function testar(todos) {
-    avisar(todos ? 'Rodando todos os testes, inclusive os ocultos…' : 'Rodando os testes visíveis…');
+    avisar(todos ? t('Rodando todos os testes, inclusive os ocultos…') : t('Rodando os testes visíveis…'));
     registrarDia(hojeLocal());
     setTimeout(() => {
       const resultados = rodarTestes(item, {
         arquivos: estado.arquivos, historico: terminal.historico, resposta: estado.resposta, clusterDoAluno: estado.cluster,
       }, { todos });
       const { ok, total } = mostrarTestes(resultados, todos);
-      ultimoTeste = `${ok} de ${total} passaram (${todos ? 'entregue' : 'só os visíveis'})`;
+      ultimoTeste = todos ? t('{ok} de {total} passaram (entregue)', { ok, total }) : t('{ok} de {total} passaram (só os visíveis)', { ok, total });
       if (todos) {
         const resolvido = ok === total;
         registrarComFesta(item, resolvido);
-        if (resolvido && !$('.ex-topo .chip-ok')) $('.ex-topo').insertAdjacentHTML('beforeend', `<span class="chip chip-ok">${icone('certo')} Resolvida</span>`);
-        if (resolvido) avisar(item.secao ? 'Incidente resolvido! O morador agradece.' : `Missão cumprida! +${XP[item.dificuldade] ?? 0} XP. Mais um contêiner embarcado no seu navio.`, { tipo: 'ok', proximo: proximoDe(item) });
-        else avisar(`${ok} de ${total} testes passaram. Veja o que faltou na aba Testes.`, { tipo: 'falha' });
+        if (resolvido && !$('.ex-topo .chip-ok')) $('.ex-topo').insertAdjacentHTML('beforeend', `<span class="chip chip-ok">${icone('certo')} ${t('Resolvida')}</span>`);
+        if (resolvido) avisar(item.secao ? t('Incidente resolvido! O morador agradece.') : t('Missão cumprida! +{xp} XP. Mais um contêiner embarcado no seu navio.', { xp: XP[item.dificuldade] ?? 0 }), { tipo: 'ok', proximo: proximoDe(item) });
+        else avisar(t('{ok} de {total} testes passaram. Veja o que faltou na aba Testes.', { ok, total }), { tipo: 'falha' });
       } else {
-        avisar(`Testes visíveis: ${ok} de ${total} passaram${ok === total ? '. Agora é só entregar.' : '. Veja a aba Testes.'}`, { tipo: ok === total ? 'ok' : 'falha' });
+        avisar(ok === total ? t('Testes visíveis: {ok} de {total} passaram. Agora é só entregar.', { ok, total }) : t('Testes visíveis: {ok} de {total} passaram. Veja a aba Testes.', { ok, total }), { tipo: ok === total ? 'ok' : 'falha' });
       }
       abasLado.selecionar('testes');
     }, 30);
@@ -339,16 +343,16 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
       estado.cluster.avancar('30s');
       terminal.tique();
       atualizarPaineis();
-      avisar('O relógio do cluster andou 30 segundos.');
+      avisar(t('O relógio do cluster andou 30 segundos.'));
     },
     'fechar-aviso': () => aviso.replaceChildren(),
     feedback: () => abrirFeedback(item, () => ({ testes: ultimoTeste, comandos: terminal.historico.slice(-10) })),
     resetar() {
-      if (!confirm('Voltar o cluster para o começo da missão? (Seus arquivos ficam.)')) return;
+      if (!confirm(t('Voltar o cluster para o começo da missão? (Seus arquivos ficam.)'))) return;
       estado.cluster = montarCluster(item.cluster, `${item.id}:aluno`);
       caixasVistas.clear();
       terminal.limpar();
-      terminal.escrever('Cluster recriado do zero.', 'term-info');
+      terminal.escrever(t('Cluster recriado do zero.'), 'term-info');
       atualizarPaineis();
     },
     'ver-solucao'() {
@@ -358,11 +362,11 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
       const arquivos = Object.entries(item.solucao ?? {});
       const mudam = !item.solucaoTerminal || arquivos.some(([n, t]) => item.inicial?.[n] !== t);
       div.innerHTML = (item.solucaoTerminal ? `<pre>${escapar(item.solucaoTerminal.join('\n'))}</pre>` : '')
-        + (arquivos.length && mudam ? arquivos.map(([n, t]) => `<h3>${escapar(n)}</h3><pre>${escapar(t)}</pre>`).join('') + '<button type="button" data-acao="usar-solucao">Copiar para o editor</button>' : '');
+        + (arquivos.length && mudam ? arquivos.map(([n, t]) => `<h3>${escapar(n)}</h3><pre>${escapar(t)}</pre>`).join('') + `<button type="button" data-acao="usar-solucao">${t('Copiar para o editor')}</button>` : '');
     },
     arrumacao: () => janelas.restaurar(),
     'usar-solucao'() {
-      if (!confirm('Trocar seus arquivos pela solução?')) return;
+      if (!confirm(t('Trocar seus arquivos pela solução?'))) return;
       estado.arquivos = { ...item.solucao };
       estado.atual = Object.keys(estado.arquivos)[0];
       editor.trocar(estado.arquivos[estado.atual], `Editor: ${estado.atual}`);

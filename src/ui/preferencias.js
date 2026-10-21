@@ -2,6 +2,7 @@
 // reduzir movimento e os efeitos sonoros. Aplicadas como atributos no <html> (o CSS faz o resto) e guardadas no navegador.
 import { ler, gravar, CHAVES } from '../armazenamento.js';
 import { tocar } from './sons.js';
+import { t } from '../i18n.js';
 
 const PADRAO = { tema: 'auto', texto: '100', movimento: 'normal', som: 'desligado' };
 
@@ -22,16 +23,16 @@ export function montarPreferencias(botao, aoMudar) {
   dialogo.setAttribute('aria-labelledby', 'pref-titulo');
   dialogo.innerHTML = `
     <form method="dialog">
-      <h2 id="pref-titulo">Acessibilidade</h2>
-      <fieldset><legend>Tema</legend>
-        ${[['auto', 'Automático (do sistema)'], ['claro', 'Claro'], ['escuro', 'Escuro'], ['contraste', 'Alto contraste']]
+      <h2 id="pref-titulo">${t('Acessibilidade')}</h2>
+      <fieldset><legend>${t('Tema')}</legend>
+        ${[['auto', t('Automático (do sistema)')], ['claro', t('Claro')], ['escuro', t('Escuro')], ['contraste', t('Alto contraste')]]
     .map(([v, r]) => `<label><input type="radio" name="tema" value="${v}"> ${r}</label>`).join('')}
       </fieldset>
-      <p><label for="pref-texto">Tamanho do texto</label>
+      <p><label for="pref-texto">${t('Tamanho do texto')}</label>
         <select id="pref-texto" name="texto">${['100', '112', '125', '150'].map((v) => `<option value="${v}">${v}%</option>`).join('')}</select></p>
-      <p><label><input type="checkbox" name="movimento" value="reduzido"> Reduzir movimento</label></p>
-      <p><label><input type="checkbox" name="som" value="ligado"> Efeitos sonoros nas comemorações</label></p>
-      <p><button type="submit" class="botao">Fechar</button></p>
+      <p><label><input type="checkbox" name="movimento" value="reduzido"> ${t('Reduzir movimento')}</label></p>
+      <p><label><input type="checkbox" name="som" value="ligado"> ${t('Efeitos sonoros nas comemorações')}</label></p>
+      <p><button type="submit" class="botao">${t('Fechar')}</button></p>
     </form>`;
   document.body.append(dialogo);
   const form = dialogo.querySelector('form');

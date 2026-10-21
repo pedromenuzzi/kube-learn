@@ -1,1 +1,55 @@
-{}
+{
+  "ts-loja-fora-do-ar": {
+    "titulo": "The store is down",
+    "enunciado": "<blockquote class=\"relato\"><p>We updated the store last night and the site hasn’t opened since. The intern already restarted everything twice, and nothing.</p><footer>Jorge, who owns the ground-floor shop</footer></blockquote><p>Make <code>curl http://loja.local</code> (from your computer, through the Ingress entrance) respond. There’s more than one\n             defect: each fix reveals the next.</p>",
+    "dica": "kubectl get pods; kubectl describe pod NAME (Events); kubectl get endpoints loja; kubectl describe svc loja. One defect at a time.",
+    "vidaReal": "The store won’t open, and the problem could be in the merchandise (the image), in the clerk (the probe) or in the phone extension (the Service): the building manager checks them one by one, from the stockroom to the front desk.",
+    "limite": "At a real store, you can see the counter is closed. In the cluster, each layer fails silently: only the events, the endpoints and describe tell you what’s going on.",
+    "comoSaber": "<code>curl http://loja.local</code> returns the store’s JSON, with all 3 replicas ready.",
+    "relato": "We updated the store last night and the site hasn’t opened since. The intern already restarted everything twice, and nothing.",
+    "morador": "Jorge, who owns the ground-floor shop",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "ts-ninguem-se-acha": {
+    "titulo": "Nobody can find anybody",
+    "enunciado": "<blockquote class=\"relato\"><p>Since last night’s cleanup, nothing can find anything: the vitrine (storefront) can’t find the estoque (stockroom), and even the caretaker’s test pod says\n             “bad address.” The cleanup crew swears they only turned off what wasn’t being used.</p><footer>Célia, from the stockroom</footer></blockquote><p>Get the pods finding Services by name again: <code>cliente</code> (in <code>default</code>) and\n             <code>vitrine</code> (in the <code>loja</code> namespace) need to call <code>http://estoque.estoque</code>. The store’s turnstile\n             must keep blocking everything else.</p>",
+    "dica": "When everything fails at once, look at what everyone uses: kubectl get deploy -n kube-system. Then, if vitrine still can’t find it: kubectl get networkpolicy -n loja.",
+    "vidaReal": "The condo’s switchboard operator (CoreDNS) was let go in the cleanup: nobody can get anybody’s number. And in the store’s block, the turnstile only lets people through to the stockroom, and forgot to let them call the switchboard operator.",
+    "limite": "Without the switchboard operator, anyone who knows the IP by heart can still call: DNS isn’t the network, it’s just the phone book.",
+    "comoSaber": "From both pods, <code>wget -qO- http://estoque.estoque</code> responds; from vitrine, <code>http://admin.default</code> stays blocked.",
+    "relato": "Since last night’s cleanup, nothing can find anything: the vitrine (storefront) can’t find the estoque (stockroom), and even the caretaker’s test pod says\n             “bad address.” The cleanup crew swears they only turned off what wasn’t being used.",
+    "morador": "Célia, from the stockroom",
+    "testes": [
+      {
+        "descricao": "the incident is resolved",
+        "msgs": {
+          "0": "CoreDNS is back",
+          "3": "the store’s turnstile still blocks everything else"
+        }
+      }
+    ]
+  },
+  "ts-fila-parada": {
+    "titulo": "The queue that won’t move",
+    "enunciado": "<blockquote class=\"relato\"><p>The monthly report hasn’t run since yesterday’s maintenance. The maintenance crew said they were done and left.\n             Oh, and just to be safe, I increased the memory the report asks for.</p><footer>Lima, from finance</footer></blockquote><p>Get both replicas of <code>relatorio</code> running. The node maintenance is over: put the nodes back in service\n             (no working around it with tolerations).</p>",
+    "dica": "kubectl describe pod NAME (the scheduler’s message changes with each fix); kubectl get nodes; kubectl describe node node-2 (Taints). To remove a taint: kubectl taint nodes NODE key=value:Effect- (with the hyphen at the end).",
+    "vidaReal": "The reports are waiting at the front gate: one building still has tape across its door, the other has the “under renovation” sign, and the request says each report needs a whole floor (300Gi) instead of a room (300Mi).",
+    "limite": "The doorman explains everything at once. The scheduler also lists the reason for each node, but a node blocked by the tape doesn’t even get measured: the next reason only shows up after the first fix.",
+    "comoSaber": "Both replicas of <code>relatorio</code> running, and no node closed off or with the maintenance sign.",
+    "relato": "The monthly report hasn’t run since yesterday’s maintenance. The maintenance crew said they were done and left.\n             Oh, and just to be safe, I increased the memory the report asks for.",
+    "morador": "Lima, from finance",
+    "testes": [
+      {
+        "descricao": "the incident is resolved",
+        "msgs": {
+          "1": "node-1 is back in service",
+          "2": "node-2 no longer has the maintenance sign"
+        }
+      }
+    ]
+  }
+}

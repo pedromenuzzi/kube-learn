@@ -1,1 +1,253 @@
-{}
+{
+  "n4-licao-config": {
+    "titulo": "The bulletin board and the envelope: ConfigMap and Secret",
+    "enunciado": "\n      <p>The same image runs in different places (testing, production, the store in another city). Whatever changes from\n         one place to another lives <b>outside the image</b>, in two objects:</p>\n      <ul>\n        <li><b>ConfigMap</b>: settings as text (<code>COR: azul</code>, a whole config file);</li>\n        <li><b>Secret</b>: what must not leak (passwords, tokens). It stores the values in <b>base64</b>.</li>\n      </ul>\n      <h2>Three ways for the pod to use them</h2>\n      <pre><code>env:                         # 1. one key into one variable\n- name: COR\n  valueFrom:\n    configMapKeyRef:           # (in a Secret: secretKeyRef)\n      name: loja-config\n      key: COR\nenvFrom:                     # 2. all the keys at once\n- configMapRef:\n    name: loja-config\nvolumes:                     # 3. each key becomes a file\n- name: config\n  configMap:\n    name: loja-config</code></pre>\n      <p>In the third way, the container mounts the volume with <code>volumeMounts</code> (<code>name</code> and <code>mountPath</code>)\n         and finds one file per key in that folder. ConfigMap and Secret volumes are always <b>read-only</b>.</p>\n      <h2>When the notice changes</h2>\n      <p>Changed the ConfigMap? The mounted <b>file</b> follows along on its own (within a minute). The <b>environment variable</b>\n         doesn’t: it’s read when the container starts. For the pods to see the new value: <code>kubectl rollout restart deployment/NAME</code>.</p>\n      <h2>base64 is not encryption</h2>\n      <p><code>kubectl get secret wifi -o jsonpath='{.data.senha}' | base64 -d</code> shows the password to anyone who can read the\n         Secret. What really protects it is who is allowed to read it (RBAC, in level 8) and etcd encryption.</p>",
+    "vidaReal": "The ConfigMap is the building’s bulletin board (pool hours, the color of the facade); the Secret is the sealed envelope with the gate code.",
+    "limite": "The Kubernetes envelope isn’t a safe: the content is only base64, which anyone with access to the Secret can decode."
+  },
+  "n4-licao-volumes": {
+    "titulo": "The work desk and the storage unit in the garage: volumes",
+    "enunciado": "\n      <p>A container’s filesystem is <b>disposable</b>: restart it, and whatever was written is gone. To keep data, you mount\n         a <b>volume</b>:</p>\n      <ul>\n        <li><b>emptyDir</b>: an empty folder born with the pod. The pod’s containers <b>share</b> the folder, and it\n            survives a container restart, but <b>goes away with the pod</b>.</li>\n        <li><b>PersistentVolumeClaim (PVC)</b>: the request for a disk (“I want 1Gi, ReadWriteOnce”). The real disk is the\n            <b>PersistentVolume (PV)</b>, and it exists <b>outside</b> the pods: the pod goes away, the PV stays.</li>\n      </ul>\n      <pre><code>apiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: dados\nspec:\n  accessModes: [\"ReadWriteOnce\"]   # one node at a time\n  resources:\n    requests:\n      storage: 1Gi</code></pre>\n      <p>And in the pod: <code>volumes: [{ name: dados, persistentVolumeClaim: { claimName: dados } }]</code> plus the\n         <code>volumeMounts</code> in the container.</p>\n      <h2>Who creates the disk: the StorageClass</h2>\n      <p>Nobody has to create a PV by hand: the <b>StorageClass</b> knows how to create disks. In this cluster (as in kind), the\n         default class is <code>standard</code>, from the <code>rancher.io/local-path</code> provisioner, with\n         <code>WaitForFirstConsumer</code>: the PVC stays <code>Pending</code> until a pod uses it, and then the disk is created\n         on that pod’s node. See it with <code>kubectl get sc</code>, <code>kubectl get pvc</code> and <code>kubectl get pv</code>.</p>\n      <p>PVC stuck in <code>Pending</code> with a pod using it? <code>kubectl describe pvc NAME</code> tells you why (for example,\n         a StorageClass that doesn’t exist).</p>",
+    "vidaReal": "The emptyDir is the apartment’s work desk: the residents share it, but it leaves with the move. The PVC is the request for a storage unit in the garage: the unit is still there when the resident moves out.",
+    "limite": "The local-path storage unit (kind’s disk) lives on a single node: a pod that needs it always goes to that node."
+  },
+  "n4-licao-statefulset": {
+    "titulo": "Numbered apartments: StatefulSet",
+    "enunciado": "\n      <p>Databases and queues need <b>identity</b>: each replica keeps its own data, and the others need to find it by\n         name. The <b>StatefulSet</b> gives you that:</p>\n      <ul>\n        <li>fixed, numbered names: <code>db-0</code>, <code>db-1</code>, <code>db-2</code> (deleted <code>db-1</code>?\n            another <code>db-1</code> comes back);</li>\n        <li>creation <b>in order</b>: <code>db-1</code> is only created once <code>db-0</code> is ready; when scaling down,\n            the highest number leaves first;</li>\n        <li>one disk per pod, through <code>volumeClaimTemplates</code>: <code>dados-db-0</code>, <code>dados-db-1</code>...\n            The PVCs <b>stay</b> when the StatefulSet scales down (the data waits for the pods to come back);</li>\n        <li>one DNS name per pod, with a <b>headless</b> Service (<code>clusterIP: None</code>) named in\n            <code>serviceName</code>: <code>db-0.db.default.svc.cluster.local</code>.</li>\n      </ul>\n      <pre><code>spec:\n  serviceName: db\n  replicas: 3\n  ...\n  volumeClaimTemplates:\n  - metadata:\n      name: dados\n    spec:\n      accessModes: [\"ReadWriteOnce\"]\n      resources:\n        requests:\n          storage: 1Gi</code></pre>\n      <p>Hint: busybox’s <code>nslookup</code> doesn’t complete names that contain a dot. Use the full name:\n         <code>nslookup db-0.db.default.svc.cluster.local</code>.</p>",
+    "vidaReal": "In a Deployment, the residents are interchangeable (any of them can answer). In a StatefulSet, each apartment has a fixed number (101, 102...) and its own storage unit, even when the resident is replaced.",
+    "limite": "A fixed number isn’t a fixed address: pod db-0 may come back with a different IP. What stays is the DNS name and the disk."
+  },
+  "n4-cor-da-vitrine": {
+    "titulo": "The color of the shop window",
+    "enunciado": "\n      <p>The store shows the color of its shop window in the JSON response (the <code>cor</code> field), read from the\n         <code>COR</code> variable. Create the ConfigMap <code>loja-config</code> with <code>COR: verde</code> and make the\n         store’s Deployment read the <code>COR</code> variable from it.</p>",
+    "dica": "env: - name: COR, valueFrom: configMapKeyRef: name and key.",
+    "vidaReal": "Pinning “the facade is green” on the bulletin board: whoever paints it reads the board, instead of each painter deciding.",
+    "limite": "The store only reads the board when it opens: change the notice afterwards and it keeps the old color until it reopens (the rollout restart).",
+    "comoSaber": "<code>kubectl port-forward svc/loja 8080:80</code> and then <code>curl localhost:8080</code>: the response has <code>\"cor\":\"verde\"</code>.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "the shop window turns green",
+        "msgs": {
+          "1": "http://loja responds with \"cor\":\"verde\""
+        }
+      }
+    ]
+  },
+  "n4-envfrom": {
+    "titulo": "The whole board at once",
+    "enunciado": "\n      <p><code>loja-config</code> already has two keys (<code>COR</code> and <code>PROMOCAO</code>). Instead of one variable\n         per key, bring <b>all</b> the keys into the store’s container with <code>envFrom</code>.</p>",
+    "dica": "envFrom: - configMapRef: name: loja-config (at the same level as image, inside the container).",
+    "vidaReal": "Instead of copying the notices one by one, the store takes a photo of the whole board.",
+    "limite": "A new key on the board only gets in when the pod restarts; and a key whose name isn’t valid for a variable (like “cor-da-porta”) is skipped.",
+    "testes": [
+      {
+        "descricao": "both keys become variables"
+      }
+    ]
+  },
+  "n4-avisos-pelo-terminal": {
+    "titulo": "Notices from the terminal",
+    "enunciado": "\n      <p>Create, <b>from the terminal only</b>, the ConfigMap <code>avisos</code> with two keys: <code>COR=azul</code> and\n         <code>HORARIO=8h-18h</code>.</p>",
+    "dica": "kubectl create configmap NAME --from-literal=KEY=value (one --from-literal per key).",
+    "vidaReal": "Dictating the notices to the management office instead of writing them down on paper.",
+    "limite": "Done from the terminal, the notice isn’t saved in any file: to recreate the cluster, you’d have to remember the command.",
+    "comoSaber": "<code>kubectl describe configmap avisos</code> shows both keys.",
+    "testes": [
+      {
+        "descricao": "the bulletin board is up",
+        "msgs": {
+          "0": "you used kubectl create configmap"
+        }
+      }
+    ]
+  },
+  "n4-senha-do-banco": {
+    "titulo": "The database without a password",
+    "enunciado": "\n      <p>The postgres is in <code>CrashLoopBackOff</code>. Read the logs (<code>kubectl logs deploy/banco</code>): it requires\n         the <code>POSTGRES_PASSWORD</code> variable. Create the Secret <code>banco-senha</code> with the key <code>senha</code> and\n         pass the value to the variable with <code>secretKeyRef</code> (no writing the password in the Deployment).</p>",
+    "dica": "In the Secret, stringData accepts plain text (the server converts it to base64). In the container: env, valueFrom, secretKeyRef.",
+    "vidaReal": "The new building manager can’t open the safe without the combination, and the combination comes in a sealed envelope, not painted on the door.",
+    "limite": "The envelope (Secret) only hides it from whoever isn’t allowed to read Secrets; whoever is allowed reads it in plain text.",
+    "comoSaber": "<code>kubectl get pods</code>: the database ends up <code>1/1 Running</code>.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f .",
+        "msgs": {
+          "1": "the Secret banco-senha has the key senha"
+        }
+      },
+      {
+        "descricao": "the database starts"
+      },
+      {
+        "descricao": "the password comes from the Secret",
+        "msgs": {
+          "0": "POSTGRES_PASSWORD comes from a secretKeyRef"
+        }
+      }
+    ]
+  },
+  "n4-envelope-aberto": {
+    "titulo": "The open envelope",
+    "enunciado": "\n      <p>The Secret <code>wifi</code> holds the Wi-Fi password for the construction site. Find out the password from the terminal.</p>",
+    "dica": "kubectl get secret wifi -o jsonpath='{.data.senha}' shows the value in base64; finish with | base64 -d.",
+    "vidaReal": "The “sealed” envelope is only held shut with paper glue: anyone holding the envelope can read the password.",
+    "limite": "Here you’re allowed to read Secrets. In a well-configured cluster, most people aren’t.",
+    "rotuloResposta": "The Wi-Fi password",
+    "testes": [
+      {
+        "descricao": "the password is right",
+        "msgs": {
+          "0": "you decoded the base64 in the terminal"
+        }
+      }
+    ]
+  },
+  "n4-chave-errada": {
+    "titulo": "The wrong key in the envelope",
+    "enunciado": "\n      <p>The database won’t get out of <code>CreateContainerConfigError</code>. Find out why with <code>kubectl describe pod NAME</code>\n         (in the Events) and check the Secret’s keys with <code>kubectl describe secret banco-senha</code>. Fix the\n         Deployment.</p>",
+    "dica": "The secretKeyRef must name a key that exists in the Secret.",
+    "vidaReal": "The note says “the combination is in the envelope, on the password line”, but the envelope only has a “senha” line.",
+    "limite": "The kubelet doesn’t guess: a key that doesn’t exist blocks the container (unless the reference is optional).",
+    "testes": [
+      {
+        "descricao": "the database starts"
+      }
+    ]
+  },
+  "n4-vitrine-volume": {
+    "titulo": "The new shop window",
+    "enunciado": "\n      <p>The ConfigMap <code>vitrine-html</code> has an <code>index.html</code> with the sale. Mount this ConfigMap as a\n         volume at <code>/usr/share/nginx/html</code> in the shop window’s container, so nginx shows the sale instead\n         of the default page.</p>",
+    "dica": "Two places: spec.template.spec.volumes (the configMap volume) and volumeMounts in the container (name and mountPath).",
+    "vidaReal": "Instead of repainting the shop window, the store hangs the poster that came from the bulletin board.",
+    "limite": "The poster is read-only: inside the pod, nobody writes on it. To change it, you change the ConfigMap.",
+    "comoSaber": "From inside a shop window pod: <code>kubectl exec deploy/vitrine -- curl -s localhost</code> shows the sale.",
+    "testes": [
+      {
+        "descricao": "the shop window shows the sale"
+      },
+      {
+        "descricao": "every shop window pod shows it"
+      }
+    ]
+  },
+  "n4-aviso-novo": {
+    "titulo": "The notice changed, the store didn’t",
+    "enunciado": "\n      <p>The store reads <code>COR</code> from the ConfigMap <code>loja-config</code>, which says <code>azul</code>. Change the notice to\n         <code>verde</code> (the file is in the editor), apply it and make the store start showing <code>\"cor\":\"verde\"</code>.</p>",
+    "dica": "Applying the ConfigMap isn’t enough: variables are read when the container starts. kubectl rollout restart deployment/loja.",
+    "vidaReal": "They changed the notice on the board, but the store only reads the board when it opens. Close and open again (without leaving the customers out on the street).",
+    "limite": "If the ConfigMap were mounted as a file, the file would change on its own; the environment variable, never.",
+    "comoSaber": "<code>kubectl port-forward svc/loja 8080:80</code> and <code>curl localhost:8080</code>.",
+    "testes": [
+      {
+        "descricao": "the store shows the new notice",
+        "msgs": {
+          "1": "the store’s pods have COR=verde"
+        }
+      }
+    ]
+  },
+  "n4-mesa-compartilhada": {
+    "titulo": "The shared desk",
+    "enunciado": "\n      <p>The pod <code>placa</code> has two containers: <code>pintor</code> (the painter) writes the sign to <code>/html/index.html</code>\n         and <code>nginx</code> serves <code>/usr/share/nginx/html</code>. Right now the painter can’t even write (see\n         <code>kubectl logs placa -c pintor</code>). Add an <code>emptyDir</code> volume mounted on both folders, so\n         nginx serves the sign the painter makes.</p>",
+    "dica": "One emptyDir volume in spec.volumes and one volumeMounts in each container (different folders, the same volume). A pod can’t change after it’s created: kubectl delete pod placa and apply again.",
+    "vidaReal": "The painter and the window dresser work in the same apartment, but each at their own desk: the painter paints the sign and the window dresser never sees it.",
+    "limite": "The desk (emptyDir) belongs to the apartment (the pod): new pod, and it starts out empty.",
+    "comoSaber": "<code>kubectl exec placa -c nginx -- curl -s localhost</code> shows “Placa atualizada” (sign updated).",
+    "testes": [
+      {
+        "descricao": "nginx serves the painter’s sign"
+      }
+    ]
+  },
+  "n4-box-na-garagem": {
+    "titulo": "A storage unit in the garage",
+    "enunciado": "\n      <p>The <code>caderno</code> (notebook) writes a line to <code>/dados/notas.txt</code> every time the pod starts, but the\n         folder doesn’t even exist (see the logs). Create a PVC <code>dados</code> of <code>1Gi</code> (<code>ReadWriteOnce</code>) and mount it at\n         <code>/dados</code>. The notes must survive when the pod is replaced.</p>",
+    "dica": "The PVC: accessModes and resources.requests.storage. In the Deployment: volumes with persistentVolumeClaim.claimName and volumeMounts.",
+    "vidaReal": "The notebook sits on the apartment’s desk and gets lost with every move. Rent a storage unit in the garage: the resident moves, the notebook stays.",
+    "limite": "This storage unit (local-path) lives on a single node; with a cloud disk, it could follow the pod to another node.",
+    "comoSaber": "<code>kubectl get pvc</code> shows <code>Bound</code>; delete the pod and watch <code>kubectl exec deploy/caderno -- cat /dados/notas.txt</code> grow.",
+    "testes": [
+      {
+        "descricao": "the notebook has its storage unit"
+      },
+      {
+        "descricao": "the notes survive the pod being replaced",
+        "msgs": {
+          "0": "after the replacement, the file has the notes from both pods"
+        }
+      }
+    ]
+  },
+  "n4-classe-que-nao-existe": {
+    "titulo": "The climate-controlled storage unit",
+    "enunciado": "\n      <p>The <code>galeria</code> (gallery) has been <code>Pending</code> for ages. Investigate the PVC <code>fotos</code>\n         (<code>kubectl describe pvc fotos</code>) and the disk classes (<code>kubectl get sc</code>). The PVC’s file is\n         in the editor: fix it and recreate the request so the gallery comes up.</p>",
+    "dica": "A PVC can’t change its class: kubectl delete pvc fotos and then kubectl apply -f fotos.yaml (with the standard class, or no class at all, which uses the default).",
+    "vidaReal": "Someone asked for a “climate-controlled” storage unit, but the condo only has regular ones. The request sits in a drawer, and the gallery waits at the door.",
+    "limite": "The request can’t be amended: to change the type of storage unit, you cancel it and make a new one.",
+    "testes": [
+      {
+        "descricao": "the gallery comes up with a regular storage unit"
+      }
+    ]
+  },
+  "n4-statefulset": {
+    "titulo": "The numbered apartments",
+    "enunciado": "\n      <p>Set up the database <code>db</code> with <b>3 replicas</b> of <code>redis:7</code> in a <b>StatefulSet</b>: headless Service\n         <code>db</code> (port 6379), <code>serviceName: db</code> and a <code>1Gi</code> disk per pod\n         (<code>volumeClaimTemplates</code> named <code>dados</code>, mounted at <code>/data</code>).</p>",
+    "dica": "It looks like a Deployment, with serviceName and volumeClaimTemplates on top. The selector must match the template’s labels.",
+    "vidaReal": "Three numbered apartments, each with its own storage unit: number 1 is only handed over after number 0, and each resident always comes back to the same number.",
+    "limite": "The StatefulSet knows nothing about databases: copying data between the replicas is the program’s job (redis, postgres...).",
+    "comoSaber": "<code>kubectl get pods -w</code> shows db-0, then db-1, then db-2; <code>kubectl get pvc</code> shows dados-db-0, -1 and -2.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "the three apartments are ready, each with its own storage unit",
+        "msgs": {
+          "2": "db-2.db.default.svc.cluster.local resolves"
+        }
+      },
+      {
+        "descricao": "db-1 comes back with the same name and the same data",
+        "msgs": {
+          "1": "the new db-1 found the old one’s file"
+        }
+      }
+    ]
+  },
+  "n4-nome-fixo": {
+    "titulo": "Who lives in number 2?",
+    "enunciado": "\n      <p>The StatefulSet <code>db</code> is up. From the pod <code>cliente</code> (busybox), find the IP of <code>db-2</code> through\n         <b>DNS</b>.</p>",
+    "dica": "kubectl exec cliente -- nslookup db-2.db.default.svc.cluster.local (busybox’s nslookup needs the full name).",
+    "vidaReal": "To talk to apartment 2, the front gate looks up the list of residents by number, not by face.",
+    "limite": "If db-2 is recreated, the name stays the same, but the IP may change: keep the name, not the IP.",
+    "rotuloResposta": "The IP of db-2",
+    "testes": [
+      {
+        "descricao": "you found db-2 by name",
+        "msgs": {
+          "0": "you asked DNS for db-2"
+        }
+      }
+    ]
+  },
+  "n4-encolher": {
+    "titulo": "End of the season",
+    "enunciado": "\n      <p>Scale the StatefulSet <code>db</code> down to <b>1 replica</b>, from the terminal. Then count: how many PVCs of\n         <code>db</code> still exist?</p>",
+    "dica": "kubectl scale statefulset db --replicas=1; then kubectl get pvc.",
+    "vidaReal": "In the off-season, apartments 2 and 1 close (in that order), but the storage units stay rented, with the stuff still inside.",
+    "limite": "Stored units cost money: with a cloud disk, a forgotten PVC stays on the bill.",
+    "rotuloResposta": "How many PVCs are left?",
+    "testes": [
+      {
+        "descricao": "db shrank and the disks stayed",
+        "msgs": {
+          "1": "the PVC of db-2 is still there"
+        }
+      }
+    ]
+  }
+}

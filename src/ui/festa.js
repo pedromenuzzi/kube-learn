@@ -10,6 +10,7 @@ import { svgSelo, linkCompartilhar } from './selos.js';
 import { tocar } from './sons.js';
 import { escapar } from './util.js';
 import { icone } from './icones.js';
+import { t } from '../i18n.js';
 
 const jornada = () => calcularJornada(NIVEIS, ler(CHAVES.progresso, {}));
 
@@ -94,10 +95,10 @@ function embarque(cor, largura, xp) {
 function faixa(nivel) {
   const el = document.createElement('div');
   el.className = 'festa-faixa';
-  el.innerHTML = `${icone('trilha')}<span><b>Nível ${nivel.numero} desbloqueado:</b> ${escapar(nivel.titulo)}</span>
-    <a href="#/trilha">Ver na trilha</a><button type="button" class="aviso-fechar" aria-label="Fechar">${icone('fechar')}</button>`;
+  el.innerHTML = `${icone('trilha')}<span><b>${t('Nível {n} desbloqueado:', { n: nivel.numero })}</b> ${escapar(nivel.titulo)}</span>
+    <a href="#/trilha">${t('Ver na trilha')}</a><button type="button" class="aviso-fechar" aria-label="${t('Fechar')}">${icone('fechar')}</button>`;
   document.body.append(el);
-  anunciar(`Nível ${nivel.numero} desbloqueado: ${nivel.titulo}.`);
+  anunciar(t('Nível {n} desbloqueado: {titulo}.', { n: nivel.numero, titulo: nivel.titulo }));
   const tirar = () => el.remove();
   el.addEventListener('click', (e) => e.target.closest('a, button') && tirar());
   setTimeout(tirar, 9000);
@@ -113,21 +114,21 @@ function cartao([evento, ...resto]) {
   d.setAttribute('aria-labelledby', 'festa-titulo');
   d.innerHTML = lacre ? `
     <div class="festa-selo">${svgSelo(evento.nivel, { tamanho: 150 })}</div>
-    <h2 id="festa-titulo" class="pixel">Nível ${evento.nivel.numero} lacrado!</h2>
-    <p>${escapar(evento.nivel.titulo)}: todas as missões resolvidas. Os contêineres deste nível ganharam o lacre dourado.</p>
-    <p class="acoes"><button type="button" class="botao" data-fechar>${resto.length ? 'Continuar' : 'Seguir viagem'}</button>
-      <a class="botao-secundario" href="#/certificado">${icone('lacre')} Seus lacres</a>
-      <a class="link-seta" href="${linkCompartilhar()}" target="_blank" rel="noopener">${icone('linkedin')} Compartilhar</a></p>` : `
+    <h2 id="festa-titulo" class="pixel">${t('Nível {n} lacrado!', { n: evento.nivel.numero })}</h2>
+    <p>${escapar(evento.nivel.titulo)}: ${t('todas as missões resolvidas. Os contêineres deste nível ganharam o lacre dourado.')}</p>
+    <p class="acoes"><button type="button" class="botao" data-fechar>${resto.length ? t('Continuar') : t('Seguir viagem')}</button>
+      <a class="botao-secundario" href="#/certificado">${icone('lacre')} ${t('Seus lacres')}</a>
+      <a class="link-seta" href="${linkCompartilhar()}" target="_blank" rel="noopener">${icone('linkedin')} ${t('Compartilhar')}</a></p>` : `
     <canvas class="navio" aria-hidden="true"></canvas>
-    <h2 id="festa-titulo" class="pixel">Navio carregado!</h2>
-    <p>Os ${NIVEIS.length} níveis lacrados: você atravessou o Kubernetes do primeiro contêiner ao GitOps. Que viagem.</p>
-    <p class="acoes"><a class="botao" href="#/certificado">${icone('lacre')} Ver o certificado</a>
-      <button type="button" class="botao-secundario" data-fechar>Fechar</button></p>`;
+    <h2 id="festa-titulo" class="pixel">${t('Navio carregado!')}</h2>
+    <p>${t('Os {n} níveis lacrados: você atravessou o Kubernetes do primeiro contêiner ao GitOps. Que viagem.', { n: NIVEIS.length })}</p>
+    <p class="acoes"><a class="botao" href="#/certificado">${icone('lacre')} ${t('Ver o certificado')}</a>
+      <button type="button" class="botao-secundario" data-fechar>${t('Fechar')}</button></p>`;
   document.body.append(d);
   d.show();
   const pararNavio = lacre ? null : desenharNavio(d.querySelector('canvas'), jornada());
   tocar(lacre ? 'lacre' : 'navio');
-  anunciar(lacre ? `Nível ${evento.nivel.numero} lacrado!` : 'Navio carregado! Todos os níveis lacrados.');
+  anunciar(lacre ? t('Nível {n} lacrado!', { n: evento.nivel.numero }) : t('Navio carregado! Todos os níveis lacrados.'));
   d.querySelector('[data-fechar]').focus();
   const tirar = () => {
     pararNavio?.();

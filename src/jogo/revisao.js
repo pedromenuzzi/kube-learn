@@ -2,6 +2,7 @@
 // cartão. Acertou, o cartão sobe de caixa e volta mais tarde; errou, volta para a caixa 1 (amanhã).
 // Funções puras, testadas em tests/revisao.test.js. O sorteio usa uma semente (o dia), para ser estável.
 import { criarAleatorio } from '../k8s/aleatorio.js';
+import { t } from '../i18n.js';
 
 /** Dias até o cartão voltar, para cada caixa (1 a 5). */
 export const INTERVALOS = [1, 2, 4, 7, 15];
@@ -19,7 +20,7 @@ export function termosVistos(glossario, jornada) {
   return glossario.filter((g) => niveis.has(g.nivel));
 }
 
-const esc = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 const embaralhar = (lista, rnd) => {
   const l = [...lista];
@@ -30,32 +31,32 @@ const embaralhar = (lista, rnd) => {
   return l;
 };
 
-/** Um cartão sobre o termo `t`, num dos três formatos. `outros` são de onde saem as alternativas erradas. */
-function cartao(t, outros, rnd) {
+/** Um cartão sobre o termo `g`, num dos três formatos. `outros` são de onde saem as alternativas erradas. */
+function cartao(g, outros, rnd) {
   const formato = ['termo', 'analogia', 'limite'][Math.floor(rnd() * 3)];
-  const errados = embaralhar(outros.filter((o) => o.id !== t.id), rnd).slice(0, 3);
-  const explicacao = { termo: t.termo, definicao: t.definicao, vidaReal: t.vidaReal, limite: t.limite };
+  const errados = embaralhar(outros.filter((o) => o.id !== g.id), rnd).slice(0, 3);
+  const explicacao = { termo: g.termo, definicao: g.definicao, vidaReal: g.vidaReal, limite: g.limite };
   if (formato === 'termo') {
     return {
-      id: t.id, formato, explicacao,
-      pergunta: `Qual conceito é esta comparação? <q>${esc(t.vidaReal)}</q>`,
-      opcoes: embaralhar([{ texto: t.termo, certa: true }, ...errados.map((o) => ({ texto: o.termo, certa: false }))], rnd),
+      id: g.id, formato, explicacao,
+      pergunta: t('Qual conceito é esta comparação? <q>{vidaReal}</q>', { vidaReal: esc(g.vidaReal) }),
+      opcoes: embaralhar([{ texto: g.termo, certa: true }, ...errados.map((o) => ({ texto: o.termo, certa: false }))], rnd),
     };
   }
   if (formato === 'analogia') {
     return {
-      id: t.id, formato, explicacao,
-      pergunta: `Qual comparação com a vida real combina com <b>${esc(t.termo)}</b>?`,
-      opcoes: embaralhar([{ texto: t.vidaReal, certa: true }, ...errados.map((o) => ({ texto: o.vidaReal, certa: false }))], rnd),
+      id: g.id, formato, explicacao,
+      pergunta: t('Qual comparação com a vida real combina com <b>{termo}</b>?', { termo: esc(g.termo) }),
+      opcoes: embaralhar([{ texto: g.vidaReal, certa: true }, ...errados.map((o) => ({ texto: o.vidaReal, certa: false }))], rnd),
     };
   }
   // Verdadeiro ou falso: este limite é o desta comparação? (metade das vezes, é o limite de outro termo)
   const verdadeiro = rnd() < 0.5 || !errados.length;
-  const limite = verdadeiro ? t.limite : errados[0].limite;
+  const limite = verdadeiro ? g.limite : errados[0].limite;
   return {
-    id: t.id, formato, explicacao,
-    pergunta: `<b>${esc(t.termo)}</b> é como <q>${esc(t.vidaReal)}</q> Verdadeiro ou falso: um limite dessa comparação é <q>${esc(limite)}</q>`,
-    opcoes: [{ texto: 'Verdadeiro', certa: verdadeiro }, { texto: 'Falso', certa: !verdadeiro }],
+    id: g.id, formato, explicacao,
+    pergunta: t('<b>{termo}</b> é como <q>{vidaReal}</q> Verdadeiro ou falso: um limite dessa comparação é <q>{limite}</q>', { termo: esc(g.termo), vidaReal: esc(g.vidaReal), limite: esc(limite) }),
+    opcoes: [{ texto: t('Verdadeiro'), certa: verdadeiro }, { texto: t('Falso'), certa: !verdadeiro }],
   };
 }
 

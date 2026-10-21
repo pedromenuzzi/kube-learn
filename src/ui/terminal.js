@@ -2,6 +2,7 @@
 // (as linhas novas chegam a cada tique do relógio) e vira o shell do contêiner no `exec -it`.
 import { escapar } from './util.js';
 import { icone } from './icones.js';
+import { t } from '../i18n.js';
 
 const PROMPT = 'aluno@kube-learn:~$';
 const MAX_LINHAS = 1500;
@@ -12,13 +13,13 @@ const MAX_LINHAS = 1500;
 export function criarTerminal(raiz, { executar, completar }) {
   raiz.classList.add('terminal');
   raiz.innerHTML = `
-    <div class="term-saida" role="log" aria-live="polite" aria-label="Saída do terminal"></div>
+    <div class="term-saida" role="log" aria-live="polite" aria-label="${t('Saída do terminal')}"></div>
     <form class="term-linha">
       <label class="term-prompt" for="term-entrada">${PROMPT}</label>
       <input id="term-entrada" class="term-entrada" autocomplete="off" autocapitalize="off" spellcheck="false"
         aria-describedby="term-ajuda">
     </form>
-    <p id="term-ajuda" class="term-ajuda">↑/↓ histórico · Tab completa · Ctrl+C para · Ctrl+L limpa</p>`;
+    <p id="term-ajuda" class="term-ajuda">${t('↑/↓ histórico · Tab completa · Ctrl+C para · Ctrl+L limpa')}</p>`;
   const saida = raiz.querySelector('.term-saida');
   const entrada = raiz.querySelector('input');
   const rotulo = raiz.querySelector('.term-prompt');
@@ -42,7 +43,7 @@ export function criarTerminal(raiz, { executar, completar }) {
   const caixa = (c) => {
     const div = document.createElement('div');
     div.className = 'term-caixa';
-    div.innerHTML = `<p class="term-caixa-titulo">${icone('lampada')} ${escapar(c.titulo)}</p><p>${c.texto}</p>${c.vidaReal ? `<p class="term-caixa-vida">Na vida real: ${escapar(c.vidaReal)}</p>` : ''}`;
+    div.innerHTML = `<p class="term-caixa-titulo">${icone('lampada')} ${escapar(c.titulo)}</p><p>${c.texto}</p>${c.vidaReal ? `<p class="term-caixa-vida">${t('Na vida real')}: ${escapar(c.vidaReal)}</p>` : ''}`;
     saida.append(div);
     rolar();
   };

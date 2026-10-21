@@ -1,1 +1,245 @@
-{}
+{
+  "n3-licao-service": {
+    "titulo": "The fixed extension: Service",
+    "enunciado": "\n      <p>Pods are born and die all the time, and each new pod gets <b>a different IP</b>. Nobody can keep track of those IPs.\n         The <b>Service</b> solves this: a <b>fixed</b> address (an IP and a DNS name) that hands each connection to one of the\n         ready pods, chosen by their labels.</p>\n      <pre><code>apiVersion: v1\nkind: Service\nmetadata:\n  name: loja\nspec:\n  selector:\n    app: loja        # the pods that answer\n  ports:\n  - port: 80         # the Service port (the extension)\n    targetPort: 8080 # the port the program listens on, inside the pod</code></pre>\n      <h2>Where each thing shows up</h2>\n      <ul>\n        <li><code>kubectl get svc</code>: the type, the <b>CLUSTER-IP</b> and the ports;</li>\n        <li><code>kubectl get endpoints loja</code>: the list of pods behind the extension right now (if it says <code>&lt;none&gt;</code>,\n            the selector found nobody, or nobody is ready);</li>\n        <li>the DNS name: <code>loja</code> (in the same namespace), <code>loja.vendas</code> (from another namespace) or\n            <code>loja.vendas.svc.cluster.local</code> (the full name).</li>\n      </ul>\n      <h2>Testing from inside</h2>\n      <p>A Service of the default type (<b>ClusterIP</b>) only exists inside the cluster. To test it, get into a pod:\n         <code>kubectl exec POD -- wget -qO- http://loja</code> (in busybox) or <code>curl</code> (in nginx).</p>",
+    "vidaReal": "The company’s fixed phone extension: people move between apartments, the extension stays the same and rings whoever is there.",
+    "limite": "The extension only rings apartments that are ready to answer (readiness); if none is ready, the call is refused, it doesn’t wait on the line."
+  },
+  "n3-licao-de-fora": {
+    "titulo": "Coming in from outside the cluster",
+    "enunciado": "\n      <p>Three ways to reach a Service from outside:</p>\n      <table class=\"tabela-simples\">\n        <thead><tr><th>Way</th><th>How</th><th>What for</th></tr></thead>\n        <tbody>\n          <tr><td><b>port-forward</b></td><td><code>kubectl port-forward svc/loja 8080:80</code> and then <code>http://localhost:8080</code></td><td>Testing from your computer, quickly. Only you use it.</td></tr>\n          <tr><td><b>NodePort</b></td><td><code>type: NodePort</code>: opens the same port (30000–32767) on <b>all</b> nodes</td><td>Labs and environments without a load balancer.</td></tr>\n          <tr><td><b>LoadBalancer</b></td><td><code>type: LoadBalancer</code>: the cloud provider gives you an external IP (EXTERNAL-IP column)</td><td>Production, when each Service deserves its own IP.</td></tr>\n        </tbody>\n      </table>\n      <h2>Your computer, in this terminal</h2>\n      <p>On this site, the terminal has two worlds: <code>kubectl exec ... -- wget</code> runs <b>inside</b> a pod; a\n         <code>curl</code> typed directly runs on <b>your computer</b>, outside the cluster. From outside, <code>http://loja</code>\n         doesn’t work (the name only exists in the cluster’s DNS): you need one of the entrances above.</p>",
+    "vidaReal": "The extension only works inside the condo. For people out on the street, there’s the intercom at each building (NodePort), the street-side front gate (LoadBalancer) and the temporary passage from your house (port-forward).",
+    "limite": "In the condo, the street-side front gate is a building; in the cloud, the LoadBalancer is a paid service, created by the provider for every Service of that type."
+  },
+  "n3-licao-ingress-gateway": {
+    "titulo": "The condo’s front gate: Ingress and Gateway API",
+    "enunciado": "\n      <p>One LoadBalancer per Service gets expensive. The <b>Ingress</b> puts <b>a single entrance</b> in front of several Services and\n         picks the destination by <b>name</b> (host) and by <b>path</b>:</p>\n      <pre><code>rules:\n- host: praca.kube-learn.local\n  http:\n    paths:\n    - path: /api           # /api and everything under it\n      pathType: Prefix\n      backend:\n        service:\n          name: loja\n          port:\n            number: 80</code></pre>\n      <p>The routing is done by an <b>Ingress controller</b> (Traefik, NGINX, HAProxy...), chosen by\n         <code>ingressClassName</code> (or by the cluster’s default class: <code>kubectl get ingressclass</code>).</p>\n      <h2>The new way: Gateway API</h2>\n      <p>The most famous controller, <b>ingress-nginx</b>, was retired in 2026. The path the community recommends is the\n         <b>Gateway API</b>, which splits up the roles:</p>\n      <ul>\n        <li><b>GatewayClass</b> and <b>Gateway</b>: the front gate (address and ports), looked after by the platform team;</li>\n        <li><b>HTTPRoute</b>: each team’s sign (names, paths and even <b>weights</b>, to send 10% of the traffic to the\n            new version: the canary).</li>\n      </ul>\n      <p>In this simulator, the “company DNS” already points the <code>*.kube-learn.local</code> names used in the Ingresses and\n         HTTPRoutes to the right entrance: test with <code>curl http://praca.kube-learn.local/api</code>.</p>",
+    "vidaReal": "Instead of one front gate per company, a single front gate, with a front desk that says: “/loja, block A; blog.condominio, block B.”",
+    "limite": "The front desk doesn’t do anything on its own: it needs a controller installed in the cluster (the person staffing the desk). Without it, the Ingress is just a piece of paper on the wall."
+  },
+  "n3-ramal": {
+    "titulo": "The loja extension",
+    "enunciado": "\n      <p>The loja app has 3 pods, but nobody knows where to call. Create a <b>Service</b> named <code>loja</code> that receives on\n         port <code>80</code> and delivers to port <code>8080</code> of the pods with the label <code>app: loja</code>.</p>",
+    "dica": "spec.selector (the labels) and spec.ports: port and targetPort.",
+    "vidaReal": "Giving loja a fixed extension that rings any of the clerks.",
+    "limite": "The extension doesn’t know whether a clerk is busy: it just spreads the calls around (round-robin).",
+    "comoSaber": "<code>kubectl get endpoints loja</code> shows 3 addresses.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "the extension rings all 3 pods",
+        "msgs": {
+          "1": "http://loja answers (from inside the cluster)"
+        }
+      }
+    ]
+  },
+  "n3-expose": {
+    "titulo": "Ordering the extension over the intercom",
+    "enunciado": "<p>Create the loja Service from the terminal, with <code>kubectl expose</code>: port <code>80</code>, delivering to <code>8080</code>.</p>",
+    "dica": "kubectl expose deployment loja --port=... --target-port=...",
+    "vidaReal": "Asking for the extension over the phone, without filling out a form.",
+    "limite": "expose copies the Deployment’s selector; if the Deployment changes its labels later, the Service doesn’t follow.",
+    "testes": [
+      {
+        "descricao": "loja has an extension",
+        "msgs": {
+          "0": "you used kubectl expose",
+          "2": "http://loja answers (from inside the cluster)"
+        }
+      }
+    ]
+  },
+  "n3-dns-namespace": {
+    "titulo": "Calling another company",
+    "enunciado": "\n      <p>The <code>estoque</code> (stock) Service lives in the <code>estoque</code> namespace. From the <code>cliente</code> pod\n         (default namespace, busybox image), fetch its page and tell us the <b>title</b> that appears in the\n         <code>&lt;title&gt;</code>.</p>",
+    "dica": "From another namespace, the name is service.namespace. In busybox: wget -qO- http://...",
+    "vidaReal": "Calling another company’s extension in the condo: besides the extension, you say which company.",
+    "limite": "Knowing the name doesn’t guarantee the call goes through: with a NetworkPolicy (level 8), one company can block the others.",
+    "rotuloResposta": "The page title",
+    "testes": [
+      {
+        "descricao": "you called estoque by name with the namespace",
+        "msgs": {
+          "0": "you used the name estoque.estoque from inside the pod"
+        }
+      }
+    ]
+  },
+  "n3-target-port": {
+    "titulo": "The extension on the wrong port",
+    "enunciado": "\n      <p>The Service exists, the endpoints show up, but every connection is <b>refused</b>. The loja app listens on port <code>8080</code>\n         (check the Deployment’s <code>containerPort</code>, or a pod’s logs). Fix the Service.</p>",
+    "dica": "port is the Service’s port; targetPort is the pod’s.",
+    "vidaReal": "The extension rings the right apartment, but in the wrong room: nobody answers there.",
+    "limite": "Here the call is refused right away; in a real program, sometimes something else is listening on that port, and the error gets more confusing.",
+    "testes": [
+      {
+        "descricao": "loja answers through the Service",
+        "msgs": {
+          "1": "http://loja answers (from inside the cluster)"
+        }
+      }
+    ]
+  },
+  "n3-ramal-mudo": {
+    "titulo": "The dead extension",
+    "enunciado": "\n      <p>This Service is accepted, but <code>kubectl get endpoints loja</code> shows <code>&lt;none&gt;</code>. Compare its\n         selector with the pods’ labels (<code>kubectl get pods --show-labels</code>) and fix it.</p>",
+    "dica": "The selector has to match the pods’ labels.",
+    "vidaReal": "The extension looks for the “lojinha” door plate, but the doors say “loja”: it doesn’t ring anyone.",
+    "limite": "Kubernetes doesn’t warn you that the selector found nobody: the Service is created normally, it just has no endpoints.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "the extension rings again",
+        "msgs": {
+          "1": "http://loja answers (from inside the cluster)"
+        }
+      }
+    ]
+  },
+  "n3-porta-nomeada": {
+    "titulo": "Extension by port name",
+    "enunciado": "\n      <p>The Service uses <code>targetPort: http</code> (a <b>name</b>, not a number), but no pod has a port with that\n         name. Give the name <code>http</code> to port <code>8080</code> of the loja container.</p>",
+    "dica": "In the container’s ports: - containerPort: 8080 + name: http",
+    "vidaReal": "Instead of “room 8080,” the extension asks for “the service room”: if the number changes, the extension is still right.",
+    "limite": "The name has to exist in every pod: a pod without a port by that name is left out of the endpoints.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "the endpoints use the port by name",
+        "msgs": {
+          "1": "http://loja answers (from inside the cluster)"
+        }
+      }
+    ]
+  },
+  "n3-nodeport": {
+    "titulo": "The intercom at each building",
+    "enunciado": "\n      <p>Create the <code>loja</code> Service of type <b>NodePort</b> (port 80 → 8080 on the pods) with\n         <code>nodePort: 30080</code>. Then test from <b>your computer</b>: find a node’s IP with\n         <code>kubectl get nodes -o wide</code> and run <code>curl http://NODE-IP:30080</code> (without kubectl).</p>",
+    "dica": "spec.type: NodePort and, in ports, nodePort: 30080.",
+    "vidaReal": "A numbered intercom at the door of every building: from any building, 30080 calls loja.",
+    "limite": "The ports are high (30000–32767) and stay open on every node: fine for a lab, hard to remember and to protect.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "from outside, through the node, loja answers"
+      }
+    ]
+  },
+  "n3-loadbalancer": {
+    "titulo": "The street-side front gate",
+    "enunciado": "\n      <p>Expose loja with a <b>LoadBalancer</b> Service (port 80 → 8080), wait for the <code>EXTERNAL-IP</code> to show up\n         (<code>kubectl get svc -w</code>) and test from your computer with <code>curl</code>. What is the external IP?</p>",
+    "dica": "kubectl expose deployment loja --type=LoadBalancer --port=80 --target-port=8080",
+    "vidaReal": "A front gate on the street just for loja, with its own address.",
+    "limite": "In the cloud, each LoadBalancer is a resource billed separately; with many Services, an Ingress or a Gateway comes out cheaper.",
+    "rotuloResposta": "The EXTERNAL-IP",
+    "testes": [
+      {
+        "descricao": "loja has a street-side front gate",
+        "msgs": {
+          "1": "you tested with curl from your computer"
+        }
+      }
+    ]
+  },
+  "n3-port-forward": {
+    "titulo": "A passage all your own",
+    "enunciado": "\n      <p>Without touching any Service, open a passage from port <code>8080</code> on your computer to port 80 of the\n         <code>loja</code> Service and call <code>http://localhost:8080</code> with <code>curl</code>. Which <b>version</b> does\n         loja answer with?</p>",
+    "dica": "kubectl port-forward svc/loja 8080:80",
+    "vidaReal": "A temporary passage from your house straight to loja, without going through the front gate.",
+    "limite": "The passage goes to a single pod (picked at the start), and it disappears when the command stops.",
+    "rotuloResposta": "The version",
+    "testes": [
+      {
+        "descricao": "you reached loja through the passage",
+        "msgs": {
+          "0": "you used port-forward",
+          "1": "you called localhost:8080"
+        }
+      }
+    ]
+  },
+  "n3-headless": {
+    "titulo": "The apartments by name",
+    "enunciado": "\n      <p>The 3 replicas of the <code>banco</code> database (Redis, port 6379) need to find each other <b>one by one</b>, without round-robin. Create a\n         <b>headless</b> Service named <code>banco</code>: with no IP of its own, the DNS returns each pod’s IP.</p>\n      <p>Check from a test pod: <code>kubectl run t --image=busybox:1.36 -- sleep 3600</code> and then\n         <code>kubectl exec t -- nslookup banco</code>.</p>",
+    "dica": "spec.clusterIP: None",
+    "vidaReal": "Instead of an extension that spreads the calls around, a list with each apartment’s number: whoever calls picks who to talk to.",
+    "limite": "Without the extension’s round-robin, the caller has to know how to choose (that’s the case for databases with replicas and for StatefulSets, in level 4).",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "the DNS returns the 3 pods"
+      }
+    ]
+  },
+  "n3-ingress-caminho": {
+    "titulo": "The food court front desk",
+    "enunciado": "\n      <p>At the food court <code>praca.kube-learn.local</code>, today everything goes to the <code>blog</code>. Add to the Ingress the rule\n         that sends <code>/api</code> (and whatever comes under it) to the <code>loja</code> Service (port 80).</p>\n      <p>Test from your computer: <code>curl http://praca.kube-learn.local/api</code> and\n         <code>curl http://praca.kube-learn.local/</code>.</p>",
+    "dica": "Another item in paths: path: /api, pathType: Prefix, backend.service.name: loja.",
+    "vidaReal": "A single entrance for the food court: “/api, the loja desk; everything else, the blog.”",
+    "limite": "The path arrives whole at the destination: loja receives /api (and has to know how to answer on it).",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "from outside, /api goes to loja and / to the blog"
+      }
+    ]
+  },
+  "n3-ingress-host": {
+    "titulo": "A sign for each name",
+    "enunciado": "\n      <p>Replace the Ingress with two <b>host</b> rules: <code>loja.kube-learn.local</code> goes to the Service\n         <code>loja</code> and <code>blog.kube-learn.local</code> goes to <code>blog</code> (both on port 80, path\n         <code>/</code>).</p>",
+    "dica": "Two items in rules, each with its own host.",
+    "vidaReal": "The same front desk serves two addresses: whoever asks for loja goes one way; for the blog, the other.",
+    "limite": "The name has to reach the front desk (DNS pointing at the Ingress); here the company DNS already does that for you.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "each name reaches its destination"
+      }
+    ]
+  },
+  "n3-gateway": {
+    "titulo": "The sign at the new front gate",
+    "enunciado": "\n      <p>The platform team already created the <code>portaria</code> (front gate) Gateway (see <code>kubectl get gateway</code>). Create an\n         <b>HTTPRoute</b> named <code>loja</code>, attached to that front gate, that takes <code>loja.kube-learn.local</code> to the\n         Service <code>loja</code> (port 80).</p>",
+    "dica": "spec.parentRefs: [{ name: portaria }], hostnames and rules[].backendRefs.",
+    "vidaReal": "The management office already set up the front gate (Gateway); each company just hangs its own sign (HTTPRoute).",
+    "limite": "The sign only counts at the front gate it names (parentRefs), and only if that front gate accepts routes from your namespace.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "from outside, through the new front gate, loja answers"
+      }
+    ]
+  },
+  "n3-canario": {
+    "titulo": "10% to the new version",
+    "enunciado": "\n      <p>Version <code>1.1</code> of loja runs in the <code>loja-v2</code> Service. Change the route to send <b>90%</b> of the\n         traffic to <code>loja</code> and <b>10%</b> to <code>loja-v2</code>: the <b>canary</b>.</p>\n      <p>Test several times from your computer: <code>curl http://loja.kube-learn.local/</code>.</p>",
+    "dica": "Two backendRefs, each with a weight.",
+    "vidaReal": "Opening the renovation to 1 in every 10 customers, seeing if anyone complains, and only then to everyone.",
+    "limite": "The split is per request: the same customer may land on the old version one time and on the new one the next.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f ."
+      },
+      {
+        "descricao": "out of 100 customers, about 10 see the new version"
+      }
+    ]
+  }
+}

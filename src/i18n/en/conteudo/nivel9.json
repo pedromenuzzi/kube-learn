@@ -1,1 +1,270 @@
-{}
+{
+  "n9-licao-plantao": {
+    "titulo": "The building manager’s on-call shift",
+    "enunciado": "\n      <p>In this level, every mission is an <b>incident</b>: the cluster arrives broken, a resident tells you what they saw, and you\n         investigate and fix it. The applied manifests are in the editor (change them and click <b>Apply</b>) and the terminal is yours.</p>\n      <h2>The playbook</h2>\n      <ol>\n        <li><code>kubectl get pods</code> (with <code>-o wide</code> and <code>-A</code>): the STATUS already points the way.</li>\n        <li><code>kubectl describe pod NAME</code>: the <b>Events</b> at the end tell you what Kubernetes tried and why it failed.\n            Give the full name: with several pods (no name, or just the start of it), describe hides the Events. To see all\n            of them at once, <code>kubectl get events</code>.</li>\n        <li><code>kubectl logs NAME</code> (and <code>--previous</code>, if it restarted): what the program itself said.</li>\n        <li><code>kubectl get events --sort-by=.lastTimestamp</code>: the namespace’s logbook.</li>\n        <li><code>kubectl exec</code>: go inside and test from there (<code>wget</code>, <code>nslookup</code>, <code>cat</code>).</li>\n      </ol>\n      <h2>From symptom to cause</h2>\n      <table class=\"tabela-simples\">\n        <thead><tr><th>Symptom</th><th>Where to look</th><th>Common causes</th></tr></thead>\n        <tbody>\n          <tr><td>Pending</td><td>describe pod (FailedScheduling)</td><td>not enough CPU/memory, taint, nodeSelector, PVC, quota</td></tr>\n          <tr><td>ImagePullBackOff</td><td>describe pod</td><td>wrong name or tag, private registry</td></tr>\n          <tr><td>CrashLoopBackOff</td><td>logs --previous</td><td>missing env or file, bug, OOMKilled</td></tr>\n          <tr><td>CreateContainerConfigError</td><td>describe pod</td><td>missing ConfigMap/Secret, runAsNonRoot</td></tr>\n          <tr><td>Running, 0/1 ready</td><td>describe pod (Unhealthy)</td><td>wrong readinessProbe</td></tr>\n          <tr><td>Service doesn’t answer</td><td>get endpoints, describe svc</td><td>selector, targetPort, nobody ready, NetworkPolicy</td></tr>\n          <tr><td>Forbidden</td><td>auth can-i --as</td><td>verb or resource missing from the Role</td></tr>\n        </tbody>\n      </table>\n      <p>A golden rule: <b>change one thing at a time</b> and check again. And read the whole error message: it almost always\n         tells you exactly what’s missing.</p>",
+    "vidaReal": "The on-call building manager doesn’t go around replacing everything: they listen to the resident, check the logbook, go into the apartment, and only then call the right electrician.",
+    "limite": "In the condo, the building manager sees the damage with their own eyes. In the cluster, you only see what the commands show you: learn to ask."
+  },
+  "n9-imagem-errada": {
+    "titulo": "The storefront that won’t open",
+    "enunciado": "<blockquote class=\"relato\"><p>The new storefront still hasn’t opened. The guy said all he had to do was put up nginx and leave.</p><footer>Marta, who runs the clothing store in unit 101</footer></blockquote><p>Find out why the <code>vitrine</code> (storefront) pods won’t come up, and fix it.</p>",
+    "dica": "kubectl describe pod NAME (Events: Failed to pull image). Check how the image name is spelled.",
+    "vidaReal": "The prefab part never arrived: the model was misspelled on the order.",
+    "limite": "The kubelet retries on its own, slower each time: fixing the name solves it without deleting anything.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "n9-sem-senha": {
+    "titulo": "The database that keeps crashing",
+    "enunciado": "<blockquote class=\"relato\"><p>The database has been restarting nonstop since the move. The password is in the usual envelope, I swear.</p><footer>Jorge, from finance</footer></blockquote><p>The <code>banco</code> (database) Secret (key <code>senha</code>) already exists. Find out what the database asks for and hand it\n             the password, read from the Secret.</p>",
+    "dica": "kubectl logs deploy/banco --previous asks for POSTGRES_PASSWORD. Use env with valueFrom.secretKeyRef.",
+    "vidaReal": "The database’s doorman won’t open up without the password, and nobody ever handed him the envelope.",
+    "limite": "The envelope (Secret) was there all along: storing it isn’t enough, you have to tell the pod to read it.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved",
+        "msgs": {
+          "1": "the password comes from the banco Secret"
+        }
+      }
+    ]
+  },
+  "n9-sem-espaco": {
+    "titulo": "The report that never starts",
+    "enunciado": "<blockquote class=\"relato\"><p>I asked for the monthly report at eight. It’s been “waiting” ever since. Waiting for what?</p><footer>Zélia, from accounting</footer></blockquote><p>The <code>relatorio</code> (report) pod is Pending. Find out why and change the request to something reasonable\n             (half a CPU core is enough).</p>",
+    "dica": "kubectl describe pod NAME (0/3 nodes are available: ... Insufficient cpu). Each node has 2 CPUs.",
+    "vidaReal": "Someone asked for an apartment with the power of three buildings: no building in the condo has that much electricity.",
+    "limite": "The request is what gets reserved, not what gets used: asking for too much leaves the pod with nowhere to go, even with idle nodes.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "n9-manutencao-esquecida": {
+    "titulo": "Yesterday’s “under renovation” sign",
+    "enunciado": "<blockquote class=\"relato\"><p>Yesterday there was maintenance in both buildings. Today the new shop can’t move in anywhere.</p><footer>Kleber, the caretaker</footer></blockquote><p>The <code>loja</code> (shop) pods are Pending. Find out what the maintenance left behind and remove it.</p>",
+    "dica": "kubectl describe node (the Taints line) and kubectl taint nodes NODE key-.",
+    "vidaReal": "Someone forgot the “under renovation” sign hanging on the doors of both buildings.",
+    "limite": "Taking down the sign only lets the next ones in: whoever was turned away waits for the scheduler’s next attempt.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved",
+        "msgs": {
+          "1": "node-1 no longer has the sign",
+          "2": "node-2 no longer has the sign"
+        }
+      }
+    ]
+  },
+  "n9-disco-que-nao-vem": {
+    "titulo": "The storage unit that was never delivered",
+    "enunciado": "<blockquote class=\"relato\"><p>I rented a storage unit for the gallery’s photos, and the gallery never even opened. They said the unit was the “fast” kind.</p><footer>Lauro, the photographer</footer></blockquote><p>The <code>galeria</code> (gallery) is waiting for the <code>fotos</code> disk, which never becomes ready. Find out why and use the\n             disk class that exists in the cluster.</p>",
+    "dica": "kubectl describe pvc fotos and kubectl get storageclass. Since the PVC can’t change, kubectl delete -f . and then kubectl apply -f .",
+    "vidaReal": "They asked for a “climate-controlled” storage unit, and the condo only has regular ones: the request sits in the drawer forever.",
+    "limite": "A storage unit request (PVC) can’t be edited once it’s made: to change the class, you delete it and ask again.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "n9-ramal-mudo": {
+    "titulo": "The extension nobody answers",
+    "enunciado": "<blockquote class=\"relato\"><p>The shop’s clerks are all there, I saw them. But whoever calls the “loja” extension doesn’t reach anyone.</p><footer>Lúcia, from customer service</footer></blockquote><p>The shop’s pods are ready, but the <code>loja</code> Service doesn’t deliver to them. Fix the Service.</p>",
+    "dica": "kubectl get endpoints loja (empty) and compare the Service’s selector with the pods’ labels (--show-labels).",
+    "vidaReal": "The extension is registered to the “lojas” team, and the team is called “loja”.",
+    "limite": "The Service doesn’t warn you that its selector matches nobody: it just keeps an empty list of clerks.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "n9-porta-errada": {
+    "titulo": "Connection refused",
+    "enunciado": "<blockquote class=\"relato\"><p>Now the extension at least rings, but it hangs up right away: “connection refused”.</p><footer>Lúcia, from customer service</footer></blockquote><p>The <code>loja</code> Service has the 3 pods behind it, but nobody answers. Find out which port the shop listens on and\n             fix the Service.</p>",
+    "dica": "kubectl describe svc loja (TargetPort) and the pods’ containerPort. The shop listens on 8080.",
+    "vidaReal": "The extension rings the phone on the next desk: the clerks are in the apartment, but in the other room.",
+    "limite": "The Service checks who’s ready, not which port the program listens on: the list is full and the call drops.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "n9-nunca-pronto": {
+    "titulo": "Running, but never ready",
+    "enunciado": "<blockquote class=\"relato\"><p>The shop’s three clerks arrived early and they’re inside. But I can’t send customers to someone who doesn’t say they’re ready.</p><footer>Apolinário, the doorman</footer></blockquote><p>The <code>loja</code> pods run, but stay at <code>0/1</code> and the Service has nobody. Fix the\n             readinessProbe.</p>",
+    "dica": "kubectl describe pod NAME (Events: Unhealthy, Readiness probe failed: HTTP probe failed with statuscode: 404). The shop answers on /healthz.",
+    "vidaReal": "The building manager asks “can you take visitors?” at the wrong door: nobody answers, and he marks it as closed.",
+    "limite": "Readiness doesn’t restart anyone: the pod keeps running forever, it just doesn’t get any customers.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "n9-disjuntor": {
+    "titulo": "The circuit breaker that keeps tripping",
+    "enunciado": "<blockquote class=\"relato\"><p>The report starts, the lights flicker and it’s gone. It starts again, flicker, gone.</p><footer>Zélia, from accounting</footer></blockquote><p>The <code>relatorio</code> loads the whole spreadsheet into memory (about 300Mi). Find out why it crashes and give it\n             a limit that fits (512Mi).</p>",
+    "dica": "kubectl describe pod NAME (Last State: Terminated, Reason: OOMKilled). Change limits.memory.",
+    "vidaReal": "The apartment’s circuit breaker is rated 128, and the accounting machine draws 300 when it turns on.",
+    "limite": "Raising the limit solves it when the program really needs that much. If it leaks memory, it only delays the next crash.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "n9-quadro-sem-aviso": {
+    "titulo": "The missing bulletin board",
+    "enunciado": "<blockquote class=\"relato\"><p>The new storefront was supposed to be blue. Not blue, not anything: it won’t even open.</p><footer>Marta, who runs the clothing store in unit 101</footer></blockquote><p>The <code>vitrine</code> pods can’t create their container. Find out what’s missing and create it, with <code>COR=azul</code>.</p>",
+    "dica": "kubectl describe pod NAME (configmap \"vitrine-config\" not found). kubectl create configmap vitrine-config --from-literal=COR=azul",
+    "vidaReal": "The storefront reads its color from the bulletin board, and the board was never put up.",
+    "limite": "As soon as the ConfigMap shows up, the kubelet tries again and the storefront comes up: no need to restart anything.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "n9-catraca-esquecida": {
+    "titulo": "The forgotten turnstile",
+    "enunciado": "<blockquote class=\"relato\"><p>Since the security audit, the storefront can’t talk to the shop anymore. Only the admin folks get through.</p><footer>Rafa, from the storefront</footer></blockquote><p>The <code>protege-loja</code> NetworkPolicy only lets <code>app=admin</code> pods into the shop. Let\n             the <code>vitrine</code> in too, without opening it to everyone.</p>",
+    "dica": "kubectl get netpol and kubectl describe netpol protege-loja. Add a podSelector app: vitrine to the from.",
+    "vidaReal": "The new turnstile only recognizes the admin badge: the storefront gets stopped at the door.",
+    "limite": "Deleting the turnstile also “solves” it, and opens the shop to anyone (including the nosy curioso pod).",
+    "testes": [
+      {
+        "descricao": "the incident is resolved",
+        "msgs": {
+          "1": "the curioso pod is still blocked"
+        }
+      }
+    ]
+  },
+  "n9-sem-cracha": {
+    "titulo": "The forbidden deploy",
+    "enunciado": "<blockquote class=\"relato\"><p>The pipeline creates Deployments in the shop just fine, but when it tries to update one, it gets this: <code>deployments.apps \"loja\" is forbidden: User \"carla\" cannot patch resource \"deployments\" in API group \"apps\" in the namespace \"loja\"</code>.</p><footer>Carla, from the deploy pipeline (CI)</footer></blockquote><p>Give the <code>deploy-ci</code> Role what’s missing for carla to <b>update</b> Deployments (update and patch), without\n             giving her the power to delete.</p>",
+    "dica": "kubectl auth can-i patch deployments --as=carla -n loja. Add update and patch to the verbs.",
+    "vidaReal": "The badge opens the door to bring in new furniture, but not to replace what’s already there.",
+    "limite": "kubectl apply uses patch; kubectl replace uses update. So the pipeline doesn’t depend on which one, give it both.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "n9-endereco-errado": {
+    "titulo": "The stockroom in the other block",
+    "enunciado": "<blockquote class=\"relato\"><p>The storefront moved to the shop’s block and now says “stockroom down” all the time. The stockroom is working, I called them.</p><footer>Rafa, from the storefront</footer></blockquote><p>The <code>vitrine</code> (namespace <code>loja</code>) calls the stockroom’s <code>api</code> at the address in the\n             <code>API_URL</code> variable. But the api lives in the <code>estoque</code> namespace. Fix the address.</p>",
+    "dica": "kubectl logs -n loja deploy/vitrine (wget: bad address). The address is http://api.estoque.",
+    "vidaReal": "They dialed the “api” extension in their own block; the api is in another block, and the short address doesn’t reach it.",
+    "limite": "The short name only works within the same namespace: from another one, it’s name.namespace (or the full name, name.namespace.svc.cluster.local).",
+    "testes": [
+      {
+        "descricao": "the incident is resolved",
+        "msgs": {
+          "1": "API_URL points to the estoque namespace"
+        }
+      }
+    ]
+  },
+  "n9-rollout-travado": {
+    "titulo": "The renovation that won’t move forward",
+    "enunciado": "<blockquote class=\"relato\"><p>They moved the shop to the new version this morning. The “rollout status” still says it’s waiting. At least the old shop is still serving customers.</p><footer>Jorge, from finance</footer></blockquote><p>The <code>loja</code> update is stuck. Find out why and take the shop back to a version that exists\n             (the previous one will do).</p>",
+    "dica": "kubectl rollout status deployment/loja, kubectl get pods (ErrImagePull on the new tag). kubectl rollout undo deployment/loja",
+    "vidaReal": "The step-by-step renovation stopped at the first apartment: the new material never arrived, and the old ones are still standing.",
+    "limite": "The Deployment doesn’t give up on its own: after the deadline (progressDeadlineSeconds), it just marks “ProgressDeadlineExceeded” and waits for someone to decide.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved",
+        "msgs": {
+          "1": "the rollout finished"
+        }
+      }
+    ]
+  },
+  "n9-job-que-falha": {
+    "titulo": "The migration that gave up",
+    "enunciado": "<blockquote class=\"relato\"><p>The database migration ran overnight and says “failed”. It tried three times and gave up.</p><footer>Jorge, from finance</footer></blockquote><p>Find out why the <code>migracao</code> (migration) Job fails, fix it and run it again.</p>",
+    "dica": "kubectl logs job/migracao (sh: slep: not found). Then: kubectl delete job migracao and kubectl apply -f .",
+    "vidaReal": "The bricklayer tried three times to follow the misspelled instruction (“slep” instead of “sleep”) and went home.",
+    "limite": "A Job’s pod template can’t be edited after it’s created: to run it again with the fix, you delete the Job and create another one.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved",
+        "msgs": {
+          "0": "the migration finished successfully"
+        }
+      }
+    ]
+  },
+  "n9-limpeza-suspensa": {
+    "titulo": "The garbage pickup that never came",
+    "enunciado": "<blockquote class=\"relato\"><p>The garbage pickup was supposed to come every minute. It hasn’t come once this week.</p><footer>Kleber, the caretaker</footer></blockquote><p>The <code>limpeza</code> (cleanup) CronJob never created a Job. Find out why and bring the pickup back.</p>",
+    "dica": "kubectl get cronjob limpeza (the SUSPEND column). Change suspend to false and apply.",
+    "vidaReal": "Someone hung a “pickup suspended” sign during last week’s renovation and nobody took it down.",
+    "limite": "When it comes back, the pickup doesn’t make up for the times it missed: it carries on from the next scheduled time.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved",
+        "msgs": {
+          "1": "the pickup came"
+        }
+      }
+    ]
+  },
+  "n9-fila-presa": {
+    "titulo": "The queue stuck in the building without power",
+    "enunciado": "<blockquote class=\"relato\"><p>node-2 lost power and the order queue stopped. The shop came back in another building, but the queue never does.</p><footer>Lúcia, from customer service</footer></blockquote><p>The <code>fila</code> (queue) is a StatefulSet with one replica, and the pod <code>fila-0</code> got stuck\n             <code>Terminating</code> on <code>node-2</code>, which isn’t coming back today. Bring the queue back in another building.</p>",
+    "dica": "kubectl get pods -o wide and kubectl get nodes. The StatefulSet waits for fila-0 to be gone for good: kubectl delete pod fila-0 --force --grace-period=0",
+    "vidaReal": "Apartment 0 of the queue has an owner and a number: until the management office is sure the old one has left, it won’t give that number to anyone else.",
+    "limite": "Forcing it out means stating “the old one really is dead”. If the building comes back and the old one is still alive, there would be two fila-0s.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "n9-balcao-errado": {
+    "titulo": "The front desk sends people to the wrong room",
+    "enunciado": "<blockquote class=\"relato\"><p>People who come through the front gate looking for loja.local get “Service Unavailable”. The shop is open, I saw it.</p><footer>Apolinário, the doorman</footer></blockquote><p>The <code>loja</code> Ingress sends <code>loja.local</code> to a Service that doesn’t exist. Fix it.</p>",
+    "dica": "kubectl describe ingress loja (Backends) and kubectl get svc.",
+    "vidaReal": "The information desk sends customers to the “lojas” room, and the room is called “loja”.",
+    "limite": "The Ingress doesn’t check whether the Service exists when it’s created: the error only shows up when someone arrives.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "n9-cota-estourada": {
+    "titulo": "We asked for six, we got four",
+    "enunciado": "<blockquote class=\"relato\"><p>For the sale, I asked for six clerks. Four showed up. The general manager already approved a quota of ten.</p><footer>Cida, the sales manager</footer></blockquote><p>The <code>loja</code> in the <code>vendas</code> (sales) namespace has 6 replicas and only 4 pods. Find out what’s holding it back and\n             apply the approved quota: <b>10 pods</b>.</p>",
+    "dica": "kubectl describe rs -n vendas (exceeded quota) and kubectl describe quota -n vendas. Change hard.pods to \"10\".",
+    "vidaReal": "The company can only have four apartments in the condo: the lease for the other two gets turned down at the front gate.",
+    "limite": "The quota refuses at creation time, quietly: the Deployment shows 4/6, and the reason only shows up in the ReplicaSet’s events.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "n9-pintura-sem-fim": {
+    "titulo": "The paint job that never ends",
+    "enunciado": "<blockquote class=\"relato\"><p>The new dashboard has been “Init:0/1” since yesterday. The painting crew showed up and is just standing at the door.</p><footer>Lauro, the photographer</footer></blockquote><p>The init container of the <code>painel</code> (dashboard) waits for the database by name before letting the dashboard start. Find out what\n             it’s waiting for, what the database is really called (<code>kubectl get svc</code>), and fix it.</p>",
+    "dica": "kubectl logs deploy/painel -c espera-o-banco (it prints: esperando o banco). The Service is called db: replace banco with db in the name the init container looks for.",
+    "vidaReal": "The painting crew is waiting for the resident “banco” to arrive, and the resident is called “db”: they’ll wait forever.",
+    "limite": "An init container has no deadline: without a timeout in the script, it waits indefinitely, with no error at all.",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  }
+}
