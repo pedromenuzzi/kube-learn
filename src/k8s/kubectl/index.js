@@ -551,7 +551,7 @@ function create(cluster, a, s) {
           strategy: {},
           template: {
             metadata: { labels: { ...labels } },
-            spec: { containers: imgs.map((img) => ({ image: img, name: nomeDoConteiner(img), ...(a.flags.port ? { ports: [{ containerPort: Number(a.flags.port) }] } : {}), resources: {} })) },
+            spec: { containers: imgs.map((img) => ({ ...(a.depois?.length ? { command: a.depois } : {}), image: img, name: nomeDoConteiner(img), ...(a.flags.port ? { ports: [{ containerPort: Number(a.flags.port) }] } : {}), resources: {} })) },
           },
         },
         status: {},

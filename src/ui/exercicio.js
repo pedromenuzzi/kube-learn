@@ -300,7 +300,9 @@ export function montarExercicio(raiz, item) {
   const acoes = {
     aplicar() {
       abasBaixo.selecionar('terminal');
-      terminal.rodar('kubectl apply -f .');
+      // Nas missões de Kustomize, o botão aplica as pastas que os testes aplicam (apply -f . leria o kustomization.yaml).
+      const pastas = [...new Set(item.testes?.filter((t) => !t.oculto).map((t) => t.passos?.[0]?.comando).filter((l) => /^kubectl apply -k /.test(l ?? '')))];
+      for (const linha of pastas.length ? pastas : ['kubectl apply -f .']) terminal.rodar(linha);
       if (item.testes?.some((t) => !t.oculto)) testar(false);
     },
     conferir: () => testar(false),
