@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: comando
+  name: comando
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: comando
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: comando
+    spec:
+      containers:
+      - command:
+        - sleep
+        - "3600"
+        image: busybox:1.36
+        name: busybox
+        resources: {}
+status: {}
+exit=0

@@ -5,14 +5,15 @@ import { calcularJornada, sequenciaDeDias, hojeLocal } from '../jogo/gamificacao
 import { ler, CHAVES } from '../armazenamento.js';
 import { icone, marcaNavio } from './icones.js';
 
-const LINKS = [['#/trilha', 'trilha', 'Trilha'], ['#/livre', 'terminal', 'Playground'], ['#/glossario', 'livro', 'Glossário'], ['#/revisao', 'cartas', 'Revisão']];
+// [href, ícone, rótulo, rótulo curto (no celular e no tablet, onde o topo aperta)]
+const LINKS = [['#/trilha', 'trilha', 'Trilha'], ['#/troubleshooting', 'alerta', 'Troubleshooting', 'Debug'], ['#/livre', 'terminal', 'Playground'], ['#/glossario', 'livro', 'Glossário'], ['#/revisao', 'cartas', 'Revisão']];
 
 export function montarTopo(topo) {
   topo.innerHTML = `
     <div class="topo-dentro">
       <a class="marca" href="#/">${marcaNavio()}<span class="marca-nome">kube-learn</span></a>
       <nav class="nav" aria-label="Principal">
-        <ul>${LINKS.map(([href, ic, rotulo]) => `<li><a href="${href}">${icone(ic)}<span>${rotulo}</span></a></li>`).join('')}</ul>
+        <ul>${LINKS.map(([href, ic, rotulo, curto]) => `<li><a href="${href}">${icone(ic)}<span>${curto ? `<span class="rotulo-longo">${rotulo}</span><span class="rotulo-curto">${curto}</span>` : rotulo}</span></a></li>`).join('')}</ul>
       </nav>
       <div class="topo-direita">
         <a class="placar-topo" href="#/trilha" title="Seu placar"></a>

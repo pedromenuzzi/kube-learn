@@ -570,5 +570,14 @@ export function rodarCenario() {
   cap('api-resources-crd', 'kubectl api-resources --api-group=kube-learn.dev');
   cap('delete-crd', 'kubectl delete crd backups.kube-learn.dev');
   cap('get-backup-sem-crd', 'kubectl get backups');
+  k('kubectl create configmap prefixo-a --from-literal=a=1');
+  k('kubectl create configmap prefixo-b --from-literal=b=2');
+  cap('describe-prefixo', 'kubectl describe cm prefixo');
+  cap('describe-dois', 'kubectl describe cm prefixo-a prefixo-b');
+  cap('describe-prefixo-nenhum', 'kubectl describe cm nada');
+  cap('describe-prefixo-barra', 'kubectl describe cm/prefixo');
+  cap('describe-prefixo-eventos', 'kubectl describe cm prefixo --show-events=true');
+  cap('describe-um-sem-eventos', 'kubectl describe cm prefixo-a --show-events=false');
+  cap('create-deploy-comando', 'kubectl create deployment comando --image=busybox:1.36 --dry-run=client -o yaml -- sleep 3600');
   return { saidas, cluster: c };
 }

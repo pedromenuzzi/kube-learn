@@ -263,12 +263,20 @@ function describe(cluster, a, s) {
     return;
   }
   const sel = selecionar(cluster, posicionais, flags);
-  const objetos = sel.grupos.flatMap((g) => g.objetos);
-  const textos = [];
-  for (const o of objetos) {
-    if (!temDescritor(o.kind)) continue;
-    textos.push(descrever(cluster, o));
+  // Os eventos aparecem quando o describe pega um objeto só; com vários, ou por prefixo, só com --show-events=true.
+  const eventos = flags['show-events'];
+  // describe TIPO NOME sem um objeto com esse nome: descreve todos cujo nome começa com ele (DescribeMatchingResources).
+  const [tipo, prefixo] = posicionais;
+  if (posicionais.length === 2 && !/[/,]/.test(tipo) && sel.erros.length) {
+    const r = acharRecurso(tipo);
+    const achados = cluster.listar(r.kind, r.namespaced ? namespaceDe(cluster, flags) : null).filter((o) => o.metadata.name.startsWith(prefixo) && temDescritor(o.kind));
+    if (achados.length) {
+      s.out(achados.map((o) => `${descrever(cluster, o, { comEventos: eventos ?? false })}\n`).join(''));
+      return;
+    }
   }
+  const objetos = sel.grupos.flatMap((g) => g.objetos);
+  const textos = objetos.filter((o) => temDescritor(o.kind)).map((o) => descrever(cluster, o, { comEventos: eventos ?? objetos.length === 1 }));
   s.out(textos.join('\n\n'));
   if (!objetos.length && !sel.nomeado) s.err(semResultados(cluster, flags));
   for (const e of sel.erros) s.falha(e);
@@ -1427,7 +1435,7 @@ const DRY = { 'dry-run': { tipo: 'string' } };
 
 const COMANDOS = {
   get: { flags: { ...SAIDA, ...SELETOR, watch: { curto: 'w', tipo: 'bool' }, 'all-namespaces': { curto: 'A', tipo: 'bool' }, 'show-labels': { tipo: 'bool' }, 'no-headers': { tipo: 'bool' }, 'field-selector': { tipo: 'string' } }, rodar: get },
-  describe: { flags: { ...SELETOR, 'all-namespaces': { curto: 'A', tipo: 'bool' } }, rodar: describe },
+  describe: { flags: { ...SELETOR, 'all-namespaces': { curto: 'A', tipo: 'bool' }, 'show-events': { tipo: 'bool' } }, rodar: describe },
   apply: { flags: { ...ARQUIVOS, ...SAIDA, ...DRY, 'server-side': { tipo: 'bool' }, validate: { tipo: 'string' } }, rodar: apply },
   create: {
     flags: { ...ARQUIVOS, ...SAIDA, ...DRY, ...FLAGS_DE_SEGURANCA, image: { tipo: 'lista' }, replicas: { curto: 'r', tipo: 'int' }, port: { tipo: 'string' }, 'from-literal': { tipo: 'lista' }, 'from-file': { tipo: 'lista' }, tcp: { tipo: 'lista' }, type: { tipo: 'string' }, 'save-config': { tipo: 'bool' }, validate: { tipo: 'string' }, schedule: { tipo: 'string' }, from: { tipo: 'string' }, restart: { tipo: 'string' } },

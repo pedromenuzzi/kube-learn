@@ -86,6 +86,7 @@ function taints(w, lista) {
 
 /** Ocorrências do objeto (ordenadas pela última vez), no fim do describe. */
 export function escreverEventos(w, eventos, agora) {
+  if (!eventos) return; // --show-events=false
   if (!eventos.length) {
     w.w(0, 'Events:\t<none>\n');
     return;
@@ -977,8 +978,8 @@ function descreverCr(w, o, ctx) {
 }
 
 /** Texto do describe de um objeto. */
-export function descrever(cluster, obj) {
-  const eventos = cluster.eventos.filter((e) => e.involvedObject.uid === obj.metadata.uid);
+export function descrever(cluster, obj, { comEventos = true } = {}) {
+  const eventos = comEventos ? cluster.eventos.filter((e) => e.involvedObject.uid === obj.metadata.uid) : null;
   const w = new Escritor();
   (DESCRITORES[obj.kind] ?? descreverCr)(w, obj, { cluster, agora: cluster.agora, eventos });
   return w.texto();

@@ -175,7 +175,7 @@ export const NIVEL7 = [
     vidaReal: 'O motor de busca só aceita prédio com disco rápido. O node-1 tem SSD, mas ninguém pôs a etiqueta na porta.',
     limite: 'A label é só uma etiqueta: o Kubernetes não confere se o node tem mesmo SSD. Etiqueta errada manda o pod para o lugar errado.',
     enunciado: `
-      <p>O pod da <code>busca</code> está <b>Pending</b>. Descubra o motivo (<code>kubectl describe pod</code>, nos Events)
+      <p>O pod da <code>busca</code> está <b>Pending</b>. Descubra o motivo (<code>kubectl describe pod NOME</code>, nos Events)
          e, <b>pelo terminal</b>, ponha no <code>node-1</code> a label que ele pede.</p>`,
     comoSaber: 'Em poucos segundos o pod sai de Pending e vai para o node-1.',
     dica: 'kubectl label node node-1 disco=ssd',

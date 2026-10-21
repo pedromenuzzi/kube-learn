@@ -366,7 +366,7 @@ spec:
     vidaReal: 'O bilhete diz "a combinação está no envelope, na linha password", mas o envelope só tem a linha "senha".',
     limite: 'O kubelet não adivinha: chave que não existe trava o contêiner (a menos que a referência seja optional).',
     enunciado: `
-      <p>O banco não sai de <code>CreateContainerConfigError</code>. Descubra o motivo com <code>kubectl describe pod</code>
+      <p>O banco não sai de <code>CreateContainerConfigError</code>. Descubra o motivo com <code>kubectl describe pod NOME</code>
          (nas Events) e confira as chaves do Secret com <code>kubectl describe secret banco-senha</code>. Conserte o
          Deployment.</p>`,
     dica: 'O secretKeyRef precisa citar uma chave que exista no Secret.',

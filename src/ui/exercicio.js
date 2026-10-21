@@ -57,10 +57,10 @@ export function montarExercicio(raiz, item) {
   raiz.innerHTML = `
     <div class="ex${temArquivos ? '' : ' ex-so-terminal'}">
       <header class="ex-topo">
-        <a class="voltar" href="#/trilha">${icone('voltar')}<span class="visualmente-oculto">Voltar à </span>Trilha</a>
+        <a class="voltar" href="#/${item.secao ?? 'trilha'}">${icone('voltar')}<span class="visualmente-oculto">Voltar ${item.secao ? 'ao ' : 'à '}</span>${item.secao ? 'Troubleshooting' : 'Trilha'}</a>
         <h1>${escapar(item.titulo)}</h1>
         ${item.projeto ? `<span class="chip chip-projeto">${icone('arvore')} ${escapar(item.projeto.titulo)} · etapa ${item.projeto.etapa} de ${item.projeto.total}</span>` : ''}
-        ${item.dificuldade ? `<span class="chip chip-${item.dificuldade}">${DIFICULDADE[item.dificuldade]}</span><span class="chip">${XP[item.dificuldade]} XP</span>` : ''}
+        ${item.dificuldade ? `<span class="chip chip-${item.dificuldade}">${DIFICULDADE[item.dificuldade]}</span>${item.secao ? '' : `<span class="chip">${XP[item.dificuldade]} XP</span>`}` : ''}
       </header>
       <div class="ex-acoes">
         ${temArquivos ? `<button type="button" class="botao" data-acao="aplicar" title="Ctrl+Enter">${icone('play')} Aplicar</button>` : `<button type="button" class="botao" data-acao="conferir" title="Ctrl+Enter">${icone('certo')} Conferir</button>`}
@@ -287,7 +287,7 @@ export function montarExercicio(raiz, item) {
         const resolvido = ok === total;
         registrarResultado(item.id, resolvido);
         aviso.textContent = resolvido
-          ? `Missão cumprida! +${XP[item.dificuldade] ?? 0} XP. Mais um contêiner embarcado no seu navio.`
+          ? item.secao ? 'Incidente resolvido! O morador agradece.' : `Missão cumprida! +${XP[item.dificuldade] ?? 0} XP. Mais um contêiner embarcado no seu navio.`
           : `${ok} de ${total} testes passaram. Veja o que faltou na aba Testes.`;
       } else {
         aviso.textContent = `Testes visíveis: ${ok} de ${total} passaram${ok === total ? '. Agora é só entregar.' : '. Veja a aba Testes.'}`;
@@ -324,9 +324,11 @@ export function montarExercicio(raiz, item) {
     'ver-solucao'() {
       const div = $('.solucao');
       div.hidden = false;
-      div.innerHTML = item.solucaoTerminal
-        ? `<pre>${escapar(item.solucaoTerminal.join('\n'))}</pre>`
-        : Object.entries(item.solucao).map(([n, t]) => `<h3>${escapar(n)}</h3><pre>${escapar(t)}</pre>`).join('') + '<button type="button" data-acao="usar-solucao">Copiar para o editor</button>';
+      // Os comandos (missão de terminal) e os arquivos consertados (quando o conserto também mexe neles).
+      const arquivos = Object.entries(item.solucao ?? {});
+      const mudam = !item.solucaoTerminal || arquivos.some(([n, t]) => item.inicial?.[n] !== t);
+      div.innerHTML = (item.solucaoTerminal ? `<pre>${escapar(item.solucaoTerminal.join('\n'))}</pre>` : '')
+        + (arquivos.length && mudam ? arquivos.map(([n, t]) => `<h3>${escapar(n)}</h3><pre>${escapar(t)}</pre>`).join('') + '<button type="button" data-acao="usar-solucao">Copiar para o editor</button>' : '');
     },
     arrumacao: () => janelas.restaurar(),
     'usar-solucao'() {

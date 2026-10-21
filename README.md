@@ -13,9 +13,10 @@ scheduling e manutenção; segurança; troubleshooting; Helm, Kustomize, CRDs e 
 8 quizzes e 172 missões (64 no terminal), um glossário de 84 termos, a revisão do dia, os lacres de cada nível e o
 navio em pixel art na página inicial. O nível 11 tem 8 projetos de 5 etapas encadeadas (a loja completa, o blog
 com banco, deploy sem downtime, canário, Black Friday, multi-equipe, hardening e dev e prod) e termina com o
-caminho para um cluster de verdade (Killercoda, kind e minikube). O simulador tem Helm 4, Kustomize, CRDs com um
-operador e um fiscal de GitOps, além de scheduling, RBAC, NetworkPolicy e Pod Security, conferidos contra 345
-saídas de um kind de verdade. O plano completo está em [`PLANO.md`](PLANO.md).
+caminho para um cluster de verdade (Killercoda, kind e minikube). Fora da trilha, a seção **Troubleshooting** traz
+clusters quebrados com mais de um defeito encadeado, abertos desde o primeiro dia. O simulador tem Helm 4, Kustomize,
+CRDs com um operador e um fiscal de GitOps, além de scheduling, RBAC, NetworkPolicy e Pod Security, conferidos
+contra 352 saídas de um kind de verdade. O plano completo está em [`PLANO.md`](PLANO.md).
 
 ## Desenvolvimento
 

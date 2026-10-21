@@ -1,0 +1,33 @@
+Name:         prefixo-a
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Data
+====
+a:
+----
+1
+
+
+BinaryData
+====
+
+
+
+Name:         prefixo-b
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Data
+====
+b:
+----
+2
+
+
+BinaryData
+====
+
+exit=0

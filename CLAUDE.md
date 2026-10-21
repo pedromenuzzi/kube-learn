@@ -48,6 +48,9 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
 - Um arquivo por nível (`nivel0.js`...), ligado em `niveis.js`. Construtores em `util.js`: `licao` (com `inicial` abre
   na tela do exercício; sem, é leitura), `quiz` (alternativas com explicação, ou `resposta` RegExp + `exemplos`) e
   `problema`.
+- A seção **Troubleshooting** (`troubleshooting.js`, rota `#/troubleshooting`) fica fora da trilha: abre desde o começo,
+  não vale XP nem contêiner. Cada incidente tem mais de um defeito encadeado e usa o `incidente()` do nível 9 com
+  `partidas: PARTIDA_TS`; o teste da trilha roda os dois.
 - Missão de terminal: `terminal: true`, `solucaoTerminal: [...]` e testes `noClusterDoAluno` (conferem o cluster do
   próprio aluno). Resposta digitada: regra `{ resposta }` + `respostaCerta` (texto ou função do cluster).
 - Clusters de partida em `clusters.js` (`nodes` com labels e taints; `antes`, comandos antes dos manifestos;

@@ -1775,3 +1775,14 @@ cap backup-invalido kc apply -f /tmp/kl-backup-ruim.yaml
 cap api-resources-crd kc api-resources --api-group=kube-learn.dev
 cap delete-crd kc delete crd backups.kube-learn.dev
 cap get-backup-sem-crd kc get backups
+
+# ---------- Troubleshooting: describe por prefixo e create deployment com o comando depois do -- ----------
+kc create configmap prefixo-a --from-literal=a=1 >/dev/null 2>&1
+kc create configmap prefixo-b --from-literal=b=2 >/dev/null 2>&1
+cap describe-prefixo kc describe cm prefixo
+cap describe-dois kc describe cm prefixo-a prefixo-b
+cap describe-prefixo-nenhum kc describe cm nada
+cap describe-prefixo-barra kc describe cm/prefixo
+cap describe-prefixo-eventos kc describe cm prefixo --show-events=true
+cap describe-um-sem-eventos kc describe cm prefixo-a --show-events=false
+cap create-deploy-comando kc create deployment comando --image=busybox:1.36 --dry-run=client -o yaml -- sleep 3600

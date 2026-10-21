@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-const PAGINAS = ['#/', '#/trilha', '#/glossario', '#/livre', '#/ex/deploy-rolling-sem-indisponibilidade', '#/ex/n0-imagem-e-conteiner', '#/ex/n0-quiz-latest', '#/ex/n1-diario', '#/ex/n3-ingress-caminho', '#/ex/n9-imagem-errada'];
+const PAGINAS = ['#/', '#/trilha', '#/glossario', '#/livre', '#/ex/deploy-rolling-sem-indisponibilidade', '#/ex/n0-imagem-e-conteiner', '#/ex/n0-quiz-latest', '#/ex/n1-diario', '#/ex/n3-ingress-caminho', '#/ex/n9-imagem-errada', '#/troubleshooting', '#/ex/ts-loja-fora-do-ar'];
 const TEMAS = ['claro', 'escuro', 'contraste'];
 
 for (const tema of TEMAS) {
@@ -69,6 +69,24 @@ test('resolver uma missão embarca um contêiner: o nível mostra o progresso e 
   await expect(page.locator('.placar')).toContainText('Dias seguidos');
   await expect(page.locator('#nivel-2').getByRole('link', { name: /resolvida/ })).toHaveCount(1);
   await expect(page.locator('canvas.navio')).toBeVisible();
+});
+
+test('troubleshooting: a seção abre sem desbloquear nada e marca o incidente resolvido', async ({ page }) => {
+  page.on('dialog', (d) => d.accept());
+  await page.goto('#/');
+  await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Troubleshooting' }).click();
+  await expect(page.locator('.chamado')).toHaveCount(3);
+  await page.getByRole('link', { name: 'A loja fora do ar' }).click();
+  await expect(page.locator('.ex-topo')).not.toContainText('XP');
+  await page.getByRole('tab', { name: 'Solução' }).click();
+  await page.getByRole('button', { name: 'Ver a solução' }).click();
+  await page.getByRole('button', { name: 'Copiar para o editor' }).click();
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+  for (let i = 0; i < 3; i++) await page.getByRole('button', { name: '+30s' }).click();
+  await page.getByRole('button', { name: 'Entregar' }).click();
+  await expect(page.locator('.ex-aviso')).toContainText('Incidente resolvido');
+  await page.getByRole('link', { name: 'Voltar ao Troubleshooting' }).click();
+  await expect(page.locator('.chamado').first()).toContainText('Resolvido');
 });
 
 test('glossário: a busca filtra (sem precisar de acento)', async ({ page }) => {
