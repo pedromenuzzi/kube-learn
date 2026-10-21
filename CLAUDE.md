@@ -23,7 +23,8 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
 
 - `cluster.js` (API, eventos, relógio, laço de reconciliação) → `controladores.js`, `scheduler.js`, `kubelet.js`,
   `rede.js`, `discos.js` (PV, PVC, o provisionador local-path do kind e o sistema de arquivos de cada contêiner,
-  com volumes), `cron.js` (o horário dos CronJobs), `cotas.js` (ResourceQuota e LimitRange); `imagens.js` é o catálogo de imagens falsas (o comportamento de cada uma); `shell.js` roda o
+  com volumes), `cron.js` (o horário dos CronJobs), `cotas.js` (ResourceQuota e LimitRange), `manutencao.js` (PodDisruptionBudget,
+  eviction, node que cai e despejo por taint NoExecute); `imagens.js` é o catálogo de imagens falsas (o comportamento de cada uma); `shell.js` roda o
   `sh -c` dos contêineres e o `kubectl exec`; `esquema.js` tem os campos de cada kind (decodificação estrita,
   validação, padrões, explain); `kubectl/` é a linha de comando.
 - O cluster sobe com o que o kind tem (kindnet, kube-proxy, local-path-provisioner, StorageClass standard);
@@ -46,7 +47,8 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
   `problema`.
 - Missão de terminal: `terminal: true`, `solucaoTerminal: [...]` e testes `noClusterDoAluno` (conferem o cluster do
   próprio aluno). Resposta digitada: regra `{ resposta }` + `respostaCerta` (texto ou função do cluster).
-- Clusters de partida em `clusters.js` (`manifestos` e `comandos` rodados antes do aluno chegar).
+- Clusters de partida em `clusters.js` (`nodes` com labels e taints; `antes`, comandos antes dos manifestos;
+  `manifestos`; e `comandos`, cada um seguido de 1 minuto, que podem ser funções do cluster, como `c.derrubarNode('node-2')`).
 - As regras de teste estão documentadas no topo de `src/verificacoes.js`. O teste da trilha
   (`tests/conteudo.test.js`) roda a solução e o inicial de toda missão.
 

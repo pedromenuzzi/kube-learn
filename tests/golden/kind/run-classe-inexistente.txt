@@ -1,0 +1,2 @@
+Error from server (Forbidden): pods "sem-classe" is forbidden: no PriorityClass with name nao-existe was found
+exit=1

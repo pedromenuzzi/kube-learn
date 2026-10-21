@@ -1,0 +1,9 @@
+Name:              critico
+Value:             1000000
+GlobalDefault:     false
+PreemptionPolicy:  PreemptLowerPriority
+Description:       Pagamentos: passam na frente.
+Annotations:       kubectl.kubernetes.io/last-applied-configuration={"apiVersion":"scheduling.k8s.io/v1","description":"Pagamentos: passam na frente.","kind":"PriorityClass","metadata":{"annotations":{},"name":"critico"},"value":1000000}
+
+Events:  <none>
+exit=0

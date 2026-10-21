@@ -1,0 +1,5 @@
+NAME                   STATUS                     ROLES           AGE     VERSION
+golden-control-plane   Ready                      control-plane   2m12s   v1.37.0
+golden-worker          Ready,SchedulingDisabled   <none>          113s    v1.37.0
+golden-worker2         Ready                      <none>          112s    v1.37.0
+exit=0

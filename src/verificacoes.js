@@ -21,8 +21,11 @@
 //   { resposta: 'texto' | /regex/ | { de: 'pod/x', campo: 'spec.nodeName' } }   a resposta que o aluno digitou
 //                                                      (a última forma compara com um campo do cluster do aluno)
 //   { contexto: { namespace } }                        o namespace padrão do kubectl (kubectl config set-context)
+//   { espalhamento: { pods: 'app=x', chave: 'topology.kubernetes.io/zone', maxSkew: 1 } }   a maior diferença de
+//                                                      pods entre os domínios (os valores da label nos nodes)
 //
-// Passos (`passos`): { comando: 'kubectl ...' }, { avancar: '30s' } e { adicionarNode: 'node-3' } (um prédio novo no condomínio).
+// Passos (`passos`): { comando: 'kubectl ...' }, { avancar: '30s' }, { adicionarNode: 'node-3' } (um prédio novo no condomínio)
+// e { derrubarNode: 'node-2' } (o prédio fica sem luz: o kubelet dele para).
 // Sem `passos`: kubectl apply -f . e 1 minuto de relógio.
 import { montarCluster } from './conteudo/clusters.js';
 import { kubectl, seletorDeLabels } from './k8s/kubectl/index.js';
@@ -192,7 +195,18 @@ const REGRAS = {
       const obj = ctx.cluster?.obter(recurso.kind, recurso.namespaced ? r.resposta.ns ?? 'default' : null, nome);
       ok = !!obj && dada.toLowerCase() === String(ler(obj, r.resposta.campo)).toLowerCase();
     } else ok = dada.toLowerCase() === String(r.resposta).toLowerCase();
-    return [ok, 'a resposta está certa', dada ? 'não é essa' : 'você ainda não respondeu (o campo fica na aba 📝 Missão)'];
+    return [ok, 'a resposta está certa', dada ? 'não é essa' : 'você ainda não respondeu (o campo fica na aba Missão)'];
+  },
+  espalhamento(r, ctx) {
+    const q = r.espalhamento;
+    const conta = new Map(ctx.cluster.listar('Node').map((n) => n.metadata.labels?.[q.chave]).filter((v) => v !== undefined).map((v) => [v, 0]));
+    for (const p of podsDo(ctx.cluster, q.pods, q.ns).filter((x) => x.spec.nodeName)) {
+      const v = ctx.cluster.obter('Node', null, p.spec.nodeName)?.metadata.labels?.[q.chave];
+      if (conta.has(v)) conta.set(v, conta.get(v) + 1);
+    }
+    const valores = [...conta.values()];
+    const dif = valores.length ? Math.max(...valores) - Math.min(...valores) : 0;
+    return [dif <= q.maxSkew, `os pods ${q.pods} estão espalhados por ${q.chave} (diferença de no máximo ${q.maxSkew})`, [...conta].map(([k, n]) => `${k}: ${n}`).join(', ')];
   },
   contexto(r, ctx) {
     const atual = ctx.cluster.contexto.namespace;
@@ -244,6 +258,8 @@ export function rodarTeste(item, teste, indice, { arquivos = {}, historico = [],
       } else if (passo.adicionarNode) {
         ctx.cluster.criarNodes([{ nome: passo.adicionarNode }], ctx.cluster.listar('Node').length);
         ctx.cluster.reconciliar();
+      } else if (passo.derrubarNode) {
+        ctx.cluster.derrubarNode(passo.derrubarNode);
       } else if (passo.avancar) {
         const fim = ctx.cluster.agora + parseDuracao(passo.avancar);
         while (ctx.cluster.agora < fim) {

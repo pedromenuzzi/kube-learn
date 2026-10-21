@@ -1,0 +1,2 @@
+node/golden-worker2 untainted
+exit=0

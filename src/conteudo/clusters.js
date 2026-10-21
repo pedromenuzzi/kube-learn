@@ -1,9 +1,10 @@
 // Os clusters de partida dos exercícios: nodes e o que já estava aplicado antes do aluno chegar.
-import { criarCluster } from '../k8s/cluster.js';
+import { criarCluster, NODES_PADRAO } from '../k8s/cluster.js';
 import { kubectl } from '../k8s/kubectl/index.js';
 import { yaml } from './util.js';
 import { PARTIDA5 } from './nivel5.js';
 import { PARTIDA6 } from './nivel6.js';
+import { PARTIDA7 } from './nivel7.js';
 
 const LOJA = (replicas, versao) => yaml`
   apiVersion: apps/v1
@@ -131,6 +132,9 @@ const GATEWAY = yaml`
       protocol: HTTP
 `;
 const juntar = (...docs) => docs.map((d) => d.trim()).join('\n---\n');
+/** Os nodes padrão, com labels e taints a mais em alguns: { 'node-2': { labels, taints } }. */
+const nodesCom = (extras) => NODES_PADRAO.map((n) => ({ ...n, ...(extras[n.nome] ?? {}) }));
+const zona = (z) => ({ labels: { 'topology.kubernetes.io/zone': z } });
 const NS = (nome) => `apiVersion: v1\nkind: Namespace\nmetadata:\n  name: ${nome}\n`;
 const COTA = (ns, duro) => `apiVersion: v1
 kind: ResourceQuota
@@ -413,6 +417,22 @@ export const CLUSTERS = {
             memory: 512Mi
     `, PARTIDA6.grande),
   },
+  // Nível 7
+  gerador: { nodes: nodesCom({ 'node-2': { labels: { energia: 'gerador' } } }) },
+  'sem-ssd': { manifestos: PARTIDA7.semSsd },
+  'gerador-em-reforma': { nodes: nodesCom({ 'node-2': { labels: { energia: 'gerador' } } }), comandos: ['kubectl cordon node-2'] },
+  zonas: { nodes: [NODES_PADRAO[0], { nome: 'node-1', ...zona('zona-a') }, { nome: 'node-2', ...zona('zona-a') }, { nome: 'node-3', ...zona('zona-b') }] },
+  gpu: { nodes: nodesCom({ 'node-2': { labels: { dedicado: 'gpu' }, taints: [{ effect: 'NoSchedule', key: 'dedicado', value: 'gpu' }] } }), manifestos: LOJA(3, '1.0') },
+  'placa-esquecida': { nodes: nodesCom({ 'node-1': { labels: { impressora: 'sim' }, taints: [{ effect: 'NoSchedule', key: 'obra', value: 'sim' }] } }), manifestos: PARTIDA7.impressao },
+  // A loja inteira no node-1 (o node-2 estava interditado quando ela chegou).
+  'pdb-loja': { antes: ['kubectl cordon node-2'], manifestos: LOJA(3, '1.0'), comandos: ['kubectl uncordon node-2'] },
+  lotado: { manifestos: PARTIDA7.relatorios },
+  // A loja e o caderno no node-2, que cai: 6 minutos depois, a loja já renasceu no node-1 e o caderno ficou.
+  apagao: {
+    antes: ['kubectl cordon node-1'],
+    manifestos: juntar(LOJA_DEP(2), PARTIDA7.caderno),
+    comandos: ['kubectl uncordon node-1', (c) => { c.derrubarNode('node-2'); c.avancar('6m'); }],
+  },
 };
 
 /** Monta o cluster de partida (sempre igual para a mesma semente). */
@@ -420,15 +440,24 @@ export function montarCluster(nome = 'vazio', semente = nome) {
   const def = CLUSTERS[nome];
   if (!def) throw new Error(`cluster de partida desconhecido: ${nome}`);
   const c = criarCluster({ nodes: def.nodes, semente, metricas: def.metricas });
+  // Comandos antes dos manifestos (ex.: interditar um node para tudo nascer no outro).
+  for (const linha of def.antes ?? []) {
+    const r = kubectl(c, linha);
+    if (r.codigo) throw new Error(`cluster ${nome}: ${linha}: ${r.saida}`);
+  }
   if (def.manifestos) {
     const r = kubectl(c, 'kubectl apply -f inicial.yaml', { arquivos: { 'inicial.yaml': def.manifestos } });
     if (r.codigo) throw new Error(`cluster ${nome}: ${r.saida}`);
     c.avancar('1m');
   }
   // Comandos que "alguém" rodou antes do aluno chegar (cada um seguido de 1 minuto).
+  // Uma função faz o que o kubectl não faz (ex.: derrubar um node).
   for (const linha of def.comandos ?? []) {
-    const r = kubectl(c, linha);
-    if (r.codigo) throw new Error(`cluster ${nome}: ${linha}: ${r.saida}`);
+    if (typeof linha === 'function') linha(c);
+    else {
+      const r = kubectl(c, linha);
+      if (r.codigo) throw new Error(`cluster ${nome}: ${linha}: ${r.saida}`);
+    }
     c.avancar('1m');
   }
   return c;

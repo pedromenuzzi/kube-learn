@@ -14,7 +14,7 @@ const REGRAS = [
   },
   {
     re: /strict decoding error: (unknown field .*)/,
-    t: (m) => ({ titulo: 'Campo que não existe', texto: `O Kubernetes não conhece ${m[1].replace(/unknown field "([^"]+)"/g, '<code>$1</code>')}. Costuma ser erro de digitação (<code>replica</code> em vez de <code>replicas</code>) ou recuo errado, que põe o campo dentro do bloco errado. O 📘 Manual mostra os nomes certos.`, vidaReal: 'Um formulário com um campo inventado: a administração devolve sem processar.' }),
+    t: (m) => ({ titulo: 'Campo que não existe', texto: `O Kubernetes não conhece ${m[1].replace(/unknown field "([^"]+)"/g, '<code>$1</code>')}. Costuma ser erro de digitação (<code>replica</code> em vez de <code>replicas</code>) ou recuo errado, que põe o campo dentro do bloco errado. A aba Manual mostra os nomes certos.`, vidaReal: 'Um formulário com um campo inventado: a administração devolve sem processar.' }),
   },
   {
     re: /cannot unmarshal (\w+) into Go struct field \w+\.([\w.]+) of type (\S+)/,
@@ -74,7 +74,7 @@ const REGRAS = [
   },
   {
     re: /is invalid: .*?([\w.[\]]+): Required value/,
-    t: (m) => ({ titulo: `Falta um campo obrigatório: ${m[1]}`, texto: 'Esse campo não pode ficar vazio. O 📘 Manual (ou <code>kubectl explain</code>) mostra o que vai nele.', vidaReal: 'Um formulário sem um campo obrigatório preenchido.' }),
+    t: (m) => ({ titulo: `Falta um campo obrigatório: ${m[1]}`, texto: 'Esse campo não pode ficar vazio. A aba Manual (ou <code>kubectl explain</code>) mostra o que vai nele.', vidaReal: 'Um formulário sem um campo obrigatório preenchido.' }),
   },
   {
     re: /found character that cannot start any token/,
@@ -109,6 +109,38 @@ const REGRAS = [
     t: () => ({ titulo: 'O contêiner não está rodando', texto: 'Só dá para entrar num contêiner em execução. Veja o status com <code>kubectl get pod</code>.', vidaReal: 'Tocar a campainha de um apartamento vazio.' }),
   },
   {
+    re: /cannot delete DaemonSet-managed Pods/,
+    t: () => ({ titulo: 'O drain não mexe nos pods de DaemonSet sem você dizer', texto: 'Pods de DaemonSet (kube-proxy, kindnet...) existem um por node, de propósito: tirados, voltariam na hora. Diga ao drain para deixá-los: <code>--ignore-daemonsets</code>. O node já ficou interditado (cordon).', vidaReal: 'O extintor é do prédio: na mudança, ele fica.' }),
+  },
+  {
+    re: /cannot delete Pods that declare no controller/,
+    t: () => ({ titulo: 'Pod sem dono: se sair, não volta', texto: 'Esse pod não tem Deployment (nem outro controlador) por trás: despejado, ele some para sempre. Se é isso mesmo, use <code>--force</code>; melhor ainda, rode-o num Deployment.', vidaReal: 'Um morador sem contrato: se sair na reforma, ninguém guarda o lugar dele.' }),
+  },
+  {
+    re: /cannot delete Pods with local storage/,
+    t: () => ({ titulo: 'O pod tem dados num emptyDir', texto: 'O que está no emptyDir some com o pod. Se pode perder, use <code>--delete-emptydir-data</code>.', vidaReal: 'A mesa de trabalho não vai na mudança: o que estiver em cima dela se perde.' }),
+  },
+  {
+    re: /global timeout reached/,
+    t: () => ({ titulo: 'O drain desistiu de esperar', texto: 'Algum pod não saiu a tempo: um PodDisruptionBudget sem folga (minAvailable igual às réplicas, ou réplicas sem lugar para ir) ou um pod num node que não responde. Veja <code>kubectl get pdb</code> e <code>kubectl get pods -o wide</code>.', vidaReal: 'A mudança parou: o combinado não deixa tirar mais ninguém, e não há para onde ir.' }),
+  },
+  {
+    re: /already has ([\w./-]+) taint\(s\) with same effect/,
+    t: (m) => ({ titulo: `O node já tem a placa "${m[1]}"`, texto: `Para trocar o valor, use <code>--overwrite</code>; para tirar, ponha um "-" no fim: <code>kubectl taint nodes NODE ${m[1]}-</code>.`, vidaReal: 'Pendurar uma placa onde já tem uma igual.' }),
+  },
+  {
+    re: /taint "([^"]+)" not found/,
+    t: (m) => ({ titulo: `O node não tem a placa "${m[1]}"`, texto: 'Veja as placas na linha <code>Taints</code> do <code>kubectl describe node NOME</code>.', vidaReal: 'Tirar uma placa que não está na porta.' }),
+  },
+  {
+    re: /invalid taint (?:spec|effect)/,
+    t: () => ({ titulo: 'O taint está mal escrito', texto: 'O formato é <code>chave=valor:Efeito</code> (ou <code>chave:Efeito</code>), com Efeito NoSchedule, PreferNoSchedule ou NoExecute. Para tirar, <code>chave-</code>.', vidaReal: 'Uma placa sem dizer o que ela proíbe.' }),
+  },
+  {
+    re: /no PriorityClass with name ([\w.-]+) was found/,
+    t: (m) => ({ titulo: `A PriorityClass "${m[1]}" não existe`, texto: 'Crie a classe antes do pod (no mesmo arquivo, ela pode vir antes, separada por <code>---</code>). <code>kubectl get priorityclass</code> lista as que existem.', vidaReal: 'Mostrar um crachá de "prioridade" que a administração nunca emitiu.' }),
+  },
+  {
     re: /namespaces "[^"]+" is forbidden: this namespace may not be deleted/,
     t: () => ({ titulo: 'Esse namespace é do sistema', texto: '<code>default</code>, <code>kube-system</code> e <code>kube-public</code> não podem ser apagados.', vidaReal: 'Tentar demolir a administração do condomínio.' }),
   },
@@ -125,6 +157,15 @@ const STATUS = [
   { re: /\bBackoffLimitExceeded\b|reached the specified backoff limit/, titulo: 'O Job desistiu', texto: 'Falhou mais vezes que o <code>backoffLimit</code>. Os logs dos pods (<code>kubectl logs job/NOME</code>) contam o motivo; conserte e crie o Job de novo.', vidaReal: 'O pedreiro tentou, tentou, e o contrato acabou antes da parede ficar de pé.' },
   { re: /MountVolume\.SetUp failed for volume/, titulo: 'O volume não montou', texto: 'O ConfigMap ou o Secret que o volume usa não existe (ou tem outro nome). O pod fica em ContainerCreating até ele aparecer: crie o objeto ou corrija o nome em <code>spec.volumes</code>.', vidaReal: 'A mudança espera o armário que nunca chegou.' },
   { re: /pod has unbound immediate PersistentVolumeClaims|ProvisioningFailed/, titulo: 'O pedido de disco não foi atendido', texto: 'O PVC está Pending: a StorageClass pedida não existe (veja <code>kubectl get sc</code>) ou nenhum PV serve. <code>kubectl describe pvc NOME</code> mostra o motivo.', vidaReal: 'Pediram um box "climatizado", mas o condomínio só tem box comum.' },
+  { re: /had untolerated taint/, titulo: 'Placa de restrição: taint', texto: 'Algum node tem um taint que o pod não tolera (o do control plane é normal). A linha <code>Taints</code> do <code>kubectl describe node</code> mostra a placa; ou o pod ganha uma toleration, ou o taint sai.', vidaReal: 'Prédio restrito: só entra quem tem autorização.' },
+  { re: /didn't match Pod's node affinity\/selector/, titulo: 'Nenhum node tem as labels pedidas', texto: 'O nodeSelector (ou a nodeAffinity) pede labels que o node não tem. Compare com <code>kubectl get nodes --show-labels</code>: ou a label vai para o node, ou o pedido muda.', vidaReal: 'Pediu um prédio com gerador, e nenhum tem a placa de gerador na porta.' },
+  { re: /didn't match pod anti-affinity rules|didn't satisfy existing pods anti-affinity rules/, titulo: 'A antiafinidade não deixa', texto: 'Todo node possível já tem um pod de quem este quer ficar longe. Com <code>required</code>, ele espera (Pending) até aparecer um node livre; com <code>preferred</code>, iria assim mesmo.', vidaReal: 'As duas cópias do backup não podem dividir prédio, e não sobrou prédio.' },
+  { re: /didn't match pod topology spread constraints/, titulo: 'O espalhamento não deixa', texto: 'Pôr o pod ali passaria do <code>maxSkew</code>. Atenção: nodes com taint (como o control plane) contam como domínio vazio. Com <code>whenUnsatisfiable: ScheduleAnyway</code>, ele iria assim mesmo.', vidaReal: 'A regra é não deixar um bairro com muito mais lojas que outro.' },
+  { re: /node\(s\) were unschedulable/, titulo: 'Node interditado', texto: 'Algum node está com cordon (<code>SchedulingDisabled</code>): não recebe pods novos. <code>kubectl uncordon NODE</code> libera.', vidaReal: 'Prédio interditado para a reforma.' },
+  { re: /\d+ Insufficient (?:cpu|memory)/, titulo: 'Falta CPU ou memória nos nodes', texto: 'A soma dos <b>requests</b> passaria do que o node tem. Veja o "Allocated resources" do <code>kubectl describe node</code>: diminua os requests, as réplicas, ou dê prioridade (PriorityClass) a quem importa mais.', vidaReal: 'A potência contratada de todos os apartamentos já usou a do prédio.' },
+  { re: /violate the pod's disruption budget/, titulo: 'O PDB segurou o despejo', texto: 'O PodDisruptionBudget não deixa sair mais ninguém agora: o drain tenta de novo a cada 5 s, enquanto os substitutos sobem em outro node. Sem folga nunca (minAvailable igual às réplicas), ele espera para sempre.', vidaReal: 'Pelo menos 2 elevadores funcionando: o terceiro só para quando o reserva estiver pronto.' },
+  { re: /^\S+\s+Ready,SchedulingDisabled\s/m, titulo: 'Node interditado (cordon)', texto: 'Não recebe pods novos; quem está lá continua. <code>kubectl uncordon NODE</code> libera.', vidaReal: 'Prédio interditado para novos moradores.' },
+  { re: /^\S+\s+NotReady(?:,SchedulingDisabled)?\s/m, titulo: 'O node parou de dar notícias', texto: 'O kubelet não responde (luz, rede, máquina). Uns 5 minutos depois, os pods de lá são despejados: os que têm dono (Deployment, StatefulSet) renascem em outros nodes; os soltos ficam Terminating e não voltam.', vidaReal: 'Queda de energia no prédio.' },
   { re: /\bPending\b/, titulo: 'Pending: o pod ainda não tem lugar', texto: 'Ou o scheduler não achou um node que caiba (veja <code>kubectl describe pod</code>, em Events: <i>FailedScheduling</i>), ou ele está só começando.', vidaReal: 'Esperando no lobby: a corretora ainda não achou um prédio com espaço.' },
 ];
 

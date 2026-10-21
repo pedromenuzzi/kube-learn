@@ -33,6 +33,18 @@ const ESPECIAIS = {
   'describe-ns-cota': { conjunto: true },
   // As primeiras mensagens dependem de quando o metrics-server teve a primeira amostra.
   'describe-hpa-sem-requests': { ate: 'Events:' },
+  // Fase 7: o kind recém-criado ainda tinha workers subindo (os primeiros FailedScheduling falam de taints de
+  // not-ready): vale a última tentativa. Em que ordem os pods aparecem e quantas vezes o drain tentou de novo
+  // dependem do ritmo do cluster: compara o conjunto de linhas.
+  'describe-backup-pendente': { ate: 'Events:', ultimoEvento: true },
+  'describe-espalha-pendente': { ate: 'Events:', ultimoEvento: true },
+  'get-pods-backup': { conjunto: true },
+  'get-pods-espalha': { conjunto: true },
+  'describe-node-taint': { ate: 'Non-terminated Pods:' },
+  'drain-pdb': { conjunto: true },
+  'describe-node-caido': { ate: 'Non-terminated Pods:' },
+  'get-pods-caido-antes': { conjunto: true },
+  'get-pods-caido': { conjunto: true },
 };
 
 const linhas = (t) => t.split('\n');
@@ -50,6 +62,7 @@ function comparavel(texto, regra) {
     const ls = linhas(t);
     const i = ls.findIndex((l) => l.startsWith(normalizar(regra.ate).replace(/^ \| /, ' | ')) || l.startsWith(regra.ate.trim()) || l.replace(/^ \| /, '').startsWith(regra.ate.trim()));
     const base = ls.slice(0, i === -1 ? undefined : i).join('\n');
+    if (regra.ultimoEvento) return `${base}\n---\n${semContagem(ls.filter(Boolean).at(-2)).replace(/^ \| (\w+) \| (\w+) \| [^|]+ \| /, ' | $1 | $2 | <t> | ')}`;
     if (!regra.eventos) return base;
     const j = ls.findIndex((l) => l.startsWith('Events:'));
     const eventos = ls.slice(j + 3).filter(Boolean).map((l) => semCache(semContagem(l).replace(/\| [^|]*\(xN over <t>\) \|/, '| <t> |'))).filter(Boolean).sort();

@@ -8,6 +8,7 @@ import { lerCron } from './cron.js';
 import { padroesJob } from './esquema.js';
 import { tolera } from './scheduler.js';
 import { controladorDeCotas } from './cotas.js';
+import { controladorDeNodes, controladorDePdbs } from './manutencao.js';
 
 const clone = (o) => structuredClone(o);
 const TERMINAIS = new Set(['Succeeded', 'Failed']);
@@ -17,6 +18,7 @@ const revisao = (rs) => Number(rs.metadata.annotations?.['deployment.kubernetes.
 const porCriacao = (a, b) => a.metadata.creationTimestamp.localeCompare(b.metadata.creationTimestamp) || a.metadata.name.localeCompare(b.metadata.name);
 
 export function rodarControladores(c) {
+  controladorDeNodes(c);
   namespaces(c);
   deployments(c);
   replicasets(c);
@@ -28,6 +30,7 @@ export function rodarControladores(c) {
   controladorDeCotas(c);
   autoscalers(c);
   servidorDeMetricas(c);
+  controladorDePdbs(c);
   endpoints(c);
   balanceadores(c);
   ingresses(c);

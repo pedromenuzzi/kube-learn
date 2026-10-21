@@ -1,0 +1,87 @@
+Name:               golden-worker2
+Roles:              <none>
+Labels:             beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/os=linux
+                    dedicado=gpu
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=golden-worker2
+                    kubernetes.io/os=linux
+Annotations:        node.alpha.kubernetes.io/ttl: 0
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Tue, 20 Oct 2026 16:16:54 -0300
+Taints:             node.kubernetes.io/unreachable:NoExecute
+                    node.kubernetes.io/unreachable:NoSchedule
+Unschedulable:      false
+Lease:
+  HolderIdentity:  golden-worker2
+  AcquireTime:     <unset>
+  RenewTime:       Tue, 20 Oct 2026 16:18:45 -0300
+Conditions:
+  Type             Status    LastHeartbeatTime                 LastTransitionTime                Reason              Message
+  ----             ------    -----------------                 ------------------                ------              -------
+  MemoryPressure   Unknown   Tue, 20 Oct 2026 16:18:00 -0300   Tue, 20 Oct 2026 16:19:43 -0300   NodeStatusUnknown   Kubelet stopped posting node status.
+  DiskPressure     Unknown   Tue, 20 Oct 2026 16:18:00 -0300   Tue, 20 Oct 2026 16:19:43 -0300   NodeStatusUnknown   Kubelet stopped posting node status.
+  PIDPressure      Unknown   Tue, 20 Oct 2026 16:18:00 -0300   Tue, 20 Oct 2026 16:19:43 -0300   NodeStatusUnknown   Kubelet stopped posting node status.
+  Ready            Unknown   Tue, 20 Oct 2026 16:18:00 -0300   Tue, 20 Oct 2026 16:19:43 -0300   NodeStatusUnknown   Kubelet stopped posting node status.
+Addresses:
+  InternalIP:  172.19.0.4
+  Hostname:    golden-worker2
+Capacity:
+  cpu:                12
+  ephemeral-storage:  1081101176832
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             8131216Ki
+  pods:               110
+Allocatable:
+  cpu:                12
+  ephemeral-storage:  1081101176832
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             8131216Ki
+  pods:               110
+System Info:
+  Machine ID:                 d86bfe0d30fe403dbf138677398ca57a
+  System UUID:                d86bfe0d30fe403dbf138677398ca57a
+  Boot ID:                    98bd8c8f-ae43-47d1-a5dc-64abe5772065
+  Kernel Version:             6.18.33.2-microsoft-standard-WSL2
+  OS Image:                   Debian GNU/Linux 13 (trixie)
+  Operating System:           linux
+  Architecture:               amd64
+  Container Runtime Version:  containerd://2.3.4
+  Kubelet Version:            v1.37.0
+PodCIDR:                      10.244.2.0/24
+PodCIDRs:                     10.244.2.0/24
+ProviderID:                   kind://docker/golden/golden-worker2
+Non-terminated Pods:          (11 in total)
+  Namespace                   Name                       CPU Requests  CPU Limits  Memory Requests  Memory Limits  Age
+  ---------                   ----                       ------------  ----------  ---------------  -------------  ---
+  default                     backup-74f5454987-4jk56    0 (0%)        0 (0%)      0 (0%)           0 (0%)         2m30s
+  default                     cofre-65694879d4-8j4n5     0 (0%)        0 (0%)      0 (0%)           0 (0%)         78s
+  default                     cofre-65694879d4-sh6mx     0 (0%)        0 (0%)      0 (0%)           0 (0%)         67s
+  default                     cofre-65694879d4-wjx78     0 (0%)        0 (0%)      0 (0%)           0 (0%)         73s
+  default                     espalha-68c59b777-jktnp    0 (0%)        0 (0%)      0 (0%)           0 (0%)         2m30s
+  default                     plantao-7b557f655-b82r2    0 (0%)        0 (0%)      0 (0%)           0 (0%)         61s
+  default                     plantao-7b557f655-jj24n    0 (0%)        0 (0%)      0 (0%)           0 (0%)         61s
+  default                     restrito                   0 (0%)        0 (0%)      0 (0%)           0 (0%)         97s
+  default                     sozinho                    0 (0%)        0 (0%)      0 (0%)           0 (0%)         61s
+  kube-system                 kindnet-ltmrj              100m (0%)     0 (0%)      50Mi (0%)        0 (0%)         2m55s
+  kube-system                 kube-proxy-qd5bb           0 (0%)        0 (0%)      0 (0%)           0 (0%)         2m55s
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests   Limits
+  --------           --------   ------
+  cpu                100m (0%)  0 (0%)
+  memory             50Mi (0%)  0 (0%)
+  ephemeral-storage  0 (0%)     0 (0%)
+  hugepages-1Gi      0 (0%)     0 (0%)
+  hugepages-2Mi      0 (0%)     0 (0%)
+Events:
+  Type    Reason              Age    From             Message
+  ----    ------              ----   ----             -------
+  Normal  RegisteredNode      2m53s  node-controller  Node golden-worker2 event: Registered Node golden-worker2 in Controller
+  Normal  NodeReady           2m26s  kubelet          Node golden-worker2 status is now: NodeReady
+  Normal  NodeNotSchedulable  86s    kubelet          Node golden-worker2 status is now: NodeNotSchedulable
+  Normal  NodeSchedulable     74s    kubelet          Node golden-worker2 status is now: NodeSchedulable
+  Normal  NodeNotReady        6s     node-controller  Node golden-worker2 status is now: NodeNotReady
+exit=0

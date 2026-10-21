@@ -1,0 +1,2 @@
+error: taint "dedicado" not found
+exit=1

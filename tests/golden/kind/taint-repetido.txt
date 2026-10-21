@@ -1,0 +1,2 @@
+error: node golden-worker2 already has dedicado taint(s) with same effect(s) and --overwrite is false
+exit=1

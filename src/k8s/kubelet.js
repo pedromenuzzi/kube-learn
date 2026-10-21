@@ -43,7 +43,7 @@ export class Kubelet {
   /** Uma passada em todos os pods com node definido. */
   rodar() {
     for (const pod of this.c.listar('Pod')) {
-      if (!pod.spec.nodeName) continue;
+      if (!pod.spec.nodeName || this.c.nodesCaidos.has(pod.spec.nodeName)) continue; // o kubelet do prédio sem luz não faz nada
       this.sincronizar(pod);
     }
   }

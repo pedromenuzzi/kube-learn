@@ -1,0 +1,11 @@
+Name:           cofre
+Namespace:      default
+Min available:  2
+Selector:       app=cofre
+Status:
+    Allowed disruptions:  1
+    Current:              3
+    Desired:              2
+    Total:                3
+Events:                   <none>
+exit=0

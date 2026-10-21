@@ -1,0 +1,4 @@
+deployment.apps/gerador created
+deployment.apps/backup created
+deployment.apps/espalha created
+exit=0

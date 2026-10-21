@@ -231,6 +231,14 @@ export const TABELAS = {
       s.provisioner, s.reclaimPolicy ?? 'Delete', s.volumeBindingMode ?? 'Immediate', String(!!s.allowVolumeExpansion), desde(agora, s.metadata.creationTimestamp),
     ],
   },
+  PodDisruptionBudget: {
+    colunas: ['NAME', 'MIN AVAILABLE', 'MAX UNAVAILABLE', 'ALLOWED DISRUPTIONS', 'AGE'],
+    linha: (b, agora) => [b.metadata.name, String(b.spec.minAvailable ?? 'N/A'), String(b.spec.maxUnavailable ?? 'N/A'), String(b.status?.disruptionsAllowed ?? 0), desde(agora, b.metadata.creationTimestamp)],
+  },
+  PriorityClass: {
+    colunas: ['NAME', 'VALUE', 'GLOBAL-DEFAULT', 'AGE', 'PREEMPTIONPOLICY'],
+    linha: (pc, agora) => [pc.metadata.name, String(pc.value), String(!!pc.globalDefault), desde(agora, pc.metadata.creationTimestamp), pc.preemptionPolicy ?? 'PreemptLowerPriority'],
+  },
   HorizontalPodAutoscaler: {
     colunas: ['NAME', 'REFERENCE', 'TARGETS', 'MINPODS', 'MAXPODS', 'REPLICAS', 'AGE'],
     linha: (h, agora) => [h.metadata.name, `${h.spec.scaleTargetRef.kind}/${h.spec.scaleTargetRef.name}`, alvosHpa(h), String(h.spec.minReplicas ?? 1), String(h.spec.maxReplicas), String(h.status?.currentReplicas ?? 0), desde(agora, h.metadata.creationTimestamp)],

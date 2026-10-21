@@ -1,0 +1,4 @@
+NAME                       READY   STATUS    RESTARTS   AGE   IP           NODE            NOMINATED NODE   READINESS GATES
+gerador-76c7445865-67twd   1/1     Running   0          50s   10.244.1.4   golden-worker   <none>           <none>
+gerador-76c7445865-vkvqw   1/1     Running   0          50s   10.244.1.5   golden-worker   <none>           <none>
+exit=0

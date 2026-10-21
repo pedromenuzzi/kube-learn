@@ -300,6 +300,8 @@ const DESCRITORES = {
     w.w(0, `QoS Class:\t${p.status?.qosClass ?? ''}\n`);
     labels(w, 'Node-Selectors', p.spec.nodeSelector);
     tolerancias(w, 'Tolerations', p.spec.tolerations);
+    const espalhar = [...(p.spec.topologySpreadConstraints ?? [])].sort((a, b) => a.topologyKey.localeCompare(b.topologyKey));
+    espalhar.forEach((k, i) => w.w(0, `${i ? '' : 'Topology Spread Constraints:'}\t${k.topologyKey}:${k.whenUnsatisfiable} when max skew ${k.maxSkew} is exceeded${k.labelSelector ? ` for selector ${seletor(k.labelSelector) || '<none>'}` : ''}\n`));
     escreverEventos(w, ctx.eventos, ctx.agora);
   },
 
@@ -451,6 +453,33 @@ const DESCRITORES = {
     for (const k of Object.keys(s.data ?? {}).sort()) w.w(0, `${k}:\t${new TextEncoder().encode(atobUtf8(s.data[k])).length} bytes\n`);
   },
 
+  PodDisruptionBudget(w, b, ctx) {
+    w.w(0, `Name:\t${b.metadata.name}\n`);
+    w.w(0, `Namespace:\t${b.metadata.namespace}\n`);
+    if (b.spec.minAvailable !== undefined) w.w(0, `Min available:\t${b.spec.minAvailable}\n`);
+    else if (b.spec.maxUnavailable !== undefined) w.w(0, `Max unavailable:\t${b.spec.maxUnavailable}\n`);
+    w.w(0, `Selector:\t${b.spec.selector ? seletor(b.spec.selector) || '<none>' : '<unset>'}\n`);
+    w.w(0, 'Status:\n');
+    const st = b.status ?? {};
+    w.w(2, `Allowed disruptions:\t${st.disruptionsAllowed ?? 0}\n`);
+    w.w(2, `Current:\t${st.currentHealthy ?? 0}\n`);
+    w.w(2, `Desired:\t${st.desiredHealthy ?? 0}\n`);
+    w.w(2, `Total:\t${st.expectedPods ?? 0}\n`);
+    escreverEventos(w, ctx.eventos, ctx.agora);
+  },
+
+  PriorityClass(w, pc, ctx) {
+    w.w(0, `Name:\t${pc.metadata.name}\n`);
+    w.w(0, `Value:\t${pc.value}\n`);
+    w.w(0, `GlobalDefault:\t${!!pc.globalDefault}\n`);
+    w.w(0, `PreemptionPolicy:\t${pc.preemptionPolicy}\n`);
+    w.w(0, `Description:\t${pc.description ?? ''}\n`);
+    // As annotations saem cruas, como no labels.FormatLabels (a last-applied termina com uma quebra de linha).
+    const an = Object.keys(pc.metadata.annotations ?? {}).sort().map((k) => `${k}=${pc.metadata.annotations[k]}`).join(',');
+    w.w(0, `Annotations:\t${an || '<none>'}\n`);
+    escreverEventos(w, ctx.eventos, ctx.agora);
+  },
+
   Node(w, n, ctx) {
     const st = n.status;
     w.w(0, `Name:\t${n.metadata.name}\n`);
@@ -542,7 +571,11 @@ function generico(w, o, ctx) {
 }
 const cap = (k) => k.replace(/^./, (x) => x.toUpperCase()).replace(/([a-z])([A-Z])/g, '$1 $2');
 
-const seletor = (sel) => Object.entries(sel?.matchLabels ?? {}).sort().map(([k, v]) => `${k}=${v}`).join(',');
+const OPERADOR = { In: 'in', NotIn: 'notin' };
+const seletor = (sel) => [
+  ...Object.entries(sel?.matchLabels ?? {}).sort().map(([k, v]) => `${k}=${v}`),
+  ...(sel?.matchExpressions ?? []).map((e) => (OPERADOR[e.operator] ? `${e.key} ${OPERADOR[e.operator]} (${[...(e.values ?? [])].sort().join(',')})` : e.operator === 'Exists' ? e.key : `!${e.key}`)),
+].join(',');
 const cpuTexto = textoCpu;
 const memTexto = textoMemoria;
 

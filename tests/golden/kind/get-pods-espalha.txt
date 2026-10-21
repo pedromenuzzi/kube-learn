@@ -1,0 +1,6 @@
+NAME                      READY   STATUS    RESTARTS   AGE   IP           NODE             NOMINATED NODE   READINESS GATES
+espalha-68c59b777-2l62r   0/1     Pending   0          51s   <none>       <none>           <none>           <none>
+espalha-68c59b777-8fz2f   1/1     Running   0          51s   10.244.1.2   golden-worker    <none>           <none>
+espalha-68c59b777-gl5v6   0/1     Pending   0          51s   <none>       <none>           <none>           <none>
+espalha-68c59b777-jktnp   1/1     Running   0          51s   10.244.2.3   golden-worker2   <none>           <none>
+exit=0

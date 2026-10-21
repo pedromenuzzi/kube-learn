@@ -1,0 +1,55 @@
+Name:                      sozinho
+Namespace:                 default
+Priority:                  0
+Service Account:           default
+Node:                      golden-worker2/172.19.0.4
+Start Time:                Tue, 20 Oct 2026 16:18:48 -0300
+Labels:                    caiu=sim
+Annotations:               <none>
+Status:                    Terminating (lasts 0s)
+Termination Grace Period:  30s
+IP:                        10.244.2.8
+IPs:
+  IP:  10.244.2.8
+Containers:
+  c:
+    Container ID:   containerd://e0dcbd2f39f1c078d40f939d5744bb929e073ea8d1554665fc7f3e7ad647aa8e
+    Image:          nginx:1.27
+    Image ID:       docker.io/library/nginx@sha256:6784fb0834aa7dbbe12e3d7471e69c290df3e6ba810dc38b34ae33d3c1c05f7d
+    Port:           <none>
+    Host Port:      <none>
+    State:          Running
+      Started:      Tue, 20 Oct 2026 16:18:50 -0300
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-v5942 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             True 
+  PodScheduled                True 
+  DisruptionTarget            True 
+Volumes:
+  kube-api-access-v5942:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason        Age    From               Message
+  ----     ------        ----   ----               -------
+  Normal   Scheduled     6m46s  default-scheduler  Successfully assigned default/sozinho to golden-worker2
+  Normal   Pulled        6m44s  kubelet            spec.containers{c}: Container image "nginx:1.27" already present on machine and can be accessed by the pod
+  Normal   Created       6m44s  kubelet            spec.containers{c}: Container created
+  Normal   Started       6m44s  kubelet            spec.containers{c}: Container started
+  Warning  NodeNotReady  5m51s  node-controller    Node is not ready
+exit=0

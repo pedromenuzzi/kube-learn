@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { criarCluster } from '../../src/k8s/cluster.js';
 import { kubectl } from '../../src/k8s/kubectl/index.js';
+import { nodePronto } from '../../src/k8s/scheduler.js';
 
 const WEB = `apiVersion: apps/v1
 kind: Deployment
@@ -391,5 +392,71 @@ export function rodarCenario() {
   c.avancar('60s');
   cap('get-hpa', 'kubectl get hpa');
   cap('describe-hpa-sem-requests', 'kubectl describe hpa sem-requests');
+
+  // Fase 7 · nível 7: nodeSelector, anti-afinidade, espalhamento, taints, cordon, drain, PDB, prioridade e node caindo
+  const pronto = (nome) => () => c.obter('Pod', 'default', nome)?.status?.conditions?.some((x) => x.type === 'Ready' && x.status === 'True');
+  const pendente = (app) => k(`kubectl get pods -l app=${app} --field-selector=status.phase=Pending -o name`).saida.split('\n')[0];
+  cap('label-node', 'kubectl label node golden-worker energia=gerador');
+  cap('apply-agenda', 'kubectl apply -f /tmp/kl-agenda.yaml');
+  c.avancarAte(deploymentPronto('gerador'), '2m');
+  c.avancar('5s');
+  cap('get-pods-gerador', 'kubectl get pods -l app=gerador -o wide');
+  cap('get-pods-backup', 'kubectl get pods -l app=backup -o wide');
+  cap('describe-backup-pendente', `kubectl describe ${pendente('backup')}`);
+  cap('get-pods-espalha', 'kubectl get pods -l app=espalha -o wide');
+  cap('describe-espalha-pendente', `kubectl describe ${pendente('espalha')}`);
+  cap('taint-node', 'kubectl taint nodes golden-worker2 dedicado=gpu:NoSchedule');
+  cap('taint-repetido', 'kubectl taint nodes golden-worker2 dedicado=gpu:NoSchedule');
+  k('kubectl label node golden-worker2 dedicado=gpu');
+  cap('apply-restrito', 'kubectl apply -f /tmp/kl-restrito.yaml');
+  c.avancar('3s');
+  cap('describe-restrito', 'kubectl describe pod restrito');
+  cap('describe-node-taint', 'kubectl describe node golden-worker2');
+  cap('taint-remover', 'kubectl taint nodes golden-worker2 dedicado=gpu:NoSchedule-');
+  cap('taint-remover-ausente', 'kubectl taint nodes golden-worker2 dedicado-');
+  c.avancarAte(pronto('restrito'), '1m');
+  cap('get-pod-restrito', 'kubectl get pod restrito -o wide');
+  cap('cordon', 'kubectl cordon golden-worker');
+  cap('cordon-de-novo', 'kubectl cordon golden-worker');
+  cap('get-nodes-cordon', 'kubectl get nodes');
+  cap('uncordon', 'kubectl uncordon golden-worker');
+  cap('uncordon-de-novo', 'kubectl uncordon golden-worker');
+  k('kubectl cordon golden-worker2');
+  cap('apply-pdb', 'kubectl apply -f /tmp/kl-pdb.yaml');
+  c.avancarAte(deploymentPronto('cofre'), '2m');
+  c.avancarAte(pronto('avulso'), '1m');
+  k('kubectl uncordon golden-worker2');
+  c.avancar('2s');
+  cap('get-pdb', 'kubectl get pdb');
+  cap('describe-pdb', 'kubectl describe pdb cofre');
+  cap('yaml-pdb', 'kubectl get pdb cofre -o yaml');
+  cap('drain-ds', 'kubectl drain golden-worker --pod-selector=k8s-app=kube-proxy');
+  cap('drain-ds-ok', 'kubectl drain golden-worker --pod-selector=k8s-app=kube-proxy --ignore-daemonsets');
+  cap('drain-solto', 'kubectl drain golden-worker --pod-selector=solto=sim --ignore-daemonsets');
+  cap('drain-pdb', 'kubectl drain golden-worker --pod-selector=app=cofre --ignore-daemonsets --timeout=90s');
+  cap('drain-force', 'kubectl drain golden-worker --pod-selector=solto=sim --ignore-daemonsets --force');
+  cap('get-nodes-drain', 'kubectl get nodes');
+  cap('get-pods-cofre', 'kubectl get pods -l app=cofre -o wide');
+  cap('uncordon-drain', 'kubectl uncordon golden-worker');
+  cap('apply-prioridade', 'kubectl apply -f /tmp/kl-prioridade.yaml');
+  cap('get-priorityclass', 'kubectl get priorityclass');
+  cap('describe-priorityclass', 'kubectl describe priorityclass critico');
+  cap('prioridade-pod', "kubectl get pod urgente -o jsonpath='{.spec.priority} {.spec.preemptionPolicy} {.spec.priorityClassName}'");
+  cap('run-classe-inexistente', `kubectl run sem-classe --image=nginx:1.27 --overrides='{"spec":{"priorityClassName":"nao-existe"}}'`);
+  // O prédio cai: o plantão e o sozinho moram no golden-worker2, e o kubelet dele para (no kind, docker stop).
+  k('kubectl cordon golden-worker');
+  k('kubectl apply -f /tmp/kl-caiu.yaml');
+  c.avancarAte(deploymentPronto('plantao'), '2m');
+  c.avancarAte(pronto('sozinho'), '1m');
+  k('kubectl uncordon golden-worker');
+  c.derrubarNode('golden-worker2');
+  c.avancarAte(() => !nodePronto(c.obter('Node', null, 'golden-worker2')), '2m');
+  c.avancar('5s');
+  cap('get-nodes-caido', 'kubectl get nodes');
+  cap('describe-node-caido', 'kubectl describe node golden-worker2');
+  cap('get-pods-caido-antes', 'kubectl get pods -l caiu=sim -o wide');
+  c.avancar('320s');
+  cap('get-pods-caido', 'kubectl get pods -l caiu=sim -o wide');
+  cap('describe-sozinho-caido', 'kubectl describe pod sozinho');
   return { saidas, cluster: c };
 }

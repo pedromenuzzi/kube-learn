@@ -48,6 +48,7 @@ export class Cluster {
     this.rodizio = new Map();
     this.agendamento = new Map();
     this.mudancasDeCapacidade = 0;
+    this.nodesCaidos = new Map(); // nome do node → quando o kubelet dele parou (o prédio ficou sem luz)
     this.ipsServico = new Set(['10.96.0.1', '10.96.0.10']);
     this.proximoIp = new Map();
     this.proximoIpExterno = 200; // pool dos LoadBalancers: 172.18.255.200 em diante
@@ -94,7 +95,7 @@ export class Cluster {
 
   // ---------- escrita ----------
   /** Cria o objeto (já validado), com os campos que o servidor preenche. Devolve o objeto guardado. */
-  criar(entrada) {
+  criar(entrada, { uid } = {}) {
     const obj = clone(entrada);
     const r = recursoDoKind(obj.kind);
     obj.metadata ??= {};
@@ -116,9 +117,9 @@ export class Cluster {
     obj.metadata = {
       ...m,
       creationTimestamp: iso(this.agora),
-      ...(['Pod', 'Deployment', 'ReplicaSet', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'HorizontalPodAutoscaler'].includes(obj.kind) ? { generation: 1 } : {}),
+      ...(['Pod', 'Deployment', 'ReplicaSet', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'HorizontalPodAutoscaler', 'PodDisruptionBudget'].includes(obj.kind) ? { generation: 1 } : {}),
       resourceVersion: String(++this.rv),
-      uid: this.aleatorio.uuid(),
+      uid: uid ?? this.aleatorio.uuid(),
     };
     if (obj.status && !['Node', 'Namespace', 'Service'].includes(obj.kind)) delete obj.status;
     aplicarPadroes(obj);
@@ -156,6 +157,14 @@ export class Cluster {
       s.tolerations = [...(s.tolerations ?? [])];
       for (const key of padrao) {
         if (!s.tolerations.some((t) => t.key === key || (t.operator === 'Exists' && !t.key))) s.tolerations.push({ effect: 'NoExecute', key, operator: 'Exists', tolerationSeconds: 300 });
+      }
+      // Priority: a PriorityClass do pod (ou a padrão do cluster) vira o número spec.priority.
+      const classe = s.priorityClassName ? this.obter('PriorityClass', null, s.priorityClassName) : this.listar('PriorityClass').find((pc) => pc.globalDefault);
+      if (s.priorityClassName && !classe) throw new ErroApi('Forbidden', `pods "${obj.metadata.name}" is forbidden: no PriorityClass with name ${s.priorityClassName} was found`);
+      if (classe) {
+        s.priorityClassName = classe.metadata.name;
+        s.priority = classe.value;
+        s.preemptionPolicy = classe.preemptionPolicy ?? 'PreemptLowerPriority';
       }
       obj.status = { phase: 'Pending', qosClass: qos(obj) };
     }
@@ -200,6 +209,7 @@ export class Cluster {
     obj.metadata.resourceVersion = String(++this.rv);
     if (spec && obj.metadata.generation !== undefined) obj.metadata.generation += 1;
     this.registrar('MODIFIED', obj);
+    if (obj.kind === 'Node') this.mudancasDeCapacidade++; // label, taint ou cordon: o scheduler tenta de novo
   }
 
   /** Substitui um objeto pela versão nova (kubectl apply/replace/edit). */
@@ -221,7 +231,6 @@ export class Cluster {
     Object.keys(antigo).forEach((k) => delete antigo[k]);
     Object.assign(antigo, obj);
     this.salvar(antigo, { spec: mudouSpec });
-    if (obj.kind === 'Node') this.mudancasDeCapacidade++;
     return antigo;
   }
 
@@ -334,6 +343,11 @@ export class Cluster {
   }
 
   /** Avança até a condição valer (ou até o limite). Devolve se ela valeu. */
+  /** O prédio fica sem luz: o kubelet do node para de dar notícias (no kind, `docker stop` no node). */
+  derrubarNode(nome) {
+    this.nodesCaidos.set(nome, this.agora);
+  }
+
   avancarAte(condicao, limite = '10m') {
     const alvo = this.agora + parseDuracao(limite);
     while (!condicao()) {
@@ -429,6 +443,11 @@ export class Cluster {
   /** Namespaces do sistema, o Service `kubernetes`, o DNS e os pods do control plane. */
   criarSistema() {
     for (const nome of ['default', 'kube-node-lease', 'kube-public', 'kube-system', 'local-path-storage']) this.criar({ apiVersion: 'v1', kind: 'Namespace', metadata: { name: nome } });
+    // As PriorityClasses do sistema (uid fixo: não gastam o sorteio, que decide nomes e lugares de tudo depois).
+    for (const [nome, value, description, uid] of [
+      ['system-cluster-critical', 2000000000, 'Used for system critical pods that must run in the cluster, but can be moved to another node if necessary.', '5c7f1b6e-1d0a-4c2e-9a51-0b6f3d2e8c01'],
+      ['system-node-critical', 2000001000, 'Used for system critical pods that must not be moved from their current node.', '9e2a4d73-6b18-4f0c-8d27-3a5e1c9b7f02'],
+    ]) this.criar({ apiVersion: 'scheduling.k8s.io/v1', kind: 'PriorityClass', metadata: { name: nome }, value, description }, { uid });
     const nodes = this.listar('Node');
     const cp = nodes.find((n) => n.metadata.labels['node-role.kubernetes.io/control-plane'] !== undefined) ?? nodes[0];
     const imagens = ['registry.k8s.io/etcd:3.6.4-0', 'registry.k8s.io/kube-apiserver:v1.37.0', 'registry.k8s.io/kube-controller-manager:v1.37.0', 'registry.k8s.io/kube-scheduler:v1.37.0', 'registry.k8s.io/coredns/coredns:v1.12.4'];
