@@ -3,7 +3,7 @@ import '@fontsource/atkinson-hyperlegible/700.css';
 import '@fontsource/press-start-2p/400.css';
 import { resolverRota } from './rotas.js';
 import { acharItem, PLAYGROUND } from './conteudo/index.js';
-import { paginaInicio, paginaTrilha, paginaGlossario } from './ui/paginas.js';
+import { paginaInicio, paginaTrilha, paginaGlossario, paginaTroubleshooting } from './ui/paginas.js';
 import { aplicarPreferencias, montarPreferencias } from './ui/preferencias.js';
 import { montarLeitura } from './ui/leitura.js';
 import { paginaRevisao } from './ui/revisao.js';
@@ -24,6 +24,7 @@ const PAGINAS = {
     return (main) => montarTela(main, item);
   },
   '/livre': () => (main) => montarTela(main, PLAYGROUND),
+  '/troubleshooting': paginaTroubleshooting,
   '/glossario': paginaGlossario,
   '/revisao': paginaRevisao,
   '/certificado': paginaCertificado,
@@ -43,7 +44,7 @@ function desenhar() {
   const conteudo = rota ? PAGINAS[rota.caminho](rota.parametro) : '<h1>Página não encontrada</h1><p><a href="#/">Voltar ao início</a></p>';
   const leitura = rota?.caminho === '/ex' && ['quiz', 'licao'].includes(acharItem(rota.parametro)?.tipo) && !acharItem(rota.parametro)?.inicial;
   main.classList.toggle('largo', !leitura && ['/ex', '/livre', '/trilha', '/'].includes(rota?.caminho));
-  main.classList.toggle('medio', rota?.caminho === '/glossario');
+  main.classList.toggle('medio', ['/glossario', '/troubleshooting'].includes(rota?.caminho));
   if (typeof conteudo === 'function') {
     main.replaceChildren();
     paginaAtual = conteudo(main);

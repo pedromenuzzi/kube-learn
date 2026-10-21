@@ -69,12 +69,13 @@ export function desenharNavio(canvas, jornada) {
   const x0 = W > 300 ? W - 160 : W - COMPRIMENTO - 14;
   const xc = x0 + 30;
   const posicao = (l) => [xc + l.vaga * C + desvio(l.fileira), mar - 10 - (l.fileira + 1) * A];
+  // Ocupa a fileira inteira (A pixels): assenta no convés e no contêiner de baixo; a linha escura embaixo separa os dois.
   const conteiner = (x, y, l) => {
     const w = l.largura * C - 1;
-    r(corDoNivel[l.item.nivel], x, y, w, A - 1);
-    for (let k = x + 1; k < x + w - 1; k += 2) r('#00000030', k, y + 1, 1, A - 3);
+    r(corDoNivel[l.item.nivel], x, y, w, A);
+    for (let k = x + 1; k < x + w - 1; k += 2) r('#00000030', k, y + 1, 1, A - 2);
     r('#ffffff40', x, y, w, 1);
-    r('#00000040', x, y + A - 2, w, 1);
+    r('#00000040', x, y + A - 1, w, 1);
     if (lacrado[l.item.nivel]) r('#f5c518', x + w - 2, y + 2, 1, 2);
   };
 

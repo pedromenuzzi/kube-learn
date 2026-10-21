@@ -1,10 +1,11 @@
 // Todos os itens da trilha, na ordem dos níveis.
 import { NIVEIS } from './niveis.js';
+import { TROUBLESHOOTING } from './troubleshooting.js';
 
-export { NIVEIS };
+export { NIVEIS, TROUBLESHOOTING };
 export const ITENS = NIVEIS.flatMap((n) => n.itens);
 
-const POR_ID = new Map(ITENS.map((i) => [i.id, i]));
+const POR_ID = new Map([...ITENS, ...TROUBLESHOOTING].map((i) => [i.id, i]));
 export const acharItem = (id) => POR_ID.get(id);
 
 /** O "exercício" do playground: sem testes, com um arquivo de exemplo. */

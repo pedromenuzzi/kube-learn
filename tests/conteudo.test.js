@@ -2,7 +2,7 @@
 // O teste da trilha inteira: toda solução passa em todos os testes (inclusive os ocultos) e todo código
 // inicial ainda falha em algum. Assim, nenhum exercício chega ao aluno quebrado ou já resolvido.
 import { describe, expect, it } from 'vitest';
-import { ITENS } from '../src/conteudo/index.js';
+import { ITENS, TROUBLESHOOTING } from '../src/conteudo/index.js';
 import { montarCluster, CLUSTERS } from '../src/conteudo/clusters.js';
 import { rodarTestes, TIPOS_DE_REGRA } from '../src/verificacoes.js';
 import { rodarLinha } from '../src/k8s/linha.js';
@@ -24,11 +24,14 @@ function aluno(item, { resolvido }) {
   return { arquivos, clusterDoAluno, historico, resposta: certa };
 }
 
+// A trilha e os incidentes da seção Troubleshooting (fora dos níveis).
+const TODOS = [...ITENS, ...TROUBLESHOOTING];
+
 describe('a trilha inteira', () => {
   it('ids únicos e campos obrigatórios', () => {
-    const ids = ITENS.map((i) => i.id);
+    const ids = TODOS.map((i) => i.id);
     expect(new Set(ids).size).toBe(ids.length);
-    for (const i of ITENS) {
+    for (const i of TODOS) {
       expect(i.titulo, i.id).toBeTruthy();
       expect(i.enunciado, i.id).toBeTruthy();
       expect(i.vidaReal, `${i.id}: toda missão tem a comparação com a vida real`).toBeTruthy();
@@ -70,7 +73,7 @@ describe('a trilha inteira', () => {
     });
   }
 
-  for (const item of ITENS.filter((i) => i.tipo === 'problema')) {
+  for (const item of TODOS.filter((i) => i.tipo === 'problema')) {
     describe(item.id, { timeout: 30_000 }, () => { // alguns testes simulam minutos de cluster (com carga)
       it('a solução passa em todos os testes', () => {
         const r = rodarTestes(item, aluno(item, { resolvido: true }), { todos: true });

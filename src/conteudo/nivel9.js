@@ -54,11 +54,12 @@ export const PARTIDA9 = {};
 
 /**
  * Um incidente: o relato do morador, o que fazer, os manifestos como estão aplicados (`arquivos`) e, se precisar, como
- * ficam consertados (`correcao`). O cluster de partida aplica os arquivos e os `extras` (o que não é para mexer).
+ * ficam consertados (`correcao`). O cluster de partida aplica os arquivos e os `extras` (o que não é para mexer) e
+ * fica em `partidas` (a seção Troubleshooting usa a dela).
  */
-function incidente({ id, morador, relato, tarefa, arquivos, correcao, extras = [], partida = {}, regras, ...resto }) {
+export function incidente({ id, morador, relato, tarefa, arquivos, correcao, extras = [], partida = {}, partidas = PARTIDA9, regras, ...resto }) {
   const cluster = `incidente-${id.slice(3)}`;
-  PARTIDA9[cluster] = { manifestos: juntar(...extras, ...Object.values(arquivos)), ...partida };
+  partidas[cluster] = { manifestos: juntar(...extras, ...Object.values(arquivos)), ...partida };
   return problema({
     id,
     cluster,
@@ -275,7 +276,9 @@ export const NIVEL9 = [
       <h2>O roteiro</h2>
       <ol>
         <li><code>kubectl get pods</code> (com <code>-o wide</code> e <code>-A</code>): o STATUS já aponta o caminho.</li>
-        <li><code>kubectl describe pod NOME</code>: as <b>Events</b> no fim contam o que o Kubernetes tentou e por que falhou.</li>
+        <li><code>kubectl describe pod NOME</code>: as <b>Events</b> no fim contam o que o Kubernetes tentou e por que falhou.
+            Dê o nome inteiro: com vários pods (sem nome, ou só o começo dele), o describe esconde as Events. Para ver todas
+            de uma vez, <code>kubectl get events</code>.</li>
         <li><code>kubectl logs NOME</code> (e <code>--previous</code>, se reiniciou): o que o próprio programa disse.</li>
         <li><code>kubectl get events --sort-by=.lastTimestamp</code>: o livro de ocorrências do namespace.</li>
         <li><code>kubectl exec</code>: entrar e testar de dentro (<code>wget</code>, <code>nslookup</code>, <code>cat</code>).</li>
@@ -306,7 +309,7 @@ export const NIVEL9 = [
     tarefa: '<p>Descubra por que os pods da <code>vitrine</code> não sobem e conserte.</p>',
     vidaReal: 'O pré-moldado não chegou: no pedido, o modelo estava escrito errado.',
     limite: 'O kubelet tenta de novo sozinho, cada vez mais devagar: consertar o nome resolve sem precisar apagar nada.',
-    dica: 'kubectl describe pod (Events: Failed to pull image). Confira a grafia da imagem.',
+    dica: 'kubectl describe pod NOME (Events: Failed to pull image). Confira a grafia da imagem.',
     arquivos: { 'vitrine.yaml': dep('vitrine', { replicas: 2, imagem: 'ngnix:1.27', ct: porta(80) }) },
     correcao: { 'vitrine.yaml': dep('vitrine', { replicas: 2, imagem: 'nginx:1.27', ct: porta(80) }) },
     solucaoTerminal: ['kubectl apply -f .'],
@@ -351,7 +354,7 @@ export const NIVEL9 = [
              (meio núcleo de CPU basta).</p>`,
     vidaReal: 'Pediram um apartamento com a potência de três prédios: nenhum prédio do condomínio tem tanta energia.',
     limite: 'O request é o que se reserva, não o que se usa: pedir demais deixa o pod sem lugar, mesmo com os nodes ociosos.',
-    dica: 'kubectl describe pod (0/3 nodes are available: ... Insufficient cpu). Cada node tem 2 CPUs.',
+    dica: 'kubectl describe pod NOME (0/3 nodes are available: ... Insufficient cpu). Cada node tem 2 CPUs.',
     arquivos: { 'relatorio.yaml': relatorio('3', null) },
     correcao: { 'relatorio.yaml': relatorio('500m', null) },
     solucaoTerminal: ['kubectl apply -f .'],
@@ -443,7 +446,7 @@ export const NIVEL9 = [
              readinessProbe.</p>`,
     vidaReal: 'O síndico pergunta "pode receber visita?" na porta errada: ninguém responde, e ele marca como fechado.',
     limite: 'A readiness não reinicia ninguém: o pod fica rodando para sempre, só que sem receber clientes.',
-    dica: 'kubectl describe pod (Events: Unhealthy, Readiness probe failed: HTTP probe failed with statuscode: 404). A loja responde em /healthz.',
+    dica: 'kubectl describe pod NOME (Events: Unhealthy, Readiness probe failed: HTTP probe failed with statuscode: 404). A loja responde em /healthz.',
     arquivos: { 'loja.yaml': juntar(lojaComSonda('/pronto'), svc('loja', { alvo: 8080 })) },
     correcao: { 'loja.yaml': juntar(lojaComSonda('/healthz'), svc('loja', { alvo: 8080 })) },
     solucaoTerminal: ['kubectl apply -f .'],
@@ -460,7 +463,7 @@ export const NIVEL9 = [
              um limite que caiba (512Mi).</p>`,
     vidaReal: 'O disjuntor do apartamento é de 128, e a máquina da contabilidade puxa 300 quando liga.',
     limite: 'Subir o limite resolve quando o programa precisa mesmo daquilo. Se ele vaza memória, só adia a próxima queda.',
-    dica: 'kubectl describe pod (Last State: Terminated, Reason: OOMKilled). Mude o limits.memory.',
+    dica: 'kubectl describe pod NOME (Last State: Terminated, Reason: OOMKilled). Mude o limits.memory.',
     arquivos: { 'relatorio.yaml': relatorio(null, '128Mi') },
     correcao: { 'relatorio.yaml': relatorio(null, '512Mi') },
     solucaoTerminal: ['kubectl apply -f .'],
@@ -476,7 +479,7 @@ export const NIVEL9 = [
     tarefa: '<p>Os pods da <code>vitrine</code> não criam o contêiner. Descubra o que falta e crie, com <code>COR=azul</code>.</p>',
     vidaReal: 'A vitrine vai ler a cor no quadro de avisos, e o quadro nunca foi pendurado.',
     limite: 'Assim que o ConfigMap aparece, o kubelet tenta de novo e a vitrine sobe: não precisa reiniciar nada.',
-    dica: 'kubectl describe pod (configmap "vitrine-config" not found). kubectl create configmap vitrine-config --from-literal=COR=azul',
+    dica: 'kubectl describe pod NOME (configmap "vitrine-config" not found). kubectl create configmap vitrine-config --from-literal=COR=azul',
     arquivos: { 'vitrine.yaml': vitrineComConfig },
     solucaoTerminal: ['kubectl create configmap vitrine-config --from-literal=COR=azul'],
     regras: [{ pods: 'app=vitrine', prontos: 2 }, { env: { pods: 'app=vitrine', nome: 'COR', igual: 'azul' } }],

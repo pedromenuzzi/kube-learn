@@ -9,6 +9,7 @@ import { PARTIDA6 } from './nivel6.js';
 import { PARTIDA7 } from './nivel7.js';
 import { PARTIDA8 } from './nivel8.js';
 import { PARTIDA9 } from './nivel9.js';
+import { PARTIDA_TS } from './troubleshooting.js';
 import { PARTIDA10 } from './nivel10.js';
 import { PARTIDA11 } from './nivel11.js';
 
@@ -460,6 +461,8 @@ export const CLUSTERS = {
   'projeto-loja': { manifestos: juntar(INGRESS_CLASS, PARTIDA11.cliente) },
   'projeto-canario': { manifestos: GATEWAY },
   'projeto-black-friday': { metricas: true },
+  // A seção Troubleshooting (troubleshooting.js)
+  ...PARTIDA_TS,
 };
 
 /** Monta o cluster de partida (sempre igual para a mesma semente). */

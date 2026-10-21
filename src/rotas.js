@@ -5,6 +5,7 @@ export const ROTAS = {
   '/trilha': { titulo: 'Trilha' },
   '/ex': { titulo: 'Exercício', comParametro: true },
   '/livre': { titulo: 'Playground livre' },
+  '/troubleshooting': { titulo: 'Troubleshooting' },
   '/glossario': { titulo: 'Glossário' },
   '/revisao': { titulo: 'Revisão do dia' },
   '/certificado': { titulo: 'Certificado' },

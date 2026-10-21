@@ -1,5 +1,5 @@
 // As páginas fora do exercício: início, trilha (o navio) e glossário.
-import { NIVEIS } from '../conteudo/index.js';
+import { NIVEIS, TROUBLESHOOTING } from '../conteudo/index.js';
 import { GLOSSARIO } from '../conteudo/glossario.js';
 import { calcularJornada, sequenciaDeDias, hojeLocal } from '../jogo/gamificacao.js';
 import { ler, CHAVES } from '../armazenamento.js';
@@ -130,6 +130,30 @@ export function paginaTrilha() {
     if (atual && atual.getBoundingClientRect().top > innerHeight * 0.6) atual.scrollIntoView({ block: 'start' });
     return { destruir: parar };
   };
+}
+
+// Os incidentes da seção Troubleshooting: o relato de cada morador e se você já resolveu.
+const SITUACAO_CHAMADO = { resolvido: ['chip-ok', 'certo', 'Resolvido'], tentado: ['chip-medio', 'relogio', 'Em andamento'] };
+const chamado = (i, status) => {
+  const situacao = SITUACAO_CHAMADO[status];
+  return `
+    <li class="chamado">
+      <p class="chamado-chips"><span class="chip chip-${i.dificuldade}">${icone('terminal')} ${DIFICULDADE[i.dificuldade]}</span>${situacao ? ` <span class="chip ${situacao[0]}">${icone(situacao[1])} ${situacao[2]}</span>` : ''}</p>
+      <h2><a href="#/ex/${i.id}">${escapar(i.titulo)}</a></h2>
+      <blockquote class="relato"><p>${i.relato}</p><footer>${escapar(i.morador)}</footer></blockquote>
+    </li>`;
+};
+
+export function paginaTroubleshooting() {
+  const progresso = ler(CHAVES.progresso, {});
+  return `
+    <p class="sobretitulo">Plantão</p>
+    <h1 class="pixel">Troubleshooting</h1>
+    <p>Clusters que chegam quebrados com <b>mais de um defeito</b>: cada conserto revela o próximo. Investigue no terminal
+       (<code>get</code>, <code>describe</code>, <code>logs</code>, <code>get events</code>) e conserte até o morador ficar
+       satisfeito. Abre desde o começo e não vale XP: é treino de plantão. Os incidentes de um defeito só ficam no
+       <a href="#/trilha">nível 9 da trilha</a>.</p>
+    <ul class="chamados">${TROUBLESHOOTING.map((i) => chamado(i, progresso[i.id]?.status)).join('')}</ul>`;
 }
 
 const semAcento = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();

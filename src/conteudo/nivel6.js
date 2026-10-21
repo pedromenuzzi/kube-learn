@@ -130,7 +130,7 @@ export const NIVEL6 = [
   initialDelaySeconds: 0
   periodSeconds: 10     # de quanto em quanto tempo
   failureThreshold: 3   # quantas falhas seguidas para agir</code></pre>
-      <p>Onde olhar: <code>kubectl describe pod</code> mostra as probes (<code>Liveness:</code>, <code>Readiness:</code>) e,
+      <p>Onde olhar: <code>kubectl describe pod NOME</code> mostra as probes (<code>Liveness:</code>, <code>Readiness:</code>) e,
          nas Events, cada falha (<i>Unhealthy</i>) e cada reinício por liveness (<i>Killing</i>).</p>
       <p><b>A pegadinha clássica</b>: uma liveness apertada num programa que demora para subir mata o contêiner antes de ele
          ficar pronto, para sempre (CrashLoopBackOff). Use uma startupProbe.</p>`,
@@ -160,7 +160,7 @@ export const NIVEL6 = [
       <h2>Classes de QoS</h2>
       <p>Quando falta memória no node, sai primeiro quem pediu menos garantia: <b>BestEffort</b> (nada declarado), depois
          <b>Burstable</b> (algo declarado) e por último <b>Guaranteed</b> (requests = limits, de CPU e memória, em todo
-         contêiner). Veja em <code>kubectl describe pod</code>, na linha <code>QoS Class</code>.</p>
+         contêiner). Veja em <code>kubectl describe pod NOME</code>, na linha <code>QoS Class</code>.</p>
       <h2>Quanto cada um gasta</h2>
       <p><code>kubectl top pods</code> e <code>kubectl top nodes</code> mostram o uso de agora. Quem mede é o
          <b>metrics-server</b>, que o kind não traz instalado (sem ele: <i>Metrics API not available</i>); os clusters deste
@@ -228,7 +228,7 @@ export const NIVEL6 = [
       <p>Depois de uns 40 segundos no ar, a loja trava: o processo continua rodando, o pod continua <code>Running</code>,
          mas as requisições ficam sem resposta (veja os logs). Faça o Kubernetes <b>perceber e reiniciar</b> o contêiner
          travado.</p>`,
-    comoSaber: '<code>kubectl get pods -w</code>: a coluna RESTARTS sobe; <code>kubectl describe pod</code> mostra <i>Container loja failed liveness probe, will be restarted</i>.',
+    comoSaber: '<code>kubectl get pods -w</code>: a coluna RESTARTS sobe; <code>kubectl describe pod NOME</code> mostra <i>Container loja failed liveness probe, will be restarted</i>.',
     dica: 'Uma livenessProbe httpGet em /healthz, porta 8080.',
     manual: ['pod.spec.containers.livenessProbe'],
     inicial: { 'loja.yaml': PARTIDA6.trava },
@@ -273,7 +273,7 @@ export const NIVEL6 = [
     limite: 'A readiness errada não derruba nada: só deixa o pod fora do Service, quieto, o que às vezes demora para alguém notar.',
     enunciado: `
       <p>Os pods da loja estão <code>Running</code>, mas <code>0/1</code>, e o Service <code>loja</code> não tem endpoints.
-         Descubra o motivo nas Events (<code>kubectl describe pod</code>) e conserte. A loja responde saúde em
+         Descubra o motivo nas Events (<code>kubectl describe pod NOME</code>) e conserte. A loja responde saúde em
          <code>/healthz</code>.</p>`,
     dica: 'A readinessProbe pergunta num caminho que a loja não conhece (404).',
     inicial: { 'loja.yaml': PARTIDA6.sondaErrada },
@@ -289,7 +289,7 @@ export const NIVEL6 = [
     vidaReal: 'Cada loja pediu 1,5 kW de potência contratada, mas cada prédio só tem 2 kW: a terceira loja não cabe em lugar nenhum.',
     limite: 'O request não é o que o programa usa: é o que fica reservado. A loja usa bem menos, e mesmo assim a reserva ocupa o lugar.',
     enunciado: `
-      <p>Um dos 3 pods da loja está <code>Pending</code>. Veja o motivo (<code>kubectl describe pod</code>, em Events) e
+      <p>Um dos 3 pods da loja está <code>Pending</code>. Veja o motivo (<code>kubectl describe pod NOME</code>, em Events) e
          quanto a loja usa de verdade (<code>kubectl top pods</code>). Ajuste o pedido para os 3 caberem.</p>`,
     comoSaber: '<code>kubectl get pods</code>: 3 pods <code>Running</code>.',
     dica: 'resources.requests.cpu: 1500m é demais. A loja usa poucos milicores; 250m sobra.',
@@ -306,7 +306,7 @@ export const NIVEL6 = [
     vidaReal: 'O relatório liga o ar-condicionado, o forno e o chuveiro ao mesmo tempo num disjuntor de 10 A: desarma toda vez.',
     limite: 'Aumentar o disjuntor resolve se o relatório precisa mesmo daquilo; se ele vaza memória, só adia a queda.',
     enunciado: `
-      <p>O <code>relatorio</code> não para de reiniciar. Descubra o motivo (<code>kubectl describe pod</code>: o
+      <p>O <code>relatorio</code> não para de reiniciar. Descubra o motivo (<code>kubectl describe pod NOME</code>: o
          <i>Last State</i> e o <i>Reason</i>) e conserte. O relatório carrega uma planilha de uns 300Mi.</p>`,
     comoSaber: '<code>kubectl get pods</code>: <code>1/1 Running</code> e os reinícios param.',
     dica: 'OOMKilled: o contêiner passou do limits.memory. Suba o limite (512Mi dá folga).',
