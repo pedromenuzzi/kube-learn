@@ -1,0 +1,15 @@
+Release "loja" has been upgraded. Happy Helming!
+NAME: loja
+LAST DEPLOYED: Wed Oct 21 08:13:03 2026
+NAMESPACE: default
+STATUS: deployed
+REVISION: 2
+DESCRIPTION: Upgrade complete
+TEST SUITE: None
+NOTES:
+A loja loja está no ar, com 3 atendentes (versão 1.1).
+
+Para testar do seu computador:
+  kubectl port-forward svc/loja 8080:80
+  curl http://localhost:8080
+exit=0

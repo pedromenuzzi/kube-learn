@@ -3,17 +3,18 @@
 // que devolve as linhas novas depois que o relógio anda. Mensagens em inglês, iguais às reais.
 import { palavras, lerFlags, ErroFlag, distancia } from './argv.js';
 import { tabela, tabular } from '../tabwriter.js';
-import { TABELAS, labelsTexto } from './tabelas.js';
+import { tabelaDe, labelsTexto } from './tabelas.js';
 import { descrever, temDescritor, templateCru } from './describe.js';
 import { paraYaml, paraJson, comoLista, nomeComTipo, jsonpath } from './formatos.js';
 import { lerCaminhos, lerYaml, ultimaAplicada, mesclar } from './manifestos.js';
-import { RECURSOS, acharRecurso, recursoDoKind, apiVersion, nomeQualificado, pluralQualificado } from '../recursos.js';
-import { decodificar, validar, explicar, btoaUtf8, ESQUEMAS } from '../esquema.js';
+import { todosOsRecursos, acharRecurso, recursoDoKind, apiVersion, nomeQualificado, pluralQualificado } from '../recursos.js';
+import { decodificar, validar, explicar, btoaUtf8, esquemaDe } from '../esquema.js';
 import { ErroApi, VERSAO_SERVIDOR } from '../cluster.js';
 import { portaAlvo } from '../rede.js';
 import { canonico } from '../aleatorio.js';
 import { iso, parseDuracao, cpuMili as cpuMiliDe, bytes as bytesDe } from '../unidades.js';
 import { cordon, taint, drain } from './manutencao.js';
+import { construir } from '../kustomize.js';
 import { autorizar, auth, moldeDeSeguranca, FLAGS_DE_SEGURANCA } from './seguranca.js';
 
 export const VERSAO_CLIENTE = 'v1.37.1';
@@ -130,6 +131,9 @@ function selecionar(cluster, posicionais, flags, { exigirNome = false } = {}) {
   const erros = [];
   const recurso = (nome) => {
     const r = acharRecurso(nome);
+    // O CRD acabou de ser apagado: o kubectl ainda lembra do tipo (cache da descoberta), e o servidor não acha mais.
+    const fantasma = !r && cluster.crdsApagados.find((x) => [x.plural, x.singular, x.kind.toLowerCase(), ...x.curtos].includes(nome.toLowerCase()));
+    if (fantasma) throw new Erro(`Error from server (NotFound): Unable to list "${fantasma.grupo}/${fantasma.versao}, Resource=${fantasma.plural}": the server could not find the requested resource (get ${fantasma.plural}.${fantasma.grupo})`);
     if (!r) throw new Erro(`error: the server doesn't have a resource type "${nome}"`);
     return r;
   };
@@ -171,7 +175,7 @@ const semResultados = (cluster, flags) => (flags['all-namespaces'] ? 'No resourc
 
 // ---------- get ----------
 function linhasTabela(cluster, grupo, flags, { prefixo, cabecalho = true }) {
-  const t = TABELAS[grupo.recurso.kind];
+  const t = tabelaDe(grupo.recurso);
   const largo = flags.output === 'wide';
   const comNs = flags['all-namespaces'] && grupo.recurso.namespaced;
   const cab = [...(comNs ? ['NAMESPACE'] : []), ...t.colunas, ...(largo && t.largas ? t.largas : []), ...(flags['show-labels'] ? ['LABELS'] : [])];
@@ -217,7 +221,7 @@ function get(cluster, a, s) {
   if (!imprimirObjetos(cluster, s, objetos, flags, unico)) {
     const comObjetos = sel.grupos.filter((g) => g.objetos.length);
     const prefixo = sel.grupos.length > 1;
-    for (const g of comObjetos) if (TABELAS[g.recurso.kind].aviso) s.err(TABELAS[g.recurso.kind].aviso);
+    for (const g of comObjetos) if (tabelaDe(g.recurso).aviso) s.err(tabelaDe(g.recurso).aviso);
     const blocos = comObjetos.map((g) => tabela(linhasTabela(cluster, g, flags, { prefixo })));
     s.out(blocos.join('\n'));
     if (!objetos.length && !sel.nomeado) s.err(semResultados(cluster, flags));
@@ -272,6 +276,19 @@ function describe(cluster, a, s) {
 
 // ---------- apply / create -f ----------
 function lerDocumentos(a, s, contexto) {
+  if (a.flags.kustomize !== undefined) {
+    if (a.flags.filename?.length) {
+      s.adiar('error: only one of -f or -k can be specified');
+      return [];
+    }
+    const r = construir(a.arquivos, a.flags.kustomize || '.');
+    for (const aviso of r.avisos ?? []) s.err(`${aviso}\n`);
+    if (r.erro) {
+      s.adiar(r.erro);
+      return [];
+    }
+    return r.objetos.map((doc) => ({ arquivo: a.flags.kustomize, doc }));
+  }
   if (!a.flags.filename?.length) {
     s.adiar(`error: must specify one of -f and -k\n\nSee 'kubectl ${contexto} -h' for help and examples`);
     return [];
@@ -300,7 +317,7 @@ function prepararDoc(cluster, { arquivo, doc }, flags, acao) {
   if (faltam.length) return `error: error validating "${arquivo}": error validating data: [${faltam.join(', ')}]; if you choose to ignore these errors, turn validation off with --validate=false`;
   const nome = doc.metadata?.name ?? '';
   const r = recursoDoKind(doc.kind);
-  if (!r || apiVersion(r) !== doc.apiVersion || !ESQUEMAS[doc.kind]) {
+  if (!r || apiVersion(r) !== doc.apiVersion || !esquemaDe(doc.kind)) {
     return `error: resource mapping not found for name: "${nome}" namespace: "${doc.metadata?.namespace ?? ''}" from "${arquivo}": no matches for kind "${doc.kind}" in version "${doc.apiVersion}"\nensure CRDs are installed first`;
   }
   let ns = null;
@@ -341,8 +358,11 @@ const ehDryRun = (flags) => flags['dry-run'] && flags['dry-run'] !== 'none';
 function apply(cluster, a, s) {
   const docs = lerDocumentos(a, s, 'apply');
   const saidaObjs = [];
-  for (const item of docs) {
-    const p = prepararDoc(cluster, item, a.flags, 'apply');
+  // Como o kubectl, resolve o tipo de todos os documentos antes de aplicar o primeiro: um CRD e um objeto do tipo
+  // novo no mesmo apply não dão certo de primeira ("ensure CRDs are installed first").
+  const preparados = docs.map((item) => prepararDoc(cluster, item, a.flags, 'apply'));
+  for (const [i, item] of docs.entries()) {
+    const p = preparados[i];
     if (typeof p === 'string') {
       s.adiar(p);
       continue;
@@ -418,8 +438,9 @@ const avisar = (cluster, s) => {
 function createArquivos(cluster, a, s) {
   const docs = lerDocumentos(a, s, 'create');
   const criados = [];
-  for (const item of docs) {
-    const p = prepararDoc(cluster, item, a.flags, 'create');
+  const preparados = docs.map((item) => prepararDoc(cluster, item, a.flags, 'create'));
+  for (const [i, item] of docs.entries()) {
+    const p = preparados[i];
     if (typeof p === 'string') {
       s.adiar(p);
       continue;
@@ -1328,8 +1349,10 @@ function config(cluster, a, s) {
 
 function apiResources(cluster, a, s) {
   const filtro = a.flags.namespaced;
-  const lista = [...RECURSOS]
+  const grupo = a.flags['api-group'];
+  const lista = todosOsRecursos()
     .filter((r) => filtro === undefined || String(r.namespaced) === String(filtro))
+    .filter((r) => grupo === undefined || r.grupo === grupo)
     .sort((x, y) => (x.grupo || '').localeCompare(y.grupo || '') || x.plural.localeCompare(y.plural));
   if (a.flags.output === 'name') return s.out(lista.map((r) => `${r.plural}${r.grupo ? `.${r.grupo}` : ''}\n`).join(''));
   s.out(tabela([['NAME', 'SHORTNAMES', 'APIVERSION', 'NAMESPACED', 'KIND'], ...lista.map((r) => [r.plural, r.curtos.join(','), apiVersion(r), String(r.namespaced), r.kind])]));
@@ -1340,7 +1363,7 @@ function explain(cluster, a, s) {
   if (!alvo) return s.falha("error: You must specify the type of resource to explain. Use \"kubectl api-resources\" for a complete list of supported resources.");
   const [tipo, ...caminho] = alvo.split('.');
   const r = acharRecurso(tipo);
-  if (!r || !ESQUEMAS[r.kind]) return s.falha(`error: the server doesn't have a resource type "${tipo}"`);
+  if (!r || !esquemaDe(r.kind)) return s.falha(`error: the server doesn't have a resource type "${tipo}"`);
   const x = explicar(r, caminho);
   if (x.erro) return s.falha(x.erro);
   s.out(x.saida);
@@ -1399,7 +1422,7 @@ Use "kubectl options" for a list of global command-line options (applies to all 
 // ---------- tabela de comandos ----------
 const SAIDA = { output: { curto: 'o', tipo: 'string' } };
 const SELETOR = { selector: { curto: 'l', tipo: 'string' } };
-const ARQUIVOS = { filename: { curto: 'f', tipo: 'lista' }, recursive: { curto: 'R', tipo: 'bool' } };
+const ARQUIVOS = { filename: { curto: 'f', tipo: 'lista' }, recursive: { curto: 'R', tipo: 'bool' }, kustomize: { curto: 'k', tipo: 'string' } };
 const DRY = { 'dry-run': { tipo: 'string' } };
 
 const COMANDOS = {
@@ -1433,12 +1456,21 @@ const COMANDOS = {
   label: { flags: { overwrite: { tipo: 'bool' }, ...SELETOR, all: { tipo: 'bool' } }, rodar: (c, a, s) => etiquetar(c, a, s, 'labels') },
   annotate: { flags: { overwrite: { tipo: 'bool' }, ...SELETOR, all: { tipo: 'bool' } }, rodar: (c, a, s) => etiquetar(c, a, s, 'annotations') },
   config: { flags: { current: { tipo: 'bool' } }, rodar: config },
-  'api-resources': { flags: { ...SAIDA, namespaced: { tipo: 'string' } }, rodar: apiResources },
+  'api-resources': { flags: { ...SAIDA, namespaced: { tipo: 'string' }, 'api-group': { tipo: 'string' } }, rodar: apiResources },
   explain: { flags: { recursive: { tipo: 'bool' } }, rodar: explain },
   version: { flags: { ...SAIDA, client: { tipo: 'bool' } }, rodar: (c, a, s) => s.out(`Client Version: ${VERSAO_CLIENTE}\nKustomize Version: v5.8.1\n${a.flags.client ? '' : `Server Version: ${VERSAO_SERVIDOR}\n`}`) },
   'cluster-info': { flags: {}, rodar: (c, a, s) => s.out('Kubernetes control plane is running at https://127.0.0.1:6443\nCoreDNS is running at https://127.0.0.1:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy\n\nTo further debug and diagnose cluster problems, use \'kubectl cluster-info dump\'.\n') },
   top: { flags: { ...SELETOR, 'all-namespaces': { curto: 'A', tipo: 'bool' }, containers: { tipo: 'bool' }, 'sort-by': { tipo: 'string' }, 'no-headers': { tipo: 'bool' } }, rodar: top },
   auth: { flags: { subresource: { tipo: 'string' }, 'all-namespaces': { curto: 'A', tipo: 'bool' } }, rodar: (c, a, s) => auth(c, a, s, namespaceDe(c, a.flags)) },
+  kustomize: {
+    flags: {},
+    rodar: (c, a, s) => {
+      const r = construir(a.arquivos, a.posicionais[0] ?? '.');
+      for (const aviso of r.avisos ?? []) s.err(`${aviso}\n`);
+      if (r.erro) return s.falha(r.erro);
+      s.out(r.objetos.map(paraYaml).join('---\n'));
+    },
+  },
   cordon: { flags: {}, rodar: (c, a, s) => cordon(c, a, s, true) },
   uncordon: { flags: {}, rodar: (c, a, s) => cordon(c, a, s, false) },
   taint: { flags: { overwrite: { tipo: 'bool' } }, rodar: taint },
@@ -1500,6 +1532,7 @@ export function kubectl(cluster, linha, { arquivos = {} } = {}) {
     return s.resultado();
   }
   cluster.avisos = [];
+  cluster.ativar(); // os tipos dos CRDs deste cluster
   if (lidos.flags.as) {
     const docs = ['apply', 'create'].includes(nome) && lidos.flags.filename ? lerDocumentos({ ...lidos, arquivos }, new Saida(), nome)
       .map(({ arquivo, doc }) => ({ r: recursoDoKind(doc?.kind), nome: doc?.metadata?.name, arquivo })).filter((d) => d.r) : [];

@@ -1,0 +1,3 @@
+NAME      SHORTNAMES   APIVERSION          NAMESPACED   KIND
+backups   bkp          kube-learn.dev/v1   true         Backup
+exit=0

@@ -49,6 +49,10 @@ const ESPECIAIS = {
   // ReplicaSet bloqueado pelo PodSecurity junta os eventos repetidos de um jeito que o simulador não imita.
   'describe-pod-naoroot': { ate: '    State:', eventos: true },
   'describe-rs-psa': { ate: 'Events:' },
+  // Nível 10: no kind, a imagem kubelearn/loja não existe (os pods ficam Pending/ErrImagePull); no simulador, sobem:
+  // compara sem as contagens de pods prontos.
+  'helm-status': { ate: '==> v1/Pod(related)', semProntos: true },
+  'helm-deploy-labels': { semProntos: true },
 };
 
 const linhas = (t) => t.split('\n');
@@ -62,6 +66,7 @@ const semContagem = (t) => t.replace(/\b\d+ \(<t> ago\)/g, 'N (<t> ago)').replac
 function comparavel(texto, regra) {
   let t = normalizar(texto);
   if (regra.semContagem) t = semContagem(t);
+  if (regra.semProntos) t = t.replace(/\| \d+\/(\d+) \| (\d+) \| \d+ \|/g, '| N/$1 | $2 | N |');
   if (regra.ate) {
     const ls = linhas(t);
     const i = ls.findIndex((l) => l.startsWith(normalizar(regra.ate).replace(/^ \| /, ' | ')) || l.startsWith(regra.ate.trim()) || l.replace(/^ \| /, '').startsWith(regra.ate.trim()));

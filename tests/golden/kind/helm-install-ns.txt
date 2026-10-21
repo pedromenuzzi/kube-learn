@@ -1,0 +1,14 @@
+NAME: vitrine
+LAST DEPLOYED: Wed Oct 21 08:13:09 2026
+NAMESPACE: vendas
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+NOTES:
+A loja vitrine está no ar, com 1 atendentes (versão 1.1).
+
+Para testar do seu computador:
+  kubectl port-forward svc/vitrine 8080:80
+  curl http://localhost:8080
+exit=0

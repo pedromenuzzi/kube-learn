@@ -7,6 +7,7 @@ const REGRAS = [
   [/\b[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} [+-]\d{4}\b/g, '<data>'],
   [/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})/g, '<iso>'],
   [/\b\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}\b/g, '<data>'],
+  [/\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [ \d]\d \d{2}:\d{2}:\d{2} \d{4}\b/g, '<data>'], // o time.ANSIC do Go (helm)
   [/\b\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)? [+-]\d{4} \S+/g, '<data>'], // o time.Time.String() do Go (describe netpol)
   [/local-path-provisioner-[a-z0-9]+-[a-z0-9]{5}_/g, 'local-path-provisioner-<h>-<s>_'],
   [/(?<![0-9a-f])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9a-f])/g, '<uid>'],

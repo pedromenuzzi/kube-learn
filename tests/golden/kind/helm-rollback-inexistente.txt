@@ -1,0 +1,2 @@
+Error: release has no 9 version
+exit=1

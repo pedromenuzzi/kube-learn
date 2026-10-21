@@ -1,0 +1,1 @@
+{"deployment.kubernetes.io/revision":"3","meta.helm.sh/release-name":"loja","meta.helm.sh/release-namespace":"default"}exit=0

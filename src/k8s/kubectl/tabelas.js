@@ -1,4 +1,5 @@
 // As colunas do `kubectl get` para cada tipo (normal e -o wide), como os printers do kubectl.
+import { jsonpath } from './formatos.js';
 import { idade } from '../unidades.js';
 import { estaPronto } from '../rede.js';
 import { siglasDeAcesso } from '../discos.js';
@@ -252,6 +253,10 @@ export const TABELAS = {
     colunas: ['NAME', 'POD-SELECTOR', 'AGE'],
     linha: (np, agora) => [np.metadata.name, seletorTexto(np.spec.podSelector?.matchLabels) || '<none>', desde(agora, np.metadata.creationTimestamp)],
   },
+  CustomResourceDefinition: {
+    colunas: ['NAME', 'SCOPE', 'VERSIONS', 'CREATED AT'],
+    linha: (crd) => [crd.metadata.name, crd.spec.scope, crd.spec.versions.map((v) => `${v.name}${v.storage ? '(storage)' : ''}`).join(','), crd.metadata.creationTimestamp],
+  },
   PodDisruptionBudget: {
     colunas: ['NAME', 'MIN AVAILABLE', 'MAX UNAVAILABLE', 'ALLOWED DISRUPTIONS', 'AGE'],
     linha: (b, agora) => [b.metadata.name, String(b.spec.minAvailable ?? 'N/A'), String(b.spec.maxUnavailable ?? 'N/A'), String(b.status?.disruptionsAllowed ?? 0), desde(agora, b.metadata.creationTimestamp)],
@@ -317,3 +322,18 @@ export const TABELAS = {
     semNome: true,
   },
 };
+
+/** A tabela de um tipo: a nossa, ou a das colunas do CRD (additionalPrinterColumns; sem elas, NAME e AGE). */
+export function tabelaDe(r) {
+  if (TABELAS[r.kind]) return TABELAS[r.kind];
+  const colunas = r.colunas ?? [{ name: 'Age', type: 'date', jsonPath: '.metadata.creationTimestamp' }];
+  const valor = (o, c, agora) => {
+    const v = jsonpath(`{${c.jsonPath}}`, o);
+    if (v === '') return '<none>';
+    return c.type === 'date' ? desde(agora, v) : v;
+  };
+  return {
+    colunas: ['NAME', ...colunas.map((c) => c.name.toUpperCase())],
+    linha: (o, agora) => [o.metadata.name, ...colunas.map((c) => valor(o, c, agora))],
+  };
+}

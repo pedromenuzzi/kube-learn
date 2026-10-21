@@ -34,6 +34,7 @@ const TRACOS = {
   mais: '<path d="M12 5v14M5 12h14"/>',
   fechar: '<path d="M6 6l12 12M18 6 6 18"/>',
   linkedin: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 10.5V17M8 7.5v.1M12 17v-6.5m0 3.2c0-1.8 1-3.2 2.6-3.2s2.4 1 2.4 3V17"/>',
+  editor: '<rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="m10 9.5-2.5 2.5 2.5 2.5M14 9.5l2.5 2.5-2.5 2.5"/>',
   imprimir: '<path d="M7 9V3h10v6M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><rect x="7" y="14" width="10" height="7" rx="1"/>',
 };
 

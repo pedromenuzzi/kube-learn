@@ -23,6 +23,7 @@
 //   { contexto: { namespace } }                        o namespace padrão do kubectl (kubectl config set-context)
 //   { pode: { quem: 'ana' | 'system:serviceaccount:ns:nome', verbo: 'list', recurso: 'pods', sub, ns, resposta: true } }
 //                                                      o RBAC deixa (ou não) a pessoa fazer aquilo
+//   { release: { nome, ns, status, revisao, descricao } }   a release do Helm (a última revisão)
 //   { espalhamento: { pods: 'app=x', chave: 'topology.kubernetes.io/zone', maxSkew: 1 } }   a maior diferença de
 //                                                      pods entre os domínios (os valores da label nos nodes)
 //
@@ -30,7 +31,8 @@
 // e { derrubarNode: 'node-2' } (o prédio fica sem luz: o kubelet dele para).
 // Sem `passos`: kubectl apply -f . e 1 minuto de relógio.
 import { montarCluster } from './conteudo/clusters.js';
-import { kubectl, seletorDeLabels } from './k8s/kubectl/index.js';
+import { seletorDeLabels } from './k8s/kubectl/index.js';
+import { rodarLinha } from './k8s/linha.js';
 import { acharRecurso, pluralQualificado } from './k8s/recursos.js';
 import { estaPronto, http, httpDeFora, resolver } from './k8s/rede.js';
 import { resumoPod } from './k8s/kubectl/tabelas.js';
@@ -209,6 +211,14 @@ const REGRAS = {
     const acao = `${q.verbo} ${q.sub ? `${q.recurso}/${q.sub}` : q.recurso}${ns ? ` no namespace ${ns}` : ''}`;
     return [deixa === q.resposta, `${q.quem} ${q.resposta ? 'pode' : 'não pode'} ${acao}`, deixa ? 'pode' : 'não pode'];
   },
+  release(r, ctx) {
+    const q = r.release;
+    const rev = ctx.cluster.helm?.releases.get(`${q.ns ?? 'default'}/${q.nome}`)?.at(-1);
+    if (!rev) return [false, `a release ${q.nome} existe`, 'não existe (helm list)'];
+    const confere = [['status', rev.status], ['revisao', rev.revisao], ['descricao', rev.descricao]].filter(([k]) => q[k] !== undefined);
+    const errado = confere.find(([k, v]) => v !== q[k]);
+    return [!errado, `a release ${q.nome}: ${confere.map(([k]) => `${k} ${q[k]}`).join(', ') || 'existe'}`, errado ? `${errado[0]} é ${errado[1]}` : ''];
+  },
   espalhamento(r, ctx) {
     const q = r.espalhamento;
     const conta = new Map(ctx.cluster.listar('Node').map((n) => n.metadata.labels?.[q.chave]).filter((v) => v !== undefined).map((v) => [v, 0]));
@@ -265,7 +275,7 @@ export function rodarTeste(item, teste, indice, { arquivos = {}, historico = [],
     ctx.cluster = montarCluster(item.cluster, `${item.id}#${indice}`);
     for (const passo of teste.passos ?? PASSOS_PADRAO) {
       if (passo.comando) {
-        ctx.resultados.push(kubectl(ctx.cluster, passo.comando, { arquivos }));
+        ctx.resultados.push(rodarLinha(ctx.cluster, passo.comando, { ...arquivos }));
         amostrar(ctx.cluster, ctx);
       } else if (passo.adicionarNode) {
         ctx.cluster.criarNodes([{ nome: passo.adicionarNode }], ctx.cluster.listar('Node').length);
@@ -281,6 +291,7 @@ export function rodarTeste(item, teste, indice, { arquivos = {}, historico = [],
       }
     }
   }
+  ctx.cluster?.ativar(); // os tipos dos CRDs deste cluster
   const regras = ctx.cluster ? teste.regras.map((r) => conferir(r, ctx)) : [{ ok: false, mensagem: 'o cluster do terminal', detalhe: 'abra o exercício e use o terminal' }];
   return { descricao: teste.descricao, oculto: !!teste.oculto, ok: regras.every((r) => r.ok), regras };
 }

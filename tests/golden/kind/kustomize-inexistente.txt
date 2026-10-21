@@ -1,0 +1,2 @@
+error: must build at directory: not a valid directory: evalsymlink failure on '/tmp/k/nada' : lstat /tmp/k/nada: no such file or directory
+exit=1

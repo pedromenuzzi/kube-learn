@@ -694,10 +694,82 @@ export const ESQUEMAS = {
     description: texto('Para que serve a classe (só texto).'),
     preemptionPolicy: texto('PreemptLowerPriority (padrão: pode tirar pods menos importantes) ou Never (espera, sem tirar ninguém).'),
   }),
+  CustomResourceDefinition: raiz('CustomResourceDefinition', 'O CustomResourceDefinition (CRD) ensina um tipo novo à API: depois dele, o cluster aceita objetos desse tipo (um formulário novo na administração).', {
+    spec: qualquer('O grupo, os nomes, o escopo e as versões (com o esquema) do tipo novo.', { obrigatorio: true }),
+    status: status('CustomResourceDefinition'),
+  }),
   Node: raiz('Node', 'O Node é uma máquina do cluster, onde os pods rodam.', { spec: qualquer('', { go: 'NodeSpec' }), status: status('Node') }),
   Endpoints: raiz('Endpoints', 'A lista de IPs e portas dos pods atrás de um Service.', { subsets: qualquer('') }),
   Event: raiz('Event', 'Uma ocorrência registrada no cluster.', {}),
 };
+
+// ---------- os tipos dos CRDs ----------
+// Cada cluster tem os seus (quem usa o cluster ativa a lista, junto com a dos recursos).
+let esquemasExtras = {};
+export const usarEsquemasExtras = (mapa) => {
+  esquemasExtras = mapa;
+};
+export const esquemaDe = (kind) => ESQUEMAS[kind] ?? esquemasExtras[kind];
+
+/** O openAPIV3Schema de um CRD no formato destes esquemas (para a decodificação estrita e o explain). */
+function deOpenApi(s, obrigatorio) {
+  const extra = { openapi: s, ...(obrigatorio ? { obrigatorio: true } : {}) };
+  const desc = s.description ?? '';
+  switch (s.type) {
+    case 'object':
+      if (!s.properties) return mapa(desc, { ...extra, go: 'Object' });
+      return objeto('Object', desc, Object.fromEntries(Object.entries(s.properties).map(([k, v]) => [k, deOpenApi(v, (s.required ?? []).includes(k))])), extra);
+    case 'string': return texto(desc, extra);
+    case 'integer': return inteiro(desc, { ...extra, go: 'integer' });
+    case 'boolean': return booleano(desc, extra);
+    case 'array': return lista(s.items ? deOpenApi(s.items) : qualquer(''), desc, extra);
+    default: return qualquer(desc, { ...extra, go: 'Object' });
+  }
+}
+
+/** O esquema do tipo que um CRD define (a versão de armazenamento). */
+export function esquemaDoCrd(crd) {
+  const versao = crd.spec.versions.find((v) => v.storage) ?? crd.spec.versions[0];
+  const raizApi = versao.schema?.openAPIV3Schema ?? { type: 'object' };
+  const campos = Object.fromEntries(Object.entries(raizApi.properties ?? {}).map(([k, v]) => [k, deOpenApi(v, (raizApi.required ?? []).includes(k))]));
+  return { ...raiz('Object', raizApi.description ?? '', campos), crd: true, openapi: raizApi };
+}
+
+/** A validação do apiserver para um recurso de CRD: tipos, obrigatórios, mínimo/máximo e enum (em ordem de caminho). */
+function validarCr(obj, raizApi) {
+  const erros = [];
+  const visitar = (v, s, cam) => {
+    if (v === undefined || v === null || !s) return;
+    const tipo = Array.isArray(v) ? 'array' : Number.isInteger(v) ? 'integer' : typeof v === 'number' ? 'number' : typeof v;
+    if (s.type && s.type !== tipo && !(s.type === 'number' && tipo === 'integer')) {
+      erros.push([cam, `${cam}: Invalid value: "${tipo === 'string' ? v : tipo}": ${cam} in body must be of type ${s.type}: "${tipo}"`]);
+      return;
+    }
+    if (s.minimum !== undefined && v < s.minimum) erros.push([cam, `${cam}: Invalid value: ${v}: ${cam} in body should be greater than or equal to ${s.minimum}`]);
+    if (s.maximum !== undefined && v > s.maximum) erros.push([cam, `${cam}: Invalid value: ${v}: ${cam} in body should be less than or equal to ${s.maximum}`]);
+    if (s.enum && !s.enum.includes(v)) erros.push([cam, `${cam}: Unsupported value: ${JSON.stringify(v)}: supported values: ${s.enum.map((x) => JSON.stringify(x)).join(', ')}`]);
+    if (tipo === 'object' && s.properties) {
+      for (const k of s.required ?? []) if (v[k] === undefined) erros.push([`${cam}.${k}`, `${cam}.${k}: Required value`]);
+      for (const [k, filho] of Object.entries(s.properties)) visitar(v[k], filho, `${cam}.${k}`);
+    }
+    if (tipo === 'array') v.forEach((x, i) => visitar(x, s.items, `${cam}[${i}]`));
+  };
+  for (const [k, filho] of Object.entries(raizApi.properties ?? {})) {
+    if (['apiVersion', 'kind', 'metadata'].includes(k)) continue;
+    if ((raizApi.required ?? []).includes(k) && obj[k] === undefined) erros.push([k, `${k}: Required value`]);
+    visitar(obj[k], filho, k);
+  }
+  return erros.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, m]) => m);
+}
+
+/** Os valores padrão (default) do esquema do CRD, onde o objeto não disse nada. */
+function padroesCr(v, s) {
+  if (!s?.properties || !v || typeof v !== 'object') return;
+  for (const [k, filho] of Object.entries(s.properties)) {
+    if (v[k] === undefined && filho.default !== undefined) v[k] = structuredClone(filho.default);
+    padroesCr(v[k], filho);
+  }
+}
 
 // ---------- decodificação estrita ----------
 const GO = { string: 'string', integer: 'int32', boolean: 'bool', map: 'map[string]string', IntOrString: 'intstr.IntOrString' };
@@ -710,7 +782,7 @@ const nomeStruct = (c) => (c.go ?? '').replace(/^v1\./, '');
  * Devolve { desconhecidos: ['spec.replica', ...], tipo: 'json: cannot unmarshal ...' | null }.
  */
 export function decodificar(obj) {
-  const esquema = ESQUEMAS[obj.kind];
+  const esquema = esquemaDe(obj.kind);
   const desconhecidos = [];
   let erroTipo = null;
 
@@ -765,6 +837,12 @@ const MSG_1035 = `a DNS-1035 label must consist of lower case alphanumeric chara
 
 const invalido = (campoNome, valor, msg) => `${campoNome}: Invalid value: ${JSON.stringify(valor)}: ${msg}`;
 const obrigatorio = (campoNome) => `${campoNome}: Required value`;
+
+const validarNomeCr = (obj) => {
+  const erros = [];
+  validarNome(obj, erros);
+  return erros;
+};
 
 function validarNome(obj, erros) {
   const nome = obj.metadata?.name;
@@ -869,6 +947,7 @@ const casaSeletor = (matchLabels = {}, labels = {}) => Object.entries(matchLabel
 /** Lista de erros de validação (vazia = válido). `antigo` é a versão em vigor, para os campos imutáveis. */
 export function validar(obj, antigo) {
   const erros = [];
+  if (esquemasExtras[obj.kind]) return [...(validarNomeCr(obj)), ...validarCr(obj, esquemasExtras[obj.kind].openapi)];
   validarNome(obj, erros);
   const s = obj.spec;
   switch (obj.kind) {
@@ -1062,6 +1141,7 @@ function padroesPodSpec(spec) {
 
 /** Aplica os valores padrão que o apiserver preenche (o que aparece no `-o yaml`). */
 export function aplicarPadroes(obj) {
+  if (esquemasExtras[obj.kind]) padroesCr(obj, esquemasExtras[obj.kind].openapi);
   const s = obj.spec;
   switch (obj.kind) {
     case 'Pod':
@@ -1208,7 +1288,7 @@ function quebrar(textoLongo, recuo) {
 
 /** Saída do `kubectl explain` para kind e caminho ('spec.replicas'). Erro → { erro }. */
 export function explicar(recurso, caminho = []) {
-  let c = ESQUEMAS[recurso.kind];
+  let c = esquemaDe(recurso.kind);
   const percorridos = [];
   for (const parte of caminho) {
     if (c.tipo === 'array') c = c.item;
@@ -1222,9 +1302,10 @@ export function explicar(recurso, caminho = []) {
   if (recurso.grupo) linhas.push(`GROUP:      ${recurso.grupo}`);
   linhas.push(`KIND:       ${recurso.kind}`, `VERSION:    ${recurso.versao}`, '');
   if (caminho.length) linhas.push(`FIELD: ${percorridos.at(-1)} <${nomeTipoExplain(c)}>`, '', '');
-  linhas.push('DESCRIPTION:', ...quebrar(c.desc || alvo.desc || '<sem descrição>', '    '));
+  const doCrd = !!esquemaDe(recurso.kind)?.crd;
+  linhas.push('DESCRIPTION:', ...quebrar(c.desc || alvo.desc || (doCrd ? '<empty>' : '<sem descrição>'), '    '));
   if (c !== alvo && alvo.desc && alvo.desc !== c.desc) linhas.push(...quebrar(alvo.desc, '    '));
-  linhas.push('    ');
+  if (!doCrd) linhas.push('    ');
   if (alvo.campos) {
     linhas.push('FIELDS:');
     for (const [nome, f] of Object.entries(alvo.campos).sort(([a], [b]) => a.localeCompare(b))) {
@@ -1234,5 +1315,6 @@ export function explicar(recurso, caminho = []) {
     }
   }
   linhas.push('');
+  if (doCrd) linhas.push('');
   return { saida: linhas.join('\n') };
 }

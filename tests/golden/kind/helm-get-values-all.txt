@@ -1,0 +1,13 @@
+COMPUTED VALUES:
+image:
+  repository: kubelearn/loja
+  tag: ""
+ingress:
+  enabled: false
+  host: loja.local
+replicaCount: 2
+resources: {}
+service:
+  port: 80
+  type: ClusterIP
+exit=0

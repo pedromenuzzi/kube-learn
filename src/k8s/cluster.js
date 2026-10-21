@@ -1,8 +1,9 @@
 // O cluster simulado: a API (o "etcd" com os objetos), os eventos, o relógio e o laço de reconciliação
 // (controladores → scheduler → kubelet) que roda até nada mais mudar.
 import { criarAleatorio, uuidDe } from './aleatorio.js';
-import { aplicarPadroes } from './esquema.js';
-import { recursoDoKind, pluralQualificado } from './recursos.js';
+import { aplicarPadroes, usarEsquemasExtras } from './esquema.js';
+import { recursoDoKind, pluralQualificado, usarRecursosExtras } from './recursos.js';
+import { registrarCrd, esquecerCrd } from './crds.js';
 import { rodarControladores } from './controladores.js';
 import { agendar } from './scheduler.js';
 import { Kubelet, qos } from './kubelet.js';
@@ -49,6 +50,9 @@ export class Cluster {
     this.rodizio = new Map();
     this.agendamento = new Map();
     this.mudancasDeCapacidade = 0;
+    this.recursosExtras = []; // os tipos que os CRDs deste cluster criaram
+    this.esquemasExtras = {};
+    this.crdsApagados = [];
     this.avisos = []; // avisos da API para o kubectl mostrar ("Warning: would violate PodSecurity...")
     this.nodesCaidos = new Map(); // nome do node → quando o kubelet dele parou (o prédio ficou sem luz)
     this.ipsServico = new Set(['10.96.0.1', '10.96.0.10']);
@@ -119,7 +123,7 @@ export class Cluster {
     obj.metadata = {
       ...m,
       creationTimestamp: iso(this.agora),
-      ...(['Pod', 'Deployment', 'ReplicaSet', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'HorizontalPodAutoscaler', 'PodDisruptionBudget'].includes(obj.kind) ? { generation: 1 } : {}),
+      ...(['Pod', 'Deployment', 'ReplicaSet', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'HorizontalPodAutoscaler', 'PodDisruptionBudget', 'CustomResourceDefinition'].includes(obj.kind) || r.crd ? { generation: 1 } : {}),
       resourceVersion: String(++this.rv),
       uid: uid ?? this.aleatorio.uuid(),
     };
@@ -132,6 +136,7 @@ export class Cluster {
     if (['PersistentVolumeClaim', 'PersistentVolume', 'StorageClass'].includes(obj.kind)) this.mudancasDeCapacidade++; // o scheduler tenta de novo quem esperava disco
     if (['ResourceQuota', 'LimitRange'].includes(obj.kind)) this.esperaCriacao.clear(); // cota nova: os controladores tentam criar de novo já
     if (obj.kind === 'Namespace') this.criar(contaPadrao(obj.metadata.name), { uid: uidDaConta(obj.metadata.name, 'default') });
+    if (obj.kind === 'CustomResourceDefinition') registrarCrd(this, obj);
     return obj;
   }
 
@@ -312,6 +317,7 @@ export class Cluster {
     if (obj.kind === 'Service') this.ipsServico.delete(obj.spec.clusterIP);
     if (obj.kind === 'PersistentVolumeClaim') this.provisionamentos.delete(obj.metadata.uid);
     if (obj.kind === 'Namespace') this.eventos = this.eventos.filter((e) => e.metadata.namespace !== obj.metadata.name);
+    if (obj.kind === 'CustomResourceDefinition') esquecerCrd(this, obj);
   }
 
   registrar(tipo, obj) {
@@ -367,6 +373,7 @@ export class Cluster {
     while (this.agora < alvo) {
       this.agora = Math.min(this.agora + 1000, alvo);
       this.reconciliar();
+      this.gitops?.tique(); // o fiscal do GitOps, nos clusters que têm um repositório
     }
   }
 
@@ -385,7 +392,14 @@ export class Cluster {
     return true;
   }
 
+  /** Os tipos dos CRDs deste cluster passam a valer (para quem procura recursos e esquemas). */
+  ativar() {
+    usarRecursosExtras(this.recursosExtras);
+    usarEsquemasExtras(this.esquemasExtras);
+  }
+
   reconciliar() {
+    this.ativar();
     for (let i = 0; i < 50; i++) {
       const antes = this.rv;
       rodarControladores(this);
