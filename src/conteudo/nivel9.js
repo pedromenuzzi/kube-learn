@@ -455,7 +455,7 @@ export const NIVEL9 = [
 
   incidente({
     id: 'n9-disjuntor',
-    titulo: 'O disjuntor que desarma',
+    titulo: 'O disjuntor que não para de desarmar',
     dificuldade: 'medio',
     morador: 'Dona Zélia, da contabilidade',
     relato: 'O relatório começa, a luz pisca e ele some. Começa de novo, pisca, some.',

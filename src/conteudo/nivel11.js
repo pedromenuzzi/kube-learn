@@ -801,7 +801,7 @@ export const NIVEL11 = [
         ])],
       },
       {
-        titulo: 'O gerente de temporários',
+        titulo: 'As regras do gerente',
         dificuldade: 'medio',
         vidaReal: 'O gerente contrata temporários quando os atendentes passam de metade da capacidade, e dispensa depois.',
         limite: 'Ele só olha a CPU: se o gargalo for o banco, contratar atendentes não ajuda.',
@@ -957,7 +957,7 @@ export const NIVEL11 = [
     titulo: 'Hardening',
     etapas: [
       {
-        titulo: 'Sem a chave mestra',
+        titulo: 'O cofre sem a chave mestra',
         dificuldade: 'facil',
         vidaReal: 'O programa do cofre roda com a chave de um morador comum, nunca com a mestra.',
         limite: 'Rodar sem root limita o estrago, mas não substitui atualizar a imagem com as correções de segurança.',
