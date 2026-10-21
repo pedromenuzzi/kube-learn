@@ -1,0 +1,16 @@
+Name:         dns
+Namespace:    rede
+Created on:   2026-10-21 06:59:18 -0300 -03
+Labels:       <none>
+Annotations:  <none>
+Spec:
+  PodSelector:     app=vitrine
+  Not affecting ingress traffic
+  Allowing egress traffic:
+    To Port: 53/UDP
+    To Port: 53/TCP
+    To:
+      NamespaceSelector: kubernetes.io/metadata.name=kube-system
+      PodSelector: k8s-app=kube-dns
+  Policy Types: Egress
+exit=0

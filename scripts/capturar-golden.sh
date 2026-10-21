@@ -1063,3 +1063,391 @@ cap get-pods-caido-antes kc get pods -l caiu=sim -o wide
 sleep 320
 cap get-pods-caido kc get pods -l caiu=sim -o wide
 cap describe-sozinho-caido kc describe pod sozinho
+
+# ---------- Fase 7 · nível 8: RBAC, ServiceAccount, NetworkPolicy, securityContext e Pod Security ----------
+cat > /tmp/kl-rbac.yaml <<'Y'
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: loja
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: leitor
+  namespace: loja
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - pods/log
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ana-leitora
+  namespace: loja
+subjects:
+- kind: User
+  name: ana
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: leitor
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: painel
+  namespace: loja
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: painel-leitor
+  namespace: loja
+subjects:
+- kind: ServiceAccount
+  name: painel
+  namespace: loja
+roleRef:
+  kind: Role
+  name: leitor
+  apiGroup: rbac.authorization.k8s.io
+Y
+cat > /tmp/kl-sa-faltando.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sem-cracha
+  namespace: loja
+spec:
+  serviceAccountName: fantasma
+  containers:
+  - name: c
+    image: nginx:1.27
+Y
+cat > /tmp/kl-rede.yaml <<'Y'
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rede
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: rede
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+      - name: api
+        image: nginx:1.27
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: rede
+spec:
+  selector:
+    app: api
+  ports:
+  - port: 80
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vitrine
+  namespace: rede
+  labels:
+    app: vitrine
+spec:
+  containers:
+  - name: c
+    image: busybox:1.36
+    command: ["sleep", "3600"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: curioso
+  namespace: rede
+  labels:
+    app: curioso
+spec:
+  containers:
+  - name: c
+    image: busybox:1.36
+    command: ["sleep", "3600"]
+Y
+cat > /tmp/kl-catracas.yaml <<'Y'
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nega-tudo
+  namespace: rede
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: libera-vitrine
+  namespace: rede
+spec:
+  podSelector:
+    matchLabels:
+      app: api
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: vitrine
+    ports:
+    - protocol: TCP
+      port: 80
+Y
+cat > /tmp/kl-sem-saida.yaml <<'Y'
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sem-saida
+  namespace: rede
+spec:
+  podSelector:
+    matchLabels:
+      app: vitrine
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: api
+    ports:
+    - protocol: TCP
+      port: 80
+Y
+cat > /tmp/kl-dns.yaml <<'Y'
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dns
+  namespace: rede
+spec:
+  podSelector:
+    matchLabels:
+      app: vitrine
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+Y
+cat > /tmp/kl-seguranca.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: raiz
+spec:
+  containers:
+  - name: c
+    image: busybox:1.36
+    command: ["sleep", "3600"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: comum
+spec:
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 3000
+  containers:
+  - name: c
+    image: busybox:1.36
+    command: ["sleep", "3600"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: naoroot
+spec:
+  securityContext:
+    runAsNonRoot: true
+  containers:
+  - name: c
+    image: nginx:1.27
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: so-leitura
+spec:
+  containers:
+  - name: c
+    image: busybox:1.36
+    command: ["sleep", "3600"]
+    securityContext:
+      readOnlyRootFilesystem: true
+Y
+cat > /tmp/kl-psa.yaml <<'Y'
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cofre
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guarda
+  namespace: cofre
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: guarda
+  template:
+    metadata:
+      labels:
+        app: guarda
+    spec:
+      containers:
+      - name: guarda
+        image: busybox:1.36
+        command: ["sleep", "3600"]
+Y
+cat > /tmp/kl-psa-ok.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: certinho
+  namespace: cofre
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+  - name: c
+    image: busybox:1.36
+    command: ["sleep", "3600"]
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+Y
+cat > /tmp/kl-privilegiado.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: privilegiado
+  namespace: cofre
+spec:
+  containers:
+  - name: c
+    image: busybox:1.36
+    command: ["sleep", "3600"]
+    securityContext:
+      privileged: true
+Y
+
+cap apply-rbac kc apply -f /tmp/kl-rbac.yaml
+cap get-role kc get role -n loja
+cap describe-role kc describe role leitor -n loja
+cap get-rolebinding kc get rolebinding -n loja -o wide
+cap describe-rolebinding kc describe rolebinding ana-leitora -n loja
+cap get-sa kc get sa -n loja
+cap describe-sa kc describe sa painel -n loja
+cap can-i-sim kc auth can-i list pods --as=ana -n loja
+cap can-i-nao kc auth can-i delete pods --as=ana -n loja
+cap can-i-outro-ns kc auth can-i list pods --as=ana -n default
+cap can-i-sa kc auth can-i list pods --as=system:serviceaccount:loja:painel -n loja
+cap can-i-log kc auth can-i get pods --subresource=log --as=ana -n loja
+cap can-i-deploy kc auth can-i create deployments.apps --as=ana -n loja
+cap as-get-proibido kc get pods --as=ana
+cap as-get-ok kc get pods --as=ana -n loja
+cap as-delete-proibido kc delete pod qualquer --as=ana -n loja
+cap as-run-proibido kc run outro --image=nginx:1.27 --as=ana -n loja
+cap as-get-deploy-proibido kc get deploy --as=ana -n loja
+cap create-role kc create role escritor --verb=get,list,create,update --resource=deployments -n loja
+cap create-rolebinding kc create rolebinding bruno-escritor --role=escritor --user=bruno -n loja
+cap can-i-bruno kc auth can-i create deployments --as=bruno -n loja
+cap create-sa kc create serviceaccount robo -n loja
+cap create-clusterrolebinding kc create clusterrolebinding auditoria --clusterrole=view --user=auditoria
+cap can-i-view kc auth can-i list pods --as=auditoria -n kube-system
+cap can-i-view-secrets kc auth can-i get secrets --as=auditoria -n kube-system
+cap dry-role kc create role leitor2 --verb=get,list --resource=pods,services -n loja --dry-run=client -o yaml
+cap dry-rolebinding kc create rolebinding x --clusterrole=view --serviceaccount=loja:painel -n loja --dry-run=client -o yaml
+cap get-clusterrole-view kc get clusterrole view
+cap apply-sa-faltando kc apply -f /tmp/kl-sa-faltando.yaml
+cap apply-rede kc apply -f /tmp/kl-rede.yaml
+kc rollout status deploy/api -n rede --timeout=120s >/dev/null 2>&1
+kc wait --for=condition=Ready pod/vitrine pod/curioso -n rede --timeout=120s >/dev/null 2>&1
+cap wget-antes kc exec curioso -n rede -- wget -q -O- -T 3 http://api
+cap apply-catracas kc apply -f /tmp/kl-catracas.yaml
+sleep 5
+cap wget-vitrine kc exec vitrine -n rede -- wget -q -O- -T 3 http://api
+cap wget-curioso kc exec curioso -n rede -- wget -q -O- -T 3 http://api
+cap get-netpol kc get netpol -n rede
+cap describe-netpol kc describe netpol libera-vitrine -n rede
+cap describe-netpol-nega kc describe netpol nega-tudo -n rede
+cap apply-sem-saida kc apply -f /tmp/kl-sem-saida.yaml
+sleep 5
+cap wget-sem-dns kc exec vitrine -n rede -- wget -q -O- -T 3 http://api
+cap describe-netpol-saida kc describe netpol sem-saida -n rede
+cap apply-dns kc apply -f /tmp/kl-dns.yaml
+sleep 5
+cap wget-com-dns kc exec vitrine -n rede -- wget -q -O- -T 3 http://api
+cap describe-netpol-dns kc describe netpol dns -n rede
+cap apply-seguranca kc apply -f /tmp/kl-seguranca.yaml
+kc wait --for=condition=Ready pod/raiz pod/comum pod/so-leitura --timeout=120s >/dev/null 2>&1
+sleep 5
+cap id-raiz kc exec raiz -- id
+cap id-comum kc exec comum -- id
+cap whoami-comum kc exec comum -- whoami
+cap touch-so-leitura kc exec so-leitura -- touch /arquivo
+cap get-pod-naoroot kc get pod naoroot
+cap describe-pod-naoroot kc describe pod naoroot
+cap apply-psa kc apply -f /tmp/kl-psa.yaml
+sleep 5
+cap run-psa kc run solto --image=busybox:1.36 -n cofre -- sleep 3600
+cap get-deploy-psa kc get deploy -n cofre
+cap describe-rs-psa kc describe rs -n cofre
+cap apply-psa-ok kc apply -f /tmp/kl-psa-ok.yaml
+cap label-ns-baseline kc label ns cofre pod-security.kubernetes.io/enforce=baseline --overwrite
+cap apply-privilegiado kc apply -f /tmp/kl-privilegiado.yaml
+cap describe-ns-psa kc describe ns cofre

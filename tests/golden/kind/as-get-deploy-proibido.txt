@@ -1,0 +1,2 @@
+Error from server (Forbidden): deployments.apps is forbidden: User "ana" cannot list resource "deployments" in API group "apps" in the namespace "loja"
+exit=1

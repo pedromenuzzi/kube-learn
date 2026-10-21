@@ -12,6 +12,15 @@ function hashTexto(texto) {
   return h >>> 0;
 }
 
+/** Um UID fixo, derivado de um texto: para objetos do sistema, que não gastam o sorteio dos nomes e lugares. */
+export function uuidDe(texto) {
+  const h = [0, 1, 2, 3].map((i) => hashTexto(`${texto}#${i}`).toString(16).padStart(8, '0')).join('').split('');
+  h[12] = '4';
+  h[16] = '8';
+  const s = h.join('');
+  return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
+}
+
 /** JSON com as chaves em ordem: dois objetos iguais dão sempre o mesmo texto. */
 export const canonico = (v) => JSON.stringify(v, (_, x) => (x && typeof x === 'object' && !Array.isArray(x)
   ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, x[k]]))

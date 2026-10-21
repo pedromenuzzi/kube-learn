@@ -1,0 +1,11 @@
+Name:         ana-leitora
+Labels:       <none>
+Annotations:  <none>
+Role:
+  Kind:  Role
+  Name:  leitor
+Subjects:
+  Kind  Name  Namespace
+  ----  ----  ---------
+  User  ana   
+exit=0

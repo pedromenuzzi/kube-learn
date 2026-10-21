@@ -24,7 +24,8 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
 - `cluster.js` (API, eventos, relógio, laço de reconciliação) → `controladores.js`, `scheduler.js`, `kubelet.js`,
   `rede.js`, `discos.js` (PV, PVC, o provisionador local-path do kind e o sistema de arquivos de cada contêiner,
   com volumes), `cron.js` (o horário dos CronJobs), `cotas.js` (ResourceQuota e LimitRange), `manutencao.js` (PodDisruptionBudget,
-  eviction, node que cai e despejo por taint NoExecute); `imagens.js` é o catálogo de imagens falsas (o comportamento de cada uma); `shell.js` roda o
+  eviction, node que cai e despejo por taint NoExecute), `seguranca.js` (RBAC, NetworkPolicy e Pod Security; os papéis padrão
+  copiados do kind ficam em `papeis.js`); `imagens.js` é o catálogo de imagens falsas (o comportamento de cada uma); `shell.js` roda o
   `sh -c` dos contêineres e o `kubectl exec`; `esquema.js` tem os campos de cada kind (decodificação estrita,
   validação, padrões, explain); `kubectl/` é a linha de comando.
 - O cluster sobe com o que o kind tem (kindnet, kube-proxy, local-path-provisioner, StorageClass standard);

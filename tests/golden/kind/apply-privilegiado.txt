@@ -1,0 +1,2 @@
+Error from server (Forbidden): error when creating "/tmp/kl-privilegiado.yaml": pods "privilegiado" is forbidden: violates PodSecurity "baseline:latest": privileged (container "c" must not set securityContext.privileged=true)
+exit=1

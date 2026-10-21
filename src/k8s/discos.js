@@ -171,9 +171,10 @@ const normalizar = (caminho) => `/${caminho.split('/').filter(Boolean).join('/')
  * somenteLeitura }), que valem por cima de tudo no caminho deles.
  */
 export class SistemaDeArquivos {
-  constructor(base, camada, montagens = []) {
+  constructor(base, camada, montagens = [], { raizSomenteLeitura = false } = {}) {
     this.base = base;
     this.camada = camada;
+    this.raizSomenteLeitura = raizSomenteLeitura; // securityContext.readOnlyRootFilesystem: só os volumes aceitam escrita
     this.montagens = [...montagens].sort((a, b) => b.caminho.length - a.caminho.length);
   }
 
@@ -203,8 +204,15 @@ export class SistemaDeArquivos {
       m.loja.set(rel, (anexar ? m.loja.get(rel) ?? '' : '') + texto);
       return null;
     }
+    if (this.raizSomenteLeitura) return 'somente-leitura';
     this.camada.set(c, (anexar ? this.ler(c) ?? '' : '') + texto);
     return null;
+  }
+
+  /** Dá para gravar neste caminho? (um volume que aceita escrita, ou a raiz, se ela não for só leitura) */
+  podeGravar(caminho) {
+    const m = this.montagem(caminho);
+    return m ? !m.somenteLeitura : !this.raizSomenteLeitura;
   }
 
   /** Apaga um arquivo. → null, ou o motivo da falha. */
@@ -215,6 +223,7 @@ export class SistemaDeArquivos {
       if (m.somenteLeitura) return 'somente-leitura';
       return m.loja.delete(c.slice(m.caminho.length).replace(/^\//, '')) ? null : 'nao-existe';
     }
+    if (this.raizSomenteLeitura && (this.camada.has(c) || this.base[c] !== undefined)) return 'somente-leitura';
     if (this.camada.has(c)) {
       this.camada.delete(c);
       return null;

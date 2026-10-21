@@ -1,0 +1,4 @@
+NAME      AGE
+default   1s
+painel    1s
+exit=0

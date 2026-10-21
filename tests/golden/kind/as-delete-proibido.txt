@@ -1,0 +1,2 @@
+Error from server (Forbidden): pods "qualquer" is forbidden: User "ana" cannot delete resource "pods" in API group "" in the namespace "loja"
+exit=1

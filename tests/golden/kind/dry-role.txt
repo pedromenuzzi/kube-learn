@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: leitor2
+  namespace: loja
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - services
+  verbs:
+  - get
+  - list
+exit=0

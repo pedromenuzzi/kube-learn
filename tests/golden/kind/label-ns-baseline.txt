@@ -1,0 +1,2 @@
+namespace/cofre labeled
+exit=0

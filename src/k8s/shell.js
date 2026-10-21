@@ -204,8 +204,15 @@ const COMANDOS = {
   false: () => ({ codigo: 1 }),
   pwd: () => ok('/\n'),
   cd: () => ok(),
-  whoami: () => ok('root\n'),
-  id: () => ok('uid=0(root) gid=0(root) groups=0(root)\n'),
+  whoami: (_, ctx) => (ctx.nomeUsuario ? ok(`${ctx.nomeUsuario}\n`)
+    : { erro: ctx.busybox ? `whoami: unknown uid ${ctx.uid}\n` : `whoami: cannot find name for user ID ${ctx.uid}\n`, codigo: 1 }),
+  id: (_, ctx) => {
+    const uid = ctx.uid ?? 0;
+    const gid = ctx.gid ?? 0;
+    const nome = (n, quem) => (n === 0 ? `${n}(root)` : quem ? `${n}(${quem})` : String(n));
+    const grupos = gid === 0 && uid === 0 && ctx.busybox ? '0(root),10(wheel)' : nome(gid, uid === gid ? ctx.nomeUsuario : null);
+    return ok(`uid=${nome(uid, ctx.nomeUsuario)} gid=${nome(gid, uid === gid ? ctx.nomeUsuario : null)} groups=${grupos}\n`);
+  },
   hostname: (_, ctx) => ok(`${ctx.hostname}\n`),
   date: (_, ctx) => ok(`${new Date(ctx.agora).toUTCString().replace('GMT', 'UTC')}\n`),
   export: (args, ctx) => {
@@ -352,6 +359,7 @@ function wget(args, ctx) {
 function nslookup(args, ctx) {
   const nome = args.find((a) => !a.startsWith('-'));
   if (!nome) return { saida: 'BusyBox v1.36.1 (2023-05-18 22:34:17 UTC) multi-call binary.\n\nUsage: nslookup [-type=QUERY_TYPE] [-debug] HOST [DNS_SERVER]\n', codigo: 1 };
+  if (ctx.rede.semDns) return { saida: ';; connection timed out; no servers could be reached\n\n', codigo: 1 }; // a catraca não deixa chegar ao DNS
   const r = ctx.rede.dns(nome);
   const cab = 'Server:\t\t10.96.0.10\nAddress:\t10.96.0.10:53\n\n';
   const nx = (n) => `** server can't find ${n}: NXDOMAIN\n\n`;

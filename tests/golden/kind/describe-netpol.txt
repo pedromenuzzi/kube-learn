@@ -1,0 +1,14 @@
+Name:         libera-vitrine
+Namespace:    rede
+Created on:   2026-10-21 06:58:44 -0300 -03
+Labels:       <none>
+Annotations:  <none>
+Spec:
+  PodSelector:     app=api
+  Allowing ingress traffic:
+    To Port: 80/TCP
+    From:
+      PodSelector: app=vitrine
+  Not affecting egress traffic
+  Policy Types: Ingress
+exit=0

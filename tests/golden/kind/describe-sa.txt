@@ -1,0 +1,7 @@
+Name:                painel
+Namespace:           loja
+Labels:              <none>
+Annotations:         <none>
+Image pull secrets:  <none>
+Events:              <none>
+exit=0

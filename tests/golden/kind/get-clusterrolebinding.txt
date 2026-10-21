@@ -1,0 +1,3 @@
+NAME        ROLE               AGE     USERS       GROUPS   SERVICEACCOUNTS
+auditoria   ClusterRole/view   3m10s   auditoria            
+exit=0

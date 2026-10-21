@@ -1,0 +1,2 @@
+networkpolicy.networking.k8s.io/sem-saida created
+exit=0

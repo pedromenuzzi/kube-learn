@@ -1,0 +1,6 @@
+namespace/loja created
+role.rbac.authorization.k8s.io/leitor created
+rolebinding.rbac.authorization.k8s.io/ana-leitora created
+serviceaccount/painel created
+rolebinding.rbac.authorization.k8s.io/painel-leitor created
+exit=0

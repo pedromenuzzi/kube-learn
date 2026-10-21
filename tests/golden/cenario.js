@@ -137,8 +137,8 @@ export function rodarCenario() {
     c.avancar(1000);
     return r;
   };
-  const deploymentPronto = (nome) => () => {
-    const d = c.obter('Deployment', 'default', nome);
+  const deploymentPronto = (nome, ns = 'default') => () => {
+    const d = c.obter('Deployment', ns, nome);
     return d && d.status?.updatedReplicas === d.spec.replicas && d.status?.availableReplicas === d.spec.replicas && (d.status?.replicas ?? 0) === d.spec.replicas;
   };
 
@@ -458,5 +458,77 @@ export function rodarCenario() {
   c.avancar('320s');
   cap('get-pods-caido', 'kubectl get pods -l caiu=sim -o wide');
   cap('describe-sozinho-caido', 'kubectl describe pod sozinho');
+
+  // Fase 7 · nível 8: RBAC, ServiceAccount, NetworkPolicy, securityContext e Pod Security
+  const prontoEm = (ns, ...nomes) => () => nomes.every((n) => c.obter('Pod', ns, n)?.status?.conditions?.some((x) => x.type === 'Ready' && x.status === 'True'));
+  cap('apply-rbac', 'kubectl apply -f /tmp/kl-rbac.yaml');
+  cap('get-role', 'kubectl get role -n loja');
+  cap('describe-role', 'kubectl describe role leitor -n loja');
+  cap('get-rolebinding', 'kubectl get rolebinding -n loja -o wide');
+  cap('describe-rolebinding', 'kubectl describe rolebinding ana-leitora -n loja');
+  cap('get-sa', 'kubectl get sa -n loja');
+  cap('describe-sa', 'kubectl describe sa painel -n loja');
+  cap('can-i-sim', 'kubectl auth can-i list pods --as=ana -n loja');
+  cap('can-i-nao', 'kubectl auth can-i delete pods --as=ana -n loja');
+  cap('can-i-outro-ns', 'kubectl auth can-i list pods --as=ana -n default');
+  cap('can-i-sa', 'kubectl auth can-i list pods --as=system:serviceaccount:loja:painel -n loja');
+  cap('can-i-log', 'kubectl auth can-i get pods --subresource=log --as=ana -n loja');
+  cap('can-i-deploy', 'kubectl auth can-i create deployments.apps --as=ana -n loja');
+  cap('as-get-proibido', 'kubectl get pods --as=ana');
+  cap('as-get-ok', 'kubectl get pods --as=ana -n loja');
+  cap('as-delete-proibido', 'kubectl delete pod qualquer --as=ana -n loja');
+  cap('as-run-proibido', 'kubectl run outro --image=nginx:1.27 --as=ana -n loja');
+  cap('as-get-deploy-proibido', 'kubectl get deploy --as=ana -n loja');
+  cap('create-role', 'kubectl create role escritor --verb=get,list,create,update --resource=deployments -n loja');
+  cap('create-rolebinding', 'kubectl create rolebinding bruno-escritor --role=escritor --user=bruno -n loja');
+  cap('can-i-bruno', 'kubectl auth can-i create deployments --as=bruno -n loja');
+  cap('create-sa', 'kubectl create serviceaccount robo -n loja');
+  cap('create-clusterrolebinding', 'kubectl create clusterrolebinding auditoria --clusterrole=view --user=auditoria');
+  cap('can-i-view', 'kubectl auth can-i list pods --as=auditoria -n kube-system');
+  cap('can-i-view-secrets', 'kubectl auth can-i get secrets --as=auditoria -n kube-system');
+  cap('dry-role', 'kubectl create role leitor2 --verb=get,list --resource=pods,services -n loja --dry-run=client -o yaml');
+  cap('dry-rolebinding', 'kubectl create rolebinding x --clusterrole=view --serviceaccount=loja:painel -n loja --dry-run=client -o yaml');
+  cap('get-clusterrole-view', 'kubectl get clusterrole view');
+  cap('describe-clusterrolebinding', 'kubectl describe clusterrolebinding auditoria');
+  cap('get-clusterrolebinding', 'kubectl get clusterrolebinding auditoria -o wide');
+  cap('apply-sa-faltando', 'kubectl apply -f /tmp/kl-sa-faltando.yaml');
+  cap('apply-rede', 'kubectl apply -f /tmp/kl-rede.yaml');
+  c.avancarAte(deploymentPronto('api', 'rede'), '2m');
+  c.avancarAte(prontoEm('rede', 'vitrine', 'curioso'), '2m');
+  cap('wget-antes', 'kubectl exec curioso -n rede -- wget -q -O- -T 3 http://api');
+  cap('apply-catracas', 'kubectl apply -f /tmp/kl-catracas.yaml');
+  c.avancar('5s');
+  cap('wget-vitrine', 'kubectl exec vitrine -n rede -- wget -q -O- -T 3 http://api');
+  cap('wget-curioso', 'kubectl exec curioso -n rede -- wget -q -O- -T 3 http://api');
+  cap('get-netpol', 'kubectl get netpol -n rede');
+  cap('describe-netpol', 'kubectl describe netpol libera-vitrine -n rede');
+  cap('describe-netpol-nega', 'kubectl describe netpol nega-tudo -n rede');
+  cap('apply-sem-saida', 'kubectl apply -f /tmp/kl-sem-saida.yaml');
+  c.avancar('5s');
+  cap('wget-sem-dns', 'kubectl exec vitrine -n rede -- wget -q -O- -T 3 http://api');
+  cap('describe-netpol-saida', 'kubectl describe netpol sem-saida -n rede');
+  cap('apply-dns', 'kubectl apply -f /tmp/kl-dns.yaml');
+  c.avancar('5s');
+  cap('wget-com-dns', 'kubectl exec vitrine -n rede -- wget -q -O- -T 3 http://api');
+  cap('describe-netpol-dns', 'kubectl describe netpol dns -n rede');
+  cap('apply-seguranca', 'kubectl apply -f /tmp/kl-seguranca.yaml');
+  c.avancarAte(prontoEm('default', 'raiz', 'comum', 'so-leitura'), '2m');
+  c.avancar('5s');
+  cap('id-raiz', 'kubectl exec raiz -- id');
+  cap('id-comum', 'kubectl exec comum -- id');
+  cap('whoami-comum', 'kubectl exec comum -- whoami');
+  cap('touch-so-leitura', 'kubectl exec so-leitura -- touch /arquivo');
+  c.avancarAte(() => c.obter('Pod', 'default', 'naoroot')?.status?.containerStatuses?.[0]?.state?.waiting?.reason === 'CreateContainerConfigError', '2m');
+  cap('get-pod-naoroot', 'kubectl get pod naoroot');
+  cap('describe-pod-naoroot', 'kubectl describe pod naoroot');
+  cap('apply-psa', 'kubectl apply -f /tmp/kl-psa.yaml');
+  c.avancar('5s');
+  cap('run-psa', 'kubectl run solto --image=busybox:1.36 -n cofre -- sleep 3600');
+  cap('get-deploy-psa', 'kubectl get deploy -n cofre');
+  cap('describe-rs-psa', 'kubectl describe rs -n cofre');
+  cap('apply-psa-ok', 'kubectl apply -f /tmp/kl-psa-ok.yaml');
+  cap('label-ns-baseline', 'kubectl label ns cofre pod-security.kubernetes.io/enforce=baseline --overwrite');
+  cap('apply-privilegiado', 'kubectl apply -f /tmp/kl-privilegiado.yaml');
+  cap('describe-ns-psa', 'kubectl describe ns cofre');
   return { saidas, cluster: c };
 }

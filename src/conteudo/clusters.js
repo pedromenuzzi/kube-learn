@@ -5,6 +5,7 @@ import { yaml } from './util.js';
 import { PARTIDA5 } from './nivel5.js';
 import { PARTIDA6 } from './nivel6.js';
 import { PARTIDA7 } from './nivel7.js';
+import { PARTIDA8 } from './nivel8.js';
 
 const LOJA = (replicas, versao) => yaml`
   apiVersion: apps/v1
@@ -433,6 +434,14 @@ export const CLUSTERS = {
     manifestos: juntar(LOJA_DEP(2), PARTIDA7.caderno),
     comandos: ['kubectl uncordon node-1', (c) => { c.derrubarNode('node-2'); c.avancar('6m'); }],
   },
+  // Nível 8
+  'crachas-da-loja': { manifestos: juntar(PARTIDA8.lojaNs, PARTIDA8.crachas) },
+  'loja-ns': { manifestos: PARTIDA8.lojaNs },
+  rede: { manifestos: PARTIDA8.rede },
+  'rede-fechada': { manifestos: juntar(PARTIDA8.rede, PARTIDA8.negaTudo) },
+  'rede-sem-dns': { manifestos: juntar(PARTIDA8.rede, PARTIDA8.saidaSemDns) },
+  'rede-e-monitoramento': { manifestos: juntar(PARTIDA8.rede, PARTIDA8.negaTudo, PARTIDA8.monitoramento) },
+  'cofre-restrito': { manifestos: PARTIDA8.cofre },
 };
 
 /** Monta o cluster de partida (sempre igual para a mesma semente). */

@@ -1,0 +1,2 @@
+Error from server (Forbidden): error when creating "/tmp/kl-sa-faltando.yaml": pods "sem-cracha" is forbidden: error looking up service account loja/fantasma: serviceaccount "fantasma" not found
+exit=1

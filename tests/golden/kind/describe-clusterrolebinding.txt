@@ -1,0 +1,11 @@
+Name:         auditoria
+Labels:       <none>
+Annotations:  <none>
+Role:
+  Kind:  ClusterRole
+  Name:  view
+Subjects:
+  Kind  Name       Namespace
+  ----  ----       ---------
+  User  auditoria  
+exit=0
