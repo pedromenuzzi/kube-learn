@@ -3,6 +3,18 @@
 
 const REGRAS = [
   {
+    re: /forbidden: User "([^"]+)" cannot (\w+) resource "([^"]+)" in API group "([^"]*)" (in the namespace "[^"]+"|at the cluster scope)/,
+    t: (m) => ({ titulo: `"${m[1]}" não tem crachá para isso`, texto: `Ninguém deu a ele permissão de <code>${m[2]}</code> em <code>${m[3]}</code> ${m[5].startsWith('in') ? m[5].replace('in the namespace', 'no namespace') : 'no cluster'}. A permissão vem de uma Role (ou ClusterRole) entregue por um RoleBinding (ou ClusterRoleBinding). Teste com <code>kubectl auth can-i ${m[2]} ${m[3]} --as=${m[1]}</code>.`, vidaReal: 'A catraca não reconhece o crachá: ele não abre essa porta.' }),
+  },
+  {
+    re: /error looking up service account ([\w-]+)\/([\w.-]+)/,
+    t: (m) => ({ titulo: `A ServiceAccount "${m[2]}" não existe`, texto: `O pod pede o crachá <code>${m[2]}</code> no namespace <code>${m[1]}</code>, e ele não foi criado. Crie antes do pod (no mesmo arquivo, a ServiceAccount vem primeiro): <code>kubectl create serviceaccount ${m[2]} -n ${m[1]}</code>.`, vidaReal: 'O morador chegou com um crachá que a administração nunca emitiu.' }),
+  },
+  {
+    re: /violates PodSecurity "(\w+):/,
+    t: (m) => ({ titulo: `As normas do namespace (${m[1]}) recusaram o pod`, texto: 'A mensagem lista o que falta, item por item (o campo e o valor esperado). No <code>restricted</code>, quase sempre: <code>runAsNonRoot</code>, <code>allowPrivilegeEscalation: false</code>, <code>capabilities.drop: ["ALL"]</code> e <code>seccompProfile.type: RuntimeDefault</code>.', vidaReal: 'Os bombeiros do bloco barraram a mudança: falta equipamento de segurança.' }),
+  },
+  {
     re: /Error from server \(NotFound\): (?:error when \w+ "[^"]+": )?([\w.]+) "([^"]+)" not found/,
     t: (m) => m[1].startsWith('namespaces')
       ? { titulo: `O namespace "${m[2]}" não existe`, texto: `Crie com <code>kubectl create namespace ${m[2]}</code> ou confira o nome.`, vidaReal: 'Mandar uma carta para uma empresa que não tem sala no prédio.' }
@@ -166,6 +178,11 @@ const STATUS = [
   { re: /violate the pod's disruption budget/, titulo: 'O PDB segurou o despejo', texto: 'O PodDisruptionBudget não deixa sair mais ninguém agora: o drain tenta de novo a cada 5 s, enquanto os substitutos sobem em outro node. Sem folga nunca (minAvailable igual às réplicas), ele espera para sempre.', vidaReal: 'Pelo menos 2 elevadores funcionando: o terceiro só para quando o reserva estiver pronto.' },
   { re: /^\S+\s+Ready,SchedulingDisabled\s/m, titulo: 'Node interditado (cordon)', texto: 'Não recebe pods novos; quem está lá continua. <code>kubectl uncordon NODE</code> libera.', vidaReal: 'Prédio interditado para novos moradores.' },
   { re: /^\S+\s+NotReady(?:,SchedulingDisabled)?\s/m, titulo: 'O node parou de dar notícias', texto: 'O kubelet não responde (luz, rede, máquina). Uns 5 minutos depois, os pods de lá são despejados: os que têm dono (Deployment, StatefulSet) renascem em outros nodes; os soltos ficam Terminating e não voltam.', vidaReal: 'Queda de energia no prédio.' },
+  { re: /would violate PodSecurity/, titulo: 'Aviso: os pods vão ser recusados', texto: 'O objeto foi criado, mas os pods dele não passam nas normas do namespace: o ReplicaSet vai tentar e ser recusado (READY 0/1). <code>kubectl describe rs -n NAMESPACE</code> mostra o FailedCreate.', vidaReal: 'O contrato foi assinado, mas os bombeiros não vão deixar ninguém entrar assim.' },
+  { re: /container has runAsNonRoot and image will run as root/, titulo: 'A imagem roda como root', texto: 'O pod pede <code>runAsNonRoot: true</code>, mas a imagem roda como root (usuário 0). Diga um usuário comum (<code>runAsUser: 1000</code>) ou use uma imagem feita para rodar sem root.', vidaReal: 'A regra é "sem chave mestra", e o morador só tem a chave mestra.' },
+  { re: /wget: bad address '[^']+'|Could not resolve host/, titulo: 'O nome não resolveu', texto: 'Ou o nome está errado (o Service existe? no mesmo namespace?), ou uma NetworkPolicy fecha a saída do pod e esqueceu do DNS (porta 53, UDP e TCP, para o kube-dns).', vidaReal: 'A telefonista não atendeu: sem o número, não dá para ligar.' },
+  { re: /download timed out|Connection timed out|connection timed out; no servers could be reached/, titulo: 'A conexão não completou', texto: 'Nada respondeu: uma NetworkPolicy descartando o pedido (veja <code>kubectl get netpol -A</code>), um programa travado ou um endereço que não existe.', vidaReal: 'A catraca não deixou passar e ninguém avisou: o visitante fica esperando na porta.' },
+  { re: /Read-only file system/, titulo: 'O disco é só leitura', texto: 'O contêiner tem <code>readOnlyRootFilesystem: true</code> (ou o volume foi montado como só leitura). Para gravar, monte um volume (um <code>emptyDir</code>) na pasta onde o programa escreve.', vidaReal: 'As paredes estão lacradas: para trabalhar, só na mesa (o volume).' },
   { re: /\bPending\b/, titulo: 'Pending: o pod ainda não tem lugar', texto: 'Ou o scheduler não achou um node que caiba (veja <code>kubectl describe pod</code>, em Events: <i>FailedScheduling</i>), ou ele está só começando.', vidaReal: 'Esperando no lobby: a corretora ainda não achou um prédio com espaço.' },
 ];
 

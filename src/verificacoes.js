@@ -21,6 +21,8 @@
 //   { resposta: 'texto' | /regex/ | { de: 'pod/x', campo: 'spec.nodeName' } }   a resposta que o aluno digitou
 //                                                      (a última forma compara com um campo do cluster do aluno)
 //   { contexto: { namespace } }                        o namespace padrão do kubectl (kubectl config set-context)
+//   { pode: { quem: 'ana' | 'system:serviceaccount:ns:nome', verbo: 'list', recurso: 'pods', sub, ns, resposta: true } }
+//                                                      o RBAC deixa (ou não) a pessoa fazer aquilo
 //   { espalhamento: { pods: 'app=x', chave: 'topology.kubernetes.io/zone', maxSkew: 1 } }   a maior diferença de
 //                                                      pods entre os domínios (os valores da label nos nodes)
 //
@@ -33,6 +35,7 @@ import { acharRecurso, pluralQualificado } from './k8s/recursos.js';
 import { estaPronto, http, httpDeFora, resolver } from './k8s/rede.js';
 import { resumoPod } from './k8s/kubectl/tabelas.js';
 import { canonico } from './k8s/aleatorio.js';
+import { pode as podeFazer, quemE } from './k8s/seguranca.js';
 import { parseDuracao } from './k8s/unidades.js';
 
 /** Uma requisição de teste: de um pod, de dentro do cluster (sem pod) ou de fora (o computador do aluno). */
@@ -196,6 +199,14 @@ const REGRAS = {
       ok = !!obj && dada.toLowerCase() === String(ler(obj, r.resposta.campo)).toLowerCase();
     } else ok = dada.toLowerCase() === String(r.resposta).toLowerCase();
     return [ok, 'a resposta está certa', dada ? 'não é essa' : 'você ainda não respondeu (o campo fica na aba Missão)'];
+  },
+  pode(r, ctx) {
+    const q = r.pode;
+    const rec = acharRecurso(q.recurso);
+    const ns = rec.namespaced ? q.ns ?? 'default' : undefined;
+    const deixa = podeFazer(ctx.cluster, quemE(q.quem), { verbo: q.verbo, recurso: rec.plural, grupo: rec.grupo, sub: q.sub, ns, nome: q.nome });
+    const acao = `${q.verbo} ${q.sub ? `${q.recurso}/${q.sub}` : q.recurso}${ns ? ` no namespace ${ns}` : ''}`;
+    return [deixa === q.resposta, `${q.quem} ${q.resposta ? 'pode' : 'não pode'} ${acao}`, deixa ? 'pode' : 'não pode'];
   },
   espalhamento(r, ctx) {
     const q = r.espalhamento;

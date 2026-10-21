@@ -229,6 +229,15 @@ export const GLOSSARIO = [
   t('networkpolicy', 8, 'NetworkPolicy', 'Regras de quem pode conectar em quem, entre pods.',
     'As portas e catracas internas.',
     'Sem nenhuma política, tudo fica aberto; e a política só vale se o plugin de rede do cluster a implementar.', 'policyTypes: [Ingress]'),
+  t('clusterrole', 8, 'ClusterRole e ClusterRoleBinding', 'O crachá que vale no cluster inteiro (ClusterRole) e a entrega dele a alguém em todos os namespaces (ClusterRoleBinding). Já vêm prontos: view, edit, admin e cluster-admin.',
+    'O crachá master, que abre as portas de todos os blocos.',
+    'Um RoleBinding que aponta para uma ClusterRole vale só no namespace dele: para valer em todos, é ClusterRoleBinding.', 'kubectl create clusterrolebinding auditoria --clusterrole=view --user=auditoria'),
+  t('securitycontext', 8, 'securityContext', 'As opções de segurança do pod e de cada contêiner: com que usuário roda (runAsUser, runAsNonRoot), se o disco é só leitura e que poderes o programa tem.',
+    'Ninguém recebe a chave mestra (root): cada morador usa a do próprio apartamento.',
+    'Ele limita o estrago se o programa for invadido, mas não conserta o programa: uma falha continua lá, só com menos poder.', 'runAsNonRoot: true'),
+  t('pod-security', 8, 'Pod Security Admission', 'As normas que um namespace impõe aos pods, por label: privileged, baseline ou restricted, nos modos enforce (recusa) ou warn (avisa).',
+    'As normas dos bombeiros de cada bloco.',
+    'Num namespace com enforce, o Deployment é criado (só com um Warning), mas os pods são recusados: o sintoma é READY 0/1 e o motivo está no ReplicaSet.', 'pod-security.kubernetes.io/enforce=restricted'),
 
   // ---------- 9 · Troubleshooting ----------
   t('events', 9, 'Events', 'Registros do que aconteceu com cada objeto (agendado, imagem baixada, falhou...).',
