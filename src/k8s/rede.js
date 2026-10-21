@@ -1,6 +1,7 @@
 // A rede do cluster: IPs dos pods e dos Services, DNS (CoreDNS), o caminho de uma conexão
 // (kube-proxy → endpoints prontos → contêiner ouvindo na porta) e a entrada de fora do cluster
 // (port-forward, NodePort, LoadBalancer, Ingress e Gateway API).
+import { catracaDeixa, dnsDeixa } from './seguranca.js';
 
 export const DOMINIO = 'cluster.local';
 export const IP_DNS = '10.96.0.10';
@@ -99,7 +100,7 @@ function noPod(cluster, pod, porta, url, { origemIp = '10.244.0.1', metodo = 'GE
 export const sondarHttp = (cluster, pod, porta, caminho) => noPod(cluster, pod, porta, { caminho, porta, host: pod.status?.podIP }, { origemIp: pod.status?.hostIP, agente: 'kube-probe/1.37' });
 
 /** Entrega a um Service, na porta do Service: o kube-proxy escolhe um pod pronto (rodízio). */
-function noServico(cluster, svc, portaServico, url, opcoes) {
+function noServico(cluster, svc, portaServico, url, opcoes, origem = null) {
   const sp = svc.spec.ports?.find((p) => p.port === portaServico);
   if (!sp) return { erro: 'timeout', ip: svc.spec.clusterIP };
   const prontos = podsProntos(cluster, svc);
@@ -108,7 +109,9 @@ function noServico(cluster, svc, portaServico, url, opcoes) {
   const n = cluster.rodizio.get(chave) ?? 0;
   cluster.rodizio.set(chave, n + 1);
   const destino = prontos[n % prontos.length];
-  const r = noPod(cluster, destino, portaAlvo(destino, sp.targetPort), url, opcoes);
+  const porta = portaAlvo(destino, sp.targetPort);
+  if (origem && !catracaDeixa(cluster, origem, destino, porta)) return { erro: 'timeout', ip: svc.spec.clusterIP }; // a catraca descarta: a conexão nunca completa
+  const r = noPod(cluster, destino, porta, url, opcoes);
   return { ...r, ip: svc.spec.clusterIP };
 }
 
@@ -122,14 +125,16 @@ export function http(cluster, origem, url, opcoes = {}) {
   if (origem && (url.host === 'localhost' || url.host === '127.0.0.1')) return noPod(cluster, origem, url.porta, url, op); // o próprio pod
   let ip = url.host;
   if (!ehIp(ip)) {
+    if (!dnsDeixa(cluster, origem)) return { erro: 'dns' }; // a saída do pod não chega ao DNS: nenhum nome resolve
     const r = resolver(cluster, ip, ns);
     if (!r) return { erro: 'dns' };
     ip = r.ip;
   }
   const svc = cluster.listar('Service').find((s) => s.spec.clusterIP === ip);
-  if (svc) return noServico(cluster, svc, url.porta, url, op);
+  if (svc) return noServico(cluster, svc, url.porta, url, op, origem);
   const pod = cluster.listar('Pod').find((p) => p.status?.podIP === ip && !p.spec.hostNetwork);
   if (!pod) return { erro: 'timeout', ip };
+  if (origem && !catracaDeixa(cluster, origem, pod, url.porta)) return { erro: 'timeout', ip };
   return noPod(cluster, pod, url.porta, url, op);
 }
 

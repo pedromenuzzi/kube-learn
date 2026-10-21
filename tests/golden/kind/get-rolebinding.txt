@@ -1,0 +1,4 @@
+NAME            ROLE          AGE   USERS   GROUPS   SERVICEACCOUNTS
+ana-leitora     Role/leitor   1s    ana              
+painel-leitor   Role/leitor   1s                     loja/painel
+exit=0

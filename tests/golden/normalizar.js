@@ -7,6 +7,7 @@ const REGRAS = [
   [/\b[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} [+-]\d{4}\b/g, '<data>'],
   [/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})/g, '<iso>'],
   [/\b\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}\b/g, '<data>'],
+  [/\b\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)? [+-]\d{4} \S+/g, '<data>'], // o time.Time.String() do Go (describe netpol)
   [/local-path-provisioner-[a-z0-9]+-[a-z0-9]{5}_/g, 'local-path-provisioner-<h>-<s>_'],
   [/(?<![0-9a-f])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9a-f])/g, '<uid>'],
   [/\b[0-9a-f]{64}\b/g, '<hex>'],
@@ -15,7 +16,7 @@ const REGRAS = [
   [/\b10\.96\.(?!0\.1\b|0\.10\b)\d+\.\d+\b/g, '<ip-svc>'],
   [/\b172\.\d+\.0\.\d+\b/g, '<ip-node>'],
   [new RegExp(`\\b([a-z][a-z0-9-]*?)-(?:[456789bcdf]{8,10}|${ALF}{6,10})-${ALF}{5}\\b`, 'g'), '$1-<h>-<s>'],
-  [/\b(web|loja|coredns|db)-[456789bcdf]{8,10}\b/g, '$1-<h>'],
+  [/\b(web|loja|coredns|db|guarda)-[456789bcdf]{8,10}\b/g, '$1-<h>'],
   [/\bReplicaSet\/([a-z][a-z0-9-]*?)-[456789bcdf]{8,10}\b/g, 'ReplicaSet/$1-<h>'],
   [new RegExp(`\\b([a-z][a-z0-9-]*?)-${ALF}{5}\\b`, 'g'), '$1-<s>'], // nomes de generateName (pods de Job e DaemonSet)
   [/\blimpeza-\d{8}\b/g, 'limpeza-<minuto>'],

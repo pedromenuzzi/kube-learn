@@ -1,0 +1,9 @@
+Name:         leitor
+Labels:       <none>
+Annotations:  <none>
+PolicyRule:
+  Resources  Non-Resource URLs  Resource Names  Verbs
+  ---------  -----------------  --------------  -----
+  pods/log   []                 []              [get list watch]
+  pods       []                 []              [get list watch]
+exit=0

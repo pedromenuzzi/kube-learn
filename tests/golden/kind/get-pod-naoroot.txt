@@ -1,0 +1,3 @@
+NAME      READY   STATUS                       RESTARTS   AGE
+naoroot   0/1     CreateContainerConfigError   0          114s
+exit=0

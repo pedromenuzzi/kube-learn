@@ -1,0 +1,2 @@
+clusterrolebinding.rbac.authorization.k8s.io/auditoria created
+exit=0

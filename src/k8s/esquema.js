@@ -41,6 +41,43 @@ const labelSelector = objeto('v1.LabelSelector', 'Um seletor de labels: escolhe 
   matchExpressions: qualquer('Regras mais elaboradas (In, NotIn, Exists, DoesNotExist).'),
 });
 
+const perfilSeccomp = objeto('v1.SeccompProfile', 'O filtro de chamadas ao sistema (seccomp).', {
+  type: texto('RuntimeDefault (o filtro padrão do runtime: o recomendado), Localhost ou Unconfined.', { obrigatorio: true }),
+  localhostProfile: texto(''),
+});
+const contextoDoConteiner = objeto('v1.SecurityContext', 'Opções de segurança do contêiner (valem por cima das do pod).', {
+  runAsUser: int64('O usuário (número) que roda o programa. 0 é o root.'),
+  runAsGroup: int64('O grupo (número) do programa.'),
+  runAsNonRoot: booleano('Exige que o programa não rode como root: se a imagem rodaria como root, o contêiner nem sobe.'),
+  allowPrivilegeEscalation: booleano('Se o programa pode ganhar mais privilégios do que começou (ex.: sudo). Use false.'),
+  privileged: booleano('Contêiner privilegiado: acesso total à máquina. Quase nunca é necessário.'),
+  readOnlyRootFilesystem: booleano('O disco do contêiner vira só leitura (grava só nos volumes montados).'),
+  capabilities: objeto('v1.Capabilities', 'Os "superpoderes" do Linux que o contêiner recebe ou perde.', {
+    add: lista(texto(''), 'Superpoderes a mais (ex.: NET_BIND_SERVICE).'),
+    drop: lista(texto(''), 'Superpoderes a menos ("ALL" tira todos).'),
+  }),
+  seccompProfile: perfilSeccomp,
+  seLinuxOptions: qualquer(''),
+  appArmorProfile: qualquer(''),
+  procMount: texto(''),
+  windowsOptions: qualquer(''),
+});
+const contextoDoPod = objeto('v1.PodSecurityContext', 'Opções de segurança que valem para todos os contêineres do pod.', {
+  runAsUser: int64('O usuário (número) que roda os programas. 0 é o root.'),
+  runAsGroup: int64('O grupo (número) dos programas.'),
+  runAsNonRoot: booleano('Exige que nenhum contêiner rode como root.'),
+  fsGroup: int64('O grupo dono dos arquivos dos volumes.'),
+  supplementalGroups: lista(int64(''), 'Grupos a mais para os programas.'),
+  seccompProfile: perfilSeccomp,
+  seLinuxOptions: qualquer(''),
+  appArmorProfile: qualquer(''),
+  sysctls: qualquer(''),
+  fsGroupChangePolicy: texto(''),
+  windowsOptions: qualquer(''),
+  supplementalGroupsPolicy: texto(''),
+  seLinuxChangePolicy: texto(''),
+});
+
 const envVar = objeto('v1.EnvVar', 'Uma variável de ambiente do contêiner.', {
   name: texto('O nome da variável.', { obrigatorio: true }),
   value: texto('O valor da variável.'),
@@ -157,7 +194,7 @@ const container = objeto('v1.Container', 'Um contêiner: o programa que roda den
   startupProbe: sonda('Teste de "já terminou de subir?". Enquanto não passa, os outros testes esperam; se esgotar as tentativas, o contêiner é reiniciado.'),
   lifecycle: qualquer('Ganchos de início e de parada.', { go: 'Lifecycle' }),
   imagePullPolicy: texto('Quando baixar a imagem: Always, IfNotPresent ou Never. Padrão: Always se a tag for latest (ou não tiver tag), senão IfNotPresent.'),
-  securityContext: qualquer('Opções de segurança do contêiner.', { go: 'SecurityContext' }),
+  securityContext: contextoDoConteiner,
   terminationMessagePath: texto(''),
   terminationMessagePolicy: texto(''),
   stdin: booleano(''),
@@ -242,7 +279,7 @@ const podSpec = objeto('v1.PodSpec', 'A especificação do pod: os contêineres 
   hostPID: booleano(''),
   hostIPC: booleano(''),
   shareProcessNamespace: booleano(''),
-  securityContext: qualquer('Opções de segurança do pod.'),
+  securityContext: contextoDoPod,
   imagePullSecrets: qualquer('Secrets para baixar imagens de registries privados.'),
   hostname: texto(''),
   subdomain: texto(''),
@@ -590,6 +627,57 @@ export const ESQUEMAS = {
         maxLimitRequestRatio: quantidades(''),
       }), 'As regras.', { obrigatorio: true }),
     }),
+  }),
+  ServiceAccount: raiz('ServiceAccount', 'A ServiceAccount é o crachá de máquina: a identidade de um pod (ou programa) quando fala com a API.', {
+    secrets: qualquer(''),
+    imagePullSecrets: qualquer('Secrets para baixar imagens de registries privados, para os pods que usam esta conta.'),
+    automountServiceAccountToken: booleano('Se o token desta conta é montado nos pods.'),
+  }),
+  Role: raiz('Role', 'A Role é um tipo de crachá dentro de um namespace: a lista do que pode ser feito (verbos em recursos).', {
+    rules: lista(objeto('v1.PolicyRule', 'Uma regra: estes verbos, nestes recursos.', {
+    apiGroups: lista(texto(''), 'Os grupos da API ("" é o grupo principal: pods, services...; "apps": deployments...).'),
+    resources: lista(texto(''), 'Os recursos (pods, deployments, pods/log...). "*" é todos.'),
+    verbs: lista(texto(''), 'O que pode: get, list, watch, create, update, patch, delete. "*" é tudo.', { obrigatorio: true }),
+    resourceNames: lista(texto(''), 'Só estes objetos, pelo nome.'),
+    nonResourceURLs: lista(texto(''), ''),
+  }), 'As regras (a permissão é a soma delas: não existe "negar").'),
+  }),
+  ClusterRole: raiz('ClusterRole', 'A ClusterRole é o tipo de crachá que vale no cluster inteiro (ou que um RoleBinding usa num namespace).', {
+    rules: lista(objeto('v1.PolicyRule', 'Uma regra: estes verbos, nestes recursos.', {
+    apiGroups: lista(texto(''), 'Os grupos da API ("" é o grupo principal: pods, services...; "apps": deployments...).'),
+    resources: lista(texto(''), 'Os recursos (pods, deployments, pods/log...). "*" é todos.'),
+    verbs: lista(texto(''), 'O que pode: get, list, watch, create, update, patch, delete. "*" é tudo.', { obrigatorio: true }),
+    resourceNames: lista(texto(''), 'Só estes objetos, pelo nome.'),
+    nonResourceURLs: lista(texto(''), ''),
+  }), 'As regras.'),
+    aggregationRule: qualquer(''),
+  }),
+  RoleBinding: raiz('RoleBinding', 'O RoleBinding entrega um crachá (Role ou ClusterRole) a alguém (usuário, grupo ou ServiceAccount), dentro de um namespace.', {
+    roleRef: objeto('v1.RoleRef', 'O crachá entregue (não muda depois de criado).', {
+      apiGroup: texto('rbac.authorization.k8s.io', { obrigatorio: true }), kind: texto('Role ou ClusterRole.', { obrigatorio: true }), name: texto('O nome.', { obrigatorio: true }),
+    }, { obrigatorio: true }),
+    subjects: lista(objeto('v1.Subject', 'Quem recebe.', {
+      kind: texto('User, Group ou ServiceAccount.', { obrigatorio: true }), name: texto('O nome.', { obrigatorio: true }),
+      namespace: texto('O namespace (para ServiceAccount).'), apiGroup: texto('rbac.authorization.k8s.io (para User e Group); "" para ServiceAccount.'),
+    }), 'Quem recebe o crachá.'),
+  }),
+  ClusterRoleBinding: raiz('ClusterRoleBinding', 'O ClusterRoleBinding entrega uma ClusterRole a alguém no cluster inteiro.', {
+    roleRef: qualquer('A ClusterRole entregue.', { obrigatorio: true }),
+    subjects: qualquer('Quem recebe.'),
+  }),
+  NetworkPolicy: raiz('NetworkPolicy', 'A NetworkPolicy é uma catraca interna: escolhe pods e diz de quem eles aceitam conexão (ingress) e com quem podem falar (egress). Sem nenhuma política, tudo fica aberto.', {
+    spec: objeto('v1.NetworkPolicySpec', 'A regra da catraca.', {
+      podSelector: { ...labelSelector, desc: 'Os pods que a política protege ({} escolhe todos do namespace).', obrigatorio: true },
+      policyTypes: lista(texto(''), 'Ingress, Egress ou os dois. Escolhido e sem regra = tudo bloqueado naquele sentido.'),
+      ingress: lista(objeto('v1.NetworkPolicyIngressRule', 'Quem pode entrar.', {
+        from: lista(qualquer('Um par: podSelector, namespaceSelector (os dois juntos = pods destes namespaces) ou ipBlock.', { go: 'NetworkPolicyPeer' }), 'De quem (vazio = de qualquer um).'),
+        ports: lista(qualquer('Uma porta: protocol (TCP padrão) e port.', { go: 'NetworkPolicyPort' }), 'Em que portas (vazio = todas).'),
+      }), 'As regras de entrada (a soma delas).'),
+      egress: lista(objeto('v1.NetworkPolicyEgressRule', 'Para onde pode sair.', {
+        to: lista(qualquer('Um par: podSelector, namespaceSelector ou ipBlock.', { go: 'NetworkPolicyPeer' }), 'Para quem (vazio = qualquer um).'),
+        ports: lista(qualquer('Uma porta: protocol (TCP padrão) e port. O DNS é 53, UDP e TCP.', { go: 'NetworkPolicyPort' }), 'Em que portas (vazio = todas).'),
+      }), 'As regras de saída. Atenção ao DNS: sem liberar a porta 53, nenhum nome resolve.'),
+    }, { obrigatorio: true }),
   }),
   PodDisruptionBudget: raiz('PodDisruptionBudget', 'O PodDisruptionBudget (PDB) diz quantos pods de um grupo podem sair ao mesmo tempo numa manutenção (kubectl drain): "pelo menos 2 elevadores funcionando".', {
     spec: objeto('v1.PodDisruptionBudgetSpec', 'A regra do PDB.', {
@@ -1048,6 +1136,14 @@ export function aplicarPadroes(obj) {
       break;
     case 'PriorityClass':
       obj.preemptionPolicy ??= 'PreemptLowerPriority';
+      break;
+    case 'NetworkPolicy':
+      s.policyTypes ??= ['Ingress', ...(s.egress ? ['Egress'] : [])];
+      for (const r of [...(s.ingress ?? []), ...(s.egress ?? [])]) for (const p of r.ports ?? []) p.protocol ??= 'TCP';
+      break;
+    case 'RoleBinding':
+    case 'ClusterRoleBinding':
+      for (const sj of obj.subjects ?? []) if (sj.kind !== 'ServiceAccount') sj.apiGroup ??= 'rbac.authorization.k8s.io';
       break;
     case 'StorageClass':
       obj.reclaimPolicy ??= 'Delete';

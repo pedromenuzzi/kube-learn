@@ -14,6 +14,7 @@ import { portaAlvo } from '../rede.js';
 import { canonico } from '../aleatorio.js';
 import { iso, parseDuracao, cpuMili as cpuMiliDe, bytes as bytesDe } from '../unidades.js';
 import { cordon, taint, drain } from './manutencao.js';
+import { autorizar, auth, moldeDeSeguranca, FLAGS_DE_SEGURANCA } from './seguranca.js';
 
 export const VERSAO_CLIENTE = 'v1.37.1';
 const PROTEGIDOS = new Set(['default', 'kube-system', 'kube-public']);
@@ -66,6 +67,8 @@ const GLOBAIS = {
   context: { tipo: 'string' },
   help: { curto: 'h', tipo: 'bool' },
   kubeconfig: { tipo: 'string' },
+  as: { tipo: 'string' },
+  'as-group': { tipo: 'lista' },
   v: { curto: 'v', tipo: 'string' },
 };
 
@@ -365,6 +368,7 @@ function apply(cluster, a, s) {
         }
         if (ehDryRun(a.flags)) saidaObjs.push(manifesto);
         else saidaObjs.push(cluster.criar(manifesto));
+        avisar(cluster, s);
         if (!a.flags.output) s.out(`${id} created${sufixoDryRun(a.flags)}\n`);
         continue;
       }
@@ -396,6 +400,7 @@ function apply(cluster, a, s) {
       }
       if (ehDryRun(a.flags)) saidaObjs.push(mesclado);
       else saidaObjs.push(cluster.substituir(vivo, mesclado));
+      avisar(cluster, s);
       if (!a.flags.output) s.out(`${id} configured${sufixoDryRun(a.flags)}\n`);
     } catch (e) {
       s.adiar(mensagemErroApi(e, vivo ? 'patching' : 'creating', item.arquivo));
@@ -404,6 +409,11 @@ function apply(cluster, a, s) {
   if (a.flags.output && saidaObjs.length) imprimirObjetos(cluster, s, saidaObjs, a.flags, saidaObjs.length === 1);
   cluster.reconciliar();
 }
+
+/** Os avisos que a API devolveu (ex.: PodSecurity), como o kubectl: "Warning: ..." antes do resultado. */
+const avisar = (cluster, s) => {
+  for (const aviso of cluster.avisos.splice(0)) s.err(`Warning: ${aviso}\n`);
+};
 
 function createArquivos(cluster, a, s) {
   const docs = lerDocumentos(a, s, 'create');
@@ -430,6 +440,7 @@ function createArquivos(cluster, a, s) {
     try {
       if (cluster.obter(r.kind, ns, doc.metadata.name)) throw new ErroApi('AlreadyExists', `${pluralQualificado(r)} "${doc.metadata.name}" already exists`);
       const obj = ehDryRun(a.flags) ? manifesto : cluster.criar(manifesto);
+      avisar(cluster, s);
       criados.push(obj);
       if (!a.flags.output) s.out(`${nomeQualificado(r)}/${obj.metadata.name} created${sufixoDryRun(a.flags)}\n`);
     } catch (e) {
@@ -462,6 +473,7 @@ function criarGerado(cluster, a, s, obj) {
   }
   try {
     const criado = cluster.criar(manifesto);
+    avisar(cluster, s);
     if (!imprimirObjetos(cluster, s, [criado], a.flags, true)) s.out(`${id} created\n`);
     cluster.reconciliar();
     return criado;
@@ -523,6 +535,17 @@ function create(cluster, a, s) {
         },
         status: {},
       });
+    }
+    case 'role':
+    case 'clusterrole':
+    case 'rolebinding':
+    case 'clusterrolebinding':
+    case 'serviceaccount':
+    case 'sa': {
+      if (precisaNome()) return;
+      const molde = moldeDeSeguranca(sub, nome, a, namespaceDe(cluster, a.flags));
+      if (typeof molde === 'string') return s.falha(molde);
+      return criarGerado(cluster, a, s, molde);
     }
     case 'namespace':
     case 'ns':
@@ -601,7 +624,7 @@ function create(cluster, a, s) {
       });
     }
     default:
-      return s.falha(`error: unknown command "${sub}" for "kubectl create"\n\nDid you mean this?\n\t${['deployment', 'namespace', 'configmap', 'secret', 'service', 'job', 'cronjob'].sort((x, y) => distancia(sub, x) - distancia(sub, y))[0]}\n`);
+      return s.falha(`error: unknown command "${sub}" for "kubectl create"\n\nDid you mean this?\n\t${['deployment', 'namespace', 'configmap', 'secret', 'service', 'job', 'cronjob', 'role', 'rolebinding', 'clusterrole', 'clusterrolebinding', 'serviceaccount'].sort((x, y) => distancia(sub, x) - distancia(sub, y))[0]}\n`);
   }
 }
 
@@ -1384,7 +1407,7 @@ const COMANDOS = {
   describe: { flags: { ...SELETOR, 'all-namespaces': { curto: 'A', tipo: 'bool' } }, rodar: describe },
   apply: { flags: { ...ARQUIVOS, ...SAIDA, ...DRY, 'server-side': { tipo: 'bool' }, validate: { tipo: 'string' } }, rodar: apply },
   create: {
-    flags: { ...ARQUIVOS, ...SAIDA, ...DRY, image: { tipo: 'lista' }, replicas: { curto: 'r', tipo: 'int' }, port: { tipo: 'string' }, 'from-literal': { tipo: 'lista' }, 'from-file': { tipo: 'lista' }, tcp: { tipo: 'lista' }, type: { tipo: 'string' }, 'save-config': { tipo: 'bool' }, validate: { tipo: 'string' }, schedule: { tipo: 'string' }, from: { tipo: 'string' }, restart: { tipo: 'string' } },
+    flags: { ...ARQUIVOS, ...SAIDA, ...DRY, ...FLAGS_DE_SEGURANCA, image: { tipo: 'lista' }, replicas: { curto: 'r', tipo: 'int' }, port: { tipo: 'string' }, 'from-literal': { tipo: 'lista' }, 'from-file': { tipo: 'lista' }, tcp: { tipo: 'lista' }, type: { tipo: 'string' }, 'save-config': { tipo: 'bool' }, validate: { tipo: 'string' }, schedule: { tipo: 'string' }, from: { tipo: 'string' }, restart: { tipo: 'string' } },
     rodar: create,
   },
   run: {
@@ -1415,6 +1438,7 @@ const COMANDOS = {
   version: { flags: { ...SAIDA, client: { tipo: 'bool' } }, rodar: (c, a, s) => s.out(`Client Version: ${VERSAO_CLIENTE}\nKustomize Version: v5.8.1\n${a.flags.client ? '' : `Server Version: ${VERSAO_SERVIDOR}\n`}`) },
   'cluster-info': { flags: {}, rodar: (c, a, s) => s.out('Kubernetes control plane is running at https://127.0.0.1:6443\nCoreDNS is running at https://127.0.0.1:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy\n\nTo further debug and diagnose cluster problems, use \'kubectl cluster-info dump\'.\n') },
   top: { flags: { ...SELETOR, 'all-namespaces': { curto: 'A', tipo: 'bool' }, containers: { tipo: 'bool' }, 'sort-by': { tipo: 'string' }, 'no-headers': { tipo: 'bool' } }, rodar: top },
+  auth: { flags: { subresource: { tipo: 'string' }, 'all-namespaces': { curto: 'A', tipo: 'bool' } }, rodar: (c, a, s) => auth(c, a, s, namespaceDe(c, a.flags)) },
   cordon: { flags: {}, rodar: (c, a, s) => cordon(c, a, s, true) },
   uncordon: { flags: {}, rodar: (c, a, s) => cordon(c, a, s, false) },
   taint: { flags: { overwrite: { tipo: 'bool' } }, rodar: taint },
@@ -1474,6 +1498,12 @@ export function kubectl(cluster, linha, { arquivos = {} } = {}) {
   if (lidos.flags.help) {
     s.out(`Use "kubectl ${nome} --help" no terminal de verdade para ver todas as opções. Aqui, a aba Manual da missão explica as que você vai usar.\n`);
     return s.resultado();
+  }
+  cluster.avisos = [];
+  if (lidos.flags.as) {
+    const docs = ['apply', 'create'].includes(nome) && lidos.flags.filename ? lerDocumentos({ ...lidos, arquivos }, new Saida(), nome)
+      .map(({ arquivo, doc }) => ({ r: recursoDoKind(doc?.kind), nome: doc?.metadata?.name, arquivo })).filter((d) => d.r) : [];
+    if (!autorizar(cluster, nome, lidos, s, namespaceDe(cluster, lidos.flags), docs)) return s.resultado();
   }
   try {
     const extra = cmd.rodar(cluster, { ...lidos, arquivos }, s);

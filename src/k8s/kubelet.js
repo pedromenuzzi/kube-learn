@@ -6,6 +6,7 @@ import { resolvConf, buscaDns, http, resolver, sondarHttp, portaAlvo } from './r
 import { iso, cpuMili, bytes } from './unidades.js';
 import { atobUtf8 } from './esquema.js';
 import { SistemaDeArquivos } from './discos.js';
+import { dnsDeixa } from './seguranca.js';
 
 const BACKOFF_INICIAL = 10_000;
 const BACKOFF_MAXIMO = 300_000;
@@ -23,6 +24,16 @@ const duracaoGo = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(3).replace(/\.?0+
 
 /** O programa padrão de uma imagem, sem o script de entrada (que só repassa os argumentos). */
 const programaPadrao = (comp) => comp.comando.filter((a) => !WRAPPERS.has(a));
+
+/** Quem roda o programa: o runAsUser/runAsGroup do contêiner ou do pod, ou o usuário da imagem (root, quase sempre). */
+export function usuarioDe(pod, ct, comportamento = {}) {
+  const pedidoUid = ct.securityContext?.runAsUser ?? pod.spec.securityContext?.runAsUser;
+  const pedidoGid = ct.securityContext?.runAsGroup ?? pod.spec.securityContext?.runAsGroup;
+  const imagem = comportamento.usuario ?? { uid: 0, gid: 0, nome: 'root' };
+  const uid = pedidoUid ?? imagem.uid;
+  const gid = pedidoGid ?? (pedidoUid !== undefined ? 0 : imagem.gid);
+  return { uid, gid, nomeUsuario: uid === 0 ? 'root' : uid === imagem.uid ? imagem.nome : null };
+}
 
 export class Kubelet {
   constructor(cluster) {
@@ -169,7 +180,7 @@ export class Kubelet {
       return [{ caminho: sem(m.mountPath), loja, somenteLeitura: !!vol.somenteLeitura || !!m.readOnly }];
     });
     est.camada ??= new Map();
-    return new SistemaDeArquivos(this.arquivos(pod, est), est.camada, montagens);
+    return new SistemaDeArquivos(this.arquivos(pod, est), est.camada, montagens, { raizSomenteLeitura: !!ct.securityContext?.readOnlyRootFilesystem });
   }
 
   /** O sistema de arquivos de um contêiner pelo nome (para o servidor da imagem ler os arquivos dele). */
@@ -414,7 +425,11 @@ export class Kubelet {
     est.info = r.info;
     est.ref = r.ref;
     est.imagem = ct.image;
-    const env = this.montarEnv(pod, ct, r.comportamento);
+    // runAsNonRoot: se o programa rodaria como root (o usuário da imagem, ou o runAsUser), o contêiner nem é criado.
+    const naoRoot = ct.securityContext?.runAsNonRoot ?? pod.spec.securityContext?.runAsNonRoot;
+    const env = naoRoot && usuarioDe(pod, ct, r.comportamento).uid === 0
+      ? { erro: `container has runAsNonRoot and image will run as root (pod: "${pod.metadata.name}_${pod.metadata.namespace}(${pod.metadata.uid})", container: ${ct.name})` }
+      : this.montarEnv(pod, ct, r.comportamento);
     if (env.erro) {
       est.fase = 'erroConfig';
       est.motivo = 'CreateContainerConfigError';
@@ -484,6 +499,11 @@ export class Kubelet {
         if (comp.exigeEnv?.some((k) => !est.env[k])) {
           saida(`${comp.semEnv.log.join('\n')}\n`);
           return { codigo: comp.semEnv.codigo };
+        }
+        const preso = (comp.gravaEm ?? []).find((g) => !ctx.fs.podeGravar(g.caminho)); // readOnlyRootFilesystem sem volume onde o programa grava
+        if (preso) {
+          saida(`${preso.log({ agora: c.agora }).join('\n')}\n`);
+          return { codigo: 1 };
         }
         if (comp.exigeArquivo && ctx.fs.ler(comp.exigeArquivo) === undefined) {
           saida(`${comp.semArquivo.log.join('\n')}\n`);
@@ -674,6 +694,7 @@ export class Kubelet {
       hostname: pod.metadata.name,
       binarios: est.comportamento.binarios,
       busybox: !!est.comportamento.busybox,
+      ...usuarioDe(pod, ct, est.comportamento),
       buscaDns: buscaDns(pod.metadata.namespace),
       get agora() { return c.agora; },
       fs: this.fs(pod, ct, est),
@@ -682,6 +703,7 @@ export class Kubelet {
       rede: {
         http: (url, opcoes) => http(c, pod, url, opcoes),
         dns: (nome) => resolver(c, nome, pod.metadata.namespace),
+        semDns: !dnsDeixa(c, pod),
       },
     };
   }

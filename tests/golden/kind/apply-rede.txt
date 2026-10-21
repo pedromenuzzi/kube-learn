@@ -1,0 +1,6 @@
+namespace/rede created
+deployment.apps/api created
+service/api created
+pod/vitrine created
+pod/curioso created
+exit=0

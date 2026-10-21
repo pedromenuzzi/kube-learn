@@ -1,0 +1,2 @@
+rolebinding.rbac.authorization.k8s.io/bruno-escritor created
+exit=0

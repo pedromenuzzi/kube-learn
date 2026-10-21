@@ -45,6 +45,10 @@ const ESPECIAIS = {
   'describe-node-caido': { ate: 'Non-terminated Pods:' },
   'get-pods-caido-antes': { conjunto: true },
   'get-pods-caido': { conjunto: true },
+  // Nível 8: o nginx ainda não estava no node do kind (puxou); quantas vezes o kubelet tentou varia. E o
+  // ReplicaSet bloqueado pelo PodSecurity junta os eventos repetidos de um jeito que o simulador não imita.
+  'describe-pod-naoroot': { ate: '    State:', eventos: true },
+  'describe-rs-psa': { ate: 'Events:' },
 };
 
 const linhas = (t) => t.split('\n');

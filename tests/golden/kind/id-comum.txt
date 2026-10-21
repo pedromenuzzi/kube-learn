@@ -1,0 +1,2 @@
+uid=1000 gid=3000 groups=3000
+exit=0

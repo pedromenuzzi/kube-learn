@@ -1,0 +1,3 @@
+networkpolicy.networking.k8s.io/nega-tudo created
+networkpolicy.networking.k8s.io/libera-vitrine created
+exit=0

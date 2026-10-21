@@ -1,0 +1,10 @@
+Name:         cofre
+Labels:       kubernetes.io/metadata.name=cofre
+              pod-security.kubernetes.io/enforce=baseline
+Annotations:  <none>
+Status:       Active
+
+No resource quota.
+
+No LimitRange resource.
+exit=0

@@ -52,7 +52,7 @@ function criarPodDe(c, controle, manifesto, componente) {
   } catch (e) {
     if (!e.codigo) throw e;
     const atraso = Math.min((espera?.atraso ?? 500) * 2, 60_000);
-    c.esperaCriacao.set(controle.metadata.uid, { proxima: c.agora + atraso, atraso });
+    c.esperaCriacao.set(controle.metadata.uid, { proxima: c.agora + atraso, atraso, erro: e.message });
     c.evento(controle, 'Warning', 'FailedCreate', `Error creating: ${e.message}`, { componente });
     return null;
   }
@@ -444,6 +444,12 @@ function replicasets(c) {
       replicas: vivos.length,
       terminatingReplicas: todos.length - vivos.length,
     };
+    // Pod recusado pelo apiserver (cota, PodSecurity...): a condição ReplicaFailure fica até uma criação dar certo.
+    const falha = c.esperaCriacao.get(rs.metadata.uid)?.erro;
+    if (falha) {
+      const antes = rs.status?.conditions?.find((x) => x.type === 'ReplicaFailure');
+      status.conditions = [{ lastTransitionTime: antes?.lastTransitionTime ?? iso(c.agora), message: falha, reason: 'FailedCreate', status: 'True', type: 'ReplicaFailure' }];
+    }
     if (JSON.stringify(status) !== JSON.stringify(rs.status)) {
       rs.status = status;
       c.salvar(rs);

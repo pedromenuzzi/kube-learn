@@ -1,0 +1,2 @@
+No resources found in loja namespace.
+exit=0

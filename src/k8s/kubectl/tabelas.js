@@ -106,6 +106,15 @@ const statusNode = (node) => {
 const conteineres = (spec) => spec.containers.map((c) => c.name).join(',');
 const imagens = (spec) => spec.containers.map((c) => c.image).join(',');
 
+/** RoleBinding e ClusterRoleBinding: o crachá e, no -o wide, quem recebeu. */
+const sujeitos = (b, kind) => (b.subjects ?? []).filter((x) => x.kind === kind).map((x) => (kind === 'ServiceAccount' ? `${x.namespace ?? b.metadata.namespace}/${x.name}` : x.name)).join(', ');
+const vinculo = {
+  colunas: ['NAME', 'ROLE', 'AGE'],
+  linha: (b, agora) => [b.metadata.name, `${b.roleRef.kind}/${b.roleRef.name}`, desde(agora, b.metadata.creationTimestamp)],
+  largas: ['USERS', 'GROUPS', 'SERVICEACCOUNTS'],
+  linhaLarga: (b) => [sujeitos(b, 'User'), sujeitos(b, 'Group'), sujeitos(b, 'ServiceAccount')],
+};
+
 /** A coluna TARGETS do HPA: "cpu: 61%/50%" (ou <unknown> antes da primeira medida). */
 export function alvosHpa(h) {
   return (h.spec.metrics ?? []).map((m, i) => {
@@ -230,6 +239,18 @@ export const TABELAS = {
       `${s.metadata.name}${s.metadata.annotations?.['storageclass.kubernetes.io/is-default-class'] === 'true' ? ' (default)' : ''}`,
       s.provisioner, s.reclaimPolicy ?? 'Delete', s.volumeBindingMode ?? 'Immediate', String(!!s.allowVolumeExpansion), desde(agora, s.metadata.creationTimestamp),
     ],
+  },
+  ServiceAccount: {
+    colunas: ['NAME', 'AGE'],
+    linha: (sa, agora) => [sa.metadata.name, desde(agora, sa.metadata.creationTimestamp)],
+  },
+  Role: { colunas: ['NAME', 'CREATED AT'], linha: (r) => [r.metadata.name, r.metadata.creationTimestamp] },
+  ClusterRole: { colunas: ['NAME', 'CREATED AT'], linha: (r) => [r.metadata.name, r.metadata.creationTimestamp] },
+  RoleBinding: vinculo,
+  ClusterRoleBinding: vinculo,
+  NetworkPolicy: {
+    colunas: ['NAME', 'POD-SELECTOR', 'AGE'],
+    linha: (np, agora) => [np.metadata.name, seletorTexto(np.spec.podSelector?.matchLabels) || '<none>', desde(agora, np.metadata.creationTimestamp)],
   },
   PodDisruptionBudget: {
     colunas: ['NAME', 'MIN AVAILABLE', 'MAX UNAVAILABLE', 'ALLOWED DISRUPTIONS', 'AGE'],

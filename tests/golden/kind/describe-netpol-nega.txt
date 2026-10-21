@@ -1,0 +1,12 @@
+Name:         nega-tudo
+Namespace:    rede
+Created on:   2026-10-21 06:58:43 -0300 -03
+Labels:       <none>
+Annotations:  <none>
+Spec:
+  PodSelector:     <none> (Allowing the specific traffic to all pods in this namespace)
+  Allowing ingress traffic:
+    <none> (Selected pods are isolated for ingress connectivity)
+  Not affecting egress traffic
+  Policy Types: Ingress
+exit=0

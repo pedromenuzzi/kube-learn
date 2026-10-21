@@ -1,6 +1,6 @@
 // O cluster simulado: a API (o "etcd" com os objetos), os eventos, o relógio e o laço de reconciliação
 // (controladores → scheduler → kubelet) que roda até nada mais mudar.
-import { criarAleatorio } from './aleatorio.js';
+import { criarAleatorio, uuidDe } from './aleatorio.js';
 import { aplicarPadroes } from './esquema.js';
 import { recursoDoKind, pluralQualificado } from './recursos.js';
 import { rodarControladores } from './controladores.js';
@@ -8,6 +8,7 @@ import { agendar } from './scheduler.js';
 import { Kubelet, qos } from './kubelet.js';
 import { bytes, cpuMili, iso, parseDuracao } from './unidades.js';
 import { aplicarLimites, conferirCotas } from './cotas.js';
+import { criarPapeisPadrao, contaPadrao, uidDaConta, normasDe, violacoes, textoViolacao } from './seguranca.js';
 
 export const INICIO = Date.UTC(2026, 9, 16, 12, 0, 0);
 export const VERSAO_SERVIDOR = 'v1.37.0';
@@ -48,6 +49,7 @@ export class Cluster {
     this.rodizio = new Map();
     this.agendamento = new Map();
     this.mudancasDeCapacidade = 0;
+    this.avisos = []; // avisos da API para o kubectl mostrar ("Warning: would violate PodSecurity...")
     this.nodesCaidos = new Map(); // nome do node → quando o kubelet dele parou (o prédio ficou sem luz)
     this.ipsServico = new Set(['10.96.0.1', '10.96.0.10']);
     this.proximoIp = new Map();
@@ -128,6 +130,7 @@ export class Cluster {
     this.porUid.set(obj.metadata.uid, obj);
     this.registrar('ADDED', obj);
     if (['PersistentVolumeClaim', 'PersistentVolume', 'StorageClass'].includes(obj.kind)) this.mudancasDeCapacidade++; // o scheduler tenta de novo quem esperava disco
+    if (obj.kind === 'Namespace') this.criar(contaPadrao(obj.metadata.name), { uid: uidDaConta(obj.metadata.name, 'default') });
     return obj;
   }
 
@@ -138,6 +141,11 @@ export class Cluster {
       const recusa = aplicarLimites(this, obj) ?? conferirCotas(this, obj);
       if (recusa) throw new ErroApi('Forbidden', `pods "${obj.metadata.name}" is forbidden: ${recusa}`);
       const s = obj.spec;
+      // ServiceAccount: o "crachá" do pod precisa existir no namespace.
+      const conta = s.serviceAccountName ?? 'default';
+      if (!this.obter('ServiceAccount', obj.metadata.namespace, conta)) {
+        throw new ErroApi('Forbidden', `pods "${obj.metadata.name}" is forbidden: error looking up service account ${obj.metadata.namespace}/${conta}: serviceaccount "${conta}" not found`);
+      }
       if (s.automountServiceAccountToken !== false && !s.hostNetwork) {
         const nome = `kube-api-access-${this.aleatorio.sufixo(5)}`;
         s.volumes = [...(s.volumes ?? []), {
@@ -166,8 +174,15 @@ export class Cluster {
         s.priority = classe.value;
         s.preemptionPolicy = classe.preemptionPolicy ?? 'PreemptLowerPriority';
       }
+      // Pod Security Admission: as normas do namespace (enforce recusa; warn só avisa).
+      const { enforce, warn } = normasDe(this, obj.metadata.namespace);
+      const contra = enforce && violacoes(s, enforce.nivel);
+      if (contra?.length) throw new ErroApi('Forbidden', `pods "${obj.metadata.name}" is forbidden: violates ${textoViolacao(enforce, contra)}`);
+      const aviso = warn && violacoes(s, warn.nivel);
+      if (aviso?.length) this.avisos.push(`would violate ${textoViolacao(warn, aviso)}`);
       obj.status = { phase: 'Pending', qosClass: qos(obj) };
     }
+    this.avisarNormas(obj);
     if (obj.kind === 'Job' && !obj.spec.manualSelector) {
       // O Job ganha um seletor só dele, pelo uid, e as labels que acham os pods dele.
       const { uid, name } = obj.metadata;
@@ -204,6 +219,16 @@ export class Cluster {
     }
   }
 
+  /** Deployment, Job e cia. num namespace com normas de segurança: o molde dos pods é conferido e vira aviso. */
+  avisarNormas(obj) {
+    const molde = obj.kind === 'CronJob' ? obj.spec?.jobTemplate?.spec?.template?.spec
+      : ['Deployment', 'ReplicaSet', 'StatefulSet', 'DaemonSet', 'Job'].includes(obj.kind) ? obj.spec?.template?.spec : null;
+    if (!molde) return;
+    const { enforce, warn } = normasDe(this, obj.metadata.namespace);
+    const norma = [enforce, warn].find((n) => n && violacoes(molde, n.nivel).length);
+    if (norma) this.avisos.push(`would violate ${textoViolacao(norma, violacoes(molde, norma.nivel))}`);
+  }
+
   /** Grava a mudança de um objeto já guardado. `spec: true` conta uma nova geração. */
   salvar(obj, { spec = false } = {}) {
     obj.metadata.resourceVersion = String(++this.rv);
@@ -227,6 +252,7 @@ export class Cluster {
     obj.status = antigo.status;
     if (obj.status === undefined) delete obj.status;
     aplicarPadroes(obj);
+    this.avisarNormas(obj);
     const mudouSpec = JSON.stringify(obj.spec) !== JSON.stringify(antigo.spec);
     Object.keys(antigo).forEach((k) => delete antigo[k]);
     Object.assign(antigo, obj);
@@ -444,10 +470,15 @@ export class Cluster {
   criarSistema() {
     for (const nome of ['default', 'kube-node-lease', 'kube-public', 'kube-system', 'local-path-storage']) this.criar({ apiVersion: 'v1', kind: 'Namespace', metadata: { name: nome } });
     // As PriorityClasses do sistema (uid fixo: não gastam o sorteio, que decide nomes e lugares de tudo depois).
-    for (const [nome, value, description, uid] of [
-      ['system-cluster-critical', 2000000000, 'Used for system critical pods that must run in the cluster, but can be moved to another node if necessary.', '5c7f1b6e-1d0a-4c2e-9a51-0b6f3d2e8c01'],
-      ['system-node-critical', 2000001000, 'Used for system critical pods that must not be moved from their current node.', '9e2a4d73-6b18-4f0c-8d27-3a5e1c9b7f02'],
-    ]) this.criar({ apiVersion: 'scheduling.k8s.io/v1', kind: 'PriorityClass', metadata: { name: nome }, value, description }, { uid });
+    for (const [nome, value, description] of [
+      ['system-cluster-critical', 2000000000, 'Used for system critical pods that must run in the cluster, but can be moved to another node if necessary.'],
+      ['system-node-critical', 2000001000, 'Used for system critical pods that must not be moved from their current node.'],
+    ]) this.criar({ apiVersion: 'scheduling.k8s.io/v1', kind: 'PriorityClass', metadata: { name: nome }, value, description }, { uid: uuidDe(`priorityclass/${nome}`) });
+    criarPapeisPadrao(this);
+    // As ServiceAccounts dos pods do sistema (a "default" de cada namespace nasce com ele).
+    for (const [ns, nome] of [['kube-system', 'kindnet'], ['kube-system', 'kube-proxy'], ['kube-system', 'metrics-server'], ['local-path-storage', 'local-path-provisioner-service-account']]) {
+      this.criar(contaPadrao(ns, nome), { uid: uidDaConta(ns, nome) });
+    }
     const nodes = this.listar('Node');
     const cp = nodes.find((n) => n.metadata.labels['node-role.kubernetes.io/control-plane'] !== undefined) ?? nodes[0];
     const imagens = ['registry.k8s.io/etcd:3.6.4-0', 'registry.k8s.io/kube-apiserver:v1.37.0', 'registry.k8s.io/kube-controller-manager:v1.37.0', 'registry.k8s.io/kube-scheduler:v1.37.0', 'registry.k8s.io/coredns/coredns:v1.12.4'];

@@ -1,0 +1,4 @@
+NAME             POD-SELECTOR   AGE
+libera-vitrine   app=api        8s
+nega-tudo        <none>         9s
+exit=0

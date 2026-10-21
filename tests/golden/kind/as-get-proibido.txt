@@ -1,0 +1,2 @@
+Error from server (Forbidden): pods is forbidden: User "ana" cannot list resource "pods" in API group "" in the namespace "default"
+exit=1

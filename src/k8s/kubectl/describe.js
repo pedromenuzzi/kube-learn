@@ -346,6 +346,11 @@ const DESCRITORES = {
     w.w(0, 'Pods Status:\t');
     w.w(0, `${conta('Running')} Running / ${conta('Pending')} Waiting / ${conta('Succeeded')} Succeeded / ${conta('Failed')} Failed\n`);
     templateDePod(w, rs.spec.template);
+    if (rs.status?.conditions?.length) {
+      w.w(0, 'Conditions:\n  Type\tStatus\tReason\n');
+      w.w(1, '----\t------\t------\n');
+      for (const x of rs.status.conditions) w.w(1, `${x.type} \t${x.status}\t${x.reason}\n`);
+    }
     escreverEventos(w, ctx.eventos, ctx.agora);
   },
 
@@ -451,6 +456,62 @@ const DESCRITORES = {
     w.w(0, `\nType:\t${s.type}\n`);
     w.w(0, '\nData\n====\n');
     for (const k of Object.keys(s.data ?? {}).sort()) w.w(0, `${k}:\t${new TextEncoder().encode(atobUtf8(s.data[k])).length} bytes\n`);
+  },
+
+  ServiceAccount(w, sa, ctx) {
+    w.w(0, `Name:\t${sa.metadata.name}\n`);
+    w.w(0, `Namespace:\t${sa.metadata.namespace}\n`);
+    labels(w, 'Labels', sa.metadata.labels);
+    anotacoes(w, 'Annotations', sa.metadata.annotations);
+    w.w(0, `Image pull secrets:\t${(sa.imagePullSecrets ?? []).map((x) => x.name).join(', ') || '<none>'}\n`);
+    escreverEventos(w, ctx.eventos, ctx.agora);
+  },
+
+  Role: regrasDoPapel,
+  ClusterRole: regrasDoPapel,
+  RoleBinding: vinculo,
+  ClusterRoleBinding: vinculo,
+
+  NetworkPolicy(w, np) {
+    w.w(0, `Name:\t${np.metadata.name}\n`);
+    w.w(0, `Namespace:\t${np.metadata.namespace}\n`);
+    w.w(0, `Created on:\t${horaGo(Date.parse(np.metadata.creationTimestamp))}\n`);
+    labels(w, 'Labels', np.metadata.labels);
+    anotacoes(w, 'Annotations', np.metadata.annotations);
+    const s = np.spec;
+    w.w(0, 'Spec:\n');
+    const vazio = !Object.keys(s.podSelector?.matchLabels ?? {}).length && !s.podSelector?.matchExpressions?.length;
+    w.w(1, `PodSelector:     ${vazio ? '<none> (Allowing the specific traffic to all pods in this namespace)' : seletor(s.podSelector)}\n`);
+    const tipos = s.policyTypes ?? ['Ingress', ...(s.egress ? ['Egress'] : [])];
+    for (const [tipo, regras, campo, rotulo, ninguem] of [['Ingress', s.ingress, 'from', 'From', 'source'], ['Egress', s.egress, 'to', 'To', 'destination']]) {
+      const sentido = tipo.toLowerCase();
+      if (!tipos.includes(tipo)) {
+        w.w(1, `Not affecting ${sentido} traffic\n`);
+        continue;
+      }
+      w.w(1, `Allowing ${sentido} traffic:\n`);
+      if (!regras?.length) {
+        w.w(2, `<none> (Selected pods are isolated for ${sentido} connectivity)\n`);
+        continue;
+      }
+      regras.forEach((r, i) => {
+        if (!r.ports?.length) w.w(2, 'To Port: <any> (traffic allowed to all ports)\n');
+        for (const p of r.ports ?? []) w.w(2, `To Port: ${p.port ?? '<any>'}/${p.protocol ?? 'TCP'}\n`);
+        if (!r[campo]?.length) w.w(2, `${rotulo}: <any> (traffic not restricted by ${ninguem})\n`);
+        for (const par of r[campo] ?? []) {
+          w.w(2, `${rotulo}:\n`);
+          if (par.namespaceSelector) w.w(3, `NamespaceSelector: ${seletor(par.namespaceSelector) || '<none>'}\n`);
+          if (par.podSelector) w.w(3, `PodSelector: ${seletor(par.podSelector) || '<none>'}\n`);
+          if (par.ipBlock) {
+            w.w(3, 'IPBlock:\n');
+            w.w(4, `CIDR: ${par.ipBlock.cidr}\n`);
+            w.w(4, `Except: ${(par.ipBlock.except ?? []).join(', ')}\n`);
+          }
+        }
+        if (i < regras.length - 1) w.w(2, '----------\n');
+      });
+    }
+    w.w(1, `Policy Types: ${tipos.join(', ')}\n`);
   },
 
   PodDisruptionBudget(w, b, ctx) {
@@ -570,6 +631,54 @@ function generico(w, o, ctx) {
   escreverEventos(w, ctx.eventos, ctx.agora);
 }
 const cap = (k) => k.replace(/^./, (x) => x.toUpperCase()).replace(/([a-z])([A-Z])/g, '$1 $2');
+
+/** A hora como o time.Time.String() do Go: "2026-10-16 12:00:15 +0000 UTC". */
+const horaGo = (ms) => `${new Date(ms).toISOString().replace('T', ' ').slice(0, 19)} +0000 UTC`;
+
+/**
+ * As regras de uma Role/ClusterRole como o kubectl mostra: quebradas em pedaços (um recurso e um verbo por vez),
+ * juntadas de novo pelo recurso e ordenadas pelo texto da regra no Go (que começa pelos verbos).
+ */
+function regrasDoPapel(w, r) {
+  w.w(0, `Name:\t${r.metadata.name}\n`);
+  labels(w, 'Labels', r.metadata.labels);
+  anotacoes(w, 'Annotations', r.metadata.annotations);
+  w.w(0, 'PolicyRule:\n');
+  const juntas = new Map();
+  for (const regra of r.rules ?? []) {
+    const nomes = regra.resourceNames ?? [];
+    const pedacos = regra.nonResourceURLs?.length
+      ? regra.nonResourceURLs.map((u) => ({ grupos: [], recursos: [], urls: [u], nomes }))
+      : (regra.apiGroups ?? []).flatMap((g) => (regra.resources ?? []).map((x) => ({ grupos: [g], recursos: [x], urls: [], nomes })));
+    for (const p of pedacos) {
+      const chave = JSON.stringify([p.grupos, p.recursos, p.urls, p.nomes]);
+      if (!juntas.has(chave)) juntas.set(chave, { ...p, verbos: [] });
+      for (const v of regra.verbs ?? []) if (!juntas.get(chave).verbos.includes(v)) juntas.get(chave).verbos.push(v);
+    }
+  }
+  const lista = (x) => `[${x.join(' ')}]`;
+  const textoGo = (p) => `Verbs:${lista(p.verbos)},APIGroups:${lista(p.grupos)},Resources:${lista(p.recursos)},ResourceNames:${lista(p.nomes)},NonResourceURLs:${lista(p.urls)}`;
+  const ordenadas = [...juntas.values()].sort((a, b) => (textoGo(a) < textoGo(b) ? -1 : textoGo(a) > textoGo(b) ? 1 : 0));
+  w.w(1, 'Resources\tNon-Resource URLs\tResource Names\tVerbs\n');
+  w.w(1, '---------\t-----------------\t--------------\t-----\n');
+  for (const p of ordenadas) {
+    const recurso = p.recursos.map((x) => (p.grupos[0] ? `${x}.${p.grupos[0]}` : x)).join(', ');
+    w.w(1, `${recurso}\t${lista(p.urls)}\t${lista(p.nomes)}\t${lista(p.verbos)}\n`);
+  }
+}
+
+function vinculo(w, b) {
+  w.w(0, `Name:\t${b.metadata.name}\n`);
+  labels(w, 'Labels', b.metadata.labels);
+  anotacoes(w, 'Annotations', b.metadata.annotations);
+  w.w(0, 'Role:\n');
+  w.w(1, `Kind:\t${b.roleRef.kind}\n`);
+  w.w(1, `Name:\t${b.roleRef.name}\n`);
+  w.w(0, 'Subjects:\n');
+  w.w(1, 'Kind\tName\tNamespace\n');
+  w.w(1, '----\t----\t---------\n');
+  for (const x of b.subjects ?? []) w.w(1, `${x.kind}\t${x.name}\t${x.namespace ?? ''}\n`);
+}
 
 const OPERADOR = { In: 'in', NotIn: 'notin' };
 const seletor = (sel) => [
