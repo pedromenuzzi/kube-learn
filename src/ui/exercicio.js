@@ -30,12 +30,23 @@ const AJUDA = `Este terminal entende o kubectl (experimente: kubectl get pods) e
 O relógio do cluster anda sozinho; o botão +30s adianta 30 segundos.
 `;
 
+/**
+ * Os arquivos com que a missão abre: os que o aluno já salvou nela; numa etapa de projeto, os da etapa anterior (os
+ * dele) mais os novos desta etapa; senão, os do começo da missão.
+ */
+function arquivosIniciais(item, salvos) {
+  if (salvos) return salvos;
+  const daAnterior = item.continuaDe ? ler(CHAVES.arquivos + item.continuaDe) : null;
+  if (daAnterior) return { ...daAnterior, ...Object.fromEntries(Object.entries(item.novos ?? {}).filter(([k]) => !(k in daAnterior))) };
+  return item.inicial ?? {};
+}
+
 export function montarExercicio(raiz, item) {
   const temArquivos = !item.terminal || !!item.comArquivos || Object.keys(item.inicial ?? {}).length > 0;
   const pedeResposta = item.testes?.some((t) => t.regras.some((r) => 'resposta' in r));
   const chaveArquivos = CHAVES.arquivos + item.id;
   const estado = {
-    arquivos: { ...(ler(chaveArquivos) ?? item.inicial ?? {}) },
+    arquivos: { ...arquivosIniciais(item, ler(chaveArquivos)) },
     atual: null,
     cluster: montarCluster(item.cluster, `${item.id}:aluno`),
     resposta: '',
@@ -48,6 +59,7 @@ export function montarExercicio(raiz, item) {
       <header class="ex-topo">
         <a class="voltar" href="#/trilha">${icone('voltar')}<span class="visualmente-oculto">Voltar à </span>Trilha</a>
         <h1>${escapar(item.titulo)}</h1>
+        ${item.projeto ? `<span class="chip chip-projeto">${icone('arvore')} ${escapar(item.projeto.titulo)} · etapa ${item.projeto.etapa} de ${item.projeto.total}</span>` : ''}
         ${item.dificuldade ? `<span class="chip chip-${item.dificuldade}">${DIFICULDADE[item.dificuldade]}</span><span class="chip">${XP[item.dificuldade]} XP</span>` : ''}
       </header>
       <div class="ex-acoes">

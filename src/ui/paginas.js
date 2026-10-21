@@ -63,7 +63,7 @@ const sala = (i) => {
   const resto = `${chip}<span class="sala-xp">${i.xp} XP</span>`;
   return `<li class="sala-${i.estado}">${i.estado === 'bloqueado'
     ? `<span>${marca}<span class="sala-titulo">${escapar(i.titulo)} <span class="visualmente-oculto">(bloqueada)</span></span>${resto}</span>`
-    : `<a href="#/ex/${i.id}">${marca}<span class="sala-titulo">${escapar(i.titulo)} <span class="visualmente-oculto">(${ROTULO[i.estado]})</span></span>${resto}</a>`}</li>`;
+    : `<a href="#/ex/${i.id}">${marca}<span class="sala-titulo">${i.projeto ? `<span class="visualmente-oculto">${escapar(i.projeto.titulo)}, etapa ${i.projeto.etapa}: </span>` : ''}${escapar(i.titulo)} <span class="visualmente-oculto">(${ROTULO[i.estado]})</span></span>${resto}</a>`}</li>`;
 };
 
 /** "2 leituras · 12 práticas (5 no terminal)": o que o nível tem. */
@@ -100,7 +100,7 @@ function nivel(n) {
           ${n.emObra ? '<p class="nota">As missões deste nível ainda estão sendo escritas.</p>' : ''}
           ${!n.emObra && !n.desbloqueado ? '<p class="nota">Abre quando o nível anterior tiver 70% das missões resolvidas.</p>' : ''}
           ${n.concluido ? `<div class="nivel-selo"><p><b>Lacrado!</b> Nível concluído. <a href="${linkCompartilhar()}" target="_blank" rel="noopener">Compartilhar no LinkedIn</a></p></div>` : ''}
-          ${n.itens.length ? `<ul class="salas">${n.itens.map(sala).join('')}</ul>` : ''}
+          ${n.itens.length ? `<ul class="salas">${n.itens.map((i) => (i.projeto?.etapa === 1 ? `<li class="sala-grupo" aria-hidden="true">${icone('arvore')} ${escapar(i.projeto.titulo)}</li>` : '') + sala(i)).join('')}</ul>` : ''}
         </div>
       </details>
     </li>`;

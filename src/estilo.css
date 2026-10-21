@@ -344,6 +344,9 @@ canvas.navio { image-rendering: pixelated; width: 100%; height: auto; display: b
 .sala-bloqueado > span { color: var(--suave); }
 .sala-bloqueado .sala-marca { border-style: dashed; }
 .sala-titulo { min-width: 0; }
+.salas .sala-grupo { display: flex; align-items: center; gap: 0.4rem; margin: 0.75rem 0 0.15rem; padding: 0 0.6rem; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--suave); }
+.salas .sala-grupo:first-child { margin-top: 0; }
+.chip-projeto { color: var(--acento); background: var(--acento-suave); border-color: color-mix(in srgb, var(--acento) 30%, transparent); }
 .sala-xp { font-size: 0.8rem; color: var(--suave); font-variant-numeric: tabular-nums; font-weight: 700; }
 .nivel-selo { display: flex; gap: 0.9rem; align-items: center; margin: 0 0 0.75rem; padding: 0.6rem 0.8rem; border-radius: var(--raio); background: var(--ok-suave); border: 1px solid color-mix(in srgb, var(--ok) 25%, transparent); }
 .nivel-selo p { margin: 0; }

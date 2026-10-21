@@ -34,3 +34,27 @@ export const quiz = (dados) => ({ tipo: 'quiz', testes: [], ...dados, enunciado:
  * Sem `passos`, o teste aplica os arquivos num cluster novo e espera 1 minuto.
  */
 export const problema = (dados) => ({ tipo: 'problema', cluster: 'vazio', inicial: {}, ...dados });
+
+/**
+ * Um projeto: etapas encadeadas. Cada etapa é um problema que começa dos arquivos da anterior (os do aluno, se ele
+ * já fez; senão, a solução de referência) mais os `novos` desta etapa. → a lista de itens (um por etapa).
+ * etapa: { titulo, dificuldade, enunciado, vidaReal, limite, dica, novos?, solucao (todos os arquivos ao fim), testes, ... }
+ */
+export function projeto({ id, titulo, cluster = 'vazio', etapas }) {
+  let anterior = {};
+  return etapas.map((e, i) => {
+    const { novos = {}, solucao, ...resto } = e;
+    const item = problema({
+      cluster,
+      ...resto,
+      id: `${id}-${i + 1}`,
+      projeto: { id, titulo, etapa: i + 1, total: etapas.length },
+      continuaDe: i ? `${id}-${i}` : null,
+      novos,
+      inicial: { ...anterior, ...novos },
+      solucao,
+    });
+    anterior = solucao;
+    return item;
+  });
+}

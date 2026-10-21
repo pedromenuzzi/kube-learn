@@ -28,7 +28,8 @@
 //                                                      pods entre os domínios (os valores da label nos nodes)
 //
 // Passos (`passos`): { comando: 'kubectl ...' }, { avancar: '30s' }, { adicionarNode: 'node-3' } (um prédio novo no condomínio)
-// e { derrubarNode: 'node-2' } (o prédio fica sem luz: o kubelet dele para).
+// { derrubarNode: 'node-2' } (o prédio fica sem luz: o kubelet dele para) e { zerar: true } (o vigia e o rollout começam a contar
+// dali, depois que tudo subiu).
 // Sem `passos`: kubectl apply -f . e 1 minuto de relógio.
 import { montarCluster } from './conteudo/clusters.js';
 import { seletorDeLabels } from './k8s/kubectl/index.js';
@@ -280,6 +281,8 @@ export function rodarTeste(item, teste, indice, { arquivos = {}, historico = [],
       } else if (passo.adicionarNode) {
         ctx.cluster.criarNodes([{ nome: passo.adicionarNode }], ctx.cluster.listar('Node').length);
         ctx.cluster.reconciliar();
+      } else if (passo.zerar) {
+        Object.assign(ctx, { minimos: new Map(), versoes: new Map(), vigia: { falhas: 0, total: 0 } });
       } else if (passo.derrubarNode) {
         ctx.cluster.derrubarNode(passo.derrubarNode);
       } else if (passo.avancar) {
