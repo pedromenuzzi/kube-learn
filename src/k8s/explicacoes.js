@@ -1,7 +1,8 @@
 // A caixa "🏠 Na vida real" que aparece embaixo de um erro ou de um status problemático no terminal:
 // o que aconteceu, a comparação com o condomínio e onde mexer. O kubectl continua em inglês, como o real.
+import { pacoteIngles } from '../i18n.js';
 
-const REGRAS = [
+export const REGRAS = [
   {
     re: /forbidden: User "([^"]+)" cannot (\w+) resource "([^"]+)" in API group "([^"]*)" (in the namespace "[^"]+"|at the cluster scope)/,
     t: (m) => ({ titulo: `"${m[1]}" não tem crachá para isso`, texto: `Ninguém deu a ele permissão de <code>${m[2]}</code> em <code>${m[3]}</code> ${m[5].startsWith('in') ? m[5].replace('in the namespace', 'no namespace') : 'no cluster'}. A permissão vem de uma Role (ou ClusterRole) entregue por um RoleBinding (ou ClusterRoleBinding). Teste com <code>kubectl auth can-i ${m[2]} ${m[3]} --as=${m[1]}</code>.`, vidaReal: 'A catraca não reconhece o crachá: ele não abre essa porta.' }),
@@ -158,7 +159,7 @@ const REGRAS = [
   },
 ];
 
-const STATUS = [
+export const STATUS = [
   { re: /^Forwarding from 127\.0\.0\.1:(\d+)/m, titulo: 'Port-forward ativo', texto: 'Uma passagem do seu computador direto para o pod. Teste com <code>curl http://localhost:PORTA</code> aqui mesmo no terminal (o <code>curl</code> sem kubectl roda no seu computador). No terminal de verdade este comando fica preso (Ctrl+C encerra) e você testa em outro terminal.', vidaReal: 'Uma passagem temporária da sua casa direto até o apartamento.' },
   { re: /\bCrashLoopBackOff\b/, titulo: 'CrashLoopBackOff: o contêiner cai e é reiniciado', texto: 'O programa termina logo depois de subir, e o kubelet espera cada vez mais antes de tentar de novo (10s, 20s, 40s... até 5 min). Veja o motivo em <code>kubectl logs NOME --previous</code> e em <code>kubectl describe pod NOME</code>.', vidaReal: 'O morador desmaia toda vez que entra, e o síndico espera cada vez mais antes de tentar de novo.' },
   { re: /\b(ImagePullBackOff|ErrImagePull)\b/, titulo: 'A imagem não foi baixada', texto: 'Nome ou tag errado, ou imagem privada. Confira a imagem e veja o erro exato em <code>kubectl describe pod NOME</code>, nas Events.', vidaReal: 'O pré-moldado não chegou: o pedido tinha o modelo errado.' },
@@ -189,8 +190,11 @@ const STATUS = [
 /** Explicações para a saída de um comando: erros (se falhou) e status problemáticos (numa tabela). */
 export function explicar(saida, { falhou }) {
   const caixas = [];
+  const en = pacoteIngles()?.explicacoes; // em inglês, o gêmeo de src/i18n/en/explicacoes.js (enquanto houver)
+  const regras = en?.REGRAS ?? REGRAS;
+  const status = en?.STATUS ?? STATUS;
   if (falhou) {
-    for (const r of REGRAS) {
+    for (const r of regras) {
       const m = saida.match(r.re);
       if (m) {
         caixas.push({ chave: r.re.source, ...r.t(m) });
@@ -198,6 +202,6 @@ export function explicar(saida, { falhou }) {
       }
     }
   }
-  for (const s of STATUS) if (s.re.test(saida)) caixas.push({ chave: s.re.source, titulo: s.titulo, texto: s.texto, vidaReal: s.vidaReal });
+  for (const s of status) if (s.re.test(saida)) caixas.push({ chave: s.re.source, titulo: s.titulo, texto: s.texto, vidaReal: s.vidaReal });
   return caixas;
 }

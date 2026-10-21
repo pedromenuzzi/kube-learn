@@ -12,6 +12,7 @@ import { rodarTestes } from '../verificacoes.js';
 import { ler, gravar, CHAVES, registrarDia } from '../armazenamento.js';
 import { registrarComFesta } from './festa.js';
 import { abrirFeedback } from './feedback.js';
+import { t } from '../i18n.js';
 import { hojeLocal } from '../jogo/gamificacao.js';
 import { criarTerminal } from './terminal.js';
 import { criarEditor } from './editor.js';
@@ -44,14 +45,19 @@ function arquivosIniciais(item, salvos) {
   return item.inicial ?? {};
 }
 
-export function montarExercicio(raiz, item) {
+// A última missão desmontada: na troca de idioma, a tela é montada de novo e continua com o mesmo cluster e histórico.
+let ultima = null;
+
+/** `manter`: a mesma missão de novo (troca de idioma), com o cluster e o histórico do terminal como estavam. */
+export function montarExercicio(raiz, item, { manter = false } = {}) {
+  const anterior = manter && ultima?.id === item.id ? ultima : null;
   const temArquivos = !item.terminal || !!item.comArquivos || Object.keys(item.inicial ?? {}).length > 0;
   const pedeResposta = item.testes?.some((t) => t.regras.some((r) => 'resposta' in r));
   const chaveArquivos = CHAVES.arquivos + item.id;
   const estado = {
     arquivos: { ...arquivosIniciais(item, ler(chaveArquivos)) },
     atual: null,
-    cluster: montarCluster(item.cluster, `${item.id}:aluno`),
+    cluster: anterior?.cluster ?? montarCluster(item.cluster, `${item.id}:aluno`),
     resposta: '',
   };
   estado.atual = Object.keys(estado.arquivos)[0] ?? null;
@@ -262,7 +268,12 @@ export function montarExercicio(raiz, item) {
   }
 
   const terminal = criarTerminal($('#baixo-terminal'), { executar, completar });
-  terminal.escrever(`Cluster pronto (1 control plane + 2 workers). Digite help para ajuda.${item.terminal ? ' Nesta missão, use o terminal.' : ''}`, 'term-info');
+  if (anterior) {
+    terminal.lembrar(anterior.historico);
+    terminal.escrever(t('Idioma trocado. O cluster continua como estava (↑ traz os comandos de antes).'), 'term-info');
+  } else {
+    terminal.escrever(`${t('Cluster pronto (1 control plane + 2 workers). Digite help para ajuda.')}${item.terminal ? ` ${t('Nesta missão, use o terminal.')}` : ''}`, 'term-info');
+  }
 
   // ---------- painéis ----------
   const atualizarPaineis = () => {
@@ -383,6 +394,7 @@ export function montarExercicio(raiz, item) {
   return {
     destruir() {
       clearInterval(relogio);
+      ultima = { id: item.id, cluster: estado.cluster, historico: [...terminal.historico] };
       clearTimeout(tempoDoAviso);
       document.removeEventListener('keydown', teclas);
       editor?.destruir();

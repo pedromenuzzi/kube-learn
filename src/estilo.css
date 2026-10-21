@@ -157,13 +157,19 @@ h1.pixel { font-size: 1.3rem; line-height: 1.5; }
 .botao-icone:hover { background: var(--superficie); border-color: var(--borda-forte); }
 .botao-icone .icone { width: 1.3rem; height: 1.3rem; }
 
-/* No tablet (e no celular bem estreito), o topo aperta: a marca fica só com o navio e a aba longa usa o rótulo curto. */
+/* O idioma: PT | EN, um clique troca (o ativo fica destacado). */
+.topo .idiomas { display: inline-flex; padding: 0.2rem; gap: 0.1rem; border-radius: 999px; background: var(--superficie-2); border: 1px solid var(--borda); }
+.topo .idiomas button { min-height: 0; padding: 0.3rem 0.55rem; border: 0; border-radius: 999px; background: none; color: var(--suave); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; }
+.topo .idiomas button:hover { color: var(--texto); background: var(--superficie); }
+.topo .idiomas button[aria-pressed="true"] { color: var(--destaque); background: var(--superficie); box-shadow: var(--sombra-1); }
+
+/* No tablet (e no celular estreito), o topo aperta: a marca fica só com o navio e a aba longa usa o rótulo curto. */
 .nav .rotulo-curto { display: none; }
 @media (max-width: 69.99rem) {
   .nav .rotulo-longo { display: none; }
   .nav .rotulo-curto { display: inline; }
 }
-@media (max-width: 23.99rem), (min-width: 56rem) and (max-width: 69.99rem) {
+@media (max-width: 29.99rem), (min-width: 56rem) and (max-width: 69.99rem) {
   .marca-nome { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 

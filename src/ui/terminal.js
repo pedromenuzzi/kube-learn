@@ -136,5 +136,10 @@ export function criarTerminal(raiz, { executar, completar }) {
     get historico() {
       return historico;
     },
+    /** Põe linhas no histórico (as de antes da troca de idioma): ↑ traz a última. */
+    lembrar(linhas) {
+      historico.push(...linhas);
+      posicao = historico.length;
+    },
   };
 }
