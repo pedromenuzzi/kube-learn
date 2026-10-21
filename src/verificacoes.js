@@ -13,7 +13,7 @@
 //   { dns: { nome, de: 'pod/x', quantidade } }         quantos endereços o nome resolve (headless = um por pod)
 //   { rollout: 'deployment/loja', minDisponivel: 3 }   nunca ficou com menos pods prontos durante o teste
 //   { evento: { motivo, objeto } }                     aconteceu um evento com esse motivo
-//   { env: { pods: 'app=x', nome, igual } }            a variável de ambiente dentro do contêiner
+//   { env: { pods: 'app=x', nome, igual | regex } }    a variável de ambiente dentro do contêiner
 //   { comando: 'regex' }                               o aluno usou esse comando no terminal
 //   { saida: 'regex' }                                 a saída de algum comando dos passos do teste combina
 //   { vigia: { maxFalhas: 0 } }                        com `vigiar: 'http://loja'` no teste: um cliente pediu a URL a
@@ -175,7 +175,8 @@ const REGRAS = {
     const q = r.env;
     const lista = podsDo(ctx.cluster, q.pods, q.ns).filter(estaPronto);
     const valores = lista.map((p) => ctx.cluster.kubelet.estado(p, p.spec.containers[0].name)?.env?.[q.nome]);
-    return [lista.length > 0 && valores.every((v) => v === q.igual), `${q.nome}=${q.igual} dentro dos pods ${q.pods}`, lista.length ? `veio ${mostrar(valores[0])}` : 'nenhum pod pronto'];
+    const casa = (v) => (q.regex ? new RegExp(q.regex).test(v ?? '') : v === q.igual);
+    return [lista.length > 0 && valores.every(casa), `${q.nome}${q.regex ? ` combina com /${q.regex}/` : `=${q.igual}`} dentro dos pods ${q.pods}`, lista.length ? `veio ${mostrar(valores[0])}` : 'nenhum pod pronto'];
   },
   saida(r, ctx) {
     const re = new RegExp(r.saida);

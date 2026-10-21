@@ -6,6 +6,7 @@ import { PARTIDA5 } from './nivel5.js';
 import { PARTIDA6 } from './nivel6.js';
 import { PARTIDA7 } from './nivel7.js';
 import { PARTIDA8 } from './nivel8.js';
+import { PARTIDA9 } from './nivel9.js';
 
 const LOJA = (replicas, versao) => yaml`
   apiVersion: apps/v1
@@ -442,6 +443,8 @@ export const CLUSTERS = {
   'rede-sem-dns': { manifestos: juntar(PARTIDA8.rede, PARTIDA8.saidaSemDns) },
   'rede-e-monitoramento': { manifestos: juntar(PARTIDA8.rede, PARTIDA8.negaTudo, PARTIDA8.monitoramento) },
   'cofre-restrito': { manifestos: PARTIDA8.cofre },
+  // Nível 9: um cluster quebrado por incidente (nivel9.js)
+  ...PARTIDA9,
 };
 
 /** Monta o cluster de partida (sempre igual para a mesma semente). */

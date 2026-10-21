@@ -9,6 +9,7 @@ import { NIVEL5 } from './nivel5.js';
 import { NIVEL6 } from './nivel6.js';
 import { NIVEL7 } from './nivel7.js';
 import { NIVEL8 } from './nivel8.js';
+import { NIVEL9 } from './nivel9.js';
 
 const nivel = (numero, icone, titulo, descricao, itens = []) => ({ id: `nivel-${numero}`, numero, icone, titulo, descricao, itens });
 
@@ -22,7 +23,7 @@ export const NIVEIS = [
   nivel(6, '🩺', 'Saúde e recursos', 'Probes, requests e limits, OOMKilled, autoscaling e cotas.', NIVEL6),
   nivel(7, '🧭', 'Scheduling e manutenção', 'Quem fica em qual prédio: affinity, taints, cordon, drain, PDB e a queda de energia.', NIVEL7),
   nivel(8, '🔐', 'Segurança', 'Crachás (RBAC), catracas (NetworkPolicy) e as normas dos bombeiros (securityContext e Pod Security).', NIVEL8),
-  nivel(9, '🚒', 'Troubleshooting', 'Incidentes de verdade num cluster quebrado.'),
+  nivel(9, '🚒', 'Troubleshooting', 'O plantão do síndico: 20 incidentes de verdade, cada um num cluster já quebrado.', NIVEL9),
   nivel(10, '📦', 'Helm, Kustomize e GitOps', 'O projeto padrão da construtora.'),
   nivel(11, '⚓', 'Projetos finais', 'Tudo junto: o navio zarpa carregado.'),
 ];

@@ -130,6 +130,7 @@ export class Cluster {
     this.porUid.set(obj.metadata.uid, obj);
     this.registrar('ADDED', obj);
     if (['PersistentVolumeClaim', 'PersistentVolume', 'StorageClass'].includes(obj.kind)) this.mudancasDeCapacidade++; // o scheduler tenta de novo quem esperava disco
+    if (['ResourceQuota', 'LimitRange'].includes(obj.kind)) this.esperaCriacao.clear(); // cota nova: os controladores tentam criar de novo já
     if (obj.kind === 'Namespace') this.criar(contaPadrao(obj.metadata.name), { uid: uidDaConta(obj.metadata.name, 'default') });
     return obj;
   }
@@ -257,6 +258,7 @@ export class Cluster {
     Object.keys(antigo).forEach((k) => delete antigo[k]);
     Object.assign(antigo, obj);
     this.salvar(antigo, { spec: mudouSpec });
+    if (['ResourceQuota', 'LimitRange'].includes(obj.kind)) this.esperaCriacao.clear();
     return antigo;
   }
 

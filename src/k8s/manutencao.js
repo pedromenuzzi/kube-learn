@@ -108,13 +108,15 @@ function trocarTaints(c, node, taints) {
 }
 
 /**
- * O node-lifecycle-controller e o taint-eviction-controller:
+ * O node-lifecycle-controller, o taint-eviction-controller e o pod-garbage-collector:
  * - node interditado (cordon) ganha o taint node.kubernetes.io/unschedulable:NoSchedule;
  * - node cujo kubelet parou de dar notícias há 50 s fica NotReady (condições Unknown), ganha os taints de
  *   unreachable e os pods dele deixam de estar prontos (saem dos Services);
  * - pods num node com taint NoExecute que não toleram saem na hora; os que toleram por N segundos, depois.
  */
 export function controladorDeNodes(c) {
+  // O pod-garbage-collector: pod de um node que não existe mais (kubectl delete node) é apagado de vez.
+  for (const pod of c.listar('Pod').filter((p) => p.spec.nodeName && !c.obter('Node', null, p.spec.nodeName))) c.finalizarRemocao(pod);
   for (const node of c.listar('Node')) {
     const interditado = !!node.spec.unschedulable;
     if (interditado !== temTaint(node, INTERDITADO, 'NoSchedule')) {

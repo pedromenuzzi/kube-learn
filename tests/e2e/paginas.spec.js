@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-const PAGINAS = ['#/', '#/trilha', '#/glossario', '#/livre', '#/ex/deploy-rolling-sem-indisponibilidade', '#/ex/n0-imagem-e-conteiner', '#/ex/n0-quiz-latest', '#/ex/n1-diario', '#/ex/n3-ingress-caminho'];
+const PAGINAS = ['#/', '#/trilha', '#/glossario', '#/livre', '#/ex/deploy-rolling-sem-indisponibilidade', '#/ex/n0-imagem-e-conteiner', '#/ex/n0-quiz-latest', '#/ex/n1-diario', '#/ex/n3-ingress-caminho', '#/ex/n9-imagem-errada'];
 const TEMAS = ['claro', 'escuro', 'contraste'];
 
 for (const tema of TEMAS) {
@@ -13,7 +13,7 @@ for (const tema of TEMAS) {
       await page.waitForSelector('main#conteudo > *');
       // O contraste é medido depois do fade de entrada da página.
       await page.waitForFunction(() => document.getAnimations().every((x) => x.playState !== 'running'));
-      if (url.includes('deploy-') || url.includes('livre') || url.includes('n3-')) await page.waitForSelector('.cm-content');
+      if (url.includes('deploy-') || url.includes('livre') || url.includes('n3-') || url.includes('n9-')) await page.waitForSelector('.cm-content');
       // .cm-scroller fica de fora: o editor é alcançado pelo teclado pela caixa de texto dele (contenteditable),
       // que rola junto com o cursor; o axe não reconhece isso como conteúdo focável.
       const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).exclude('.cm-scroller').analyze();
