@@ -10,6 +10,7 @@ import { PARTIDA7 } from './nivel7.js';
 import { PARTIDA8 } from './nivel8.js';
 import { PARTIDA9 } from './nivel9.js';
 import { PARTIDA10 } from './nivel10.js';
+import { PARTIDA11 } from './nivel11.js';
 
 const LOJA = (replicas, versao) => yaml`
   apiVersion: apps/v1
@@ -455,6 +456,9 @@ export const CLUSTERS = {
   'loja-azul': { manifestos: PARTIDA10.corAzul },
   'operador-backup': { manifestos: PARTIDA10.operador },
   'gitops-loja': { gitops: { 'loja.yaml': PARTIDA10.lojaGit } },
+  // Nível 11 (os projetos)
+  'projeto-loja': { manifestos: juntar(INGRESS_CLASS, PARTIDA11.cliente) },
+  'projeto-canario': { manifestos: GATEWAY },
 };
 
 /** Monta o cluster de partida (sempre igual para a mesma semente). */
