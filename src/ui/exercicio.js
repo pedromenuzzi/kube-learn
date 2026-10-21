@@ -9,7 +9,9 @@ import { explicar as explicarCampo } from '../k8s/esquema.js';
 import { todosOsRecursos, acharRecurso } from '../k8s/recursos.js';
 import { palavras } from '../k8s/kubectl/argv.js';
 import { rodarTestes } from '../verificacoes.js';
-import { ler, gravar, CHAVES, registrarResultado, registrarDia } from '../armazenamento.js';
+import { ler, gravar, CHAVES, registrarDia } from '../armazenamento.js';
+import { registrarComFesta } from './festa.js';
+import { abrirFeedback } from './feedback.js';
 import { hojeLocal } from '../jogo/gamificacao.js';
 import { criarTerminal } from './terminal.js';
 import { criarEditor } from './editor.js';
@@ -71,6 +73,7 @@ export function montarExercicio(raiz, item) {
         <button type="button" data-acao="avancar" title="Adianta o relógio do cluster em 30 segundos">${icone('avancar')} +30s</button>
         <button type="button" data-acao="resetar">${icone('reiniciar')}<span class="rotulo">Resetar cluster</span></button>
         <button type="button" data-acao="arrumacao" title="Volta as janelas para o lugar e o tamanho de começo">${icone('janelas')}<span class="rotulo">Arrumação padrão</span></button>
+        <button type="button" data-acao="feedback" title="Conte como foi esta missão">${icone('balao')}<span class="rotulo">Feedback</span></button>
         <span class="relogio" aria-hidden="true"></span>
       </div>
       <div class="ex-aviso" role="status" aria-live="polite"></div>
@@ -287,6 +290,7 @@ export function montarExercicio(raiz, item) {
     return { ok, total };
   }
 
+  let ultimoTeste = null; // para o feedback
   function testar(todos) {
     avisar(todos ? 'Rodando todos os testes, inclusive os ocultos…' : 'Rodando os testes visíveis…');
     registrarDia(hojeLocal());
@@ -295,9 +299,10 @@ export function montarExercicio(raiz, item) {
         arquivos: estado.arquivos, historico: terminal.historico, resposta: estado.resposta, clusterDoAluno: estado.cluster,
       }, { todos });
       const { ok, total } = mostrarTestes(resultados, todos);
+      ultimoTeste = `${ok} de ${total} passaram (${todos ? 'entregue' : 'só os visíveis'})`;
       if (todos) {
         const resolvido = ok === total;
-        registrarResultado(item.id, resolvido);
+        registrarComFesta(item, resolvido);
         if (resolvido && !$('.ex-topo .chip-ok')) $('.ex-topo').insertAdjacentHTML('beforeend', `<span class="chip chip-ok">${icone('certo')} Resolvida</span>`);
         if (resolvido) avisar(item.secao ? 'Incidente resolvido! O morador agradece.' : `Missão cumprida! +${XP[item.dificuldade] ?? 0} XP. Mais um contêiner embarcado no seu navio.`, { tipo: 'ok', proximo: proximoDe(item) });
         else avisar(`${ok} de ${total} testes passaram. Veja o que faltou na aba Testes.`, { tipo: 'falha' });
@@ -326,6 +331,7 @@ export function montarExercicio(raiz, item) {
       avisar('O relógio do cluster andou 30 segundos.');
     },
     'fechar-aviso': () => aviso.replaceChildren(),
+    feedback: () => abrirFeedback(item, () => ({ testes: ultimoTeste, comandos: terminal.historico.slice(-10) })),
     resetar() {
       if (!confirm('Voltar o cluster para o começo da missão? (Seus arquivos ficam.)')) return;
       estado.cluster = montarCluster(item.cluster, `${item.id}:aluno`);

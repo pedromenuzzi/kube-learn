@@ -55,6 +55,21 @@ export function calcularJornada(niveis, progresso = {}) {
   };
 }
 
+/**
+ * O que celebrar depois de resolver um item: compara a jornada de antes com a de depois.
+ * → [{ tipo: 'desbloqueio' | 'lacre', nivel }, { tipo: 'navio' }], na ordem em que aparecem.
+ */
+export function novidades(antes, depois) {
+  const eventos = [];
+  depois.niveis.forEach((n, i) => {
+    const a = antes.niveis[i];
+    if (n.desbloqueado && !a.desbloqueado) eventos.push({ tipo: 'desbloqueio', nivel: n });
+    if (n.concluido && !a.concluido) eventos.push({ tipo: 'lacre', nivel: n });
+  });
+  if (depois.navioCheio && !antes.navioCheio) eventos.push({ tipo: 'navio' });
+  return eventos;
+}
+
 const diaAnterior = (dia) => {
   const d = new Date(`${dia}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() - 1);

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { calcularJornada, sequenciaDeDias, LIMITE_DESBLOQUEIO } from '../src/jogo/gamificacao.js';
+import { calcularJornada, sequenciaDeDias, novidades, LIMITE_DESBLOQUEIO } from '../src/jogo/gamificacao.js';
 import { empilhar, VAGAS } from '../src/ui/navio.js';
 
 const p = (id, dificuldade = 'facil') => ({ id, tipo: 'problema', dificuldade });
@@ -10,6 +10,21 @@ const niveis = [
   { numero: 2, itens: [p('d'), p('e', 'dificil')] },
 ];
 const resolvido = (...ids) => Object.fromEntries(ids.map((i) => [i, { status: 'resolvido' }]));
+
+describe('o que celebrar', () => {
+  const tipos = (antes, depois) => novidades(calcularJornada(niveis, resolvido(...antes)), calcularJornada(niveis, resolvido(...depois))).map((e) => `${e.tipo}${e.nivel ? `:${e.nivel.numero}` : ''}`);
+  it('uma missão a mais, sem mudar de patamar: nada além do contêiner', () => {
+    expect(tipos(['l0'], ['l0', 'a'])).toEqual([]);
+  });
+  it('o nível que fecha (100%) é lacrado e abre o seguinte (pulando o que está em obra)', () => {
+    expect(tipos(['l0', 'a', 'b'], ['l0', 'a', 'b', 'c'])).toEqual(['lacre:0', 'desbloqueio:2']);
+  });
+  it('o último lacre carrega o navio', () => {
+    expect(tipos(['l0', 'a', 'b', 'c', 'd'], ['l0', 'a', 'b', 'c', 'd', 'e'])).toEqual(['lacre:2']);
+    const cheio = (ids) => ({ ...calcularJornada(niveis, resolvido(...ids)), navioCheio: ids.length === 6 });
+    expect(novidades(cheio(['l0', 'a', 'b', 'c', 'd']), cheio(['l0', 'a', 'b', 'c', 'd', 'e'])).at(-1).tipo).toBe('navio');
+  });
+});
 
 describe('jornada', () => {
   it('começo: só o nível 0 aberto, próximo é a lição', () => {

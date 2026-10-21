@@ -20,7 +20,7 @@ export const DESCRICOES = {
   'arquivos:': 'Os arquivos que você escreveu em cada missão.',
   dias: 'Os dias em que você estudou (para a sequência 🔥).',
   janelas: 'Onde você deixou as janelas da tela do exercício.',
-  preferencias: 'Tema, tamanho do texto e reduzir movimento.',
+  preferencias: 'Tema, tamanho do texto, reduzir movimento e efeitos sonoros.',
   revisao: 'Em que caixa está cada cartão da revisão e quando ele volta.',
   nome: 'O nome que você escreveu para o certificado.',
 };
