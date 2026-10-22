@@ -1,21 +1,26 @@
-// As páginas fora do exercício: início, trilha (o navio) e glossário.
-import { NIVEIS, OFICINA, TROUBLESHOOTING } from '../conteudo/index.js';
+// As páginas fora do exercício: início, trilha (o navio), as seções (Troubleshooting, Oficina, Plantão do dia), o Diário de
+// bordo e o glossário.
+import { NIVEIS, OFICINA, TROUBLESHOOTING, acharItem } from '../conteudo/index.js';
 import { GLOSSARIO } from '../conteudo/glossario.js';
 import { calcularJornada, sequenciaDeDias, hojeLocal } from '../jogo/gamificacao.js';
-import { termosVistos } from '../jogo/revisao.js';
-import { cartoesParaHoje, numerosDosDias } from '../jogo/hoje.js';
+import { somarDias, termosVistos } from '../jogo/revisao.js';
+import { atividadePorDia, calendario, cartoesParaHoje, numerosDosDias } from '../jogo/hoje.js';
+import { plantaoDoDia } from '../jogo/plantao.js';
 import { ler, CHAVES } from '../armazenamento.js';
 import { desenharNavio, CORES } from './navio.js';
 import { svgSelo, linkCompartilhar } from './selos.js';
 import { escapar, minutosESegundos } from './util.js';
 import { icone } from './icones.js';
-import { t } from '../i18n.js';
+import { idioma, t } from '../i18n.js';
 
 const jornadaAtual = () => calcularJornada(NIVEIS, ler(CHAVES.progresso, {}));
 const ICONE_SALA = { concluido: 'certo', proximo: 'seguir', bloqueado: 'cadeado' };
 const ROTULO = () => ({ concluido: t('resolvida'), tentado: t('tentada'), proximo: t('próxima'), disponivel: t('disponível'), bloqueado: t('bloqueada') });
 const SITUACAO = () => ({ bloqueado: t('Bloqueado'), carregando: t('Carregando'), pronto: t('Pronto'), lacrado: t('Lacrado!') });
 const DIFICULDADE = () => ({ facil: t('Fácil'), medio: t('Médio'), dificil: t('Difícil') });
+/** 'qui., 22 de out.' / 'Thu, Oct 22' */
+const dataCurta = (dia) => new Date(`${dia}T12:00:00Z`).toLocaleDateString(idioma() === 'en' ? 'en-US' : 'pt-BR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+const resolvido = (progresso, id) => progresso[id]?.status === 'resolvido';
 
 function placar(j) {
   const dias = sequenciaDeDias(ler(CHAVES.dias, []), hojeLocal());
@@ -38,6 +43,7 @@ function painelHoje(j) {
   const n = numerosDosDias(dias, hoje, sequenciaDeDias(dias, hoje));
   const cartoes = cartoesParaHoje({ termos: termosVistos(GLOSSARIO, j), estado: ler(CHAVES.revisao, {}), hoje });
   const depois = j.niveis.flatMap((x) => x.itens).filter((i) => i.estado === 'tentado' && i.id !== j.proximo?.id).slice(0, 3);
+  const plantao = plantaoDoDia(hoje);
   // Sem cobrança: a sequência quebrada vira convite, e a melhor e o total de dias ficam (o esforço não some).
   const selo = n.atual > 1 ? t('{n} dias seguidos. Bora manter?', { n: n.atual })
     : n.atual === 1 ? t('Primeiro dia da sequência. Amanhã tem mais.')
@@ -56,7 +62,11 @@ function painelHoje(j) {
       <p class="hoje-revisao hoje-cartoes">${cartoes
     ? `<a class="link-seta" href="#/revisao">${icone('cartas')} ${t(cartoes === 1 ? 'Revisão do dia: 1 cartão, uns 2 minutos' : 'Revisão do dia: {n} cartões, uns 2 minutos', { n: cartoes })} ${icone('seguir')}</a>`
     : `${icone('certo')} ${t('Revisão do dia em dia.')}`}</p>
-      <p class="hoje-revisao hoje-oficina"><a class="link-seta" href="#/oficina">${icone('raio')} ${t('Oficina do kubectl: bata um recorde')} ${icone('seguir')}</a></p>
+      <p class="hoje-revisao hoje-extra">${resolvido(ler(CHAVES.progresso, {}), plantao.id)
+    ? `${icone('certo')} ${t('Plantão do dia atendido. O morador agradece!')}`
+    : `<a class="link-seta" href="#/ex/${plantao.id}">${icone('alerta')} ${t('Plantão do dia: {titulo}', { titulo: escapar(plantao.titulo) })} ${icone('seguir')}</a>`}</p>
+      <p class="hoje-revisao hoje-extra"><a class="link-seta" href="#/oficina">${icone('raio')} ${t('Oficina do kubectl: bata um recorde')} ${icone('seguir')}</a></p>
+      <p class="hoje-revisao hoje-extra"><a class="link-seta" href="#/diario">${icone('livro')} ${t('Seu diário de bordo')} ${icone('seguir')}</a></p>
       ${depois.length ? `<div class="hoje-depois"><p>${t('Ficaram para depois:')}</p><ul>${depois.map((i) => `<li><a href="#/ex/${i.id}">${escapar(i.titulo)}</a></li>`).join('')}</ul></div>` : ''}
     </div>`;
 }
@@ -153,7 +163,7 @@ export function paginaTrilha() {
           <aside class="trilha-lateral" aria-label="${t('Seu navio')}">
             <canvas class="navio" aria-hidden="true"></canvas>
             ${continuar(j)}
-            <p class="atalhos"><a href="#/revisao">${icone('cartas')} ${t('Revisão do dia')}</a> <a href="#/certificado">${icone('lacre')} ${t('Seus lacres')}</a> <a href="#/oficina">${icone('raio')} ${t('Oficina do kubectl')}</a></p>
+            <p class="atalhos"><a href="#/revisao">${icone('cartas')} ${t('Revisão do dia')}</a> <a href="#/certificado">${icone('lacre')} ${t('Seus lacres')}</a> <a href="#/oficina">${icone('raio')} ${t('Oficina do kubectl')}</a> <a href="#/diario">${icone('livro')} ${t('Diário de bordo')}</a></p>
           </aside>
           <ol class="niveis">${j.niveis.map(nivel).join('')}
           </ol>
@@ -184,6 +194,7 @@ export function paginaTroubleshooting() {
     <p class="sobretitulo">${t('Plantão')}</p>
     <h1 class="pixel">Troubleshooting</h1>
     <p>${t('Clusters que chegam quebrados com <b>mais de um defeito</b>: cada conserto revela o próximo. Investigue no terminal (<code>get</code>, <code>describe</code>, <code>logs</code>, <code>get events</code>) e conserte até o morador ficar satisfeito. Abre desde o começo e não vale XP: é treino de plantão. Os incidentes de um defeito só ficam no <a href="#/trilha">nível 9 da trilha</a>.')}</p>
+    <p class="nota">${icone('alerta')} ${t('Todo dia chega um chamado novo no <a href="#/plantao">Plantão do dia</a>.')}</p>
     <ul class="chamados">${TROUBLESHOOTING.map((i) => chamado(i, progresso[i.id]?.status)).join('')}</ul>
     <p class="nota">${icone('raio')} ${t('Quer treinar os comandos em si? A <a href="#/oficina">Oficina do kubectl</a> tem exercícios curtos, contra o relógio.')}</p>`;
 }
@@ -203,6 +214,86 @@ export function paginaOficina() {
         <span class="chip chip-${i.dificuldade}">${DIFICULDADE()[i.dificuldade]}</span>
         <span class="oficina-recorde">${recordes[i.id] ? `${icone('raio')} ${t('Recorde: {tempo}', { tempo: minutosESegundos(recordes[i.id]) })}` : t('Sem recorde ainda')}</span>
       </a></li>`).join('')}</ol>`;
+}
+
+// O Plantão do dia: o chamado de hoje e os dos últimos dias (quem perdeu um dia ainda pode atender).
+export function paginaPlantao() {
+  const progresso = ler(CHAVES.progresso, {});
+  const hoje = plantaoDoDia(hojeLocal());
+  const anteriores = [1, 2, 3, 4, 5, 6, 7].map((n) => plantaoDoDia(somarDias(hojeLocal(), -n)));
+  const atendidos = Object.keys(progresso).filter((id) => id.startsWith('plantao-') && resolvido(progresso, id)).length;
+  return `
+    <p class="sobretitulo">${t('Todo dia, um chamado novo')}</p>
+    <h1 class="pixel">${t('Plantão do dia')}</h1>
+    <p>${t('Um incidente novo por dia, o mesmo para todo mundo: a aplicação de um morador chega com dois defeitos. Uns 10 minutos de investigação no terminal. Não vale XP: vale o morador satisfeito.')}</p>
+    <p class="nota">${t(atendidos === 1 ? '1 plantão atendido até hoje' : '{n} plantões atendidos até hoje', { n: atendidos })}</p>
+    <ul class="chamados">${chamado(hoje, progresso[hoje.id]?.status)}</ul>
+    <h2>${t('Os dos últimos dias')}</h2>
+    <p class="nota">${t('Perdeu um dia? O chamado continua aberto.')}</p>
+    <ol class="oficina plantoes">${anteriores.map((i) => `
+      <li><a href="#/ex/${i.id}">
+        <span class="oficina-titulo"><span class="plantao-dia">${dataCurta(i.id.slice(8))}</span> ${escapar(i.titulo)}</span>
+        <span class="oficina-recorde">${resolvido(progresso, i.id) ? `${icone('certo')} ${t('Atendido')}` : t('Em aberto')}</span>
+      </a></li>`).join('')}</ol>`;
+}
+
+// O Diário de bordo: o caminho até aqui (os números, os dias de estudo e as últimas conquistas).
+const SECAO = () => ({ troubleshooting: 'Troubleshooting', oficina: t('Oficina do kubectl'), plantao: t('Plantão do dia') });
+const intensidade = (n) => (n >= 4 ? 3 : n >= 2 ? 2 : n);
+
+export function paginaDiario() {
+  const progresso = ler(CHAVES.progresso, {});
+  const dias = ler(CHAVES.dias, []);
+  const hoje = hojeLocal();
+  const j = jornadaAtual();
+  const n = numerosDosDias(dias, hoje, sequenciaDeDias(dias, hoje));
+  const recordes = ler(CHAVES.recordes, {});
+  const cartoes = Object.values(ler(CHAVES.revisao, {}));
+  const soma = (f) => j.niveis.reduce((s, x) => s + f(x), 0);
+  const numeros = [
+    [t('Dias de estudo'), n.total],
+    [t('Sequência atual'), n.atual],
+    [t('Melhor sequência'), n.melhor],
+    ['XP', j.xp],
+    [t('Missões da trilha'), t('{n} de {total}', { n: soma((x) => x.resolvidos), total: soma((x) => x.total) })],
+    [t('Níveis lacrados'), t('{n} de {total}', { n: j.niveis.filter((x) => x.concluido).length, total: NIVEIS.length })],
+    [t('Incidentes resolvidos'), t('{n} de {total}', { n: TROUBLESHOOTING.filter((i) => resolvido(progresso, i.id)).length, total: TROUBLESHOOTING.length })],
+    [t('Plantões atendidos'), Object.keys(progresso).filter((id) => id.startsWith('plantao-') && resolvido(progresso, id)).length],
+    [t('Recordes na Oficina'), t('{n} de {total}', { n: OFICINA.filter((i) => recordes[i.id]).length, total: OFICINA.length })],
+    [t('Termos firmes na memória'), cartoes.filter((c) => c.caixa >= 4).length],
+  ];
+  const atividade = atividadePorDia(progresso, dias);
+  const semanas = calendario(atividade, hoje);
+  const noCalendario = semanas.flat().filter((c) => !c.futuro);
+  const diasNoCalendario = noCalendario.filter((c) => c.n).length;
+  const maisCheio = noCalendario.reduce((m, c) => (c.n > (m?.n ?? 1) ? c : m), null);
+  // As mais novas primeiro: a data e, no mesmo dia, a ordem em que entraram no progresso.
+  const recentes = Object.entries(progresso).reverse()
+    .filter(([, p]) => p.status === 'resolvido' && p.em)
+    .sort((a, b) => b[1].em.localeCompare(a[1].em))
+    .map(([id, p]) => ({ item: acharItem(id), em: p.em }))
+    .filter((x) => x.item && x.item.tipo !== 'licao')
+    .slice(0, 8);
+  return `
+    <p class="sobretitulo">${t('O caminho até aqui')}</p>
+    <h1 class="pixel">${t('Diário de bordo')}</h1>
+    <p>${t('Tudo o que você já fez por aqui, num lugar só. O que conta é o caminho: cada dia de estudo entra no calendário, e nenhum some.')}</p>
+    <dl class="diario-numeros">${numeros.map(([dt, dd]) => `<div><dt>${dt}</dt><dd>${dd}</dd></div>`).join('')}</dl>
+    <section class="diario-bloco" aria-labelledby="diario-dias">
+      <h2 id="diario-dias">${t('Seus dias')}</h2>
+      <div class="calendario" aria-hidden="true">${semanas.map((s) => `<div class="cal-semana">${s.map((c) => `<span class="cal-dia${c.futuro ? ' cal-futuro' : ` cal-${intensidade(c.n)}`}" title="${dataCurta(c.dia)}"></span>`).join('')}</div>`).join('')}</div>
+      <p class="cal-legenda" aria-hidden="true">${t('Menos')} <span class="cal-dia cal-0"></span><span class="cal-dia cal-1"></span><span class="cal-dia cal-2"></span><span class="cal-dia cal-3"></span> ${t('Mais')}</p>
+      <p class="nota">${t(diasNoCalendario === 1 ? '1 dia de estudo nas últimas {semanas} semanas.' : '{n} dias de estudo nas últimas {semanas} semanas.', { n: diasNoCalendario, semanas: semanas.length })}${maisCheio ? ` ${t('O dia mais cheio: {dia}, com {n} missões.', { dia: dataCurta(maisCheio.dia), n: maisCheio.n })}` : ''}</p>
+    </section>
+    <section class="diario-bloco" aria-labelledby="diario-recentes">
+      <h2 id="diario-recentes">${t('Últimas conquistas')}</h2>
+      ${recentes.length ? `<ol class="oficina diario-recentes">${recentes.map(({ item, em }) => `
+        <li><a href="#/ex/${item.id}">
+          <span class="oficina-titulo"><span class="plantao-dia">${dataCurta(em)}</span> ${escapar(item.titulo)}</span>
+          <span class="oficina-recorde">${item.secao ? SECAO()[item.secao] : t('Nível {n}', { n: item.nivel })}</span>
+        </a></li>`).join('')}</ol>` : `<p>${t('O diário começa na primeira missão.')} <a href="#/trilha">${t('Ver a trilha')}</a></p>`}
+    </section>
+    <p class="nota">${t('Tudo isto fica só neste navegador (veja a <a href="#/privacidade">privacidade</a>).')}</p>`;
 }
 
 const semAcento = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();

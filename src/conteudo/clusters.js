@@ -14,6 +14,7 @@ import { PARTIDA_TS } from './troubleshooting.js';
 import { PARTIDA_OF } from './oficina.js';
 import { PARTIDA10 } from './nivel10.js';
 import { PARTIDA11 } from './nivel11.js';
+import { PARTIDA_PL } from '../jogo/plantao.js';
 
 const LOJA = (replicas, versao) => yaml`
   apiVersion: apps/v1
@@ -367,7 +368,7 @@ export const CLUSTERS = {
 
 /** Monta o cluster de partida (sempre igual para a mesma semente). */
 export function montarCluster(nome = 'vazio', semente = nome) {
-  const def = CLUSTERS[nome];
+  const def = CLUSTERS[nome] ?? PARTIDA_PL[nome]; // o do Plantão do dia é montado junto com o plantão
   if (!def) throw new Error(`cluster de partida desconhecido: ${nome}`);
   const c = criarCluster({ nodes: def.nodes, semente, metricas: def.metricas });
   // Comandos antes dos manifestos (ex.: interditar um node para tudo nascer no outro).

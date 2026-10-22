@@ -7,6 +7,8 @@ export const ROTAS = {
   '/livre': { titulo: 'Playground livre' },
   '/troubleshooting': { titulo: 'Troubleshooting' },
   '/oficina': { titulo: 'Oficina do kubectl' },
+  '/plantao': { titulo: 'Plantão do dia' },
+  '/diario': { titulo: 'Diário de bordo' },
   '/glossario': { titulo: 'Glossário' },
   '/revisao': { titulo: 'Revisão do dia' },
   '/certificado': { titulo: 'Certificado' },
