@@ -1,6 +1,6 @@
 // Os mesmos passos de scripts/capturar-golden.sh, rodados no simulador. Mantenha os dois em sincronia:
 // mudou um passo lá, mude aqui (e capture de novo no kind).
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { criarCluster } from '../../src/k8s/cluster.js';
 import { kubectl } from '../../src/k8s/kubectl/index.js';
 import { nodePronto } from '../../src/k8s/scheduler.js';
@@ -113,8 +113,14 @@ metadata:
 };
 
 // Os manifestos das fases novas vêm direto do script (os blocos "cat > /tmp/... <<'Y'"), para não divergirem.
-const SCRIPT = readFileSync(new URL('../../scripts/capturar-golden.sh', import.meta.url), 'utf8');
-for (const [, caminho, texto] of SCRIPT.matchAll(/cat > (\/tmp\/[\w./-]+) <<'Y'\n([\s\S]*?)\nY\n/g)) ARQUIVOS[caminho] ??= `${texto}\n`;
+// As seções em arquivos próprios (scripts/golden/*.sh) também trazem os seus manifestos.
+const PASTA_SECOES = new URL('../../scripts/golden/', import.meta.url);
+const SCRIPTS = [new URL('../../scripts/capturar-golden.sh', import.meta.url), ...readdirSync(PASTA_SECOES).filter((f) => f.endsWith('.sh')).sort().map((f) => new URL(f, PASTA_SECOES))];
+for (const script of SCRIPTS) {
+  for (const [, caminho, texto] of readFileSync(script, 'utf8').matchAll(/cat > (\/tmp\/[\w./-]+) <<'Y'\n([\s\S]*?)\nY\n/g)) ARQUIVOS[caminho] ??= `${texto}\n`;
+}
+// As gêmeas das seções: tests/golden/secoes/NN-nome.js, cada uma com export default ({ c, k, cap }) => { ... }.
+const SECOES = Object.entries(import.meta.glob('./secoes/*.js', { eager: true })).sort(([a], [b]) => a.localeCompare(b)).map(([, m]) => m.default);
 
 /** Roda o cenário e devolve { nome: saída + "exit=N\n" }, como os arquivos capturados. */
 export function rodarCenario() {
@@ -611,5 +617,7 @@ export function rodarCenario() {
   cap('taint-fora-de-servico', 'kubectl taint nodes golden-worker2 node.kubernetes.io/out-of-service=nodeshutdown:NoExecute');
   c.avancar('40s');
   cap('get-pods-fora-de-servico', 'kubectl get pods -l caiu=sim -o wide');
+
+  for (const secao of SECOES) secao({ c, k, cap });
   return { saidas, cluster: c };
 }
