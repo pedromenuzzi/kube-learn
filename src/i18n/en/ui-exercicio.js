@@ -9,8 +9,15 @@ export default {
   'Nesta missão, use o terminal.': 'In this mission, use the terminal.',
 
   // exercicio.js: o help do terminal
-  'Este terminal entende o kubectl (experimente: kubectl get pods) e alguns comandos simples:\n  ls            lista os arquivos do editor\n  cat ARQUIVO   mostra um arquivo\n  curl URL      uma requisição do SEU computador (fora do cluster): port-forward, NodePort, LoadBalancer, Ingress\n  helm, git     o helm e o git das missões de Helm e GitOps (nível 10)\n  ... | base64 -d   decodifica a saída (ex.: o valor de um Secret)\n  history       os comandos que você já digitou\n  clear         limpa a tela (ou Ctrl+L)\nO relógio do cluster anda sozinho; o botão +30s adianta 30 segundos.\n':
-    'This terminal understands kubectl (try: kubectl get pods) and a few simple commands:\n  ls            lists the editor’s files\n  cat FILE      shows a file\n  curl URL      a request from YOUR computer (outside the cluster): port-forward, NodePort, LoadBalancer, Ingress\n  helm, git     helm and git, for the Helm and GitOps missions (level 10)\n  ... | base64 -d   decodes the output (e.g. a Secret’s value)\n  history       the commands you’ve typed so far\n  clear         clears the screen (or Ctrl+L)\nThe cluster clock runs on its own; the +30s button moves it forward 30 seconds.\n',
+  'Este terminal entende o kubectl (experimente: kubectl get pods) e alguns comandos simples:\n  ls            lista os arquivos do editor\n  cat ARQUIVO   mostra um arquivo\n  curl URL      uma requisição do SEU computador (fora do cluster): port-forward, NodePort, LoadBalancer, Ingress\n  helm, git     o helm e o git das missões de Helm e GitOps (nível 10)\n  ... | grep loja | wc -l   filtra a saída: grep, head, tail, wc, sort, awk \'{print $1}\'\n  ... | base64 -d   decodifica a saída (ex.: o valor de um Secret)\n  a && b        roda o b se o a deu certo (também: a || b, a ; b)\n  history       os comandos que você já digitou\n  clear         limpa a tela (ou Ctrl+L)\nO relógio do cluster anda sozinho; o botão +30s adianta 30 segundos.\n':
+    'This terminal understands kubectl (try: kubectl get pods) and a few simple commands:\n  ls            lists the editor’s files\n  cat FILE      shows a file\n  curl URL      a request from YOUR computer (outside the cluster): port-forward, NodePort, LoadBalancer, Ingress\n  helm, git     helm and git, for the Helm and GitOps missions (level 10)\n  ... | grep shop | wc -l   filters the output: grep, head, tail, wc, sort, awk \'{print $1}\'\n  ... | base64 -d   decodes the output (e.g. a Secret’s value)\n  a && b        runs b if a succeeded (also: a || b, a ; b)\n  history       the commands you’ve typed so far\n  clear         clears the screen (or Ctrl+L)\nThe cluster clock runs on its own; the +30s button moves it forward 30 seconds.\n',
+  // linha.js: o que o terminal diz do que ele não imita (os canos e os filtros)
+  '{cmd}: este terminal ainda não entende a opção {opcao}. Aqui o {cmd} entende: {opcoes}.': '{cmd}: this terminal doesn’t understand the option {opcao} yet. Here {cmd} understands: {opcoes}.',
+  '{cmd}: aqui o {cmd} lê a saída de outro comando (depois de um |) ou um arquivo do editor.': '{cmd}: here {cmd} reads the output of another command (after a |) or a file from the editor.',
+  "awk: aqui o awk só entende programas como '{print $1}', '{print $1, $3}', '{print $NF}' e 'NR>1 {print $1}'.": "awk: here awk only understands programs like '{print $1}', '{print $1, $3}', '{print $NF}' and 'NR>1 {print $1}'.",
+  'bash: {cmd}: este terminal não tem esse comando. Depois de um | ele entende: {lista}.': 'bash: {cmd}: this terminal doesn’t have that command. After a | it understands: {lista}.',
+  // kubectl/index.js: o rollout status que não termina em 20 minutos
+  '(o kubectl de verdade continuaria esperando até alguém apertar Ctrl+C; o simulador parou depois de 20 minutos sem o rollout terminar)': '(the real kubectl would keep waiting until someone pressed Ctrl+C; the simulator stopped after 20 minutes without the rollout finishing)',
   // exercicio.js: o topo, os botões, as janelas e as abas
   'Voltar ao': 'Back to',
   'Voltar à': 'Back to the',
@@ -222,4 +229,11 @@ export default {
   'abra o exercício e use o terminal': 'open the exercise and use the terminal',
   'error: "kubectl {cmd}" existe no kubectl de verdade, mas este simulador ainda não o imita.': 'error: "kubectl {cmd}" exists in the real kubectl, but this simulator doesn’t imitate it yet.',
   'Use "kubectl {nome} --help" no terminal de verdade para ver todas as opções. Aqui, a aba Manual da missão explica as que você vai usar.': 'Use "kubectl {nome} --help" in a real terminal to see every option. Here, the mission’s Manual tab explains the ones you’ll use.',
+  // terminal.js e kubectl/editar.js: o editor do kubectl edit
+  'Ctrl+S salva e sai (:wq); Esc sai sem salvar (:q!). As linhas que começam com # são ignoradas.': 'Ctrl+S saves and quits (:wq); Esc quits without saving (:q!). Lines starting with # are ignored.',
+  'Sair sem salvar': 'Quit without saving',
+  'Salvar e sair': 'Save and quit',
+  'Arquivo do kubectl edit: {arquivo}': 'kubectl edit file: {arquivo}',
+  'Sair sem salvar? O que você mudou se perde.': 'Quit without saving? Your changes will be lost.',
+  "error: aqui o KUBE_EDITOR só pode ser cat, true ou sed -i 's/de/para/' (sem o KUBE_EDITOR, o kubectl edit abre o editor na tela).": "error: here KUBE_EDITOR can only be cat, true or sed -i 's/from/to/' (without KUBE_EDITOR, kubectl edit opens the editor on screen).",
 };

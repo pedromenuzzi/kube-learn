@@ -1,0 +1,17 @@
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+** server can't find loja.cluster.local: NXDOMAIN
+
+
+** server can't find loja.svc.cluster.local: NXDOMAIN
+
+Name:	loja.validacao.svc.cluster.local
+Address: 10.96.94.156
+
+** server can't find loja.cluster.local: NXDOMAIN
+
+** server can't find loja.svc.cluster.local: NXDOMAIN
+
+command terminated with exit code 1
+exit=1

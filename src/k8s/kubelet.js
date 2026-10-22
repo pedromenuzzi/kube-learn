@@ -574,7 +574,9 @@ export class Kubelet {
       let script = '';
       if (base === 'sh' || base === 'bash') script = semWrapper[1] === '-c' ? semWrapper[2] ?? '' : '';
       else if (bin) script = semWrapper.map((a) => `'${a.replaceAll("'", "'\\''")}'`).join(' ');
-      est.processo = rodar(analisar(script), ctx);
+      // O shell com a entrada aberta (kubectl run -i ... -- sh) fica esperando o que alguém digitar.
+      est.esperaEntrada = (base === 'sh' || base === 'bash') && semWrapper[1] !== '-c' && !!ct.stdin;
+      est.processo = est.esperaEntrada ? (function* entrada() { yield { dormir: Infinity }; })() : rodar(analisar(script), ctx);
     }
     est.acordarEm = c.agora;
     this.avancarProcesso(pod, ct, est);

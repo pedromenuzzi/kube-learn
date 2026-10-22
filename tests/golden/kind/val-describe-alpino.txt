@@ -1,0 +1,53 @@
+Name:             alpino
+Namespace:        validacao
+Priority:         0
+Service Account:  default
+Node:             golden-worker2/172.19.0.3
+Start Time:       Thu, 22 Oct 2026 16:57:07 -0300
+Labels:           run=alpino
+Annotations:      <none>
+Status:           Running
+IP:               10.244.1.2
+IPs:
+  IP:  10.244.1.2
+Containers:
+  alpino:
+    Container ID:   containerd://1a8bbec38b3aa6bdf26194ba45e1c610c2b540a53ca3c09e4092cda3c19a0b92
+    Image:          nginx:alpine
+    Image ID:       docker.io/library/nginx@sha256:a3554c0d0b48177b1413c26e01f695334428020d9df01243fbae3e11cfd17417
+    Port:           <none>
+    Host Port:      <none>
+    State:          Running
+      Started:      Thu, 22 Oct 2026 16:57:32 -0300
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-9hxvl (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-9hxvl:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  36s   default-scheduler  Successfully assigned validacao/alpino to golden-worker2
+  Normal  Pulling    35s   kubelet            spec.containers{alpino}: Pulling image "nginx:alpine"
+  Normal  Pulled     11s   kubelet            spec.containers{alpino}: Successfully pulled image "nginx:alpine" in 21.266s (21.266s including waiting). Image size: 26354394 bytes.
+  Normal  Created    11s   kubelet            spec.containers{alpino}: Container created
+  Normal  Started    11s   kubelet            spec.containers{alpino}: Container started
+exit=0

@@ -1,6 +1,7 @@
 // Catálogo de imagens falsas. Nenhum contêiner de verdade roda: cada imagem descreve como o programa dela
 // se comporta (portas, respostas HTTP, logs, o que exige para subir, como cai). É isso que deixa o
 // simulador realista. Imagem fora do catálogo dá ErrImagePull, como um nome errado no cluster real.
+import { hexDe } from './aleatorio.js';
 
 const NGINX_HTML = `<!DOCTYPE html>
 <html>
@@ -60,54 +61,63 @@ const emergencia = (msg) => ({ agora }) => [
   `nginx: [emerg] ${msg}`,
 ];
 
-const nginx = (versao) => ({
-  versao,
-  env: { PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', NGINX_VERSION: versao, NJS_VERSION: '0.8.10', NJS_RELEASE: '1~bookworm', PKG_RELEASE: '1~bookworm', DYNPKG_RELEASE: '1~bookworm' },
-  entrypoint: ['/docker-entrypoint.sh'],
-  comando: ['/docker-entrypoint.sh', 'nginx', '-g', 'daemon off;'],
-  binarios: [...BINARIOS_DEBIAN, 'curl', 'nginx', '/docker-entrypoint.sh'],
-  servidor: {
-    portas: [80],
-    // Serve os arquivos da pasta html do contêiner (a da imagem, ou um volume montado por cima).
-    http: (caminho, { ler }) => {
-      const arquivo = `/usr/share/nginx/html${caminho.endsWith('/') ? `${caminho}index.html` : caminho}`;
-      const corpo = ler(arquivo);
-      return corpo !== undefined
-        ? { status: 200, corpo, tipo: /\.html?$/.test(arquivo) ? 'text/html' : /\.(txt|conf)$/.test(arquivo) ? 'text/plain' : 'application/octet-stream' }
-        : { status: 404, corpo: NGINX_404(versao), tipo: 'text/html' };
+const nginx = (versao, variante = '') => {
+  const alpino = variante.startsWith('alpine');
+  // Antes do 1.19, a imagem não tinha o /docker-entrypoint.sh nem o curl, e o nginx.conf só logava de "warn" para cima:
+  // a partida sai muda (como o nginx:1.14.2 dos exemplos da documentação, no kind).
+  const antigo = Number(versao.split('.')[1]) < 19;
+  return {
+    versao,
+    env: { PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', NGINX_VERSION: versao, NJS_VERSION: '0.8.10', NJS_RELEASE: '1~bookworm', PKG_RELEASE: '1~bookworm', DYNPKG_RELEASE: '1~bookworm' },
+    ...(antigo ? {} : { entrypoint: ['/docker-entrypoint.sh'] }),
+    comando: [...(antigo ? [] : ['/docker-entrypoint.sh']), 'nginx', '-g', 'daemon off;'],
+    // A variante alpine tem o sh do busybox (sem bash); a alpine-slim nem curl.
+    binarios: [...(alpino ? BINARIOS_BUSYBOX : BINARIOS_DEBIAN), ...(variante === 'alpine-slim' || (antigo && !alpino) ? [] : ['curl']), 'nginx', ...(antigo ? [] : ['/docker-entrypoint.sh'])],
+    // O tamanho que o kind mostrou para o nginx:alpine e o nginx:1.14.2 (aproximado para as outras tags da família).
+    ...(alpino ? { busybox: true, tamanho: 26354394 } : antigo ? { tamanho: 44710204 } : {}),
+    servidor: {
+      portas: [80],
+      // Serve os arquivos da pasta html do contêiner (a da imagem, ou um volume montado por cima).
+      http: (caminho, { ler }) => {
+        const arquivo = `/usr/share/nginx/html${caminho.endsWith('/') ? `${caminho}index.html` : caminho}`;
+        const corpo = ler(arquivo);
+        return corpo !== undefined
+          ? { status: 200, corpo, tipo: /\.html?$/.test(arquivo) ? 'text/html' : /\.(txt|conf)$/.test(arquivo) ? 'text/plain' : 'application/octet-stream' }
+          : { status: 404, corpo: NGINX_404(versao), tipo: 'text/html' };
+      },
+      acesso: ({ agora, ip, metodo, caminho, status, tamanho, agente }) => `${ip} - - [${dataAcesso(agora)}] "${metodo} ${caminho} HTTP/1.1" ${status} ${tamanho} "-" "${agente}" "-"`,
+      cabecalhoServidor: `nginx/${versao}`,
     },
-    acesso: ({ agora, ip, metodo, caminho, status, tamanho, agente }) => `${ip} - - [${dataAcesso(agora)}] "${metodo} ${caminho} HTTP/1.1" ${status} ${tamanho} "-" "${agente}" "-"`,
-    cabecalhoServidor: `nginx/${versao}`,
-  },
-  logs: ({ agora, cpus, kernel }) => [
-    '/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration',
-    '/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/',
-    '/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh',
-    '10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf',
-    '10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf',
-    '/docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh',
-    '/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh',
-    '/docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh',
-    '/docker-entrypoint.sh: Configuration complete; ready for start up',
-    ...[
-      'using the "epoll" event method',
-      `nginx/${versao}`,
-      'built by gcc 12.2.0 (Debian 12.2.0-14) ',
-      `OS: Linux ${kernel}`,
-      'getrlimit(RLIMIT_NOFILE): 1073741816:1073741816',
-      'start worker processes',
-      ...Array.from({ length: cpus }, (_, i) => `start worker process ${33 + i}`),
-    ].map((l) => `${dataNginx(agora)} [notice] 1#1: ${l}`),
-  ],
-  arquivos: { '/usr/share/nginx/html/index.html': NGINX_HTML },
-  // Com o disco só leitura (readOnlyRootFilesystem), o nginx precisa de volumes onde gravar o cache e o pid.
-  gravaEm: [
-    { caminho: '/var/cache/nginx', log: emergencia('mkdir() "/var/cache/nginx/client_temp" failed (30: Read-only file system)') },
-    { caminho: '/var/run', log: emergencia('open() "/var/run/nginx.pid" failed (30: Read-only file system)') },
-  ],
-  memoria: '11Mi', cpu: 1, custoReq: 1,
-  paraEm: 1500, // o nginx fecha as conexões e sai: o pod aparece como Terminating por um instante
-});
+    logs: antigo ? () => [] : ({ agora, cpus, kernel }) => [
+      '/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration',
+      '/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/',
+      '/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh',
+      '10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf',
+      '10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf',
+      '/docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh',
+      '/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh',
+      '/docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh',
+      '/docker-entrypoint.sh: Configuration complete; ready for start up',
+      ...[
+        'using the "epoll" event method',
+        `nginx/${versao}`,
+        'built by gcc 12.2.0 (Debian 12.2.0-14) ',
+        `OS: Linux ${kernel}`,
+        'getrlimit(RLIMIT_NOFILE): 1073741816:1073741816',
+        'start worker processes',
+        ...Array.from({ length: cpus }, (_, i) => `start worker process ${33 + i}`),
+      ].map((l) => `${dataNginx(agora)} [notice] 1#1: ${l}`),
+    ],
+    arquivos: { '/usr/share/nginx/html/index.html': NGINX_HTML },
+    // Com o disco só leitura (readOnlyRootFilesystem), o nginx precisa de volumes onde gravar o cache e o pid.
+    gravaEm: [
+      { caminho: '/var/cache/nginx', log: emergencia('mkdir() "/var/cache/nginx/client_temp" failed (30: Read-only file system)') },
+      { caminho: '/var/run', log: emergencia('open() "/var/run/nginx.pid" failed (30: Read-only file system)') },
+    ],
+    memoria: '11Mi', cpu: 1, custoReq: 1,
+    paraEm: 1500, // o nginx fecha as conexões e sai: o pod aparece como Terminating por um instante
+  };
+};
 
 const busybox = {
   env: { PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' },
@@ -117,6 +127,111 @@ const busybox = {
   memoria: '1Mi', cpu: 0,
   paraEm: 30_000, // o sh não trata o SIGTERM: espera o prazo de 30s inteiro
 };
+
+// As imagens de sistema operacional: sem comando, o shell não tem o que ler e sai na hora (Completed; num Deployment,
+// CrashLoopBackOff), como no cluster de verdade.
+const alpine = { ...busybox, comando: ['/bin/sh'], binarios: [...BINARIOS_BUSYBOX, 'apk'], tamanho: 3_800_000 };
+const ubuntu = { ...busybox, busybox: false, comando: ['/bin/bash'], binarios: [...BINARIOS_DEBIAN, 'apt'], tamanho: 29_700_000 };
+
+const httpd = (versao, variante) => ({
+  env: { PATH: '/usr/local/apache2/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', HTTPD_VERSION: versao },
+  comando: ['httpd-foreground'],
+  binarios: [...(variante ? BINARIOS_BUSYBOX : BINARIOS_DEBIAN), 'httpd-foreground'],
+  ...(variante ? { busybox: true, tamanho: 21_000_000 } : {}),
+  servidor: { portas: [80], http: () => ({ status: 200, corpo: '<html><body><h1>It works!</h1></body></html>\n', tipo: 'text/html' }) },
+  logs: () => ['AH00558: httpd: Could not reliably determine the server\'s fully qualified domain name, using 10.244.1.2. Set the \'ServerName\' directive globally to suppress this message'],
+  paraEm: 0,
+});
+
+const redis = (versao, variante) => ({
+  env: { PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', REDIS_VERSION: versao },
+  entrypoint: ['docker-entrypoint.sh'],
+  comando: ['docker-entrypoint.sh', 'redis-server'],
+  binarios: [...(variante ? BINARIOS_BUSYBOX : BINARIOS_DEBIAN), 'redis-server', 'redis-cli', 'docker-entrypoint.sh'],
+  ...(variante ? { busybox: true, tamanho: 17_000_000 } : {}),
+  servidor: { portas: [6379] },
+  arquivos: { '/data/.keep': '' },
+  memoria: '3Mi', cpu: 2, // a pasta de trabalho do redis (WORKDIR /data)
+  logs: () => ['1:C 16 Oct 2026 12:00:00.000 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo', '1:M 16 Oct 2026 12:00:00.001 * Server initialized', '1:M 16 Oct 2026 12:00:00.001 * Ready to accept connections tcp'],
+  paraEm: 0,
+});
+
+const postgres = (versao, variante) => {
+  const maior = versao.split('.')[0];
+  return {
+    env: { PATH: `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${variante ? '' : `:/usr/lib/postgresql/${maior}/bin`}`, PG_MAJOR: maior, PG_VERSION: versao, PGDATA: '/var/lib/postgresql/data' },
+    entrypoint: ['docker-entrypoint.sh'],
+    comando: ['docker-entrypoint.sh', 'postgres'],
+    binarios: [...(variante ? BINARIOS_BUSYBOX : BINARIOS_DEBIAN), 'postgres', 'psql', 'docker-entrypoint.sh'],
+    ...(variante ? { busybox: true, tamanho: 105_000_000 } : {}),
+    exigeEnv: ['POSTGRES_PASSWORD'],
+    semEnv: {
+      codigo: 1,
+      log: [
+        'Error: Database is uninitialized and superuser password is not specified.',
+        '       You must specify POSTGRES_PASSWORD to a non-empty value for the',
+        '       superuser. For example, "-e POSTGRES_PASSWORD=password" on "docker run".',
+        '',
+        '       You may also use "POSTGRES_HOST_AUTH_METHOD=trust" to allow all',
+        '       connections without a password. This is *not* recommended.',
+        '',
+        '       See PostgreSQL documentation about "trust":',
+        '       https://www.postgresql.org/docs/current/auth-trust.html',
+      ],
+    },
+    servidor: { portas: [5432] },
+    arquivos: { '/var/lib/postgresql/data/.keep': '' },
+    memoria: '22Mi', cpu: 3,
+    logs: () => ['PostgreSQL init process complete; ready for start up.', '', 'LOG:  database system is ready to accept connections'],
+    paraEm: 0,
+  };
+};
+
+// ---------- As tags de verdade ----------
+// Uma tag só existe se existe no Docker Hub (as listas de /v2/library/<repo>/tags/list, conferidas em outubro de 2026).
+// Em vez de milhares de tags, cada repositório diz as séries de versões, os patches que faltam no meio, as variantes e
+// os apelidos (latest, stable, a versão maior). Fora disso, ErrImagePull, como um erro de digitação no cluster real.
+// ponytail: só as variantes comuns (alpine, alpine-slim, perl, glibc...); -bookworm, -alpine3.22, -otel e cia. falham
+// como tag inexistente. Acrescente aqui quando um exercício pedir.
+
+/**
+ * { 'X.Y': último patch, [primeiro, último] ou null (só a tag X.Y) }, menos os furos ('1.7.2 1.9.13')
+ * → Map tag → versão completa ('1.27' → '1.27.5', '1.27.3' → '1.27.3').
+ */
+function versoes(series, furos = '') {
+  const fora = new Set(furos.split(' '));
+  const mapa = new Map();
+  for (const [serie, faixa] of Object.entries(series)) {
+    if (faixa === null) {
+      mapa.set(serie, serie);
+      continue;
+    }
+    const [de, ate] = Array.isArray(faixa) ? faixa : [0, faixa];
+    mapa.set(serie, `${serie}.${ate}`);
+    for (let p = de; p <= ate; p++) if (!fora.has(`${serie}.${p}`)) mapa.set(`${serie}.${p}`, `${serie}.${p}`);
+  }
+  return mapa;
+}
+
+/**
+ * Cada versão com as variantes que ela tem (variantes(versão) → ['', 'alpine', ...]) e os apelidos ({ latest: [versão,
+ * variantes] }; o apelido '' dá as tags só de variante, como 'alpine'). → Map tag → [versão, variante].
+ */
+function tagsReais(mapa, variantes, apelidos) {
+  const tags = new Map();
+  const por = (nome, versao, lista) => {
+    for (const v of lista) if (nome || v) tags.set(nome && v ? `${nome}-${v}` : nome || v, [versao, v]);
+  };
+  for (const [tag, versao] of mapa) por(tag, versao, variantes(versao));
+  for (const [nome, [versao, lista]] of Object.entries(apelidos)) por(nome, versao, lista);
+  return tags;
+}
+
+const menor = (versao) => Number(versao.split('.')[1]);
+const NGINX_MAINLINE = '1.31.8';
+const NGINX_VARIANTES = ['', 'alpine', 'alpine-slim', 'alpine-perl', 'perl'];
+const BUSYBOX_VARIANTES = ['', 'glibc', 'musl', 'uclibc'];
+const COM_ALPINE = ['', 'alpine'];
 
 /** O "app da loja" usado nos exercícios: responde JSON com a versão e o nome do pod (bom para ver o rodízio). */
 const loja = (versao, extra = {}) => ({
@@ -143,72 +258,77 @@ const loja = (versao, extra = {}) => ({
 });
 
 /**
- * repositório → { tamanho (bytes), puxaEm (ms), digest, tags: { tag: comportamento } }.
+ * repositório → { tamanho (bytes), puxaEm (ms), digest, tags: { tag: comportamento } }, ou, nas imagens oficiais,
+ * reais (Map tag → [versão, variante], de tagsReais) e criar(versão, variante) → comportamento (o digest sai da versão).
  * O comportamento pode ter: env, entrypoint (ENTRYPOINT), comando (ENTRYPOINT+CMD), binarios (o que existe para o exec),
  * servidor { portas, http, acesso }, logs(ctx), exigeEnv, semEnv { codigo, log }, quebraApos/codigo/log,
- * arquivos, paraEm (ms para terminar depois do SIGTERM).
+ * arquivos, paraEm (ms para terminar depois do SIGTERM), tamanho (bytes, quando difere do repositório).
  */
 export const IMAGENS = {
   'docker.io/library/nginx': {
-    tamanho: 72406859, puxaEm: 3200, digest: '6784fb0834aa7dbbe12e3d7471e69c290df3e6ba810dc38b34ae33d3c1c05f7d',
-    tags: { '1.27': nginx('1.27.5'), '1.28': nginx('1.28.0'), '1.29': nginx('1.29.1'), latest: nginx('1.29.1') },
+    tamanho: 72406859, puxaEm: 3200,
+    reais: tagsReais(
+      versoes({
+        1.7: [1, 12], 1.8: [1, 1], 1.9: 15, '1.10': 3, 1.11: 13, 1.12: 2, 1.13: 12, 1.14: 2, 1.15: 12, 1.16: 1, 1.17: 10, 1.18: 0, 1.19: 10,
+        '1.20': 2, 1.21: 6, 1.22: 1, 1.23: 4, 1.24: 0, 1.25: 5, 1.26: 3, 1.27: 5, 1.28: 3, 1.29: 8, '1.30': 6, 1.31: 8,
+      }, '1.7.2 1.7.3 1.7.4 1.9.13 1.11.2 1.11.11 1.13.4 1.21.2'),
+      // alpine desde o 1.10, perl desde o 1.12, alpine-slim desde o 1.24 (antes disso, só em algumas versões).
+      (v) => NGINX_VARIANTES.filter((x) => !x || (x === 'alpine' && menor(v) >= 10) || (x === 'alpine-slim' ? menor(v) >= 24 : menor(v) >= 12)),
+      { latest: [NGINX_MAINLINE, ['']], 1: [NGINX_MAINLINE, NGINX_VARIANTES], mainline: [NGINX_MAINLINE, NGINX_VARIANTES], stable: ['1.30.6', NGINX_VARIANTES], '': [NGINX_MAINLINE, NGINX_VARIANTES] },
+    ),
+    criar: nginx,
   },
   'docker.io/library/busybox': {
-    tamanho: 2217006, puxaEm: 1400, digest: '73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662',
-    tags: { '1.36': busybox, '1.37': busybox, latest: busybox },
+    tamanho: 2217006, puxaEm: 1400,
+    reais: tagsReais(
+      versoes({ 1.24: [1, 2], 1.25: 1, 1.26: 2, 1.27: 2, 1.28: 4, 1.29: [1, 3], '1.30': 1, 1.31: 1, 1.32: 1, 1.33: 1, 1.34: 1, 1.35: 0, 1.36: 1, 1.37: 0, 1.38: 0 }),
+      () => BUSYBOX_VARIANTES,
+      { latest: ['1.37.0', ['']], 1: ['1.37.0', BUSYBOX_VARIANTES], stable: ['1.36.1', BUSYBOX_VARIANTES], unstable: ['1.38.0', BUSYBOX_VARIANTES], '': ['1.37.0', BUSYBOX_VARIANTES] },
+    ),
+    criar: () => busybox,
+  },
+  'docker.io/library/alpine': {
+    tamanho: 3_800_000, puxaEm: 1000,
+    reais: tagsReais(
+      versoes({ ...Object.fromEntries(Array.from({ length: 18 }, (_, i) => [`3.${i + 1}`, null])), 3.19: 9, '3.20': 10, 3.21: 9, 3.22: 7, 3.23: 7, 3.24: 3 }, '3.23.1'),
+      () => [''],
+      { latest: ['3.24.3', ['']], 3: ['3.24.3', ['']], edge: ['edge', ['']] },
+    ),
+    criar: () => alpine,
+  },
+  'docker.io/library/ubuntu': {
+    tamanho: 29_700_000, puxaEm: 1800,
+    reais: tagsReais(
+      new Map(Array.from({ length: 13 }, (_, i) => [`${14 + i}.04`, `${14 + i}.10`]).flat().map((v) => [v, v])),
+      () => [''],
+      Object.fromEntries(Object.entries({ latest: '24.04', rolling: '26.10', devel: '27.04', trusty: '14.04', xenial: '16.04', bionic: '18.04', focal: '20.04', jammy: '22.04', noble: '24.04' }).map(([k, v]) => [k, [v, ['']]])),
+    ),
+    criar: () => ubuntu,
   },
   'docker.io/library/httpd': {
-    tamanho: 58471230, puxaEm: 2800, digest: '4564ca7604957765bd2598e14134a1c6812067f0daddd7dc76909f8ce4b5a5b2',
-    tags: Object.fromEntries(['2.4', 'latest'].map((t) => [t, {
-      env: { PATH: '/usr/local/apache2/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', HTTPD_VERSION: '2.4.65' },
-      comando: ['httpd-foreground'],
-      binarios: [...BINARIOS_DEBIAN, 'httpd-foreground'],
-      servidor: { portas: [80], http: () => ({ status: 200, corpo: '<html><body><h1>It works!</h1></body></html>\n', tipo: 'text/html' }) },
-      logs: () => ['AH00558: httpd: Could not reliably determine the server\'s fully qualified domain name, using 10.244.1.2. Set the \'ServerName\' directive globally to suppress this message'],
-      paraEm: 0,
-    }])),
+    tamanho: 58471230, puxaEm: 2800,
+    reais: tagsReais(versoes({ 2.4: [46, 69] }), () => COM_ALPINE, { latest: ['2.4.69', ['']], 2: ['2.4.69', COM_ALPINE], '': ['2.4.69', COM_ALPINE] }),
+    criar: httpd,
   },
   'docker.io/library/redis': {
-    tamanho: 52123874, puxaEm: 2500, digest: '1b835e5a8d5db58e8b718850bf43a68ef5a576fc68301fd08a789b20b4eecb61',
-    tags: Object.fromEntries(['7', '7.4', '8', 'latest'].map((t) => [t, {
-      env: { PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', REDIS_VERSION: t === '7' || t === '7.4' ? '7.4.5' : '8.2.1' },
-      entrypoint: ['docker-entrypoint.sh'],
-      comando: ['docker-entrypoint.sh', 'redis-server'],
-      binarios: [...BINARIOS_DEBIAN, 'redis-server', 'redis-cli', 'docker-entrypoint.sh'],
-      servidor: { portas: [6379] },
-      arquivos: { '/data/.keep': '' },
-      memoria: '3Mi', cpu: 2, // a pasta de trabalho do redis (WORKDIR /data)
-      logs: () => ['1:C 16 Oct 2026 12:00:00.000 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo', '1:M 16 Oct 2026 12:00:00.001 * Server initialized', '1:M 16 Oct 2026 12:00:00.001 * Ready to accept connections tcp'],
-      paraEm: 0,
-    }])),
+    tamanho: 52123874, puxaEm: 2500,
+    reais: tagsReais(
+      versoes({ '6.0': 20, 6.2: 24, '7.0': 15, 7.2: 16, 7.4: 11, '8.0': 6, 8.2: 10, 8.4: 7, 8.6: 7, 8.8: 3, '8.10': 2 }, '6.2.9 6.2.15'),
+      () => COM_ALPINE,
+      { latest: ['8.10.2', ['']], 6: ['6.2.24', COM_ALPINE], 7: ['7.4.11', COM_ALPINE], 8: ['8.10.2', COM_ALPINE], '': ['8.10.2', COM_ALPINE] },
+    ),
+    criar: redis,
   },
   'docker.io/library/postgres': {
-    tamanho: 158921463, puxaEm: 6000, digest: '29e0bb09c8e7e7fc265ea9f4367de9622e55bae6b0b97e7cce740c2d63c2ebc0',
-    tags: Object.fromEntries(['16', '17', 'latest'].map((t) => [t, {
-      env: { PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/postgresql/17/bin', PG_MAJOR: t === '16' ? '16' : '17', PGDATA: '/var/lib/postgresql/data' },
-      entrypoint: ['docker-entrypoint.sh'],
-      comando: ['docker-entrypoint.sh', 'postgres'],
-      binarios: [...BINARIOS_DEBIAN, 'postgres', 'psql', 'docker-entrypoint.sh'],
-      exigeEnv: ['POSTGRES_PASSWORD'],
-      semEnv: {
-        codigo: 1,
-        log: [
-          'Error: Database is uninitialized and superuser password is not specified.',
-          '       You must specify POSTGRES_PASSWORD to a non-empty value for the',
-          '       superuser. For example, "-e POSTGRES_PASSWORD=password" on "docker run".',
-          '',
-          '       You may also use "POSTGRES_HOST_AUTH_METHOD=trust" to allow all',
-          '       connections without a password. This is *not* recommended.',
-          '',
-          '       See PostgreSQL documentation about "trust":',
-          '       https://www.postgresql.org/docs/current/auth-trust.html',
-        ],
-      },
-      servidor: { portas: [5432] },
-      arquivos: { '/var/lib/postgresql/data/.keep': '' },
-      memoria: '22Mi', cpu: 3,
-      logs: () => ['PostgreSQL init process complete; ready for start up.', '', 'LOG:  database system is ready to accept connections'],
-      paraEm: 0,
+    tamanho: 158921463, puxaEm: 6000,
+    reais: tagsReais(versoes({ 13: 23, 14: 24, 15: 19, 16: 15, 17: 11, 18: 6 }, '18.5'), () => COM_ALPINE, { latest: ['18.6', ['']], '': ['18.6', COM_ALPINE] }),
+    criar: postgres,
+  },
+  // O contêiner "pause" (o que segura a rede do pod): os exemplos de agendamento da documentação usam para ocupar lugar.
+  'registry.k8s.io/pause': {
+    tamanho: 320368, puxaEm: 800, digest: '7c38f24774e3cbd906d2d33c38354ccf787635581c122965132c9bd309754d4a',
+    tags: Object.fromEntries(['3.1', '3.2', '3.3', '3.4.1', '3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.10.1', '3.10.2', 'latest'].map((t) => [t, {
+      env: {}, entrypoint: ['/pause'], comando: ['/pause'], binarios: ['/pause'], servidor: { portas: [] }, logs: () => [], memoria: '0', cpu: 0, paraEm: 0,
     }])),
   },
   'docker.io/kubelearn/loja': {
@@ -365,7 +485,22 @@ export function buscarImagem(imagem, chaves) {
       return { ok: false, erro: `${base}: failed to authorize: failed to fetch oauth token: unexpected status from GET request to https://auth.docker.io/token?scope=${escopo}&service=registry.docker.io: 401 Unauthorized` };
     }
   }
-  const comportamento = info.tags[ref.tag];
-  if (!comportamento) return { ok: false, erro: `rpc error: code = NotFound desc = ${base}: ${ref.completo}: not found` };
-  return { ok: true, comportamento, info, ref };
+  const achada = info.reais ? daFamilia(ref.repo, info, info.reais.get(ref.tag)) : info.tags[ref.tag] && { comportamento: info.tags[ref.tag], info };
+  if (!achada) return { ok: false, erro: `rpc error: code = NotFound desc = ${base}: ${ref.completo}: not found` };
+  return { ok: true, ...achada, ref };
+}
+
+// Uma versão de uma imagem oficial, criada na primeira vez: os apelidos (nginx:1.27 e nginx:1.27.5) dão a mesma
+// imagem, com o mesmo digest; o tamanho é o da variante.
+const feitas = new Map();
+function daFamilia(repo, info, real) {
+  if (!real) return null;
+  const [versao, variante] = real;
+  const chave = `${repo}:${versao}${variante ? `-${variante}` : ''}`;
+  let r = feitas.get(chave);
+  if (!r) {
+    const comportamento = info.criar(versao, variante);
+    feitas.set(chave, (r = { comportamento, info: { ...info, digest: hexDe(chave), tamanho: comportamento.tamanho ?? info.tamanho } }));
+  }
+  return r;
 }

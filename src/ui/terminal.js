@@ -1,14 +1,17 @@
 // O terminal: digita uma linha, mostra a saída, guarda o histórico (↑/↓), completa com Tab, acompanha -w e -f
-// (as linhas novas chegam a cada tique do relógio) e vira o shell do contêiner no `exec -it`.
+// (as linhas novas chegam a cada tique do relógio), vira o shell do contêiner no `exec -it` e abre o editor do
+// `kubectl edit` (um diálogo com o arquivo temporário: salvar e sair, ou sair sem salvar).
 import { escapar } from './util.js';
 import { icone } from './icones.js';
+import { criarEditor } from './editor.js';
 import { t } from '../i18n.js';
 
 const PROMPT = 'aluno@kube-learn:~$';
 const MAX_LINHAS = 1500;
 
 /**
- * opções: executar(linha) → { saida, codigo, observar?, sessao?, caixas? }; completar(linha) → [opções].
+ * opções: executar(linha) → { saida, codigo, observar?, sessao?, editar?, caixas? }; completar(linha) → [opções].
+ * `editar` (o kubectl edit): { titulo, arquivo, texto, concluir(texto) → outro resultado como este }.
  */
 export function criarTerminal(raiz, { executar, completar }) {
   raiz.classList.add('terminal');
@@ -74,6 +77,11 @@ export function criarTerminal(raiz, { executar, completar }) {
       saida.replaceChildren();
       return r;
     }
+    exibir(r);
+    return r;
+  }
+
+  function exibir(r) {
     for (const p of r.partes ?? [{ texto: r.saida, fluxo: 'out' }]) escrever(p.texto, p.fluxo === 'err' ? 'term-erro' : '');
     for (const c of r.caixas ?? []) caixa(c);
     if (r.observar) observador = r.observar;
@@ -81,7 +89,53 @@ export function criarTerminal(raiz, { executar, completar }) {
       sessao = r.sessao;
       rotulo.textContent = sessao.prompt.trim();
     }
-    return r;
+    if (r.editar) editar(r.editar);
+  }
+
+  /**
+   * O editor do kubectl edit, num diálogo modal (o foco fica nele e volta para a linha do terminal no fim). Salvar e
+   * sair (Ctrl+S, o :wq) manda o texto ao kubectl; sair sem salvar (Esc, o :q!) devolve o texto de antes, como o vim.
+   */
+  function editar(pedido) {
+    const d = document.createElement('dialog');
+    d.className = 'edicao';
+    d.setAttribute('aria-labelledby', 'edicao-titulo');
+    d.setAttribute('aria-describedby', 'edicao-ajuda');
+    d.innerHTML = `
+      <h2 id="edicao-titulo"><code>${escapar(pedido.titulo)}</code></h2>
+      <p class="edicao-arquivo">${escapar(pedido.arquivo)}</p>
+      <div class="edicao-editor"></div>
+      <p id="edicao-ajuda" class="nota">${t('Ctrl+S salva e sai (:wq); Esc sai sem salvar (:q!). As linhas que começam com # são ignoradas.')}</p>
+      <p class="edicao-botoes">
+        <button type="button" data-acao="sair">${t('Sair sem salvar')} <kbd>:q!</kbd></button>
+        <button type="button" class="botao-forte" data-acao="salvar">${t('Salvar e sair')} <kbd>:wq</kbd></button>
+      </p>`;
+    raiz.append(d);
+    let texto = pedido.texto;
+    const ed = criarEditor(d.querySelector('.edicao-editor'), { texto, rotulo: t('Arquivo do kubectl edit: {arquivo}', { arquivo: pedido.arquivo }), aoMudar: (novo) => { texto = novo; } });
+    const fechar = (salvo) => {
+      ed.destruir();
+      d.close();
+      d.remove();
+      entrada.focus();
+      exibir(pedido.concluir(salvo ? texto : pedido.texto));
+    };
+    d.addEventListener('click', (e) => {
+      const acao = e.target.closest('[data-acao]')?.dataset.acao;
+      if (acao) fechar(acao === 'salvar');
+    });
+    d.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        fechar(true);
+      }
+    });
+    d.addEventListener('cancel', (e) => { // Esc
+      e.preventDefault();
+      if (texto === pedido.texto || confirm(t('Sair sem salvar? O que você mudou se perde.'))) fechar(false);
+    });
+    d.showModal();
+    ed.focar();
   }
 
   raiz.querySelector('form').addEventListener('submit', (e) => {

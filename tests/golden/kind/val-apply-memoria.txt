@@ -1,0 +1,2 @@
+The Deployment "guloso" is invalid: spec.template.spec.containers[0].resources.requests: Invalid value: "1Gi": must be less than or equal to memory limit of 512Mi
+exit=1

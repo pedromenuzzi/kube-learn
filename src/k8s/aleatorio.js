@@ -12,9 +12,12 @@ function hashTexto(texto) {
   return h >>> 0;
 }
 
+/** `n` dígitos hexadecimais fixos, derivados de um texto (o digest de uma imagem, por exemplo). */
+export const hexDe = (texto, n = 64) => Array.from({ length: n / 8 }, (_, i) => hashTexto(`${texto}#${i}`).toString(16).padStart(8, '0')).join('');
+
 /** Um UID fixo, derivado de um texto: para objetos do sistema, que não gastam o sorteio dos nomes e lugares. */
 export function uuidDe(texto) {
-  const h = [0, 1, 2, 3].map((i) => hashTexto(`${texto}#${i}`).toString(16).padStart(8, '0')).join('').split('');
+  const h = hexDe(texto, 32).split('');
   h[12] = '4';
   h[16] = '8';
   const s = h.join('');

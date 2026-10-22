@@ -18,7 +18,7 @@ export const CENARIOS = [
 ];
 
 /** A aplicação sem defeito; cada defeito troca um campo. */
-const CERTO = { tag: '1.0', sonda: '/healthz', vida: 8080, memoria: '64Mi', chave: 'cor', cpu: '100m', nodeSelector: false, alvo: 8080, sufixo: '' };
+const CERTO = { tag: '1.0', sonda: '/healthz', vida: 8080, memoria: '64Mi', reserva: '32Mi', chave: 'cor', cpu: '100m', nodeSelector: false, alvo: 8080, sufixo: '' };
 
 /**
  * Os tipos de defeito (um por plantão, no máximo): cada variante muda a aplicação e diz o que estava errado.
@@ -36,7 +36,8 @@ export const DEFEITOS = {
     { muda: { vida: 8081 }, diagnostico: () => t('A livenessProbe confere a porta <code>8081</code>, onde ninguém ouve: o kubelet mata o contêiner a cada meio minuto. A porta é a <code>8080</code>.') },
   ],
   memoria: [
-    { muda: { memoria: '8Mi' }, diagnostico: () => t('O limite de memória é <code>8Mi</code>, menos do que a loja usa: OOMKilled (código 137). Com <code>64Mi</code>, sobra.') },
+    // O request desce junto: request maior que o limit o API Server nem aceita (o pod nem chegaria a ser OOMKilled).
+    { muda: { memoria: '8Mi', reserva: '8Mi' }, diagnostico: () => t('O limite de memória é <code>8Mi</code>, menos do que a loja usa: OOMKilled (código 137). Com <code>64Mi</code>, sobra.') },
   ],
   config: [
     { muda: { chave: 'cores' }, diagnostico: () => t('O <code>env</code> pede a chave <code>cores</code> do ConfigMap, que só tem <code>cor</code>: CreateContainerConfigError.') },
@@ -90,7 +91,7 @@ ${c.nodeSelector ? '        nodeSelector:\n          disco: ssd\n' : ''}        
           resources:
             requests:
               cpu: ${c.cpu}
-              memory: 32Mi
+              memory: ${c.reserva}
             limits:
               memory: ${c.memoria}
           readinessProbe:

@@ -16,6 +16,10 @@ export const REGRAS = [
     t: (m) => ({ titulo: `As normas do namespace (${m[1]}) recusaram o pod`, texto: 'A mensagem lista o que falta, item por item (o campo e o valor esperado). No <code>restricted</code>, quase sempre: <code>runAsNonRoot</code>, <code>allowPrivilegeEscalation: false</code>, <code>capabilities.drop: ["ALL"]</code> e <code>seccompProfile.type: RuntimeDefault</code>.', vidaReal: 'Os bombeiros do bloco barraram a mudança: falta equipamento de segurança.' }),
   },
   {
+    re: /metadata\.labels\[pod-security\.kubernetes\.io\/(\w+)(-version)?\]: Invalid value: "([^"]*)"/,
+    t: (m) => ({ titulo: `"${m[3]}" não vale no rótulo de PodSecurity`, texto: m[2] ? 'A versão das normas é <code>latest</code> ou <code>v1.N</code> (como <code>v1.37</code>). O namespace ficou como estava.' : 'O nível vai em minúsculas e é um destes três: <code>privileged</code>, <code>baseline</code> ou <code>restricted</code>. O namespace ficou como estava.', vidaReal: 'O regulamento do prédio só tem três graus de rigor; um quarto, inventado, a administração não registra.' }),
+  },
+  {
     re: /Error from server \(NotFound\): (?:error when \w+ "[^"]+": )?([\w.]+) "([^"]+)" not found/,
     t: (m) => m[1].startsWith('namespaces')
       ? { titulo: `O namespace "${m[2]}" não existe`, texto: `Crie com <code>kubectl create namespace ${m[2]}</code> ou confira o nome.`, vidaReal: 'Mandar uma carta para uma empresa que não tem sala no prédio.' }
@@ -48,6 +52,14 @@ export const REGRAS = [
   {
     re: /maximum (\w+) usage per Container is ([\w.]+), but limit is ([\w.]+)/,
     t: (m) => ({ titulo: `Passou do teto de ${m[1]} por contêiner`, texto: `O LimitRange do namespace aceita no máximo ${m[2]} e o contêiner pediu ${m[3]}. Diminua o <code>limits.${m[1]}</code>.`, vidaReal: 'A regra do condomínio proíbe disjuntor maior que o permitido.' }),
+  },
+  {
+    re: /resources\.requests: Invalid value: "([^"]+)": must be less than or equal to ([\w./-]+) limit of (\S+)/,
+    t: (m) => ({ titulo: `O request de ${m[2]} passa do limit`, texto: `O <code>requests.${m[2]}</code> (${m[1]}) é o que o contêiner tem garantido; o <code>limits.${m[2]}</code> (${m[3]}) é o teto. Garantir mais do que o teto não faz sentido, e o API Server recusa: diminua o request ou aumente o limit.`, vidaReal: 'Contratar 10 kW de potência com um disjuntor de 5 kW: ele desarmaria antes de chegar ao contratado.' }),
+  },
+  {
+    re: /resources\.(?:requests|limits)\[([^\]]+)\]: Invalid value: "[^"]*": must be a standard resource for containers/,
+    t: (m) => ({ titulo: `"${m[1]}" não é um recurso de contêiner`, texto: 'Sem domínio na frente, um contêiner só pede <code>cpu</code>, <code>memory</code>, <code>ephemeral-storage</code> e <code>hugepages-*</code>, assim, no singular e em minúsculas. Placas (como GPU) vêm com o nome do fabricante: <code>nvidia.com/gpu</code>.', vidaReal: 'O formulário de consumo só tem as linhas luz, água e gás: "luzes" não é uma delas.' }),
   },
   {
     re: /Metrics API not available/,
@@ -88,6 +100,10 @@ export const REGRAS = [
   {
     re: /is invalid: .*?([\w.[\]]+): Required value/,
     t: (m) => ({ titulo: `Falta um campo obrigatório: ${m[1]}`, texto: 'Esse campo não pode ficar vazio. A aba Manual (ou <code>kubectl explain</code>) mostra o que vai nele.', vidaReal: 'Um formulário sem um campo obrigatório preenchido.' }),
+  },
+  {
+    re: /([\w.[\]]+): Unsupported value: "([^"]*)": supported values: (.+)/,
+    t: (m) => ({ titulo: `"${m[2]}" não é um valor aceito em ${m[1].split('.').pop()}`, texto: `O campo <code>${m[1]}</code> só aceita estes valores, escritos assim mesmo (com as maiúsculas): ${m[3].replace(/&quot;([^&]*)&quot;/g, '<code>$1</code>')}.`, vidaReal: 'Marcar "talvez" num formulário que só tem as caixas sim e não.' }),
   },
   {
     re: /found character that cannot start any token/,
@@ -161,6 +177,18 @@ export const REGRAS = [
     re: /spec\.timeZone: Invalid value: "([^"]+)": unknown time zone/,
     t: (m) => ({ titulo: `"${m[1]}" não é um fuso horário`, texto: 'O <code>timeZone</code> do CronJob usa os nomes da base de fusos (IANA), com a região e a cidade: <code>America/Sao_Paulo</code>, <code>Europe/Lisbon</code>, <code>Etc/UTC</code>. Sem o campo, vale o fuso do kube-controller-manager (quase sempre UTC).', vidaReal: 'Marcar a reunião "às 9h no horário de Marte": ninguém sabe que horas são lá.' }),
   },
+  {
+    re: /^error: ([\w.]+) "([^"]+)" is invalid$/m,
+    t: (m) => ({ titulo: 'O kubectl edit abriu o arquivo de novo', texto: `O servidor recusou a mudança em <code>${m[2]}</code>, e o motivo está no topo do arquivo, nas linhas que começam com <code># *</code>. Conserte e salve; ou saia sem salvar para desistir (aí nada muda no cluster).`, vidaReal: 'A administração devolveu o formulário com um bilhete grampeado dizendo o que corrigir.' }),
+  },
+  {
+    re: /Edit cancelled, no valid changes were saved/,
+    t: () => ({ titulo: 'Nada foi salvo', texto: 'O servidor recusou a mudança e o editor fechou sem conserto: o objeto continua como estava. O kubectl guardou o que você escreveu num arquivo em <code>/tmp</code> (num terminal de verdade, dá para reaproveitar). Rode o <code>kubectl edit</code> de novo.', vidaReal: 'Você desistiu do formulário devolvido: o pedido fica como estava antes.' }),
+  },
+  {
+    re: /At least one of apiVersion, kind and name was changed/,
+    t: () => ({ titulo: 'O edit não troca o nome nem o tipo', texto: 'O <code>kubectl edit</code> muda o objeto que já existe; <code>name</code>, <code>kind</code> e <code>apiVersion</code> dizem qual é ele. Para um objeto com outro nome, crie um novo: <code>kubectl get deploy web -o yaml &gt; novo.yaml</code>, mude o nome no editor e <code>kubectl apply -f novo.yaml</code>.', vidaReal: 'Pedir uma reforma no apartamento 101 e, no formulário, trocar o número para 102: a administração não sabe mais de que apartamento se trata.' }),
+  },
 ];
 
 export const STATUS = [
@@ -192,6 +220,7 @@ export const STATUS = [
   { re: /\bErrImageNeverPull\b/, titulo: 'A imagem não está no node, e o pod proibiu baixar', texto: 'Com <code>imagePullPolicy: Never</code>, o kubelet só usa a imagem que já estiver no node (no kind, carregada com <code>kind load docker-image</code>). Tire o <code>Never</code> (o padrão <code>IfNotPresent</code> baixa quando falta) ou ponha a imagem no node.', vidaReal: 'A regra é "só móveis que já estão no depósito", e o sofá nunca foi para o depósito.' },
   { re: /existing pods in namespace "[^"]+" violate the new PodSecurity enforce level/, titulo: 'A norma nova vale para os próximos pods', texto: 'A label foi aplicada, mas os pods que já rodam não passam nela. Eles continuam rodando (a norma é conferida só quando um pod é criado); o próximo pod igual, numa troca de versão ou num reinício pelo Deployment, vai ser recusado. Ajuste o <code>securityContext</code> antes que isso aconteça.', vidaReal: 'O regulamento novo do prédio não despeja quem já mora, mas a próxima mudança tem de seguir as regras.' },
   { re: /^Warning: unknown field "[^"]+"/m, titulo: 'O campo foi ignorado', texto: 'O patch tinha um campo que o Kubernetes não conhece (erro de digitação, como <code>replica</code> em vez de <code>replicas</code>, ou o caminho no lugar errado). Ele foi jogado fora, e por isso o resto pode dizer <code>patched (no change)</code>: nada mudou. Confira o nome com <code>kubectl explain</code>.', vidaReal: 'O formulário voltou carimbado, mas a linha com o campo inventado foi riscada.' },
+  { re: /is missing the kubectl\.kubernetes\.io\/last-applied-configuration annotation/, titulo: 'Aviso: o objeto não nasceu de um apply', texto: 'Ele foi criado com <code>kubectl create</code> (ou <code>run</code>, <code>expose</code>), que não guarda a última versão aplicada. O kubectl avisa e grava essa memória neste mesmo apply: daqui em diante, siga com o <code>apply</code>. Sem ela, este primeiro apply não sabe que campos você tirou do YAML (eles ficam).', vidaReal: 'A obra foi feita sem planta: o arquiteto desenhou a planta agora, a partir do que já estava construído.' },
 ];
 
 /** Explicações para a saída de um comando: erros (se falhou) e status problemáticos (numa tabela). */

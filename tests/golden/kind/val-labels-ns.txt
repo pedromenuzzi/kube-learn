@@ -1,0 +1,3 @@
+NAME        STATUS   AGE   LABELS
+validacao   Active   82s   kubernetes.io/metadata.name=validacao
+exit=0

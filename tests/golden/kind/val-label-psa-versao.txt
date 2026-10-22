@@ -1,0 +1,2 @@
+The Namespace "validacao" is invalid: metadata.labels[pod-security.kubernetes.io/enforce-version]: Invalid value: "v9": must be "latest" or "v1.x"
+exit=1

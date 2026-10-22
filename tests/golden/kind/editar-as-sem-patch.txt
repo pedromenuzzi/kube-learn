@@ -1,0 +1,3 @@
+error: configmaps "cores" could not be patched: configmaps "cores" is forbidden: User "ana" cannot patch resource "configmaps" in API group "" in the namespace "editar"
+You can run `kubectl replace -f /tmp/kubectl-edit-4162903773.yaml` to try this update again.
+exit=1

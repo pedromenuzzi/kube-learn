@@ -15,6 +15,10 @@ export const REGRAS = [
     t: (m) => ({ titulo: `The namespace’s fire code (${m[1]}) rejected the pod`, texto: 'The message lists what’s missing, item by item (the field and the expected value). Under <code>restricted</code>, it’s almost always: <code>runAsNonRoot</code>, <code>allowPrivilegeEscalation: false</code>, <code>capabilities.drop: ["ALL"]</code> and <code>seccompProfile.type: RuntimeDefault</code>.', vidaReal: 'The block’s fire marshals stopped the move: safety gear is missing.' }),
   },
   {
+    re: /metadata\.labels\[pod-security\.kubernetes\.io\/(\w+)(-version)?\]: Invalid value: "([^"]*)"/,
+    t: (m) => ({ titulo: `"${m[3]}" is not valid in the PodSecurity label`, texto: m[2] ? 'The policy version is <code>latest</code> or <code>v1.N</code> (like <code>v1.37</code>). The namespace stayed as it was.' : 'The level is lowercase and one of these three: <code>privileged</code>, <code>baseline</code> or <code>restricted</code>. The namespace stayed as it was.', vidaReal: 'The building’s rules have only three levels of strictness; a made-up fourth one isn’t registered by the management.' }),
+  },
+  {
     re: /Error from server \(NotFound\): (?:error when \w+ "[^"]+": )?([\w.]+) "([^"]+)" not found/,
     t: (m) => m[1].startsWith('namespaces')
       ? { titulo: `The namespace “${m[2]}” doesn’t exist`, texto: `Create it with <code>kubectl create namespace ${m[2]}</code> or check the name.`, vidaReal: 'Sending a letter to a company that has no office in the building.' }
@@ -47,6 +51,14 @@ export const REGRAS = [
   {
     re: /maximum (\w+) usage per Container is ([\w.]+), but limit is ([\w.]+)/,
     t: (m) => ({ titulo: `Over the ${m[1]} ceiling per container`, texto: `The namespace’s LimitRange accepts at most ${m[2]} and the container asked for ${m[3]}. Lower <code>limits.${m[1]}</code>.`, vidaReal: 'The condo’s rules forbid a circuit breaker bigger than allowed.' }),
+  },
+  {
+    re: /resources\.requests: Invalid value: "([^"]+)": must be less than or equal to ([\w./-]+) limit of (\S+)/,
+    t: (m) => ({ titulo: `The ${m[2]} request is above the limit`, texto: `<code>requests.${m[2]}</code> (${m[1]}) is what the container is guaranteed; <code>limits.${m[2]}</code> (${m[3]}) is the ceiling. Guaranteeing more than the ceiling makes no sense, so the API Server refuses it: lower the request or raise the limit.`, vidaReal: 'Contracting 10 kW of power with a 5 kW circuit breaker: it would trip before reaching what you paid for.' }),
+  },
+  {
+    re: /resources\.(?:requests|limits)\[([^\]]+)\]: Invalid value: "[^"]*": must be a standard resource for containers/,
+    t: (m) => ({ titulo: `"${m[1]}" is not a container resource`, texto: 'Without a domain in front, a container can only ask for <code>cpu</code>, <code>memory</code>, <code>ephemeral-storage</code> and <code>hugepages-*</code>, exactly like that, singular and lowercase. Devices (such as GPUs) carry the vendor’s name: <code>nvidia.com/gpu</code>.', vidaReal: 'The utility form only has lines for power, water and gas: “powers” isn’t one of them.' }),
   },
   {
     re: /Metrics API not available/,
@@ -87,6 +99,10 @@ export const REGRAS = [
   {
     re: /is invalid: .*?([\w.[\]]+): Required value/,
     t: (m) => ({ titulo: `A required field is missing: ${m[1]}`, texto: 'This field can’t be empty. The Manual tab (or <code>kubectl explain</code>) shows what goes in it.', vidaReal: 'A form with a required field left blank.' }),
+  },
+  {
+    re: /([\w.[\]]+): Unsupported value: "([^"]*)": supported values: (.+)/,
+    t: (m) => ({ titulo: `"${m[2]}" is not an accepted value for ${m[1].split('.').pop()}`, texto: `The <code>${m[1]}</code> field only accepts these values, spelled exactly like this (capital letters included): ${m[3].replace(/&quot;([^&]*)&quot;/g, '<code>$1</code>')}.`, vidaReal: 'Ticking “maybe” on a form that only has yes and no boxes.' }),
   },
   {
     re: /found character that cannot start any token/,
@@ -160,6 +176,18 @@ export const REGRAS = [
     re: /spec\.timeZone: Invalid value: "([^"]+)": unknown time zone/,
     t: (m) => ({ titulo: `“${m[1]}” isn’t a time zone`, texto: 'A CronJob’s <code>timeZone</code> uses the names from the time zone database (IANA), with the region and the city: <code>America/Sao_Paulo</code>, <code>Europe/Lisbon</code>, <code>Etc/UTC</code>. Without the field, the kube-controller-manager’s time zone applies (almost always UTC).', vidaReal: 'Scheduling the meeting “at 9 a.m. Mars time”: nobody knows what time it is there.' }),
   },
+  {
+    re: /^error: ([\w.]+) "([^"]+)" is invalid$/m,
+    t: (m) => ({ titulo: 'kubectl edit opened the file again', texto: `The server rejected the change to <code>${m[2]}</code>, and the reason is at the top of the file, on the lines starting with <code># *</code>. Fix it and save; or quit without saving to give up (then nothing changes in the cluster).`, vidaReal: 'The management office sent the form back with a note stapled to it saying what to fix.' }),
+  },
+  {
+    re: /Edit cancelled, no valid changes were saved/,
+    t: () => ({ titulo: 'Nothing was saved', texto: 'The server rejected the change and the editor closed without a fix: the object is just as it was. kubectl kept what you wrote in a file under <code>/tmp</code> (in a real terminal, you can reuse it). Run <code>kubectl edit</code> again.', vidaReal: 'You gave up on the returned form: the request stays as it was before.' }),
+  },
+  {
+    re: /At least one of apiVersion, kind and name was changed/,
+    t: () => ({ titulo: 'edit doesn’t change the name or the kind', texto: '<code>kubectl edit</code> changes an object that already exists; <code>name</code>, <code>kind</code> and <code>apiVersion</code> say which one it is. For an object with another name, create a new one: <code>kubectl get deploy web -o yaml &gt; new.yaml</code>, change the name in the editor and <code>kubectl apply -f new.yaml</code>.', vidaReal: 'Asking for a renovation of apartment 101 and changing the number to 102 on the form: the office no longer knows which apartment it’s about.' }),
+  },
 ];
 
 export const STATUS = [
@@ -191,4 +219,5 @@ export const STATUS = [
   { re: /\bErrImageNeverPull\b/, titulo: 'The image isn’t on the node, and the pod forbade pulling it', texto: 'With <code>imagePullPolicy: Never</code>, the kubelet only uses an image that’s already on the node (in kind, loaded with <code>kind load docker-image</code>). Drop the <code>Never</code> (the default <code>IfNotPresent</code> pulls when it’s missing) or put the image on the node.', vidaReal: 'The rule is “only furniture that’s already in the storage room”, and the couch never went to the storage room.' },
   { re: /existing pods in namespace "[^"]+" violate the new PodSecurity enforce level/, titulo: 'The new rule applies to the next pods', texto: 'The label was applied, but the pods already running don’t pass it. They keep running (the rule is only checked when a pod is created); the next identical pod, in a version rollout or a restart by the Deployment, will be rejected. Fix the <code>securityContext</code> before that happens.', vidaReal: 'The building’s new regulations don’t evict anyone who already lives there, but the next move-in has to follow the rules.' },
   { re: /^Warning: unknown field "[^"]+"/m, titulo: 'The field was ignored', texto: 'The patch had a field Kubernetes doesn’t know (a typo, like <code>replica</code> instead of <code>replicas</code>, or the path in the wrong place). It was thrown away, which is why the rest may say <code>patched (no change)</code>: nothing changed. Check the name with <code>kubectl explain</code>.', vidaReal: 'The form came back stamped, but the line with the made-up field was crossed out.' },
+  { re: /is missing the kubectl\.kubernetes\.io\/last-applied-configuration annotation/, titulo: 'Warning: the object wasn’t born from an apply', texto: 'It was created with <code>kubectl create</code> (or <code>run</code>, <code>expose</code>), which doesn’t keep the last applied version. kubectl warns and records that memory in this same apply: from here on, stick with <code>apply</code>. Without it, this first apply can’t tell which fields you removed from the YAML (they stay).', vidaReal: 'The building went up without a blueprint: the architect drew one now, from what was already built.' },
 ];

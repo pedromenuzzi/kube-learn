@@ -1,0 +1,8 @@
+saindo
+All commands and output from this session will be recorded in container logs, including credentials and sensitive information passed through the command prompt.
+If you don't see a command prompt, try pressing enter.
+warning: couldn't attach to pod/falha, falling back to streaming logs: Internal error occurred: Internal error occurred: error attaching to container: container is in CONTAINER_EXITED state
+saindo
+pod "falha" deleted from terminal namespace
+pod terminal/falha terminated (Error)
+exit=3

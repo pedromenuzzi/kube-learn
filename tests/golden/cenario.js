@@ -137,7 +137,8 @@ export function rodarCenario() {
     metricas: true, // o kind do golden tem o metrics-server (para o nível 6)
   });
   const saidas = {};
-  const k = (cmd) => (cmd.startsWith('helm ') ? helm(c, cmd, { arquivos: ARQUIVOS }) : kubectl(c, cmd, { arquivos: ARQUIVOS }));
+  // cmd: a linha (kubectl ou helm) ou uma função que roda o passo e devolve o resultado (o kubectl edit com um editor).
+  const k = (cmd) => (typeof cmd === 'function' ? cmd() : cmd.startsWith('helm ') ? helm(c, cmd, { arquivos: ARQUIVOS }) : kubectl(c, cmd, { arquivos: ARQUIVOS }));
   const cap = (nome, cmd) => {
     const r = k(cmd);
     saidas[nome] = `${r.saida}exit=${r.codigo}\n`;

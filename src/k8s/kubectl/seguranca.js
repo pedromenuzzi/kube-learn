@@ -32,6 +32,7 @@ function pedidosDoComando(nome, a, ns, docs) {
   switch (nome) {
     case 'get':
     case 'describe':
+    case 'edit': // o edit lê primeiro (get); o patch é conferido quando o aluno salva (negado)
       return alvos(p).filter((x) => x.r).map(({ r, nome: n }) => ({ r, ...pedido(r, n ? 'get' : 'list', ns, n) }));
     case 'delete':
       return alvos(p).filter((x) => x.r).map(({ r, nome: n }) => ({ r, ...pedido(r, n ? 'delete' : 'deletecollection', ns, n) }));
@@ -70,7 +71,7 @@ export function autorizar(cluster, nome, a, s, ns, docs = []) {
   if (!a.flags.as || nome === 'auth') return true;
   const pedidos = pedidosDoComando(nome, a, ns, docs);
   if (!pedidos) {
-    s.falha(`error: o simulador só confere o --as em get, describe, create, apply, run, delete, logs, exec, scale e auth can-i (o comando "${nome}" ainda não).`);
+    s.falha(`error: o simulador só confere o --as em get, describe, edit, create, apply, run, delete, logs, exec, scale e auth can-i (o comando "${nome}" ainda não).`);
     return false;
   }
   const quem = quemPede(a);
@@ -86,6 +87,13 @@ export function autorizar(cluster, nome, a, s, ns, docs = []) {
     return false;
   }
   return true;
+}
+
+/** O "não" do RBAC para um verbo num objeto (a mensagem, sem o "Error from server"), ou null se pode. */
+export function negado(cluster, a, r, verbo, ns, nome) {
+  if (!a.flags.as) return null;
+  const p = pedido(r, verbo, ns, nome);
+  return pode(cluster, quemPede(a), p) ? null : proibido(quemPede(a), p, r);
 }
 
 /** kubectl auth can-i VERBO RECURSO [NOME]: "yes" ou "no" (com código 1). */

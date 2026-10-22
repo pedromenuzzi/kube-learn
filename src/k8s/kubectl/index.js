@@ -21,11 +21,12 @@ import { lerColunas, tabelaDeColunas, ordenarPor, semCampo, chavesDeLabel, cabec
 import { estrategico, mesclarJson, aplicarJsonPatch, lerPatch, tirarCampos } from './patch.js';
 import { t } from '../../i18n.js';
 import { listarPermissoes } from './permissoes.js';
+import { edit } from './editar.js';
 import { conteineres, lerEnv, envDaFonte, atualizarEnv, sobrescreve, listarEnv, lerRecursos } from './set.js';
 
 export const VERSAO_CLIENTE = 'v1.37.1';
 const PROTEGIDOS = new Set(['default', 'kube-system', 'kube-public']);
-const SEM_RECURSOS = "error: You must provide one or more resources by argument or filename.\nExample resource specifications include:\n   '-f rsrc.yaml'\n   '--filename=rsrc.json'\n   '<resource> <name>'\n   '<resource>'";
+export const SEM_RECURSOS = "error: You must provide one or more resources by argument or filename.\nExample resource specifications include:\n   '-f rsrc.yaml'\n   '--filename=rsrc.json'\n   '<resource> <name>'\n   '<resource>'";
 const FORMATOS = 'custom-columns,custom-columns-file,go-template,go-template-file,json,jsonpath,jsonpath-as-json,jsonpath-file,kyaml,name,template,templatefile,wide,yaml';
 const COMANDOS_REAIS = ['annotate', 'api-resources', 'api-versions', 'apply', 'attach', 'auth', 'autoscale', 'certificate', 'cluster-info', 'completion', 'config', 'cordon', 'cp', 'create', 'debug', 'delete', 'describe', 'diff', 'drain', 'edit', 'events', 'exec', 'explain', 'expose', 'get', 'help', 'kustomize', 'label', 'logs', 'patch', 'plugin', 'port-forward', 'proxy', 'replace', 'rollout', 'run', 'scale', 'set', 'taint', 'top', 'uncordon', 'version', 'wait'];
 
@@ -35,7 +36,7 @@ class Erro extends Error {}
 const naoSimulado = (cmd) => t('error: "kubectl {cmd}" existe no kubectl de verdade, mas este simulador ainda não o imita.', { cmd });
 
 /** Acumula stdout e stderr na ordem em que saem. */
-class Saida {
+export class Saida {
   constructor() {
     this.partes = [];
     this.codigo = 0;
@@ -131,7 +132,7 @@ function namespaceDe(cluster, flags) {
 }
 
 /** Resolve tipos e nomes dos argumentos (pods, pod/x, deploy,svc, all). → { grupos, erros, nomeado } */
-function selecionar(cluster, posicionais, flags, { exigirNome = false } = {}) {
+export function selecionar(cluster, posicionais, flags, { exigirNome = false } = {}) {
   if (!posicionais.length) throw new Erro('');
   const ns = namespaceDe(cluster, flags);
   const todosNs = !!flags['all-namespaces'];
@@ -452,6 +453,10 @@ function apply(cluster, a, s) {
       try {
         ultimo = JSON.parse(vivo.metadata.annotations?.['kubectl.kubernetes.io/last-applied-configuration'] ?? 'null');
       } catch { /* anotação estragada: trata como sem histórico */ }
+      // Criado sem apply (kubectl create, run, expose...): o kubectl avisa e põe a anotação neste patch.
+      if (!vivo.metadata.annotations?.['kubectl.kubernetes.io/last-applied-configuration']) {
+        s.err(`Warning: resource ${r.plural}/${doc.metadata.name} is missing the kubectl.kubernetes.io/last-applied-configuration annotation which is required by kubectl apply. kubectl apply should only be used on resources created declaratively by either kubectl create --save-config or kubectl apply. The missing annotation will be patched automatically.\n`);
+      }
       const semStatus = (o) => {
         const c = structuredClone(o);
         delete c.status;
@@ -785,10 +790,22 @@ function create(cluster, a, s) {
   }
 }
 
+const POLITICAS = ['Always', 'OnFailure', 'Never'];
+const terminou = (p) => ['Succeeded', 'Failed'].includes(p?.status?.phase);
+const rodandoEPronto = (p) => p?.status?.phase === 'Running' && p.status.conditions?.some((x) => x.type === 'Ready' && x.status === 'True');
+/** O que o kubectl escreve (no stderr) ao se anexar a um contêiner. */
+const AVISO_DO_ANEXO = "All commands and output from this session will be recorded in container logs, including credentials and sensitive information passed through the command prompt.\nIf you don't see a command prompt, try pressing enter.\n";
+
 function run(cluster, a, s) {
+  const f = a.flags;
   const [nome] = a.posicionais;
   if (!nome) return s.falha("error: NAME is required for run\nSee 'kubectl run -h' for help and examples");
   if (!a.flags.image) return s.falha('error: required flag(s) "image" not set');
+  if (f.tty && !f.stdin) return s.falha('error: -i/--stdin is required for containers with -t/--tty=true');
+  if (f.restart !== undefined && !POLITICAS.includes(f.restart)) return s.falha(`error: invalid restart policy: ${f.restart}, valid values are: ${POLITICAS.join(', ')}`);
+  const anexar = f.attach ?? !!f.stdin;
+  if (f.rm && !anexar) return s.falha('error: --rm should only be used for attached containers');
+  if (anexar && ehDryRun(f)) return s.falha("error: --dry-run=[server|client] can't be used with attached containers options (--attach, --stdin, or --tty)");
   const labels = a.flags.labels ? Object.fromEntries(a.flags.labels.split(',').map((x) => x.split('='))) : { run: nome };
   const resto = a.depois ?? [];
   const ct = {
@@ -816,11 +833,97 @@ function run(cluster, a, s) {
   }
   if (!ehDryRun(a.flags) && cluster.obter('Pod', namespaceDe(cluster, a.flags), nome)) return s.falha(`Error from server (AlreadyExists): pods "${nome}" already exists`);
   const pod = criarGerado(cluster, a, s, obj);
-  if (pod && a.flags.stdin && a.flags.tty) {
-    s.partes.pop(); // com -it o kubectl não imprime "pod/x created"
-    cluster.avancarAte(() => pod.status?.phase !== 'Pending', '2m');
-    return abrirSessao(cluster, s, pod, nome, ['sh'], a.flags.rm);
+  if (!pod || !anexar) return null;
+  s.partes.pop(); // anexado ao pod, o kubectl não imprime "pod/x created"
+  return anexarAoPod(cluster, a, s, pod.metadata.uid);
+}
+
+/**
+ * O -i (ou --attach) do run: espera o contêiner subir (até 1 minuto, o --pod-running-timeout). Sem readinessProbe, o
+ * pod fica pronto assim que o contêiner sobe, então o kubectl se anexa até a um comando que termina na hora e mostra
+ * o que ele escreveu (no kind, o anexo às vezes chega tarde, avisa "couldn't attach" e lê os logs; aqui ele sempre
+ * chega). Um shell esperando a entrada vira a sessão; um programa que não termina segue como o logs -f. Contêiner
+ * que nem subiu (StartError) só tem os logs, vazios.
+ */
+function anexarAoPod(cluster, a, s, uid) {
+  const pod = () => cluster.porUid.get(uid);
+  const est = () => cluster.kubelet.estado(pod(), pod().spec.containers[0].name);
+  const subiu = () => est()?.fase === 'rodando' || (est()?.jaRodou && est().atual?.reason !== 'StartError');
+  if (!cluster.avancarAte(() => !pod() || terminou(pod()) || rodandoEPronto(pod()) || subiu(), '1m')) {
+    fimDoRun(cluster, a, s, uid, { esperar: false });
+    return s.falha('error: timed out waiting for the condition');
   }
+  if (!pod()) return null;
+  const linhas = (ls) => ls.map((l) => `${l.linha}\n`).join('');
+  if (subiu()) {
+    s.err(AVISO_DO_ANEXO);
+    if (est().esperaEntrada) return sessaoDoRun(cluster, a, uid);
+    cluster.avancarAte(() => !pod() || est()?.fase !== 'rodando', '1m');
+  }
+  if (!pod()) return null;
+  s.out(linhas(est()?.logs ?? []));
+  if (est()?.fase === 'rodando') { // um servidor (ou um programa que demora): segue a saída, como o logs -f
+    let vistos = est().logs.length;
+    return () => {
+      const ls = pod() ? est()?.logs ?? [] : [];
+      const novas = ls.slice(vistos);
+      vistos = ls.length;
+      return linhas(novas);
+    };
+  }
+  return fimDoRun(cluster, a, s, uid);
+}
+
+/** O shell do kubectl run -it: cada linha roda no contêiner; o exit termina o shell (e o contêiner) e fecha o run. */
+function sessaoDoRun(cluster, a, uid) {
+  const pod = () => cluster.porUid.get(uid);
+  return {
+    sessao: {
+      prompt: a.flags.tty ? '/ # ' : '',
+      executar(linha) {
+        const p = pod();
+        if (!p) return { saida: '', codigo: 0, sair: true }; // alguém apagou o pod: o anexo cai
+        const nome = p.spec.containers[0].name;
+        const sair = linha.match(/^\s*exit(?:\s+(\d+))?\s*;?\s*$/);
+        if (!sair) {
+          const x = cluster.kubelet.exec(p, nome, ['sh', '-c', linha]);
+          return x.erro ? { saida: `${x.erro}\n`, codigo: 1, sair: true } : { saida: x.saida, codigo: x.codigo };
+        }
+        const fim = new Saida();
+        const est = cluster.kubelet.estado(p, nome);
+        if (est?.fase === 'rodando') {
+          cluster.kubelet.encerrarExecucao(p, p.spec.containers[0], est, Number(sair[1] ?? 0));
+          cluster.reconciliar();
+        }
+        if (a.flags.tty) fim.out(`Session ended, resume using 'kubectl attach ${p.metadata.name} -c ${nome} -n ${p.metadata.namespace} -i -t' command\n`);
+        fimDoRun(cluster, a, fim, uid);
+        const r = fim.resultado();
+        return { saida: r.saida, codigo: r.codigo, sair: true };
+      },
+    },
+  };
+}
+
+/**
+ * O fim do run anexado: com restartPolicy Never/OnFailure, espera o código de saída do contêiner (`esperar`); com
+ * --rm, apaga o pod (sem esperar ele sumir), até quando o run deu erro.
+ */
+function fimDoRun(cluster, a, s, uid, { esperar = true } = {}) {
+  const politica = cluster.porUid.get(uid)?.spec.restartPolicy;
+  const acabou = (p) => !p || (politica === 'OnFailure' ? p.status?.phase === 'Succeeded' : terminou(p));
+  const esperou = !esperar || politica === 'Always' || cluster.avancarAte(() => acabou(cluster.porUid.get(uid)), '1m');
+  const p = cluster.porUid.get(uid);
+  if (p && a.flags.rm) {
+    cluster.remover(p);
+    cluster.reconciliar();
+    s.out(`pod "${p.metadata.name}" deleted from ${p.metadata.namespace} namespace\n`);
+  }
+  if (!esperou) return s.falha('error: timed out waiting for the condition');
+  if (!esperar || !p || politica === 'Always' || p.status.phase !== 'Failed') return null;
+  const fim = p.status.containerStatuses?.[0]?.state?.terminated;
+  if (!fim?.exitCode) return s.falha(`pod ${p.metadata.namespace}/${p.metadata.name} failed with unknown exit code`);
+  s.err(`pod ${p.metadata.namespace}/${p.metadata.name} terminated (${fim.reason})\n${fim.message ? `${fim.message}\n` : ''}`);
+  s.codigo = fim.exitCode;
   return null;
 }
 
@@ -987,7 +1090,7 @@ function logs(cluster, a, s) {
 }
 
 // ---------- exec ----------
-function abrirSessao(cluster, s, pod, conteiner, argv, removerAoSair) {
+function abrirSessao(cluster, s, pod, conteiner, argv) {
   const r = cluster.kubelet.exec(pod, conteiner, argv);
   if (r.erro) {
     s.falha(r.erro);
@@ -1001,13 +1104,7 @@ function abrirSessao(cluster, s, pod, conteiner, argv, removerAoSair) {
     sessao: {
       prompt: '/ # ',
       executar(linha) {
-        if (/^\s*exit\b/.test(linha)) {
-          if (removerAoSair) {
-            cluster.remover(pod);
-            cluster.reconciliar();
-          }
-          return { saida: '', codigo: 0, sair: true };
-        }
+        if (/^\s*exit\b/.test(linha)) return { saida: '', codigo: 0, sair: true };
         const x = cluster.kubelet.exec(pod, conteiner, ['sh', '-c', linha]);
         return x.erro ? { saida: `${x.erro}\n`, codigo: 1, sair: true } : { saida: x.saida, codigo: x.codigo };
       },
@@ -1030,7 +1127,7 @@ function exec(cluster, a, s) {
   const r = cluster.kubelet.exec(pod, nome, a.depois);
   if (r.erro) return s.falha(r.erro);
   if (r.shell) {
-    if (f.stdin && f.tty) return abrirSessao(cluster, s, pod, nome, a.depois, false);
+    if (f.stdin && f.tty) return abrirSessao(cluster, s, pod, nome, a.depois);
     if (f.tty) s.err('Unable to use a TTY - input is not a terminal or the right kind of file\n');
     return null;
   }
@@ -1132,16 +1229,17 @@ function rollout(cluster, a, s) {
   if (d.kind !== 'Deployment' && !sts) return s.falha(`error: no ${sub === 'history' ? 'history viewer' : sub === 'status' ? 'status viewer' : 'rollbacker'} has been implemented for "${d.kind}"`);
   switch (sub) {
     case 'status': {
-      const limite = a.flags.timeout ? parseDuracao(a.flags.timeout) : 20 * 60_000;
-      const fim = cluster.agora + limite;
+      // Sem --timeout (ou com 0), o kubectl de verdade espera para sempre; aqui o relógio corre até 20 minutos.
+      const prazo = a.flags.timeout ? parseDuracao(a.flags.timeout) : 0;
+      const fim = cluster.agora + (prazo || 20 * 60_000);
       let rvAnterior = null;
       for (;;) {
         const st = d.kind === 'StatefulSet' ? statusRolloutSts(d) : d.kind === 'DaemonSet' ? statusRolloutDs(d) : statusRollout(d);
         if (st.erro) return s.falha(st.erro);
         if (d.metadata.resourceVersion !== rvAnterior || st.pronto) s.out(st.msg);
         rvAnterior = d.metadata.resourceVersion;
-        if (st.pronto) return;
-        if (cluster.agora >= fim) return s.falha('error: timed out waiting for the condition');
+        if (st.pronto || a.flags.watch === false) return;
+        if (cluster.agora >= fim) return s.falha(prazo ? 'error: timed out waiting for the condition' : t('(o kubectl de verdade continuaria esperando até alguém apertar Ctrl+C; o simulador parou depois de 20 minutos sem o rollout terminar)'));
         cluster.avancar(1000);
       }
     }
@@ -1663,6 +1761,12 @@ function etiquetar(cluster, a, s, campo) {
         s.out(`${id} not ${ehLabel ? 'labeled' : 'annotated'}\n`);
         continue;
       }
+      // O rótulo de PodSecurity com valor inválido: o apiserver recusa a mudança do namespace.
+      const erros = obj.kind === 'Namespace' ? validar({ ...obj, metadata: { ...obj.metadata, [campo]: atual } }, obj) : [];
+      if (erros.length) {
+        s.falha(erroInvalido(obj.kind, obj.metadata.name, erros));
+        continue;
+      }
       obj.metadata[campo] = atual;
       if (!Object.keys(atual).length) delete obj.metadata[campo];
       const vistos = cluster.avisos.length;
@@ -1801,7 +1905,7 @@ const COMANDOS = {
     rodar: create,
   },
   run: {
-    flags: { ...SAIDA, ...DRY, image: { tipo: 'string' }, port: { tipo: 'string' }, labels: { curto: 'l', tipo: 'string' }, env: { tipo: 'lista' }, restart: { tipo: 'string' }, command: { tipo: 'bool' }, rm: { tipo: 'bool' }, stdin: { curto: 'i', tipo: 'bool' }, tty: { curto: 't', tipo: 'bool' }, 'image-pull-policy': { tipo: 'string' }, overrides: { tipo: 'string' } },
+    flags: { ...SAIDA, ...DRY, image: { tipo: 'string' }, port: { tipo: 'string' }, labels: { curto: 'l', tipo: 'string' }, env: { tipo: 'lista' }, restart: { tipo: 'string' }, command: { tipo: 'bool' }, rm: { tipo: 'bool' }, stdin: { curto: 'i', tipo: 'bool' }, tty: { curto: 't', tipo: 'bool' }, attach: { tipo: 'bool' }, 'image-pull-policy': { tipo: 'string' }, overrides: { tipo: 'string' } },
     rodar: run,
   },
   delete: {
@@ -1855,6 +1959,7 @@ const COMANDOS = {
     flags: { 'ignore-daemonsets': { tipo: 'bool' }, force: { tipo: 'bool' }, 'delete-emptydir-data': { tipo: 'bool' }, 'pod-selector': { tipo: 'string' }, timeout: { tipo: 'string' }, 'grace-period': { tipo: 'int' } },
     rodar: drain,
   },
+  edit: { flags: { ...SAIDA }, rodar: edit },
   help: { flags: {}, rodar: (c, a, s) => s.out(AJUDA) },
 };
 
@@ -1875,11 +1980,12 @@ function separarComando(args) {
 /**
  * Roda uma linha de comando do kubectl.
  * opções: { arquivos } — os arquivos do editor, para o -f.
- * → { saida, stdout, stderr, partes, codigo, observar?, sessao? }
+ * → { saida, stdout, stderr, partes, codigo, observar?, sessao?, editar? } (editar: o pedido do kubectl edit, em editar.js)
  */
 export function kubectl(cluster, linha, { arquivos = {} } = {}) {
   const s = new Saida();
-  const args = Array.isArray(linha) ? linha : palavras(linha);
+  const args = Array.isArray(linha) ? [...linha] : palavras(linha);
+  const kubeEditor = /^KUBE_EDITOR=/.test(args[0] ?? '') ? args.shift().slice('KUBE_EDITOR='.length) : undefined; // o editor do kubectl edit
   if (args[0] === 'kubectl' || args[0] === 'k') args.shift();
   const { nome, resto } = separarComando(args);
   if (!nome) {
@@ -1916,9 +2022,10 @@ export function kubectl(cluster, linha, { arquivos = {} } = {}) {
     if (!autorizar(cluster, nome, lidos, s, namespaceDe(cluster, lidos.flags), docs)) return s.resultado();
   }
   try {
-    const extra = cmd.rodar(cluster, { ...lidos, arquivos }, s);
+    const extra = cmd.rodar(cluster, { ...lidos, arquivos, kubeEditor }, s);
     if (typeof extra === 'function') return s.resultado({ observar: extra });
     if (extra?.sessao) return s.resultado({ sessao: extra.sessao });
+    if (extra?.editar) return s.resultado({ editar: extra.editar });
   } catch (e) {
     if (e instanceof Erro) {
       if (e.message) s.falha(e.message);

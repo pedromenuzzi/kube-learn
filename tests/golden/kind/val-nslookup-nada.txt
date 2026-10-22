@@ -1,0 +1,17 @@
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+** server can't find nada.cluster.local: NXDOMAIN
+
+** server can't find nada.svc.cluster.local: NXDOMAIN
+
+** server can't find nada.cluster.local: NXDOMAIN
+
+** server can't find nada.svc.cluster.local: NXDOMAIN
+
+** server can't find nada.validacao.svc.cluster.local: NXDOMAIN
+
+** server can't find nada.validacao.svc.cluster.local: NXDOMAIN
+
+command terminated with exit code 1
+exit=1

@@ -1,0 +1,2 @@
+Error from server (Forbidden): deployments.apps "web" is forbidden: User "bia" cannot get resource "deployments" in API group "apps" in the namespace "editar"
+exit=1

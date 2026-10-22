@@ -1,0 +1,2 @@
+The Namespace "validacao" is invalid: metadata.labels[pod-security.kubernetes.io/enforce]: Invalid value: "restrito": must be one of privileged, baseline, restricted
+exit=1

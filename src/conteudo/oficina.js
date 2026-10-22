@@ -84,6 +84,18 @@ const deployment = (nome, imagem, replicas) => yaml`
           image: ${imagem}
 `;
 PARTIDA_OF['of-loja'] = { manifestos: loja() };
+PARTIDA_OF['of-loja-ramal'] = { manifestos: `${loja()}---\n${yaml`
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: loja
+  spec:
+    selector:
+      app: loja
+    ports:
+    - port: 80
+      targetPort: 8080
+`}` };
 // Três Deployments: o balcao pede uma tag que não existe, e a vitrine acabou de ser reiniciada (os pods mais novos).
 PARTIDA_OF['of-bairro'] = {
   manifestos: [deployment('vitrine', 'nginx:1.29', 2), deployment('cofre', 'nginx:1.28', 1), deployment('balcao', 'nginx:1.299', 1)].join('---\n'),
@@ -295,6 +307,58 @@ export const OFICINA = [
       { comando: '^kubectl\\s+set\\s+env\\b', msg: 'você usou o kubectl set env' },
       { objeto: 'deployment/loja', campo: 'spec.template.spec.containers[0].env[0].name', igual: 'MODO' },
       { objeto: 'deployment/loja', campo: 'spec.template.spec.containers[0].env[0].value', igual: 'manutencao' },
+    ]),
+  }),
+  exercicio({
+    id: 'of-editar',
+    titulo: 'Mexendo no objeto vivo',
+    dificuldade: 'facil',
+    cluster: 'of-loja',
+    enunciado: `<p>A <code>loja</code> guarda as 10 últimas versões para o <code>rollout undo</code>. Com <code>kubectl edit</code>, mude
+                para guardar só as <b>3</b> últimas (<code>revisionHistoryLimit</code>), direto no objeto do cluster.</p>`,
+    dica: 'kubectl edit deployment loja: no editor, ache revisionHistoryLimit: 10, troque para 3 e salve (Ctrl+S).',
+    vidaReal: 'Corrigir a ficha do morador direto no fichário da portaria, sem preencher um formulário novo.',
+    limite: 'O edit muda o cluster, não o seu arquivo: no próximo apply do YAML antigo, o valor volta (e quem usa GitOps perde a edição na próxima sincronização).',
+    solucaoTerminal: [`KUBE_EDITOR="sed -i 's/revisionHistoryLimit: 10/revisionHistoryLimit: 3/'" kubectl edit deployment loja`],
+    testes: noCluster('a loja guarda só 3 versões', [
+      { comando: 'kubectl\\s+edit\\b', msg: 'você usou o kubectl edit' },
+      { objeto: 'deployment/loja', campo: 'spec.revisionHistoryLimit', igual: 3 },
+    ]),
+  }),
+  exercicio({
+    id: 'of-depurar',
+    titulo: 'O pod descartável',
+    dificuldade: 'medio',
+    cluster: 'of-loja-ramal',
+    enunciado: `<p>Teste o Service <code>loja</code> de dentro do cluster com um pod que se apaga sozinho no fim: <code>kubectl run</code>
+                com <code>--rm -i</code>, a imagem <code>busybox:1.36</code> e um <code>wget -qO- http://loja</code>. Qual versão a loja responde?</p>`,
+    rotuloResposta: 'A versão',
+    dica: 'kubectl run tmp --rm -i --restart=Never --image=busybox:1.36 -- wget -qO- http://loja',
+    vidaReal: 'Mandar um entregador de teste até o balcão e ele ir embora assim que voltar com a resposta.',
+    limite: 'O pod descartável roda com as regras do namespace: se uma NetworkPolicy barra a saída, ele também é barrado (o que, aliás, ajuda a testar a catraca).',
+    solucaoTerminal: ['kubectl run tmp --rm -i --restart=Never --image=busybox:1.36 -- wget -qO- http://loja'],
+    respostaCerta: '1.0',
+    testes: noCluster('você testou de dentro do cluster, e o pod foi embora', [
+      { comando: '^kubectl\\s+run\\b.*--rm', msg: 'você usou o kubectl run --rm' },
+      { resposta: /^\s*v?1\.0\s*$/ },
+    ]),
+  }),
+  exercicio({
+    id: 'of-contar',
+    titulo: 'Conta pra mim',
+    dificuldade: 'facil',
+    cluster: 'vazio',
+    enunciado: `<p>Quantos pods o kind roda no namespace <code>kube-system</code>? Conte no terminal, sem contar de cabeça:
+                <code>--no-headers</code> tira o cabeçalho, e <code>| wc -l</code> conta as linhas.</p>`,
+    rotuloResposta: 'Quantos pods',
+    dica: 'kubectl get pods -n kube-system --no-headers | wc -l',
+    vidaReal: 'Pedir ao porteiro só o total de moradores do bloco, e não a lista com todos os nomes.',
+    limite: 'O wc conta linhas, não pods: sem o --no-headers, o cabeçalho entra na conta (e um pod a mais aparece do nada).',
+    solucaoTerminal: ['kubectl get pods -n kube-system --no-headers | wc -l'],
+    respostaCerta: '12',
+    testes: noCluster('você contou com o wc -l', [
+      { comando: '\\|\\s*wc\\s+-l', msg: 'você contou com | wc -l' },
+      { resposta: /^\s*12\s*$/ },
     ]),
   }),
 ];

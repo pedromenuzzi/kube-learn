@@ -5,6 +5,10 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { rodarCenario } from './golden/cenario.js';
 import { normalizar } from './golden/normalizar.js';
+import { definirIdioma } from '../src/i18n.js';
+
+// Em inglês, como o kubectl de verdade: o explain usa as descrições reais (as em português são outras, de propósito).
+await definirIdioma('en', { salvar: false });
 
 // Casos que não dá para comparar linha a linha, e por quê.
 const ESPECIAIS = {
@@ -19,10 +23,6 @@ const ESPECIAIS = {
   'events': { conjunto: true },
   // O rollout real espera o pull do nginx:1.28; o simulado é mais rápido. Começo e fim iguais.
   'rollout-status': { pontas: true },
-  // As descrições do explain são em português (de propósito): compara só a estrutura e os campos.
-  'explain-deploy': { estrutura: true },
-  'explain-replicas': { estrutura: true },
-  'explain-containers': { estrutura: true },
   // Fase 6: o pod caiu num node que ainda não tinha o nginx (a ordem dos eventos muda); o rollout real ainda
   // pegou o StatefulSet antes do controlador ("spec update to be observed"): compara as duas últimas linhas.
   'describe-pod-volumes': { ate: 'Events:' },
@@ -53,6 +53,15 @@ const ESPECIAIS = {
   // compara sem as contagens de pods prontos.
   'helm-status': { ate: '==> v1/Pod(related)', semProntos: true },
   'helm-deploy-labels': { semProntos: true },
+  // O nslookup do busybox pergunta os domínios de busca ao mesmo tempo e escreve as respostas na ordem em que chegam
+  // (até as linhas em branco mudam de uma vez para outra): compara o conjunto de linhas.
+  'val-nslookup-curto': { conjunto: true },
+  'val-nslookup-nada': { conjunto: true },
+  // O run --rm -i de um comando que termina na hora: no kind, o kubectl às vezes se anexa tarde ("couldn't attach",
+  // e lê os logs, às vezes repetindo a saída). Compara o que vem depois do anexo (o term-run-rm-lento confere o aviso).
+  'term-run-rm': { anexo: true },
+  'term-run-rm-falha': { anexo: true },
+  'term-run-sem-rm': { anexo: true },
 };
 
 const linhas = (t) => t.split('\n');
@@ -83,7 +92,11 @@ function comparavel(texto, regra) {
     return [ls[0], ...ls.slice(-2)].join('\n');
   }
   if (regra.ultimas) return linhas(t).filter(Boolean).slice(-regra.ultimas).join('\n');
-  if (regra.estrutura) return linhas(t).filter((l) => /^(GROUP|KIND|VERSION|FIELD|DESCRIPTION|FIELDS|exit)|^ \| [a-zA-Z]+ \| </.test(l)).join('\n');
+  if (regra.anexo) {
+    const ls = linhas(t);
+    return ls.slice(ls.findIndex((l) => l.startsWith("warning: couldn't attach to pod/")) + 1)
+      .filter((l) => !l.startsWith('All commands and output from this session') && !l.startsWith("If you don't see a command prompt")).join('\n');
+  }
   return t;
 }
 

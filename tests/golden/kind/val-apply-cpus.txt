@@ -1,0 +1,4 @@
+The Pod "plural" is invalid: 
+* spec.containers[0].resources.requests[cpus]: Invalid value: "cpus": must be a standard resource type or fully qualified
+* spec.containers[0].resources.requests[cpus]: Invalid value: "cpus": must be a standard resource for containers
+exit=1

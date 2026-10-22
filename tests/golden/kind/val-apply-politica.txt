@@ -1,0 +1,2 @@
+The Pod "talvez" is invalid: spec.containers[0].imagePullPolicy: Unsupported value: "Talvez": supported values: "Always", "IfNotPresent", "Never"
+exit=1

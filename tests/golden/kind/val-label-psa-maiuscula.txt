@@ -1,0 +1,2 @@
+The Namespace "validacao" is invalid: metadata.labels[pod-security.kubernetes.io/warn]: Invalid value: "Restricted": must be one of privileged, baseline, restricted
+exit=1

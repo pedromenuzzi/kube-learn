@@ -384,9 +384,10 @@ function nslookup(args, ctx) {
     const x = ctx.rede.dns(`${n}.`);
     return x ? ok(`${cab}\n${enderecos(x)}\n`) : { saida: `${cab}${nx(n)}${nx(n)}`, codigo: 1 };
   }
-  // O busybox pergunta por todos os domínios de busca (ndots:5) e mostra o que achou e o que não achou.
+  // O busybox pergunta por todos os domínios de busca (ndots:5), A e AAAA, e mostra o que achou e o que não achou, na
+  // ordem em que as respostas chegam. O nome sozinho ele não pergunta (o golden val-nslookup-nada).
   const busca = (ctx.buscaDns ?? []).map((d) => `${nome}.${d}`);
-  if (!r) return { saida: cab + busca.flatMap((n) => [nx(n), nx(n)]).join('') + nx(nome) + nx(nome), codigo: 1 };
+  if (!r) return { saida: cab + busca.flatMap((n) => [nx(n), nx(n)]).join(''), codigo: 1 };
   const outros = busca.filter((n) => n !== r.nome);
   const [antes, ...depois] = outros.length ? [outros.at(-1), ...outros.slice(0, -1)] : [];
   let saida = cab;

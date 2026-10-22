@@ -1,0 +1,2 @@
+error: edit cancelled, no objects found
+exit=1

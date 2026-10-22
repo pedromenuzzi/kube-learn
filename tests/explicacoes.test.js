@@ -28,4 +28,16 @@ describe('as caixas das mensagens novas, com a saída do kind', () => {
     expect(titulos(ler('real-label-ns-restrito'), false)).toContain('A norma nova vale para os próximos pods');
     expect(titulos(ler('oficina-patch-desconhecido'), false)).toEqual(['O campo foi ignorado']);
   });
+
+  it('request maior que o limit, recurso inventado, rótulo de PodSecurity inválido, apply num objeto criado sem apply e valor fora da lista', () => {
+    expect(titulos(ler('val-apply-cpu'), true)).toEqual(['O request de cpu passa do limit']);
+    expect(titulos(ler('val-apply-memoria'), true)).toEqual(['O request de memory passa do limit']);
+    expect(titulos(ler('val-apply-cpus'), true)).toEqual(['"cpus" não é um recurso de contêiner']);
+    expect(titulos(ler('val-label-psa-nivel'), true)).toEqual(['"restrito" não vale no rótulo de PodSecurity']);
+    expect(titulos(ler('val-apply-ns-psa'), true)).toEqual(['"restrito" não vale no rótulo de PodSecurity', 'Aviso: o objeto não nasceu de um apply']);
+    expect(titulos(ler('val-apply-sem-last-applied'), false)).toEqual(['Aviso: o objeto não nasceu de um apply']);
+    const [politica] = explicar(ler('val-apply-politica'), { falhou: true });
+    expect(politica.titulo).toBe('"Talvez" não é um valor aceito em imagePullPolicy');
+    expect(politica.texto).toContain('<code>IfNotPresent</code>');
+  });
 });
