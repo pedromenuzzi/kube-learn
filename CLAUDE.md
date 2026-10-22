@@ -42,6 +42,9 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
 - `kubectl(cluster, 'kubectl get pods', { arquivos })` → `{ saida, stdout, stderr, codigo, observar?, sessao? }`.
   O kubectl não avança o relógio sozinho (só `delete` e `rollout status`, que esperam como o real); quem chama
   usa `cluster.avancar('30s')`.
+- **Objeto guardado só muda por `criar`, `salvar` ou `substituir`** (que sobem a versão do cluster): os índices e caches
+  do simulador (`listar`, `obter`, o status, os controladores que pulam a volta sem mudança) dependem disso.
+  `tests/indices.test.js` compara os índices com a busca completa.
 - **Golden:** `tests/golden/kind/` é a saída do kubectl real (kind v1.37), capturada com
   `scripts/capturar-golden.sh`; `tests/golden/cenario.js` roda os mesmos passos no simulador e
   `tests/golden.test.js` compara. Mudou um formato de saída? O golden tem de continuar passando. Novo comando
@@ -65,7 +68,7 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
 - **Id publicado não muda:** o progresso do aluno é guardado pelo id; missão nova entra no fim de `tests/ids-conhecidos.json`
   (`tests/ids.test.js` falha se um id some ou é renomeado).
 - As regras de teste estão documentadas no topo de `src/verificacoes.js`. O teste da trilha
-  (`tests/conteudo.test.js`) roda a solução e o inicial de toda missão.
+  (`tests/trilha.js`, repartido em `tests/trilha-N.test.js` para rodar em paralelo) roda a solução e o inicial de toda missão.
 
 ## Comandos
 

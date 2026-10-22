@@ -92,9 +92,6 @@ export function operadorDeBackup(c) {
       }
     } catch { /* o CronJob foi recusado (horário inválido): tenta de novo na próxima volta */ }
     const status = { cronJob: nome, observedGeneration: b.metadata.generation };
-    if (JSON.stringify(b.status) !== JSON.stringify(status)) {
-      b.status = status;
-      c.salvar(b);
-    }
+    c.trocarStatus(b, status);
   }
 }

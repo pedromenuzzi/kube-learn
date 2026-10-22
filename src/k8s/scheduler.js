@@ -25,13 +25,43 @@ export const tolera = (pod, taint) => (pod.spec.tolerations ?? []).some((t) => {
 export const nodePronto = (node) => node.status.conditions.find((c) => c.type === 'Ready')?.status === 'True';
 
 /** Pods que ocupam o node (contam no espaço dele). */
-export const podsNoNode = (c, nome) => c.listar('Pod').filter((p) => p.spec.nodeName === nome && !TERMINAIS.has(p.status?.phase));
+export const podsNoNode = (c, nome, passe) => (passe ? passe.noNode(nome) : c.listar('Pod').filter((p) => p.spec.nodeName === nome && !TERMINAIS.has(p.status?.phase)));
 
-export function usoDoNode(c, nome, ignorar) {
-  return podsNoNode(c, nome).filter((p) => !ignorar?.has(p.metadata.uid)).reduce((t, p) => {
-    const r = pedidosDoPod(p);
+export function usoDoNode(c, nome, ignorar, passe) {
+  return podsNoNode(c, nome, passe).filter((p) => !ignorar?.has(p.metadata.uid)).reduce((t, p) => {
+    const r = passe ? passe.pedidos(p) : pedidosDoPod(p);
     return { cpu: t.cpu + r.cpu, memoria: t.memoria + r.memoria, pods: t.pods + 1 };
   }, { cpu: 0, memoria: 0, pods: 0 });
+}
+
+/**
+ * O que uma passada do scheduler consulta a cada pod e node: os pods de cada node (como o podsNoNode, na ordem do
+ * listar) e os pedidos de cada pod. Numa passada só muda quem ganha um node (ligar), e nada sai nem termina.
+ */
+function criarPasse(pods) {
+  const posicao = new Map(pods.map((p, i) => [p, i]));
+  const porNode = new Map();
+  for (const p of pods) {
+    if (!p.spec.nodeName || TERMINAIS.has(p.status?.phase)) continue;
+    if (!porNode.has(p.spec.nodeName)) porNode.set(p.spec.nodeName, []);
+    porNode.get(p.spec.nodeName).push(p);
+  }
+  const pedidos = new Map();
+  return {
+    noNode: (nome) => porNode.get(nome) ?? [],
+    pedidos: (p) => {
+      if (!pedidos.has(p)) pedidos.set(p, pedidosDoPod(p));
+      return pedidos.get(p);
+    },
+    ligar: (p) => {
+      if (!porNode.has(p.spec.nodeName)) porNode.set(p.spec.nodeName, []);
+      const lista = porNode.get(p.spec.nodeName);
+      const i = lista.findIndex((x) => posicao.get(x) > posicao.get(p));
+      lista.splice(i < 0 ? lista.length : i, 0, p);
+    },
+    // Algum pod pede distância dos outros (podAntiAffinity obrigatória)? Então todo pod novo confere os vivos.
+    algumAnti: pods.some((p) => obrigatorios(p, 'podAntiAffinity').length),
+  };
 }
 
 // ---------- seletores ----------
@@ -122,26 +152,31 @@ function contarPorDominio(c, pod, k, outros, nodes) {
   return contagem;
 }
 
+/** O pod olha para os outros pods (espalhamento, afinidade entre pods), ou algum pod existente olha para ele? */
+const precisaDosOutros = (pod, passe) => passe.algumAnti || !!pod.spec.topologySpreadConstraints?.length
+  || ['podAffinity', 'podAntiAffinity'].some((tipo) => obrigatorios(pod, tipo).length || preferidos(pod, tipo).length);
+
 /** Os filtros que dependem dos outros pods (recursos, espalhamento, afinidade): os que a preempção pode resolver. */
-function filtrosDePods(c, pod, node, nodes, ignorar) {
-  const uso = usoDoNode(c, node.metadata.name, ignorar);
+function filtrosDePods(c, pod, node, nodes, ignorar, passe) {
+  const uso = usoDoNode(c, node.metadata.name, ignorar, passe);
   const cap = { cpu: cpuMili(node.status.allocatable.cpu), memoria: bytes(node.status.allocatable.memory), pods: Number(node.status.allocatable.pods) };
-  const pedido = pedidosDoPod(pod);
+  const pedido = passe.pedidos(pod);
   const faltas = [];
   if (uso.pods + 1 > cap.pods) faltas.push('Too many pods');
   if (uso.cpu + pedido.cpu > cap.cpu) faltas.push('Insufficient cpu');
   if (uso.memoria + pedido.memoria > cap.memoria) faltas.push('Insufficient memory');
   if (faltas.length) return { motivos: faltas, resolve: pedido.cpu <= cap.cpu && pedido.memoria <= cap.memoria, uso, cap };
-  const outros = vivos(c, ignorar).filter((o) => o.metadata.uid !== pod.metadata.uid);
+  // Sem ninguém olhando para os outros pods, a lista deles não muda nada (e é o que mais custa com muitos pods).
+  const outros = precisaDosOutros(pod, passe) ? vivos(c, ignorar).filter((o) => o.metadata.uid !== pod.metadata.uid) : [];
   const f = filtroEspalhamento(c, pod, node, outros, nodes) ?? filtroEntrePods(c, pod, node, outros);
   return f ? { motivos: [f.motivo], resolve: f.resolve, uso, cap } : { motivos: [], uso, cap, outros };
 }
 
 // ---------- pontuação ----------
-function nota(c, pod, node, { uso, cap, outros }) {
-  const pedido = pedidosDoPod(pod);
+function nota(c, pod, node, { uso, cap, outros }, passe) {
+  const pedido = passe.pedidos(pod);
   const dono = pod.metadata.ownerReferences?.find((o) => o.controller)?.uid;
-  const irmaos = dono ? podsNoNode(c, node.metadata.name).filter((p) => p.metadata.ownerReferences?.some((o) => o.uid === dono)).length : 0;
+  const irmaos = dono ? podsNoNode(c, node.metadata.name, passe).filter((p) => p.metadata.ownerReferences?.some((o) => o.uid === dono)).length : 0;
   const livre = (cap.cpu ? (cap.cpu - uso.cpu - pedido.cpu) / cap.cpu : 0) + (cap.memoria ? (cap.memoria - uso.memoria - pedido.memoria) / cap.memoria : 0);
   const preferencia = (pod.spec.affinity?.nodeAffinity?.preferredDuringSchedulingIgnoredDuringExecution ?? [])
     .reduce((t, p) => t + (casaTermoDeNode(p.preference ?? {}, node) ? p.weight : 0), 0);
@@ -155,7 +190,9 @@ function nota(c, pod, node, { uso, cap, outros }) {
 // ---------- o laço ----------
 export function agendar(c) {
   const nodes = c.listar('Node');
-  for (const pod of c.listar('Pod')) {
+  const pods = c.listar('Pod');
+  let passe = null;
+  for (const pod of pods) {
     if (pod.spec.nodeName || pod.metadata.deletionTimestamp) continue;
     const tentativa = c.agendamento.get(pod.metadata.uid);
     if (tentativa && c.agora < tentativa.proxima && tentativa.mudancas === c.mudancasDeCapacidade) continue;
@@ -183,6 +220,7 @@ export function agendar(c) {
     const conta = (obj, k) => { obj[k] = (obj[k] ?? 0) + 1; };
     const candidatos = [];
     const resolviveis = [];
+    passe ??= criarPasse(pods);
     for (const node of nodes) {
       const falha = (m) => { conta(motivos, m); conta(preempcao, INUTIL); };
       const interditado = (node.spec.taints ?? []).find((t) => t.key === 'node.kubernetes.io/unschedulable');
@@ -191,14 +229,14 @@ export function agendar(c) {
       if (taints.some((t) => (t.effect === 'NoSchedule' || t.effect === 'NoExecute') && !tolera(pod, t))) { falha('node(s) had untolerated taint(s)'); continue; }
       if (nodesDosDiscos.some((lista) => !lista.includes(node.metadata.name))) { falha('node(s) had volume node affinity conflict'); continue; }
       if (!casaSeletorENode(pod, node)) { falha("node(s) didn't match Pod's node affinity/selector"); continue; }
-      const r = filtrosDePods(c, pod, node, nodes);
+      const r = filtrosDePods(c, pod, node, nodes, undefined, passe);
       if (r.motivos.length) {
         r.motivos.forEach((m) => conta(motivos, m));
         if (r.resolve) resolviveis.push(node);
         else conta(preempcao, INUTIL);
         continue;
       }
-      candidatos.push({ node, nota: nota(c, pod, node, r) });
+      candidatos.push({ node, nota: nota(c, pod, node, r, passe) });
     }
 
     if (candidatos.length) {
@@ -211,6 +249,7 @@ export function agendar(c) {
         continue;
       }
       pod.spec.nodeName = node.metadata.name;
+      passe.ligar(pod);
       pod.status = {
         conditions: [{ lastProbeTime: null, lastTransitionTime: iso(c.agora), status: 'True', type: 'PodScheduled' }],
         phase: 'Pending',
@@ -234,7 +273,7 @@ export function agendar(c) {
       naoCabe(c, pod, filtros);
       continue;
     }
-    const escolha = pod.spec.preemptionPolicy === 'Never' ? null : preemptar(c, pod, resolviveis, nodes);
+    const escolha = pod.spec.preemptionPolicy === 'Never' ? null : preemptar(c, pod, resolviveis, nodes, passe);
     if (escolha) {
       naoCabe(c, pod, filtros, escolha.node.metadata.name);
       continue;
@@ -248,18 +287,18 @@ export function agendar(c) {
  * A preempção: num node onde o pod caberia sem alguns pods de prioridade menor, tira os menos importantes que
  * bastarem (as vítimas saem com o prazo normal) e reserva o node (nominatedNodeName). → { node } | null.
  */
-function preemptar(c, pod, nodes, todos) {
+function preemptar(c, pod, nodes, todos, passe) {
   const prioridade = pod.spec.priority ?? 0;
   const opcoes = [];
   for (const node of nodes) {
-    const menores = podsNoNode(c, node.metadata.name).filter((p) => !p.metadata.deletionTimestamp && (p.spec.priority ?? 0) < prioridade);
+    const menores = podsNoNode(c, node.metadata.name, passe).filter((p) => !p.metadata.deletionTimestamp && (p.spec.priority ?? 0) < prioridade);
     if (!menores.length) continue;
     const ignorar = new Set(menores.map((p) => p.metadata.uid));
-    if (filtrosDePods(c, pod, node, todos, ignorar).motivos.length) continue;
+    if (filtrosDePods(c, pod, node, todos, ignorar, passe).motivos.length) continue;
     // Devolve ao node os mais importantes enquanto o pod ainda couber: só sai quem precisa.
     for (const p of [...menores].sort((a, b) => (b.spec.priority ?? 0) - (a.spec.priority ?? 0))) {
       ignorar.delete(p.metadata.uid);
-      if (filtrosDePods(c, pod, node, todos, ignorar).motivos.length) ignorar.add(p.metadata.uid);
+      if (filtrosDePods(c, pod, node, todos, ignorar, passe).motivos.length) ignorar.add(p.metadata.uid);
     }
     const vitimas = menores.filter((p) => ignorar.has(p.metadata.uid));
     opcoes.push({ node, vitimas, maior: Math.max(...vitimas.map((p) => p.spec.priority ?? 0)) });
@@ -287,9 +326,6 @@ function naoCabe(c, pod, msg, indicado = pod.status?.nominatedNodeName) {
     phase: 'Pending',
   };
   c.agendamento.set(pod.metadata.uid, { proxima: c.agora + REPETIR_EM, mudancas: c.mudancasDeCapacidade });
-  if (JSON.stringify(status) !== JSON.stringify(pod.status)) {
-    pod.status = status;
-    c.salvar(pod);
-  }
+  c.trocarStatus(pod, status);
   c.evento(pod, 'Warning', 'FailedScheduling', msg, { componente: 'default-scheduler' });
 }

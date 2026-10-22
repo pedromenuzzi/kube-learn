@@ -62,10 +62,7 @@ export function controladorDePdbs(c) {
       expectedPods: total,
       observedGeneration: pdb.metadata.generation,
     };
-    if (JSON.stringify(novo) !== JSON.stringify(pdb.status)) {
-      pdb.status = novo;
-      c.salvar(pdb);
-    }
+    c.trocarStatus(pdb, novo);
   }
 }
 

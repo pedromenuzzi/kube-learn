@@ -96,6 +96,39 @@ export function desenharNavio(canvas, jornada) {
   const posicao = (l) => [xc + l.vaga * C + desvio(l.fileira), mar - 10 - (l.fileira + 1) * A];
   const conteiner = (x, y, l) => pintarConteiner(r, x, y, l.largura, corDoNivel[l.item.nivel], lacrado[l.item.nivel]);
 
+  // O casco, a ponte e a pilha só mudam com o balanço (dy = -1, 0 ou 1): pintados uma vez numa tela fora da página, para
+  // cada dy, e copiados a cada quadro (com o navio cheio, são centenas de contêineres).
+  const navioPronto = {};
+  const navioEm = (dy) => {
+    if (navioPronto[dy]) return navioPronto[dy];
+    const tela = document.createElement('canvas');
+    tela.width = W;
+    tela.height = H;
+    const c2 = tela.getContext('2d');
+    const r2 = (c, x, y, w, h) => {
+      c2.fillStyle = c;
+      c2.fillRect(x, y, w, h);
+    };
+    const conves = mar - 10 + dy;
+    for (let i = 0; i < 16; i++) {
+      const esq = x0 + Math.floor(i / 2);
+      const dir = x0 + COMPRIMENTO - i;
+      r2(conves + i >= mar - 2 ? '#b23a48' : '#1d3557', esq, conves + i, dir - esq, 1);
+    }
+    r2('#e8e8e8', x0, conves + 3, COMPRIMENTO - 2, 1);
+    r2('#f1f1f1', x0 + 4, conves - 22, 20, 22);
+    r2('#d0d0d0', x0 + 4, conves - 22, 20, 1);
+    for (let k = 0; k < 4; k++) r2(janelas, x0 + 6 + k * 4, conves - 19, 3, 3);
+    for (let k = 0; k < 4; k++) r2(janelas, x0 + 6 + k * 4, conves - 12, 3, 2);
+    r2('#326ce5', x0 + 9, conves - 31, 8, 9);
+    r2('#ffffff', x0 + 12, conves - 28, 2, 2);
+    for (const l of pilha) {
+      const [x, y] = posicao(l);
+      pintarConteiner(r2, x, y + dy, l.largura, corDoNivel[l.item.nivel], lacrado[l.item.nivel]);
+    }
+    return (navioPronto[dy] = tela);
+  };
+
   // Um quadro no instante t (em segundos). O navio segue para a direita: o cenário escorrega para a esquerda.
   const quadro = (t) => {
     const f = Math.floor(t * QUADROS_POR_SEGUNDO);
@@ -134,23 +167,7 @@ export function desenharNavio(canvas, jornada) {
 
     // O navio balança um pixel para cima e para baixo.
     const dy = Math.round(Math.sin(t * 1.6));
-    const conves = mar - 10 + dy;
-    for (let i = 0; i < 16; i++) {
-      const esq = x0 + Math.floor(i / 2);
-      const dir = x0 + COMPRIMENTO - i;
-      r(conves + i >= mar - 2 ? '#b23a48' : '#1d3557', esq, conves + i, dir - esq, 1);
-    }
-    r('#e8e8e8', x0, conves + 3, COMPRIMENTO - 2, 1);
-    r('#f1f1f1', x0 + 4, conves - 22, 20, 22);
-    r('#d0d0d0', x0 + 4, conves - 22, 20, 1);
-    for (let k = 0; k < 4; k++) r(janelas, x0 + 6 + k * 4, conves - 19, 3, 3);
-    for (let k = 0; k < 4; k++) r(janelas, x0 + 6 + k * 4, conves - 12, 3, 2);
-    r('#326ce5', x0 + 9, conves - 31, 8, 9);
-    r('#ffffff', x0 + 12, conves - 28, 2, 2);
-    for (const l of pilha) {
-      const [x, y] = posicao(l);
-      conteiner(x, y + dy, l);
-    }
+    ctx.drawImage(navioEm(dy), 0, 0);
     const topo = pilha.at(-1);
     if (topo) {
       const [x, y0t] = posicao(topo);
@@ -204,6 +221,14 @@ export function desenharNavio(canvas, jornada) {
     }
     pedido = requestAnimationFrame(laco);
   };
-  pedido = requestAnimationFrame(laco);
-  return () => cancelAnimationFrame(pedido);
+  // Fora da tela (a trilha rolada para baixo), o mar para: nada de gastar bateria com uma animação que ninguém vê.
+  const visivel = new IntersectionObserver(([e]) => {
+    cancelAnimationFrame(pedido);
+    if (e.isIntersecting) pedido = requestAnimationFrame(laco);
+  });
+  visivel.observe(canvas);
+  return () => {
+    visivel.disconnect();
+    cancelAnimationFrame(pedido);
+  };
 }

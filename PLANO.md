@@ -533,7 +533,7 @@ kube-learn/
 │   ├── conteudo/               # util.js, 00-conteineres.js … 11-projetos/, glossario.js, clusters/
 │   ├── verificacoes.js
 │   └── ui/                     # inicio, predio, exercicio, editor, terminal, cluster, glossario, revisao
-└── tests/                      # k8s/, golden/, conteudo.test.js (a trilha inteira), e2e/
+└── tests/                      # k8s/, golden/, trilha.js + trilha-N.test.js (a trilha inteira, em paralelo), e2e/
 ```
 
 ---

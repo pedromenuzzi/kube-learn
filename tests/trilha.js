@@ -1,6 +1,8 @@
-// @vitest-environment node
 // O teste da trilha inteira: toda solução passa em todos os testes (inclusive os ocultos) e todo código
 // inicial ainda falha em algum. Assim, nenhum exercício chega ao aluno quebrado ou já resolvido.
+// Ele é dividido nos arquivos tests/trilha-N.test.js (todos iguais) para o Vitest rodar as partes em paralelo:
+// a parte N fica com uma de cada PARTES missões, em rodízio. Para mais partes, copie um deles com o próximo N.
+import { readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ITENS, TROUBLESHOOTING } from '../src/conteudo/index.js';
 import { montarCluster, CLUSTERS } from '../src/conteudo/clusters.js';
@@ -27,7 +29,43 @@ function aluno(item, { resolvido }) {
 // A trilha e os incidentes da seção Troubleshooting (fora dos níveis).
 const TODOS = [...ITENS, ...TROUBLESHOOTING];
 
-describe('a trilha inteira', () => {
+// As partes: o N de cada tests/trilha-N.test.js, em ordem.
+const PARTES = readdirSync(new URL('.', import.meta.url)).flatMap((f) => f.match(/^trilha-(\d+)\.test\.js$/)?.[1] ?? []).map(Number).sort((a, b) => a - b);
+
+/** Roda a parte da trilha do arquivo que chama (o N de trilha-N.test.js, passado como import.meta.url). */
+export function testarTrilha(arquivo) {
+  const parte = Number(arquivo.match(/trilha-(\d+)\.test\.js$/)[1]);
+  const minhas = (lista) => lista.filter((_, i) => i % PARTES.length === parte - 1);
+  describe('a trilha inteira', () => {
+    if (parte === 1) testarCampos();
+    for (const item of minhas(ITENS.filter((i) => i.tipo === 'licao' && i.inicial))) {
+      it(`${item.id}: o exemplo da lição aplica sem erro`, () => {
+        const r = rodarTestes(item, { arquivos: item.inicial }, { todos: true });
+        expect(r.every((t) => t.ok)).toBe(true);
+      });
+    }
+    for (const item of minhas(TODOS.filter((i) => i.tipo === 'problema'))) {
+      describe(item.id, () => {
+        it('a solução passa em todos os testes', () => {
+          const r = rodarTestes(item, aluno(item, { resolvido: true }), { todos: true });
+          const falhas = r.flatMap((t) => t.regras.filter((x) => !x.ok).map((x) => `${t.descricao}: ${x.mensagem} (${x.detalhe})`));
+          expect(falhas).toEqual([]);
+        });
+        it('o código inicial ainda não passa', () => {
+          const r = rodarTestes(item, aluno(item, { resolvido: false }), { todos: true });
+          expect(r.some((t) => !t.ok)).toBe(true);
+        });
+      });
+    }
+  });
+}
+
+/** As conferências da trilha toda de uma vez (rodam só na parte 1). */
+function testarCampos() {
+  it('as partes do teste vão de trilha-1 a trilha-N, sem buraco (senão umas missões ficariam sem teste)', () => {
+    expect(PARTES).toEqual(PARTES.map((_, i) => i + 1));
+  });
+
   it('ids únicos e campos obrigatórios', () => {
     const ids = TODOS.map((i) => i.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -65,25 +103,4 @@ describe('a trilha inteira', () => {
       expect(NIVEIS.some((n) => n.numero === g.nivel), `${g.id}.nivel`).toBe(true);
     }
   });
-
-  for (const item of ITENS.filter((i) => i.tipo === 'licao' && i.inicial)) {
-    it(`${item.id}: o exemplo da lição aplica sem erro`, () => {
-      const r = rodarTestes(item, { arquivos: item.inicial }, { todos: true });
-      expect(r.every((t) => t.ok)).toBe(true);
-    });
-  }
-
-  for (const item of TODOS.filter((i) => i.tipo === 'problema')) {
-    describe(item.id, { timeout: 30_000 }, () => { // alguns testes simulam minutos de cluster (com carga)
-      it('a solução passa em todos os testes', () => {
-        const r = rodarTestes(item, aluno(item, { resolvido: true }), { todos: true });
-        const falhas = r.flatMap((t) => t.regras.filter((x) => !x.ok).map((x) => `${t.descricao}: ${x.mensagem} (${x.detalhe})`));
-        expect(falhas).toEqual([]);
-      });
-      it('o código inicial ainda não passa', () => {
-        const r = rodarTestes(item, aluno(item, { resolvido: false }), { todos: true });
-        expect(r.some((t) => !t.ok)).toBe(true);
-      });
-    });
-  }
-});
+}

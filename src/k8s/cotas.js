@@ -100,9 +100,6 @@ export function controladorDeCotas(c) {
       hard: { ...q.spec.hard },
       used: Object.fromEntries(Object.keys(q.spec.hard ?? {}).map((r) => [r, texto(r, uso[r])])),
     };
-    if (JSON.stringify(status) !== JSON.stringify(q.status)) {
-      q.status = status;
-      c.salvar(q);
-    }
+    c.trocarStatus(q, status);
   }
 }

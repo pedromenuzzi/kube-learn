@@ -19,9 +19,24 @@ export const resolvConf = (ns) => `search ${buscaDns(ns).join(' ')}\nnameserver 
 export const casaSeletor = (seletor, labels = {}) => !!seletor && Object.keys(seletor).length > 0 && Object.entries(seletor).every(([k, v]) => labels[k] === v);
 export const estaPronto = (pod) => pod.status?.conditions?.some((c) => c.type === 'Ready' && c.status === 'True');
 
-/** Pods prontos atrás de um Service. */
-export const podsProntos = (cluster, svc) => cluster.listar('Pod', svc.metadata.namespace)
-  .filter((p) => p.status?.podIP && !p.metadata.deletionTimestamp && casaSeletor(svc.spec.selector, p.metadata.labels) && estaPronto(p));
+/**
+ * Pods prontos atrás de um Service. Guardado até o cluster mudar de versão (toda mudança de pod passa por ela): um
+ * laço de requisições chama isto centenas de vezes por segundo do relógio.
+ */
+const prontos = new WeakMap();
+export function podsProntos(cluster, svc) {
+  const m = prontos.get(svc);
+  if (m && m.rv === cluster.rv && m.seletor === svc.spec.selector && m.ns === svc.metadata.namespace) return m.lista;
+  const lista = cluster.listar('Pod', svc.metadata.namespace)
+    .filter((p) => p.status?.podIP && !p.metadata.deletionTimestamp && casaSeletor(svc.spec.selector, p.metadata.labels) && estaPronto(p));
+  prontos.set(svc, { rv: cluster.rv, seletor: svc.spec.selector, ns: svc.metadata.namespace, lista });
+  return lista;
+}
+
+// Os nomes que o CoreDNS responde: pod de StatefulSet (hostname.serviço.namespace) e Service (serviço.namespace).
+const NOME_DE_POD = new RegExp(`^([a-z0-9-]+)\\.([a-z0-9-]+)\\.([a-z0-9-]+)\\.svc\\.${DOMINIO.replace('.', '\\.')}$`);
+const NOME_DE_SERVICO = new RegExp(`^([a-z0-9-]+)\\.([a-z0-9-]+)\\.svc\\.${DOMINIO.replace('.', '\\.')}$`);
+const UTF8 = new TextEncoder();
 
 /**
  * Resolve um nome como o CoreDNS faria, a partir de um pod no namespace `ns`.
@@ -30,13 +45,13 @@ export const podsProntos = (cluster, svc) => cluster.listar('Pod', svc.metadata.
 export function resolver(cluster, nome, ns) {
   const tentar = (fqdn) => {
     // O nome de um pod de StatefulSet: db-0.db.default.svc.cluster.local (hostname.serviço-headless.namespace).
-    const mp = fqdn.match(new RegExp(`^([a-z0-9-]+)\\.([a-z0-9-]+)\\.([a-z0-9-]+)\\.svc\\.${DOMINIO.replace('.', '\\.')}$`));
+    const mp = fqdn.match(NOME_DE_POD);
     if (mp) {
       const svc = cluster.obter('Service', mp[3], mp[2]);
       const pod = svc?.spec.clusterIP === 'None' && cluster.listar('Pod', mp[3]).find((p) => p.spec.hostname === mp[1] && p.spec.subdomain === mp[2] && p.status?.podIP && (estaPronto(p) || svc.spec.publishNotReadyAddresses));
       return pod ? { nome: fqdn, ip: pod.status.podIP, ips: [pod.status.podIP] } : null;
     }
-    const m = fqdn.match(new RegExp(`^([a-z0-9-]+)\\.([a-z0-9-]+)\\.svc\\.${DOMINIO.replace('.', '\\.')}$`));
+    const m = fqdn.match(NOME_DE_SERVICO);
     if (!m) return null;
     const svc = cluster.obter('Service', m[2], m[1]);
     if (!svc || svc.spec.type === 'ExternalName') return null;
@@ -77,7 +92,7 @@ function noPod(cluster, pod, porta, url, { origemIp = '10.244.0.1', metodo = 'GE
   const { comportamento, conteiner } = ouvindo;
   if (!comportamento.servidor.http) return { erro: 'vazia', ip };
   const r = comportamento.servidor.http(url.caminho, { hostname: pod.metadata.name, ler: (c) => cluster.kubelet.fsDe(pod, conteiner)?.ler(c), env: cluster.kubelet.estado(pod, conteiner)?.env });
-  const tamanho = new TextEncoder().encode(r.corpo).length;
+  const tamanho = UTF8.encode(r.corpo).length;
   if (comportamento.servidor.acesso) {
     cluster.kubelet.log(pod, conteiner, comportamento.servidor.acesso({ agora: cluster.agora, ip: origemIp, metodo, caminho: url.caminho, status: r.status, tamanho, agente }));
   }

@@ -21,6 +21,25 @@ export const NODES_PADRAO = [
 ];
 
 const clone = (o) => structuredClone(o);
+/**
+ * Cópia funda de um objeto da API (JSON puro), bem mais rápida que o structuredClone. Só para as fotos do histórico,
+ * que ninguém altera: diferente do structuredClone, não preserva um mesmo pedaço citado em dois lugares.
+ */
+const copiar = (v) => {
+  if (typeof v !== 'object' || v === null) return v;
+  if (Array.isArray(v)) {
+    const r = new Array(v.length);
+    for (let i = 0; i < v.length; i++) r[i] = copiar(v[i]);
+    return r;
+  }
+  const proto = Object.getPrototypeOf(v);
+  if (proto !== Object.prototype && proto !== null) return structuredClone(v);
+  const r = {};
+  for (const k of Object.keys(v)) r[k] = copiar(v[k]);
+  return r;
+};
+const comparar = new Intl.Collator().compare; // o mesmo que localeCompare
+const porNsENome = (a, b) => comparar(a.metadata.namespace ?? '', b.metadata.namespace ?? '') || comparar(a.metadata.name, b.metadata.name);
 
 /** Erro da API, com o código que o kubectl mostra: Error from server (NotFound): ... */
 export class ErroApi extends Error {
@@ -44,6 +63,9 @@ export class Cluster {
     this.kernel = kernel;
     this.objetos = new Map();
     this.porUid = new Map();
+    this.ociosos = new Map(); // controlador que só lê o estado guardado → a versão (rv) em que rodou sem mudar nada
+    this.jsons = new WeakMap(); // objeto → { campo: { valor, rv, json } }: o JSON de status/data, que o laço compara o tempo todo
+    this.porKind = new Map(); // kind → { objs (em ordem de criação), nomes (ns → nome → objeto), ordenada e porNs (o que o listar devolve, refeito só quando o kind muda) }
     this.eventos = [];
     this.historico = [];
     this.rv = 1000;
@@ -80,20 +102,49 @@ export class Cluster {
 
   // ---------- leitura ----------
   chave(kind, ns, nome) {
-    return `${kind}/${recursoDoKind(kind)?.namespaced ? ns : ''}/${nome}`;
+    return `${kind}/${this.parteNs(kind, ns)}/${nome}`;
   }
 
+  parteNs(kind, ns) {
+    return recursoDoKind(kind)?.namespaced ? `${ns}` : '';
+  }
+
+  /** O mesmo que objetos.get(chave), pelo índice por kind (sem montar a chave). */
   obter(kind, ns, nome) {
     if (kind === 'Event') return this.eventos.find((e) => e.metadata.namespace === ns && e.metadata.name === nome);
-    return this.objetos.get(this.chave(kind, ns, nome));
+    return this.porKind.get(kind)?.nomes.get(this.parteNs(kind, ns))?.get(`${nome}`);
   }
 
   /** Objetos de um kind (de um namespace, ou de todos), em ordem de namespace e nome, como a API devolve. */
   listar(kind, ns) {
-    const lista = kind === 'Event' ? this.eventos : [...this.objetos.values()].filter((o) => o.kind === kind);
-    return lista
-      .filter((o) => ns === undefined || ns === null || o.metadata.namespace === ns)
-      .sort((a, b) => (a.metadata.namespace ?? '').localeCompare(b.metadata.namespace ?? '') || a.metadata.name.localeCompare(b.metadata.name));
+    const todosNs = ns === undefined || ns === null;
+    if (kind === 'Event') return this.eventos.filter((o) => todosNs || o.metadata.namespace === ns).sort(porNsENome);
+    const idx = this.porKind.get(kind);
+    if (!idx) return [];
+    if (!idx.ordenada) {
+      idx.ordenada = [...idx.objs].sort(porNsENome);
+      idx.porNs = new Map();
+    }
+    let lista = todosNs ? idx.ordenada : idx.porNs.get(ns);
+    if (!lista) idx.porNs.set(ns, (lista = idx.ordenada.filter((o) => o.metadata.namespace === ns)));
+    return lista.slice();
+  }
+
+  /** O índice por kind acompanha a entrada e a saída de cada objeto (com as mesmas partes da chave de `objetos`). */
+  indexar(obj, entra) {
+    let idx = this.porKind.get(obj.kind);
+    if (!idx) this.porKind.set(obj.kind, (idx = { objs: new Set(), nomes: new Map() }));
+    const parte = this.parteNs(obj.kind, obj.metadata.namespace);
+    let nomes = idx.nomes.get(parte);
+    if (!nomes) idx.nomes.set(parte, (nomes = new Map()));
+    if (entra) {
+      idx.objs.add(obj);
+      nomes.set(`${obj.metadata.name}`, obj);
+    } else {
+      idx.objs.delete(obj);
+      nomes.delete(`${obj.metadata.name}`);
+    }
+    idx.ordenada = null;
   }
 
   todos() {
@@ -133,6 +184,7 @@ export class Cluster {
     this.admitir(obj);
     this.objetos.set(this.chave(obj.kind, obj.metadata.namespace, obj.metadata.name), obj);
     this.porUid.set(obj.metadata.uid, obj);
+    this.indexar(obj, true);
     this.registrar('ADDED', obj);
     if (['PersistentVolumeClaim', 'PersistentVolume', 'StorageClass'].includes(obj.kind)) this.mudancasDeCapacidade++; // o scheduler tenta de novo quem esperava disco
     if (['ResourceQuota', 'LimitRange'].includes(obj.kind)) this.esperaCriacao.clear(); // cota nova: os controladores tentam criar de novo já
@@ -244,6 +296,28 @@ export class Cluster {
     if (obj.kind === 'Node') this.mudancasDeCapacidade++; // label, taint ou cordon: o scheduler tenta de novo
   }
 
+  /** O JSON de um campo (status, data...) de um objeto guardado, anotado até o campo ser trocado ou o objeto mudar de versão. */
+  jsonDe(obj, campo) {
+    const valor = obj[campo];
+    let marcas = this.jsons.get(obj);
+    if (!marcas) this.jsons.set(obj, (marcas = {}));
+    const m = marcas[campo];
+    if (m && m.valor === valor && m.rv === obj.metadata.resourceVersion) return m.json;
+    const json = JSON.stringify(valor);
+    marcas[campo] = { valor, rv: obj.metadata.resourceVersion, json };
+    return json;
+  }
+
+  /** Troca o status (e grava) se o JSON dele mudou. → se trocou */
+  trocarStatus(obj, status) {
+    const json = JSON.stringify(status);
+    if (json === this.jsonDe(obj, 'status')) return false;
+    obj.status = status;
+    this.salvar(obj);
+    this.jsons.get(obj).status = { valor: status, rv: obj.metadata.resourceVersion, json };
+    return true;
+  }
+
   /** Substitui um objeto pela versão nova (kubectl apply/replace/edit). */
   substituir(antigo, novo) {
     const obj = clone(novo);
@@ -308,6 +382,7 @@ export class Cluster {
     if (this.objetos.get(chave) !== obj) return;
     this.objetos.delete(chave);
     this.porUid.delete(obj.metadata.uid);
+    this.indexar(obj, false);
     this.rv++;
     this.registrar('DELETED', obj);
     if (obj.kind === 'Pod') {
@@ -322,7 +397,7 @@ export class Cluster {
   }
 
   registrar(tipo, obj) {
-    this.historico.push({ rv: this.rv, tipo, obj: clone(obj) });
+    this.historico.push({ rv: this.rv, tipo, obj: copiar(obj) });
     if (this.historico.length > 5000) this.historico.splice(0, 1000);
   }
 
@@ -330,7 +405,8 @@ export class Cluster {
   /** Registra (ou soma, se repetido) um evento sobre o objeto. */
   evento(obj, tipo, motivo, mensagem, { componente, campo, host } = {}) {
     const ns = obj.metadata.namespace ?? 'default';
-    const existente = this.eventos.find((e) => e.involvedObject.uid === obj.metadata.uid && e.reason === motivo && e.message === mensagem && e.involvedObject.fieldPath === campo);
+    const doObjeto = this.eventosDo(obj.metadata.uid);
+    const existente = doObjeto.find((e) => e.reason === motivo && e.message === mensagem && e.involvedObject.fieldPath === campo);
     const agora = iso(this.agora);
     if (existente) {
       existente.count += 1;
@@ -365,8 +441,24 @@ export class Cluster {
       type: tipo,
     };
     this.eventos.push(e);
+    doObjeto.push(e);
+    this.indiceEventos.tamanho++;
     this.registrar('ADDED', e);
     return e;
+  }
+
+  /** Os eventos de um objeto (pelo uid), na ordem da lista: o índice se refaz quando a lista é trocada (vencimento, namespace apagado). */
+  eventosDo(uid) {
+    let idx = this.indiceEventos;
+    if (idx?.lista !== this.eventos || idx.tamanho !== this.eventos.length) {
+      idx = this.indiceEventos = { lista: this.eventos, tamanho: this.eventos.length, porUid: new Map() };
+      for (const e of this.eventos) {
+        if (!idx.porUid.has(e.involvedObject.uid)) idx.porUid.set(e.involvedObject.uid, []);
+        idx.porUid.get(e.involvedObject.uid).push(e);
+      }
+    }
+    if (!idx.porUid.has(uid)) idx.porUid.set(uid, []);
+    return idx.porUid.get(uid);
   }
 
   /** Os eventos vencem uma hora depois da última vez que aconteceram (o --event-ttl do apiserver). */
