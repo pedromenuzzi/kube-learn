@@ -666,7 +666,11 @@ spec:
     manual: ['networkpolicy.spec.egress'],
     inicial: { 'saida-da-vitrine.yaml': saidaDaVitrine(false) },
     solucao: { 'saida-da-vitrine.yaml': saidaDaVitrine(true) },
-    testes: [depois('a vitrine acha a api pelo nome', [{ semErros: true }, pede('vitrine', 'http://api', 200)], { esperar: '5s' })],
+    testes: [depois('a vitrine acha a api pelo nome', [
+      { semErros: true },
+      pede('vitrine', 'http://api', 200),
+      { ...pede('vitrine', 'http://kube-dns.kube-system:9153', 'timeout'), msg: 'o resto da saída continua fechado (a porta 9153 do kube-dns dá timeout)' },
+    ], { esperar: '5s' })],
   }),
 
   problema({

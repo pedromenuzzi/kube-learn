@@ -1,0 +1,14 @@
+# O formulário que o botão Feedback do site abre (src/ui/feedback.js): o site preenche o título e o relato pela URL;
+# a etiqueta vem daqui, então vale para qualquer pessoa (o parâmetro labels= da URL só vale para quem administra o repo).
+name: Feedback do site
+description: Relato enviado pelo botão Feedback do kube-learn (a missão, a reação e o contexto).
+title: "[feedback] "
+labels: ["feedback"]
+body:
+  - type: textarea
+    id: relato
+    attributes:
+      label: Relato
+      description: O site preencheu com a missão, a sua reação e o contexto. Revise e complete se quiser.
+    validations:
+      required: true

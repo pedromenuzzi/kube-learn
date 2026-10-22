@@ -4,7 +4,7 @@ import { criarAleatorio, uuidDe } from './aleatorio.js';
 import { aplicarPadroes, usarEsquemasExtras } from './esquema.js';
 import { recursoDoKind, pluralQualificado, usarRecursosExtras } from './recursos.js';
 import { registrarCrd, esquecerCrd } from './crds.js';
-import { rodarControladores } from './controladores.js';
+import { rodarControladores, servicoKubernetes } from './controladores.js';
 import { agendar } from './scheduler.js';
 import { Kubelet, qos } from './kubelet.js';
 import { bytes, cpuMili, iso, parseDuracao } from './unidades.js';
@@ -62,6 +62,7 @@ export class Cluster {
     this.discos = new Map(); // o conteúdo de cada disco: nome do PV (ou "emptydir:<uid do pod>:<volume>") → Map(arquivo → texto)
     this.provisionamentos = new Map(); // uid do PVC → { inicio, avisado, esperando }
     this.jobsVistos = new Set();
+    this.cronVisto = new Map(); // uid do CronJob → { horario, ate }: até que minuto o controlador já conferiu
     this.moldes = new Map(); // "uid:geração" → hash e forma canônica do template (cache)
     this.hpas = new Map(); // uid do HPA → { ultima, recomendacoes }
     this.esperaCriacao = new Map(); // uid do controlador → { proxima, atraso } depois de um pod recusado (FailedCreate) // Jobs de CronJob que já terminaram e foram anotados (SawCompletedJob)
@@ -335,6 +336,7 @@ export class Cluster {
       existente.count += 1;
       existente.lastTimestamp = agora;
       existente.metadata.resourceVersion = String(++this.rv);
+      this.registrar('MODIFIED', existente); // o kubectl get events -w vê a contagem subir
       return existente;
     }
     const e = {
@@ -363,7 +365,15 @@ export class Cluster {
       type: tipo,
     };
     this.eventos.push(e);
+    this.registrar('ADDED', e);
     return e;
+  }
+
+  /** Os eventos vencem uma hora depois da última vez que aconteceram (o --event-ttl do apiserver). */
+  vencerEventos() {
+    if (this.agora - (this.ultimaFaxina ?? 0) < 60_000) return; // o etcd reaproveita o lease por 1 minuto
+    this.ultimaFaxina = this.agora;
+    this.eventos = this.eventos.filter((e) => this.agora - Date.parse(e.lastTimestamp) < 3_600_000);
   }
 
   // ---------- tempo ----------
@@ -373,6 +383,7 @@ export class Cluster {
     while (this.agora < alvo) {
       this.agora = Math.min(this.agora + 1000, alvo);
       this.reconciliar();
+      this.vencerEventos();
       this.gitops?.tique(); // o fiscal do GitOps, nos clusters que têm um repositório
     }
   }
@@ -506,11 +517,7 @@ export class Cluster {
     classe.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = `${JSON.stringify(classe)}\n`;
     this.criar(classe);
     this.idProvisionador = `rancher.io/local-path_local-path-provisioner-${this.aleatorio.sufixo(10)}-${this.aleatorio.sufixo(5)}_${this.aleatorio.uuid()}`;
-    this.criar({
-      apiVersion: 'v1', kind: 'Service',
-      metadata: { name: 'kubernetes', namespace: 'default', labels: { component: 'apiserver', provider: 'kubernetes' } },
-      spec: { clusterIP: '10.96.0.1', ports: [{ name: 'https', port: 443, protocol: 'TCP', targetPort: 6443 }] },
-    });
+    servicoKubernetes(this);
     this.criar({
       apiVersion: 'v1', kind: 'Endpoints',
       metadata: { name: 'kubernetes', namespace: 'default', labels: { 'endpointslice.kubernetes.io/skip-mirror': 'true' } },

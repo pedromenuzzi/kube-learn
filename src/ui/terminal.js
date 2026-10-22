@@ -43,7 +43,7 @@ export function criarTerminal(raiz, { executar, completar }) {
   const caixa = (c) => {
     const div = document.createElement('div');
     div.className = 'term-caixa';
-    div.innerHTML = `<p class="term-caixa-titulo">${icone('lampada')} ${escapar(c.titulo)}</p><p>${c.texto}</p>${c.vidaReal ? `<p class="term-caixa-vida">${t('Na vida real')}: ${escapar(c.vidaReal)}</p>` : ''}`;
+    div.innerHTML = `<p class="term-caixa-titulo">${icone('lampada')} ${c.titulo}</p><p>${c.texto}</p>${c.vidaReal ? `<p class="term-caixa-vida">${t('Na vida real')}: ${escapar(c.vidaReal)}</p>` : ''}`;
     saida.append(div);
     rolar();
   };

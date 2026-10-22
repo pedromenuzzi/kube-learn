@@ -62,6 +62,8 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
 - Clusters de partida em `clusters.js` (`nodes` com labels e taints; `antes`, comandos antes dos manifestos;
   `manifestos`; e `comandos`, cada um seguido de 1 minuto, que podem ser funções do cluster, como `c.derrubarNode('node-2')`,
   ou linhas `helm ...`; `repoHelm: true` já cadastra o repositório kube-learn; `gitops: { arquivo: yaml }` liga o GitOps).
+- **Id publicado não muda:** o progresso do aluno é guardado pelo id; missão nova entra no fim de `tests/ids-conhecidos.json`
+  (`tests/ids.test.js` falha se um id some ou é renomeado).
 - As regras de teste estão documentadas no topo de `src/verificacoes.js`. O teste da trilha
   (`tests/conteudo.test.js`) roda a solução e o inicial de toda missão.
 

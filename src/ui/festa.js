@@ -125,7 +125,7 @@ function cartao([evento, ...resto]) {
     <p class="acoes"><a class="botao" href="#/certificado">${icone('lacre')} ${t('Ver o certificado')}</a>
       <button type="button" class="botao-secundario" data-fechar>${t('Fechar')}</button></p>`;
   document.body.append(d);
-  d.show();
+  d.showModal(); // modal de verdade: o Tab não escapa para a página escurecida atrás
   const pararNavio = lacre ? null : desenharNavio(d.querySelector('canvas'), jornada());
   tocar(lacre ? 'lacre' : 'navio');
   anunciar(lacre ? t('Nível {n} lacrado!', { n: evento.nivel.numero }) : t('Navio carregado! Todos os níveis lacrados.'));
@@ -145,7 +145,10 @@ function cartao([evento, ...resto]) {
     if (e.target.closest('[data-fechar]')) fechar();
     else if (e.target.closest('a[href^="#"]')) tirar();
   });
-  d.addEventListener('keydown', (e) => e.key === 'Escape' && fechar());
+  d.addEventListener('cancel', (e) => { // Esc
+    e.preventDefault();
+    fechar();
+  });
   addEventListener('hashchange', tirar);
 }
 

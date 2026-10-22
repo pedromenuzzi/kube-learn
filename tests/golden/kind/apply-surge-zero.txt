@@ -1,0 +1,2 @@
+The Deployment "travado" is invalid: spec.strategy.rollingUpdate.maxUnavailable: Invalid value: 0: may not be 0 when `maxSurge` is 0
+exit=1

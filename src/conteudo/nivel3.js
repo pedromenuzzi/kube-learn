@@ -168,7 +168,7 @@ spec:
     dificuldade: 'facil',
     cluster: 'loja-sem-servico',
     vidaReal: 'Dar à loja um ramal fixo, que toca em qualquer um dos atendentes.',
-    limite: 'O ramal não sabe se o atendente está ocupado: ele só reparte as ligações (em rodízio).',
+    limite: 'O ramal não sabe se o atendente está ocupado: ele só reparte as ligações, sorteando um atendente a cada uma (não é rodízio: um pode receber duas seguidas).',
     enunciado: `
       <p>A loja tem 3 pods, mas ninguém sabe onde ligar. Crie um <b>Service</b> chamado <code>loja</code> que receba na
          porta <code>80</code> e entregue na porta <code>8080</code> dos pods com a label <code>app: loja</code>.</p>`,
@@ -359,9 +359,9 @@ spec:
     dificuldade: 'dificil',
     cluster: 'banco',
     vidaReal: 'Em vez de um ramal que reparte as ligações, uma lista com o número de cada apartamento: quem liga escolhe com quem falar.',
-    limite: 'Sem o rodízio do ramal, quem chama precisa saber escolher (é o caso dos bancos de dados com réplicas e de StatefulSets, no nível 4).',
+    limite: 'Sem o ramal escolhendo o atendente, quem chama precisa saber escolher (é o caso dos bancos de dados com réplicas e de StatefulSets, no nível 4).',
     enunciado: `
-      <p>As 3 réplicas do <code>banco</code> (Redis, porta 6379) precisam se achar <b>uma a uma</b>, sem rodízio. Crie um
+      <p>As 3 réplicas do <code>banco</code> (Redis, porta 6379) precisam se achar <b>uma a uma</b>, sem sorteio. Crie um
          Service <b>headless</b> chamado <code>banco</code>: sem IP próprio, o DNS devolve o IP de cada pod.</p>
       <p>Confira de um pod de teste: <code>kubectl run t --image=busybox:1.36 -- sleep 3600</code> e depois
          <code>kubectl exec t -- nslookup banco</code>.</p>`,

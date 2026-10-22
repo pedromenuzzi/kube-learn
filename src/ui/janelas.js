@@ -288,6 +288,7 @@ export function montarJanelas(raiz, janelas, { aoMudar } = {}) {
   raiz.addEventListener('pointerdown', (e) => {
     const topo = e.target.closest('.janela-topo');
     if (!topo || e.target.closest('button') || e.button !== 0) return;
+    if (matchMedia('(max-width: 60rem)').matches) return; // empilhadas (celular): nada de arrastar
     const id = topo.closest('.janela').dataset.janela;
     let alvo = null;
     let arrastou = false;

@@ -19,7 +19,7 @@ const contar = (s, re) => (s.match(re) ?? []).length;
 /** Parece português? (fora do código: o que está em <code>, <pre> e o YAML/kubectl das dicas fica como está) */
 export function pareceportugues(s) {
   // (os nomes das personagens ficam como são)
-  const prosa = s.replace(/Conceição|Apolinário/g, '').replace(/https?:\/\/\S+/g, '').replace(/<pre>[\s\S]*?<\/pre>/g, '').replace(/<code>[\s\S]*?<\/code>/g, '').replace(/<[^>]+>/g, ' ').replace(/\S*[-_=/.:{}]\S*/g, ' '); // sem nomes de recurso, caminhos e chave=valor
+  const prosa = s.replace(/(?:<\/?b>)?Con(?:<\/?b>)?ceição|Apolinário/g, '').replace(/https?:\/\/\S+/g, '').replace(/<pre>[\s\S]*?<\/pre>/g, '').replace(/<code>[\s\S]*?<\/code>/g, '').replace(/<[^>]+>/g, ' ').replace(/\S*[-_=/.:{}]\S*/g, ' '); // sem nomes de recurso, caminhos e chave=valor
   return /[ãõç]|\b(não|você|também|está|então|porque|quando|sem|isso|esse|essa|são|pelo|pela|uma|com|para|que)\b/i.test(prosa);
 }
 

@@ -114,7 +114,10 @@
     "comoSaber": "<code>kubectl exec vitrine -n rede -- wget -q -O- -T 3 http://api</code> shows the nginx page.",
     "testes": [
       {
-        "descricao": "vitrine finds api by name"
+        "descricao": "vitrine finds api by name",
+        "msgs": {
+          "2": "the rest of the exit stays closed (kube-dns port 9153 times out)"
+        }
       }
     ]
   },

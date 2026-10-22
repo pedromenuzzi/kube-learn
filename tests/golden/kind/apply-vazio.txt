@@ -1,0 +1,2 @@
+error: no objects passed to apply
+exit=1

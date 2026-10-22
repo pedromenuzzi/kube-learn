@@ -1,0 +1,3 @@
+curl: (3) URL using bad/illegal format or missing URL
+command terminated with exit code 3
+exit=3

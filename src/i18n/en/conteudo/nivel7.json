@@ -67,7 +67,7 @@
     "titulo": "Half in each neighborhood",
     "enunciado": "\n      <p>The nodes have the <code>topology.kubernetes.io/zone</code> label: <code>node-1</code> and <code>node-2</code> in\n         <code>zona-a</code>, <code>node-3</code> in <code>zona-b</code>.</p>\n      <p><code>site</code> has 6 replicas. Spread them across the <b>zones</b>, with a maximum difference of 1 (3 and 3), using\n         <code>topologySpreadConstraints</code>.</p>",
     "dica": "topologySpreadConstraints: [{ maxSkew: 1, topologyKey: topology.kubernetes.io/zone, whenUnsatisfiable: DoNotSchedule, labelSelector: {...} }]",
-    "vidaReal": "The condo has two neighborhoods: A, with two buildings, and B, with one. If one neighborhood loses power, half the shops have to stay open.",
+    "vidaReal": "The condo has two neighborhoods: A, with two buildings, and B, with one. If one neighborhood loses power, half the stores have to stay open.",
     "limite": "Spreading by node isn’t spreading by zone: 2 per building leaves 4 in neighborhood A and only 2 in B.",
     "comoSaber": "<code>kubectl get pods -o wide</code>: 3 replicas on node-3 and 3 split between node-1 and node-2.",
     "testes": [

@@ -18,7 +18,18 @@ const dono = (obj) => ({ apiVersion: obj.apiVersion, blockOwnerDeletion: true, c
 const revisao = (rs) => Number(rs.metadata.annotations?.['deployment.kubernetes.io/revision'] ?? 0);
 const porCriacao = (a, b) => a.metadata.creationTimestamp.localeCompare(b.metadata.creationTimestamp) || a.metadata.name.localeCompare(b.metadata.name);
 
+/** O Service `kubernetes` (o endereço do apiserver): quem apaga vê o apiserver criar de novo. */
+export function servicoKubernetes(c) {
+  if (c.obter('Service', 'default', 'kubernetes')) return;
+  c.criar({
+    apiVersion: 'v1', kind: 'Service',
+    metadata: { name: 'kubernetes', namespace: 'default', labels: { component: 'apiserver', provider: 'kubernetes' } },
+    spec: { clusterIP: '10.96.0.1', ports: [{ name: 'https', port: 443, protocol: 'TCP', targetPort: 6443 }] },
+  });
+}
+
 export function rodarControladores(c) {
+  servicoKubernetes(c);
   controladorDeNodes(c);
   namespaces(c);
   deployments(c);
@@ -647,6 +658,28 @@ function ttlVencido(c, job) {
 }
 
 // ---------- CronJob ----------
+/**
+ * O horário mais recente que ainda não rodou (o mostRecentScheduleTime do controlador): depois do último agendamento
+ * (ou da criação) e dentro do startingDeadlineSeconds. Quem sai do suspend roda na hora o último horário perdido.
+ * `c.cronVisto` guarda até onde já se olhou, para não varrer o passado a cada segundo. → ms do horário, ou null.
+ */
+function horarioPendente(c, cj, horario, ultimo, evento) {
+  const prazo = cj.spec.startingDeadlineSeconds;
+  const visto = c.cronVisto.get(cj.metadata.uid);
+  const desde = Math.max(ultimo, prazo === undefined ? -Infinity : c.agora - prazo * 1000, visto?.horario === cj.spec.schedule ? visto.ate : -Infinity);
+  const agora = Math.floor(c.agora / 60_000) * 60_000;
+  c.cronVisto.set(cj.metadata.uid, { horario: cj.spec.schedule, ate: agora });
+  let achado = null;
+  let perdidos = 0;
+  for (let m = agora; m > desde && perdidos <= 100; m -= 60_000) {
+    if (!horario.casa(m)) continue;
+    achado ??= m;
+    perdidos++;
+  }
+  if (perdidos > 100) evento('Warning', 'TooManyMissedTimes', 'too many missed start times. Set or decrease .spec.startingDeadlineSeconds or check clock skew');
+  return achado;
+}
+
 /** Cria um Job a cada horário marcado (a conferência é a cada segundo do relógio do cluster). */
 function cronjobs(c) {
   for (const cj of c.listar('CronJob')) {
@@ -664,11 +697,12 @@ function cronjobs(c) {
       if (fim.type === 'Complete') st.lastSuccessfulTime = j.status.completionTime;
     }
     // O horário: um Job por minuto marcado, sem repetir o mesmo minuto.
-    const minuto = Math.floor(c.agora / 60_000) * 60_000;
     const horario = lerCron(cj.spec.schedule);
     const ultimo = st.lastScheduleTime ? Date.parse(st.lastScheduleTime) : Date.parse(cj.metadata.creationTimestamp);
     const ativos = () => c.listar('Job', ns).filter((j) => controlador(j)?.uid === cj.metadata.uid && !terminou(j));
-    if (!cj.spec.suspend && !horario.erro && minuto > ultimo && horario.casa(minuto)) {
+    if (cj.spec.suspend) c.cronVisto.delete(cj.metadata.uid); // ao voltar, olha de novo desde o último horário
+    const minuto = cj.spec.suspend || horario.erro ? null : horarioPendente(c, cj, horario, ultimo, evento);
+    if (minuto !== null) {
       const pol = cj.spec.concurrencyPolicy;
       st.lastScheduleTime = iso(minuto);
       if (pol === 'Forbid' && ativos().length) {

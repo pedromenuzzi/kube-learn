@@ -188,6 +188,9 @@ export const STATUS = [
 ];
 
 /** Explicações para a saída de um comando: erros (se falhou) e status problemáticos (numa tabela). */
+// O que vem da saída (nomes, campos) entra no HTML da caixa: escapado aqui, uma vez, para as regras dos dois idiomas.
+const html = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
 export function explicar(saida, { falhou }) {
   const caixas = [];
   const en = pacoteIngles()?.explicacoes; // em inglês, o gêmeo de src/i18n/en/explicacoes.js (enquanto houver)
@@ -197,7 +200,7 @@ export function explicar(saida, { falhou }) {
     for (const r of regras) {
       const m = saida.match(r.re);
       if (m) {
-        caixas.push({ chave: r.re.source, ...r.t(m) });
+        caixas.push({ chave: r.re.source, ...r.t(m.map(html)) });
         break;
       }
     }

@@ -46,7 +46,7 @@
   },
   "n9-manutencao-esquecida": {
     "titulo": "Yesterday’s “under renovation” sign",
-    "enunciado": "<blockquote class=\"relato\"><p>Yesterday there was maintenance in both buildings. Today the new shop can’t move in anywhere.</p><footer>Kleber, the caretaker</footer></blockquote><p>The <code>loja</code> (shop) pods are Pending. Find out what the maintenance left behind and remove it.</p>",
+    "enunciado": "<blockquote class=\"relato\"><p>Yesterday there was maintenance in both buildings. Today the new store can’t move in anywhere.</p><footer>Kleber, the caretaker</footer></blockquote><p>The <code>loja</code> (store) pods are Pending. Find out what the maintenance left behind and remove it.</p>",
     "dica": "kubectl describe node (the Taints line) and kubectl taint nodes NODE key-.",
     "vidaReal": "Someone forgot the “under renovation” sign hanging on the doors of both buildings.",
     "limite": "Taking down the sign only lets the next ones in: whoever was turned away waits for the scheduler’s next attempt.",
@@ -74,7 +74,7 @@
   },
   "n9-ramal-mudo": {
     "titulo": "The extension nobody answers",
-    "enunciado": "<blockquote class=\"relato\"><p>The shop’s clerks are all there, I saw them. But whoever calls the “loja” extension doesn’t reach anyone.</p><footer>Lúcia, from customer service</footer></blockquote><p>The shop’s pods are ready, but the <code>loja</code> Service doesn’t deliver to them. Fix the Service.</p>",
+    "enunciado": "<blockquote class=\"relato\"><p>The store’s clerks are all there, I saw them. But whoever calls the “loja” extension doesn’t reach anyone.</p><footer>Lúcia, from customer service</footer></blockquote><p>The store’s pods are ready, but the <code>loja</code> Service doesn’t deliver to them. Fix the Service.</p>",
     "dica": "kubectl get endpoints loja (empty) and compare the Service’s selector with the pods’ labels (--show-labels).",
     "vidaReal": "The extension is registered to the “lojas” team, and the team is called “loja”.",
     "limite": "The Service doesn’t warn you that its selector matches nobody: it just keeps an empty list of clerks.",
@@ -86,8 +86,8 @@
   },
   "n9-porta-errada": {
     "titulo": "Connection refused",
-    "enunciado": "<blockquote class=\"relato\"><p>Now the extension at least rings, but it hangs up right away: “connection refused”.</p><footer>Lúcia, from customer service</footer></blockquote><p>The <code>loja</code> Service has the 3 pods behind it, but nobody answers. Find out which port the shop listens on and\n             fix the Service.</p>",
-    "dica": "kubectl describe svc loja (TargetPort) and the pods’ containerPort. The shop listens on 8080.",
+    "enunciado": "<blockquote class=\"relato\"><p>Now the extension at least rings, but it hangs up right away: “connection refused”.</p><footer>Lúcia, from customer service</footer></blockquote><p>The <code>loja</code> Service has the 3 pods behind it, but nobody answers. Find out which port the store listens on and\n             fix the Service.</p>",
+    "dica": "kubectl describe svc loja (TargetPort) and the pods’ containerPort. The store listens on 8080.",
     "vidaReal": "The extension rings the phone on the next desk: the clerks are in the apartment, but in the other room.",
     "limite": "The Service checks who’s ready, not which port the program listens on: the list is full and the call drops.",
     "testes": [
@@ -98,8 +98,8 @@
   },
   "n9-nunca-pronto": {
     "titulo": "Running, but never ready",
-    "enunciado": "<blockquote class=\"relato\"><p>The shop’s three clerks arrived early and they’re inside. But I can’t send customers to someone who doesn’t say they’re ready.</p><footer>Apolinário, the doorman</footer></blockquote><p>The <code>loja</code> pods run, but stay at <code>0/1</code> and the Service has nobody. Fix the\n             readinessProbe.</p>",
-    "dica": "kubectl describe pod NAME (Events: Unhealthy, Readiness probe failed: HTTP probe failed with statuscode: 404). The shop answers on /healthz.",
+    "enunciado": "<blockquote class=\"relato\"><p>The store’s three clerks arrived early and they’re inside. But I can’t send customers to someone who doesn’t say they’re ready.</p><footer>Apolinário, the doorman</footer></blockquote><p>The <code>loja</code> pods run, but stay at <code>0/1</code> and the Service has nobody. Fix the\n             readinessProbe.</p>",
+    "dica": "kubectl describe pod NAME (Events: Unhealthy, Readiness probe failed: HTTP probe failed with statuscode: 404). The store answers on /healthz.",
     "vidaReal": "The building manager asks “can you take visitors?” at the wrong door: nobody answers, and he marks it as closed.",
     "limite": "Readiness doesn’t restart anyone: the pod keeps running forever, it just doesn’t get any customers.",
     "testes": [
@@ -134,10 +134,10 @@
   },
   "n9-catraca-esquecida": {
     "titulo": "The forgotten turnstile",
-    "enunciado": "<blockquote class=\"relato\"><p>Since the security audit, the storefront can’t talk to the shop anymore. Only the admin folks get through.</p><footer>Rafa, from the storefront</footer></blockquote><p>The <code>protege-loja</code> NetworkPolicy only lets <code>app=admin</code> pods into the shop. Let\n             the <code>vitrine</code> in too, without opening it to everyone.</p>",
+    "enunciado": "<blockquote class=\"relato\"><p>Since the security audit, the storefront can’t talk to the store anymore. Only the admin folks get through.</p><footer>Rafa, from the storefront</footer></blockquote><p>The <code>protege-loja</code> NetworkPolicy only lets <code>app=admin</code> pods into the store. Let\n             the <code>vitrine</code> in too, without opening it to everyone.</p>",
     "dica": "kubectl get netpol and kubectl describe netpol protege-loja. Add a podSelector app: vitrine to the from.",
     "vidaReal": "The new turnstile only recognizes the admin badge: the storefront gets stopped at the door.",
-    "limite": "Deleting the turnstile also “solves” it, and opens the shop to anyone (including the nosy curioso pod).",
+    "limite": "Deleting the turnstile also “solves” it, and opens the store to anyone (including the nosy curioso pod).",
     "testes": [
       {
         "descricao": "the incident is resolved",
@@ -149,7 +149,7 @@
   },
   "n9-sem-cracha": {
     "titulo": "The forbidden deploy",
-    "enunciado": "<blockquote class=\"relato\"><p>The pipeline creates Deployments in the shop just fine, but when it tries to update one, it gets this: <code>deployments.apps \"loja\" is forbidden: User \"carla\" cannot patch resource \"deployments\" in API group \"apps\" in the namespace \"loja\"</code>.</p><footer>Carla, from the deploy pipeline (CI)</footer></blockquote><p>Give the <code>deploy-ci</code> Role what’s missing for carla to <b>update</b> Deployments (update and patch), without\n             giving her the power to delete.</p>",
+    "enunciado": "<blockquote class=\"relato\"><p>The pipeline creates Deployments in the store just fine, but when it tries to update one, it gets this: <code>deployments.apps \"loja\" is forbidden: User \"carla\" cannot patch resource \"deployments\" in API group \"apps\" in the namespace \"loja\"</code>.</p><footer>Carla, from the deploy pipeline (CI)</footer></blockquote><p>Give the <code>deploy-ci</code> Role what’s missing for carla to <b>update</b> Deployments (update and patch), without\n             giving her the power to delete.</p>",
     "dica": "kubectl auth can-i patch deployments --as=carla -n loja. Add update and patch to the verbs.",
     "vidaReal": "The badge opens the door to bring in new furniture, but not to replace what’s already there.",
     "limite": "kubectl apply uses patch; kubectl replace uses update. So the pipeline doesn’t depend on which one, give it both.",
@@ -161,7 +161,7 @@
   },
   "n9-endereco-errado": {
     "titulo": "The stockroom in the other block",
-    "enunciado": "<blockquote class=\"relato\"><p>The storefront moved to the shop’s block and now says “stockroom down” all the time. The stockroom is working, I called them.</p><footer>Rafa, from the storefront</footer></blockquote><p>The <code>vitrine</code> (namespace <code>loja</code>) calls the stockroom’s <code>api</code> at the address in the\n             <code>API_URL</code> variable. But the api lives in the <code>estoque</code> namespace. Fix the address.</p>",
+    "enunciado": "<blockquote class=\"relato\"><p>The storefront moved to the store’s block and now says “stockroom down” all the time. The stockroom is working, I called them.</p><footer>Rafa, from the storefront</footer></blockquote><p>The <code>vitrine</code> (namespace <code>loja</code>) calls the stockroom’s <code>api</code> at the address in the\n             <code>API_URL</code> variable. But the api lives in the <code>estoque</code> namespace. Fix the address.</p>",
     "dica": "kubectl logs -n loja deploy/vitrine (wget: bad address). The address is http://api.estoque.",
     "vidaReal": "They dialed the “api” extension in their own block; the api is in another block, and the short address doesn’t reach it.",
     "limite": "The short name only works within the same namespace: from another one, it’s name.namespace (or the full name, name.namespace.svc.cluster.local).",
@@ -176,7 +176,7 @@
   },
   "n9-rollout-travado": {
     "titulo": "The renovation that won’t move forward",
-    "enunciado": "<blockquote class=\"relato\"><p>They moved the shop to the new version this morning. The “rollout status” still says it’s waiting. At least the old shop is still serving customers.</p><footer>Jorge, from finance</footer></blockquote><p>The <code>loja</code> update is stuck. Find out why and take the shop back to a version that exists\n             (the previous one will do).</p>",
+    "enunciado": "<blockquote class=\"relato\"><p>They moved the store to the new version this morning. The “rollout status” still says it’s waiting. At least the old store is still serving customers.</p><footer>Jorge, from finance</footer></blockquote><p>The <code>loja</code> update is stuck. Find out why and take the store back to a version that exists\n             (the previous one will do).</p>",
     "dica": "kubectl rollout status deployment/loja, kubectl get pods (ErrImagePull on the new tag). kubectl rollout undo deployment/loja",
     "vidaReal": "The step-by-step renovation stopped at the first apartment: the new material never arrived, and the old ones are still standing.",
     "limite": "The Deployment doesn’t give up on its own: after the deadline (progressDeadlineSeconds), it just marks “ProgressDeadlineExceeded” and waits for someone to decide.",
@@ -209,7 +209,7 @@
     "enunciado": "<blockquote class=\"relato\"><p>The garbage pickup was supposed to come every minute. It hasn’t come once this week.</p><footer>Kleber, the caretaker</footer></blockquote><p>The <code>limpeza</code> (cleanup) CronJob never created a Job. Find out why and bring the pickup back.</p>",
     "dica": "kubectl get cronjob limpeza (the SUSPEND column). Change suspend to false and apply.",
     "vidaReal": "Someone hung a “pickup suspended” sign during last week’s renovation and nobody took it down.",
-    "limite": "When it comes back, the pickup doesn’t make up for the times it missed: it carries on from the next scheduled time.",
+    "limite": "When it comes back, the pickup doesn’t make up for every time it missed: it comes once right away (for the last missed run, if still within startingDeadlineSeconds) and then keeps to the schedule.",
     "testes": [
       {
         "descricao": "the incident is resolved",
@@ -221,7 +221,7 @@
   },
   "n9-fila-presa": {
     "titulo": "The queue stuck in the building without power",
-    "enunciado": "<blockquote class=\"relato\"><p>node-2 lost power and the order queue stopped. The shop came back in another building, but the queue never does.</p><footer>Lúcia, from customer service</footer></blockquote><p>The <code>fila</code> (queue) is a StatefulSet with one replica, and the pod <code>fila-0</code> got stuck\n             <code>Terminating</code> on <code>node-2</code>, which isn’t coming back today. Bring the queue back in another building.</p>",
+    "enunciado": "<blockquote class=\"relato\"><p>node-2 lost power and the order queue stopped. The store came back in another building, but the queue never does.</p><footer>Lúcia, from customer service</footer></blockquote><p>The <code>fila</code> (queue) is a StatefulSet with one replica, and the pod <code>fila-0</code> got stuck\n             <code>Terminating</code> on <code>node-2</code>, which isn’t coming back today. Bring the queue back in another building.</p>",
     "dica": "kubectl get pods -o wide and kubectl get nodes. The StatefulSet waits for fila-0 to be gone for good: kubectl delete pod fila-0 --force --grace-period=0",
     "vidaReal": "Apartment 0 of the queue has an owner and a number: until the management office is sure the old one has left, it won’t give that number to anyone else.",
     "limite": "Forcing it out means stating “the old one really is dead”. If the building comes back and the old one is still alive, there would be two fila-0s.",
@@ -233,7 +233,7 @@
   },
   "n9-balcao-errado": {
     "titulo": "The front desk sends people to the wrong room",
-    "enunciado": "<blockquote class=\"relato\"><p>People who come through the front gate looking for loja.local get “Service Unavailable”. The shop is open, I saw it.</p><footer>Apolinário, the doorman</footer></blockquote><p>The <code>loja</code> Ingress sends <code>loja.local</code> to a Service that doesn’t exist. Fix it.</p>",
+    "enunciado": "<blockquote class=\"relato\"><p>People who come through the front gate looking for loja.local get “Service Unavailable”. The store is open, I saw it.</p><footer>Apolinário, the doorman</footer></blockquote><p>The <code>loja</code> Ingress sends <code>loja.local</code> to a Service that doesn’t exist. Fix it.</p>",
     "dica": "kubectl describe ingress loja (Backends) and kubectl get svc.",
     "vidaReal": "The information desk sends customers to the “lojas” room, and the room is called “loja”.",
     "limite": "The Ingress doesn’t check whether the Service exists when it’s created: the error only shows up when someone arrives.",

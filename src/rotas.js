@@ -20,5 +20,9 @@ export function resolverRota(hash) {
   if (!rota) return null;
   const parametro = partes.slice(1).join('/') || null;
   if (Boolean(rota.comParametro) !== Boolean(parametro)) return null;
-  return { caminho, parametro: parametro && decodeURIComponent(parametro), titulo: rota.titulo };
+  try {
+    return { caminho, parametro: parametro && decodeURIComponent(parametro), titulo: rota.titulo };
+  } catch {
+    return null; // '#/ex/%' e outros escapes quebrados: página não encontrada
+  }
 }

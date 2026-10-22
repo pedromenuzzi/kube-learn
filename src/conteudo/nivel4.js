@@ -251,7 +251,7 @@ spec:
     dificuldade: 'facil',
     cluster: 'loja-sem-config',
     vidaReal: 'Em vez de copiar aviso por aviso, a loja fotografa o quadro inteiro.',
-    limite: 'Chave nova no quadro só entra quando o pod reinicia; e uma chave com nome inválido para variável (como "cor-da-porta") é pulada.',
+    limite: 'Chave nova no quadro só entra quando o pod reinicia. E desde o Kubernetes 1.34 até uma chave como "cor-da-porta" vira variável, mas o shell não lê nome com hífen ($cor-da-porta não funciona): prefira COR_DA_PORTA.',
     enunciado: `
       <p>O <code>loja-config</code> já tem duas chaves (<code>COR</code> e <code>PROMOCAO</code>). Em vez de uma variável
          por chave, traga <b>todas</b> as chaves para o contêiner da loja com <code>envFrom</code>.</p>`,

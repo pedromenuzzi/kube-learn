@@ -235,7 +235,15 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
       const texto = `bash: ${cmd}: command not found\n`;
       return { saida: texto, codigo: 127, partes: [{ fluxo: 'err', texto }], caixas: [{ titulo: t('Aqui o terminal só fala kubectl'), texto: t('Use <code>kubectl ...</code>, ou <code>help</code> para ver os outros comandos.') }] };
     }
-    const r = rodarLinha(estado.cluster, linha, estado.arquivos);
+    let r;
+    try {
+      r = rodarLinha(estado.cluster, linha, estado.arquivos);
+    } catch (erro) {
+      // Um defeito do simulador não pode deixar o terminal mudo: diz o que houve e pede o relato (o Feedback leva os comandos).
+      console.error(erro);
+      const texto = `${t('erro interno do simulador: {erro}', { erro: erro.message })}\n`;
+      return { saida: texto, codigo: 1, partes: [{ fluxo: 'err', texto }], caixas: [{ titulo: t('O simulador tropeçou'), texto: t('Isso é um defeito nosso, não seu. Se puder, conte pelo botão <b>Feedback</b>: ele já leva os últimos comandos.') }] };
+    }
     if (r.arquivoGravado && editor) {
       estado.atual = r.arquivoGravado;
       editor.trocar(estado.arquivos[estado.atual], `Editor: ${estado.atual}`);
@@ -281,11 +289,22 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   }
 
   // ---------- painéis ----------
+  // O relógio chama isto a cada segundo: o painel só é reescrito quando muda (reescrever apaga a seleção de texto e a
+  // posição do leitor de tela). Os Eventos mudam a cada segundo só pela idade: esses, a cada 5 segundos ou com evento novo.
+  const pintado = {};
+  const pintar = (seletor, html) => {
+    if (pintado[seletor] !== html) $(seletor).innerHTML = pintado[seletor] = html;
+  };
+  let eventosEm = 0;
   const atualizarPaineis = () => {
     const visivel = (id) => !$(`#baixo-${id}`).hidden;
-    if (visivel('cluster')) $('#baixo-cluster .mapa-conteudo').innerHTML = htmlCluster(estado.cluster, { sistema: estado.verSistema });
-    if (visivel('recursos')) $('#baixo-recursos').innerHTML = htmlRecursos(estado.cluster);
-    if (visivel('eventos')) $('#baixo-eventos').innerHTML = htmlEventos(estado.cluster);
+    if (visivel('cluster')) pintar('#baixo-cluster .mapa-conteudo', htmlCluster(estado.cluster, { sistema: estado.verSistema }));
+    if (visivel('recursos')) pintar('#baixo-recursos', htmlRecursos(estado.cluster));
+    if (visivel('eventos') && (estado.cluster.eventos.length !== pintado.quantosEventos || estado.cluster.agora - eventosEm >= 5000)) {
+      pintado.quantosEventos = estado.cluster.eventos.length;
+      eventosEm = estado.cluster.agora;
+      pintar('#baixo-eventos', htmlEventos(estado.cluster));
+    }
     const seg = Math.floor((estado.cluster.agora - Date.UTC(2026, 9, 16, 12)) / 1000);
     $('.relogio').innerHTML = `${icone('relogio')}${String(Math.floor(seg / 60)).padStart(2, '0')}:${String(seg % 60).padStart(2, '0')}`;
   };
@@ -321,7 +340,7 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
         registrarComFesta(item, resolvido);
         if (resolvido && !$('.ex-topo .chip-ok')) $('.ex-topo').insertAdjacentHTML('beforeend', `<span class="chip chip-ok">${icone('certo')} ${t('Resolvida')}</span>`);
         if (resolvido) avisar(item.secao ? t('Incidente resolvido! O morador agradece.') : t('Missão cumprida! +{xp} XP. Mais um contêiner embarcado no seu navio.', { xp: XP[item.dificuldade] ?? 0 }), { tipo: 'ok', proximo: proximoDe(item) });
-        else avisar(t('{ok} de {total} testes passaram. Veja o que faltou na aba Testes.', { ok, total }), { tipo: 'falha' });
+        else avisar(`${resumoDosTestes(ok, total)}. ${t('Veja o que faltou na aba Testes.')}`, { tipo: 'falha' });
       } else {
         avisar(ok === total ? t('Testes visíveis: {ok} de {total} passaram. Agora é só entregar.', { ok, total }) : t('Testes visíveis: {ok} de {total} passaram. Veja a aba Testes.', { ok, total }), { tipo: ok === total ? 'ok' : 'falha' });
       }
@@ -375,17 +394,19 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
       desenharArquivos();
     },
   };
+  // O <main> e o document continuam depois que a missão sai: os ouvintes saem junto, no destruir().
+  const fim = new AbortController();
   raiz.addEventListener('click', (e) => {
     const acao = e.target.closest('[data-acao]')?.dataset.acao;
     if (acoes[acao]) acoes[acao]();
-  });
+  }, { signal: fim.signal });
   const teclas = (e) => {
-    if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey)) return;
+    if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey) || e.target.closest?.('dialog')) return;
     e.preventDefault();
     if (e.shiftKey && item.testes?.length) acoes.entregar();
     else if (!e.shiftKey) (temArquivos ? acoes.aplicar : acoes.conferir)();
   };
-  document.addEventListener('keydown', teclas);
+  document.addEventListener('keydown', teclas, { signal: fim.signal });
 
   // ---------- relógio: 1 segundo do cluster por segundo de verdade ----------
   const relogio = setInterval(() => {
@@ -401,7 +422,7 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
       clearInterval(relogio);
       ultima = { id: item.id, cluster: estado.cluster, historico: [...terminal.historico] };
       clearTimeout(tempoDoAviso);
-      document.removeEventListener('keydown', teclas);
+      fim.abort();
       editor?.destruir();
       janelas.destruir();
     },

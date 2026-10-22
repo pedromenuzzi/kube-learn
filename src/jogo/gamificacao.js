@@ -36,15 +36,13 @@ export function calcularJornada(niveis, progresso = {}) {
     return { ...n, itens, total: conta.length, resolvidos, pct, emObra, desbloqueado, passou: !emObra && passou, concluido, situacao };
   });
 
-  let proximo = null;
-  for (const n of resultado) {
-    const item = n.desbloqueado && n.itens.find((i) => i.estado === 'disponivel' || i.estado === 'tentado');
-    if (item) {
-      proximo = item;
-      if (item.estado === 'disponivel') item.estado = 'proximo';
-      break;
-    }
-  }
+  // O próximo: o primeiro em aberto depois do último resolvido (quem deixou uma missão para trás lá no começo segue em
+  // frente; quem acabou de errar a da vez continua nela); sem nada depois, o primeiro em aberto da trilha.
+  const abertos = resultado.filter((n) => n.desbloqueado).flatMap((n) => n.itens);
+  const ultimoFeito = abertos.findLastIndex((i) => i.estado === 'concluido');
+  const emAberto = (i) => i.estado === 'disponivel' || i.estado === 'tentado';
+  const proximo = abertos.slice(ultimoFeito + 1).find(emAberto) ?? abertos.find(emAberto) ?? null;
+  if (proximo?.estado === 'disponivel') proximo.estado = 'proximo';
   const comConteudo = resultado.filter((n) => !n.emObra);
   return {
     xp,

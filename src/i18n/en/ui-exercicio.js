@@ -1,6 +1,9 @@
 // O texto da interface em inglês (a tela do exercício, o terminal, os painéis, as janelas, o feedback e as mensagens
 // dos testes): a chave é o texto em português, exatamente como está no t('...').
 export default {
+  'erro interno do simulador: {erro}': 'internal simulator error: {erro}',
+  'O simulador tropeçou': 'The simulator tripped',
+  'Isso é um defeito nosso, não seu. Se puder, conte pelo botão <b>Feedback</b>: ele já leva os últimos comandos.': 'That’s our bug, not yours. If you can, tell us with the <b>Feedback</b> button: it already includes your last commands.',
   'Idioma trocado. O cluster continua como estava (↑ traz os comandos de antes).': 'Language switched. The cluster is just as you left it (↑ brings back your earlier commands).',
   'Cluster pronto (1 control plane + 2 workers). Digite help para ajuda.': 'Cluster ready (1 control plane + 2 workers). Type help for help.',
   'Nesta missão, use o terminal.': 'In this mission, use the terminal.',
@@ -72,7 +75,7 @@ export default {
   '{ok} de {total} passaram (só os visíveis)': '{ok} of {total} passed (visible only)',
   'Incidente resolvido! O morador agradece.': 'Incident solved! The resident thanks you.',
   'Missão cumprida! +{xp} XP. Mais um contêiner embarcado no seu navio.': 'Mission accomplished! +{xp} XP. One more container loaded aboard your ship.',
-  '{ok} de {total} testes passaram. Veja o que faltou na aba Testes.': '{ok} of {total} tests passed. See what’s missing on the Tests tab.',
+  'Veja o que faltou na aba Testes.': 'See what’s missing on the Tests tab.',
   'Testes visíveis: {ok} de {total} passaram. Agora é só entregar.': 'Visible tests: {ok} of {total} passed. Now just submit.',
   'Testes visíveis: {ok} de {total} passaram. Veja a aba Testes.': 'Visible tests: {ok} of {total} passed. See the Tests tab.',
   'O relógio do cluster andou 30 segundos.': 'The cluster clock moved forward 30 seconds.',

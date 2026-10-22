@@ -261,7 +261,17 @@ export const NIVEL6 = [
         extra: sonda('startupProbe', { extra: '            periodSeconds: 5\n            failureThreshold: 20\n' }) + sonda('livenessProbe', { extra: '            periodSeconds: 5\n' }),
       }),
     },
-    testes: [depois('a loja sobe sem reiniciar', [{ semErros: true }, { pods: 'app=loja', prontos: 2, reinicios: { max: 0 } }], { esperar: '2m' })],
+    testes: [depois('a loja sobe sem reiniciar', [
+      { semErros: true },
+      { pods: 'app=loja', prontos: 2, reinicios: { max: 0 } },
+      { objeto: 'deployment/loja', campo: 'spec.template.spec.containers[0].startupProbe', existe: true },
+      {
+        objeto: 'deployment/loja',
+        campo: 'spec.template.spec.containers[0].livenessProbe',
+        igual: { httpGet: { path: '/healthz', port: 8080, scheme: 'HTTP' }, periodSeconds: 5, timeoutSeconds: 1, successThreshold: 1, failureThreshold: 3 },
+        msg: 'a livenessProbe continua como estava',
+      },
+    ], { esperar: '2m' })],
   }),
 
   problema({

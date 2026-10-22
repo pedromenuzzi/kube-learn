@@ -22,4 +22,9 @@ describe('resolverRota', () => {
     expect(resolverRota('#/nada')).toBeNull();
     expect(resolverRota('#/trilha/extra')).toBeNull();
   });
+
+  it('escape quebrado no endereço não derruba a página (vira "não encontrada")', () => {
+    expect(resolverRota('#/ex/%')).toBeNull();
+    expect(resolverRota('#/ex/%E0%A4%A')).toBeNull();
+  });
 });

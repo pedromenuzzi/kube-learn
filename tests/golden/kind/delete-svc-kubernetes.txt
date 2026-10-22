@@ -1,0 +1,2 @@
+service "kubernetes" deleted from default namespace
+exit=0

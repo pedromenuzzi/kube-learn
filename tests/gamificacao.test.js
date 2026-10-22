@@ -27,6 +27,15 @@ describe('o que celebrar', () => {
 });
 
 describe('jornada', () => {
+  it('o próximo segue em frente: uma missão deixada lá atrás não prende o botão Continuar', () => {
+    const j = calcularJornada(niveis, { l0: { status: 'resolvido' }, a: { status: 'tentado' }, b: { status: 'resolvido' } });
+    expect(j.proximo.id).toBe('c');
+    const k = calcularJornada(niveis, { l0: { status: 'resolvido' }, a: { status: 'tentado' } }); // acabou de errar a da vez
+    expect(k.proximo.id).toBe('a');
+    const fim = calcularJornada(niveis, { l0: { status: 'resolvido' }, a: { status: 'tentado' }, b: { status: 'resolvido' }, c: { status: 'resolvido' }, d: { status: 'resolvido' }, e: { status: 'resolvido' } });
+    expect(fim.proximo.id).toBe('a'); // nada depois do último: volta para o que ficou
+  });
+
   it('começo: só o nível 0 aberto, próximo é a lição', () => {
     const j = calcularJornada(niveis);
     expect(j.niveis.map((n) => n.situacao)).toEqual(['carregando', 'bloqueado', 'bloqueado']);

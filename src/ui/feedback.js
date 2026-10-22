@@ -25,10 +25,13 @@ export function textoDoRelato(item, { reacao, texto = '', testes, comandos = [] 
   ].filter((l) => l !== false && l !== undefined && l !== null).join('\n');
 }
 
-/** O link que abre a issue já preenchida (título, corpo e a etiqueta feedback). */
+/**
+ * O link que abre a issue já preenchida: o formulário .github/ISSUE_TEMPLATE/feedback.yml (que põe a etiqueta feedback para
+ * qualquer pessoa), com o título e o campo "relato" preenchidos pela URL.
+ */
 export function linkDaIssue(item, dados = {}) {
   const titulo = `[feedback] ${item.titulo}${dados.reacao ? `: ${dados.reacao}` : ''}`;
-  return `${REPOSITORIO}/issues/new?${new URLSearchParams({ title: titulo, body: textoDoRelato(item, dados), labels: 'feedback' })}`;
+  return `${REPOSITORIO}/issues/new?${new URLSearchParams({ template: 'feedback.yml', title: titulo, relato: textoDoRelato(item, dados) })}`;
 }
 
 /** Abre o diálogo. `contexto()` → { testes?, comandos? }, lido na hora de abrir. */
