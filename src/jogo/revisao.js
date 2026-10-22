@@ -31,16 +31,51 @@ const embaralhar = (lista, rnd) => {
   return l;
 };
 
-/** Um cartão sobre o termo `g`, num dos três formatos. `outros` são de onde saem as alternativas erradas. */
-function cartao(g, outros, rnd) {
-  const formato = ['termo', 'analogia', 'limite'][Math.floor(rnd() * 3)];
-  const errados = embaralhar(outros.filter((o) => o.id !== g.id), rnd).slice(0, 3);
+/**
+ * Os formatos, na ordem em que entram numa sessão curta. Três treinam as comparações com a vida real (termo, analogia,
+ * limite) e dois treinam o Kubernetes em si (definicao: a definição → o termo; exemplo: o comando ou YAML → o termo).
+ */
+export const FORMATOS = ['termo', 'definicao', 'analogia', 'exemplo', 'limite'];
+
+// Exemplos que servem a mais de um termo vizinho (o aluno que marcasse o outro não estaria errado): sem cartão de exemplo.
+const EXEMPLO_AMBIGUO = new Set(['imagem', 'kubelet', 'reconciliacao', 'ingress', 'statefulset', 'daemonset', 'limitrange', 'antiafinidade', 'node-notready', 'crashloopbackoff']);
+
+const normalizar = (s) => s.toLowerCase().replace(/[-\s]/g, '');
+/** Os nomes de um termo: o id e as partes do termo ("Taint e toleration" → taint, toleration; "Controlador (controller)"). */
+const nomes = (g) => [g.id, ...g.termo.split(/[()×/]|\s(?:e|and)\s/)].map(normalizar).filter((n) => n.length > 2);
+/** O texto cita o termo? Aí o cartão entregaria a resposta, ou a alternativa também estaria certa. */
+export const cita = (texto, g) => nomes(g).some((n) => normalizar(texto).includes(n));
+
+/** O formato serve para este termo? (definição e exemplo não podem dizer o nome da resposta) */
+const serve = {
+  definicao: (g) => !cita(g.definicao, g),
+  exemplo: (g) => Boolean(g.exemplo) && !EXEMPLO_AMBIGUO.has(g.id) && !cita(g.exemplo, g),
+};
+
+/** Até 3 alternativas erradas, do mesmo nível ou dos vizinhos primeiro (as mais parecidas), sorteadas. */
+const distratores = (g, outros, rnd, aceita = () => true) => embaralhar(outros.filter((o) => o.id !== g.id && aceita(o)), rnd)
+  .sort((a, b) => Math.max(Math.abs(a.nivel - g.nivel), 1) - Math.max(Math.abs(b.nivel - g.nivel), 1))
+  .slice(0, 3);
+
+const escolherTermo = (g, errados, rnd) => embaralhar([{ texto: g.termo, certa: true }, ...errados.map((o) => ({ texto: o.termo, certa: false }))], rnd);
+
+/** Um cartão sobre o termo `g`, no `formato` pedido. `outros` dão as alternativas erradas. */
+function cartao(g, outros, rnd, formato) {
   const explicacao = { termo: g.termo, definicao: g.definicao, vidaReal: g.vidaReal, limite: g.limite };
+  if (formato === 'definicao' || formato === 'exemplo') {
+    const texto = formato === 'definicao' ? g.definicao : g.exemplo;
+    // Nenhuma alternativa errada citada no texto mostrado, nem com o mesmo exemplo: seria resposta certa também.
+    const errados = distratores(g, outros, rnd, (o) => !cita(texto, o) && o.exemplo !== g.exemplo);
+    return formato === 'definicao'
+      ? { id: g.id, formato, explicacao, pergunta: t('Qual termo tem esta definição? <q>{definicao}</q>', { definicao: esc(g.definicao) }), opcoes: escolherTermo(g, errados, rnd) }
+      : { id: g.id, formato, explicacao, pergunta: t('Qual termo este exemplo mostra?'), codigo: g.exemplo, opcoes: escolherTermo(g, errados, rnd) };
+  }
+  const errados = distratores(g, outros, rnd);
   if (formato === 'termo') {
     return {
       id: g.id, formato, explicacao,
       pergunta: t('Qual conceito é esta comparação? <q>{vidaReal}</q>', { vidaReal: esc(g.vidaReal) }),
-      opcoes: embaralhar([{ texto: g.termo, certa: true }, ...errados.map((o) => ({ texto: o.termo, certa: false }))], rnd),
+      opcoes: escolherTermo(g, errados, rnd),
     };
   }
   if (formato === 'analogia') {
@@ -71,7 +106,19 @@ export function montarSessao({ termos, estado = {}, hoje, max = POR_DIA, todos =
   const novos = termos.filter((t) => !estado[t.id]);
   const escolhidos = [...vencidos, ...novos].slice(0, max);
   const pool = todos.length >= 4 ? todos : termos;
-  return escolhidos.map((t) => cartao(t, pool, rnd));
+  // Os formatos saem de um baralho: numa sessão de 10, dois de cada (as comparações ficam com 3 de cada 5). A vez da
+  // definição ou do exemplo vai para o que saiu menos hoje entre os que servem ao termo; se nenhum serve, comparação.
+  const formatos = embaralhar(escolhidos.map((_, k) => FORMATOS[k % FORMATOS.length]), rnd);
+  const usados = { definicao: 0, exemplo: 0 };
+  return escolhidos.map((g, k) => {
+    let formato = formatos[k];
+    if (formato in usados) {
+      formato = [formato, formato === 'definicao' ? 'exemplo' : 'definicao'].filter((f) => serve[f](g))
+        .sort((a, b) => usados[a] - usados[b])[0] ?? 'termo';
+      if (formato in usados) usados[formato]++;
+    }
+    return cartao(g, pool, rnd, formato);
+  });
 }
 
 /** Registra a resposta: acertou sobe de caixa (até 5), errou volta para a 1. */

@@ -1,7 +1,39 @@
-// Nível 0: contêineres, antes do Kubernetes. Só lições e quizzes, sem cluster.
-import { licao, quiz } from './util.js';
+// Nível 0: contêineres, antes do Kubernetes. Abre com um pod subindo de verdade (a vitória do primeiro minuto); depois,
+// lições e quizzes intercalados, cada lição seguida dos quizzes dela.
+import { licao, quiz, yaml } from './util.js';
 
 export const NIVEL0 = [
+  licao({
+    id: 'n0-primeiro-pod',
+    titulo: 'Seu primeiro pod, em um minuto',
+    vidaReal: 'Você entrega a planta do apartamento na portaria do condomínio e, segundos depois, o morador já está lá dentro: você não assentou um tijolo.',
+    limite: 'Um apartamento de verdade leva meses de obra e fica de pé sozinho. O pod fica pronto em segundos, mas um pod solto, se sumir, não volta: quem refaz é o Deployment, no nível 2.',
+    conteudo: `
+      <p>Antes da teoria, um gostinho. No editor está a <b>planta</b> (um arquivo YAML) de um <b>pod</b>: o "apartamento"
+         onde mora um contêiner com o servidor web nginx. O que vem depois do <code>#</code> é comentário.</p>
+      <ol>
+        <li>Clique em <b>▶ Aplicar</b> (ou <b>Ctrl+Enter</b>): a planta vai para o cluster.</li>
+        <li>No terminal, digite <code>kubectl get pods</code> e Enter. O STATUS começa em <code>ContainerCreating</code>.</li>
+        <li>Espere uns segundos e rode de novo (a seta <b>↑</b> repete o comando): agora está <code>Running</code>.</li>
+        <li>Para concluir, clique em <b>⬆ Entregar</b>.</li>
+      </ol>
+      <p><b>O que aconteceu:</b> você não mandou ligar nada, só descreveu o que queria; o Kubernetes escolheu uma máquina,
+         baixou a imagem <code>nginx:1.27</code> e ligou o contêiner sozinho.</p>
+      <p>Pronto: você já usou Kubernetes. As próximas lições explicam cada peça, começando pelo contêiner.</p>`,
+    inicial: {
+      'primeiro-pod.yaml': yaml`
+        apiVersion: v1
+        kind: Pod                 # um pod: o "apartamento" do contêiner
+        metadata:
+          name: primeiro-pod      # o nome que aparece no kubectl get pods
+        spec:
+          containers:
+          - name: web
+            image: nginx:1.27     # a imagem: o servidor web nginx, versão 1.27
+      `,
+    },
+  }),
+
   licao({
     id: 'n0-funciona-na-minha-maquina',
     titulo: '"Funciona na minha máquina"',
@@ -21,6 +53,19 @@ export const NIVEL0 = [
       </ul>
       <p>O que <b>não</b> vai: um sistema operacional inteiro. O contêiner usa o núcleo (kernel) da máquina onde roda; por
          isso ele sobe em segundos e ocupa megabytes, não gigabytes como uma máquina virtual.</p>`,
+  }),
+
+  quiz({
+    id: 'n0-quiz-vm',
+    titulo: 'Quiz: contêiner ou máquina virtual?',
+    vidaReal: 'Um apartamento divide a estrutura do prédio (fundação, água, luz); uma casa tem tudo próprio.',
+    limite: 'O isolamento do contêiner é menor que o de uma máquina virtual: um bug grave no kernel afeta todos.',
+    pergunta: '<p>Por que um contêiner sobe em segundos, e uma máquina virtual demora mais?</p>',
+    alternativas: [
+      { texto: 'Porque o contêiner usa o kernel da máquina onde roda, em vez de ligar um sistema operacional inteiro.', certa: true, explicacao: 'Isso: não há "boot" de sistema. O contêiner é um processo isolado.' },
+      { texto: 'Porque o contêiner não tem arquivos.', explicacao: 'Tem, sim: os da imagem. O que ele não tem é um kernel próprio.' },
+      { texto: 'Porque o contêiner só roda programas pequenos.', explicacao: 'Roda programas de qualquer tamanho (bancos de dados, inclusive).' },
+    ],
   }),
 
   licao({
@@ -51,66 +96,6 @@ COPY . .                   # o seu código
 CMD ["node", "server.js"]  # o comando que roda quando o contêiner sobe</code></pre>`,
   }),
 
-  licao({
-    id: 'n0-registry-e-tags',
-    titulo: 'Registry e tags: o endereço da imagem',
-    vidaReal: 'O registry é a fábrica e depósito de pré-moldados; a tag é o modelo ou o lote que você pede.',
-    limite: 'A fábrica de verdade não troca o modelo "lote atual" sem avisar; no registry, a tag latest pode mudar a qualquer hora.',
-    conteudo: `
-      <p>Toda imagem tem um endereço completo, no formato <code>registry/repositório:tag</code>:</p>
-      <pre><code>ghcr.io/minha-empresa/api:2.3.1
-└──┬──┘ └──────┬──────┘ └─┬─┘
-registry   repositório    tag</code></pre>
-      <ul>
-        <li><b>Registry</b>: o servidor que guarda as imagens (Docker Hub, <code>ghcr.io</code>, <code>registry.k8s.io</code>...).
-            Se você não escreve o registry, vale o Docker Hub (<code>docker.io</code>).</li>
-        <li><b>Repositório</b>: o nome da imagem. No Docker Hub, as imagens oficiais ficam em <code>library/</code>:
-            <code>nginx</code> é, por extenso, <code>docker.io/library/nginx</code>.</li>
-        <li><b>Tag</b>: a versão. Sem tag, vale <code>latest</code>.</li>
-      </ul>
-      <h2>O perigo do <code>latest</code></h2>
-      <p><code>latest</code> não quer dizer "a mais nova": é só uma tag como outra qualquer, que o dono da imagem pode
-         apontar para outra versão quando quiser. Hoje <code>nginx:latest</code> é uma versão; amanhã, outra. Em produção,
-         use sempre uma tag fixa (<code>nginx:1.27</code>), para saber exatamente o que está rodando.</p>`,
-  }),
-
-  licao({
-    id: 'n0-por-que-orquestrar',
-    titulo: 'Por que orquestrar?',
-    vidaReal: 'Uma casinha você mesmo cuida. Um condomínio com 500 apartamentos precisa de uma administração: alguém para alocar, consertar, contar e trocar.',
-    limite: 'A administração de um condomínio tem gente; a do Kubernetes são programas que agem sozinhos, em segundos, sem pedir licença.',
-    conteudo: `
-      <p>Rodar um contêiner é fácil. Rodar centenas, em várias máquinas, o tempo todo, é outra história:</p>
-      <ul>
-        <li><b>Onde</b> roda cada um? Em qual máquina cabe?</li>
-        <li><b>Caiu</b> às 3 da manhã: quem sobe outro?</li>
-        <li>Chegou a <b>versão nova</b>: como trocar sem tirar o site do ar?</li>
-        <li>A <b>Black Friday</b> chegou: como passar de 3 para 30 cópias?</li>
-        <li>Como um contêiner <b>acha o outro</b>, se eles mudam de endereço toda hora?</li>
-      </ul>
-      <p>Um <b>orquestrador</b> responde tudo isso. Você descreve o que quer ("3 cópias desta imagem, acessíveis por este
-         nome") e ele faz acontecer, e continua fazendo: se algo foge do combinado, ele corrige.</p>
-      <p>O orquestrador que venceu é o <b>Kubernetes</b>. Ele não cria imagens (isso é com o Docker, o Buildah...) e não
-         escreve seu código: ele <b>administra</b> contêineres que já existem.</p>`,
-  }),
-
-  licao({
-    id: 'n0-kubernetes-timoneiro',
-    titulo: 'Kubernetes, o timoneiro',
-    vidaReal: 'O timoneiro não rema nem constrói o navio: ele mantém o rumo combinado, corrigindo o leme o tempo todo.',
-    limite: 'Um timoneiro decide para onde ir; no Kubernetes quem decide o rumo é você (no YAML). Ele só mantém.',
-    conteudo: `
-      <p><b>Kubernetes</b> vem do grego κυβερνήτης: <i>timoneiro</i>, quem segura o leme. Por isso o logo é um leme de navio
-         e os contêineres viraram a metáfora de carga. Muita gente escreve <b>K8s</b>: um K, 8 letras no meio, um s.</p>
-      <p>Ele nasceu no Google, inspirado num sistema interno chamado Borg, e virou projeto aberto em 2014. Hoje é cuidado
-         pela CNCF (Cloud Native Computing Foundation) e roda em praticamente toda nuvem.</p>
-      <h2>A ideia central: estado desejado</h2>
-      <p>Você não manda o Kubernetes "subir um contêiner". Você <b>declara</b>: "quero 3 cópias da loja na versão 1.1". O
-         Kubernetes compara o que você quer com o que existe e age para os dois ficarem iguais. E fica comparando para sempre.
-         Essa ideia (desejado × real, corrige a diferença) aparece em <b>todo</b> o resto da trilha.</p>
-      <p>No próximo nível você conhece o condomínio por dentro: a administração, os prédios e os apartamentos.</p>`,
-  }),
-
   quiz({
     id: 'n0-quiz-imagem-conteiner',
     titulo: 'Quiz: imagem ou contêiner?',
@@ -136,6 +121,49 @@ registry   repositório    tag</code></pre>
       { texto: 'Quantos a máquina aguentar, todos a partir da mesma imagem.', certa: true, explicacao: 'Isso. O limite é a memória e a CPU da máquina, não a imagem.' },
       { texto: 'Dois: um principal e um de reserva.', explicacao: 'Não existe esse limite. Reserva é uma decisão sua (réplicas), não da imagem.' },
     ],
+  }),
+
+  quiz({
+    id: 'n0-quiz-dockerfile',
+    titulo: 'Quiz: leia o Dockerfile',
+    vidaReal: 'A receita da fábrica: cada passo é uma camada do módulo.',
+    limite: 'Rodar a receita (build) é com o Docker; o Kubernetes só usa a imagem pronta.',
+    pergunta: `
+      <pre><code>FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+CMD ["python", "app.py"]</code></pre>
+      <p>Quando um contêiner dessa imagem sobe, qual comando ele roda?</p>`,
+    alternativas: [
+      { texto: '<code>pip install -r requirements.txt</code>', explicacao: 'O RUN roda na hora de <b>construir</b> a imagem, não a cada contêiner.' },
+      { texto: '<code>python app.py</code>', certa: true, explicacao: 'Isso: o CMD é o comando padrão do contêiner. No Kubernetes, dá para trocá-lo com <code>command</code> e <code>args</code>.' },
+      { texto: '<code>COPY . .</code>', explicacao: 'O COPY põe arquivos dentro da imagem durante o build.' },
+    ],
+  }),
+
+  licao({
+    id: 'n0-registry-e-tags',
+    titulo: 'Registry e tags: o endereço da imagem',
+    vidaReal: 'O registry é a fábrica e depósito de pré-moldados; a tag é o modelo ou o lote que você pede.',
+    limite: 'A fábrica de verdade não troca o modelo "lote atual" sem avisar; no registry, a tag latest pode mudar a qualquer hora.',
+    conteudo: `
+      <p>Toda imagem tem um endereço completo, no formato <code>registry/repositório:tag</code>:</p>
+      <pre><code>ghcr.io/minha-empresa/api:2.3.1
+└──┬──┘ └──────┬──────┘ └─┬─┘
+registry   repositório    tag</code></pre>
+      <ul>
+        <li><b>Registry</b>: o servidor que guarda as imagens (Docker Hub, <code>ghcr.io</code>, <code>registry.k8s.io</code>...).
+            Se você não escreve o registry, vale o Docker Hub (<code>docker.io</code>).</li>
+        <li><b>Repositório</b>: o nome da imagem. No Docker Hub, as imagens oficiais ficam em <code>library/</code>:
+            <code>nginx</code> é, por extenso, <code>docker.io/library/nginx</code>.</li>
+        <li><b>Tag</b>: a versão. Sem tag, vale <code>latest</code>.</li>
+      </ul>
+      <h2>O perigo do <code>latest</code></h2>
+      <p><code>latest</code> não quer dizer "a mais nova": é só uma tag como outra qualquer, que o dono da imagem pode
+         apontar para outra versão quando quiser. Hoje <code>nginx:latest</code> é uma versão; amanhã, outra. Em produção,
+         use sempre uma tag fixa (<code>nginx:1.27</code>), para saber exatamente o que está rodando.</p>`,
   }),
 
   quiz({
@@ -177,37 +205,24 @@ registry   repositório    tag</code></pre>
     ],
   }),
 
-  quiz({
-    id: 'n0-quiz-dockerfile',
-    titulo: 'Quiz: leia o Dockerfile',
-    vidaReal: 'A receita da fábrica: cada passo é uma camada do módulo.',
-    limite: 'Rodar a receita (build) é com o Docker; o Kubernetes só usa a imagem pronta.',
-    pergunta: `
-      <pre><code>FROM python:3.12-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY . .
-CMD ["python", "app.py"]</code></pre>
-      <p>Quando um contêiner dessa imagem sobe, qual comando ele roda?</p>`,
-    alternativas: [
-      { texto: '<code>pip install -r requirements.txt</code>', explicacao: 'O RUN roda na hora de <b>construir</b> a imagem, não a cada contêiner.' },
-      { texto: '<code>python app.py</code>', certa: true, explicacao: 'Isso: o CMD é o comando padrão do contêiner. No Kubernetes, dá para trocá-lo com <code>command</code> e <code>args</code>.' },
-      { texto: '<code>COPY . .</code>', explicacao: 'O COPY põe arquivos dentro da imagem durante o build.' },
-    ],
-  }),
-
-  quiz({
-    id: 'n0-quiz-vm',
-    titulo: 'Quiz: contêiner ou máquina virtual?',
-    vidaReal: 'Um apartamento divide a estrutura do prédio (fundação, água, luz); uma casa tem tudo próprio.',
-    limite: 'O isolamento do contêiner é menor que o de uma máquina virtual: um bug grave no kernel afeta todos.',
-    pergunta: '<p>Por que um contêiner sobe em segundos, e uma máquina virtual demora mais?</p>',
-    alternativas: [
-      { texto: 'Porque o contêiner usa o kernel da máquina onde roda, em vez de ligar um sistema operacional inteiro.', certa: true, explicacao: 'Isso: não há "boot" de sistema. O contêiner é um processo isolado.' },
-      { texto: 'Porque o contêiner não tem arquivos.', explicacao: 'Tem, sim: os da imagem. O que ele não tem é um kernel próprio.' },
-      { texto: 'Porque o contêiner só roda programas pequenos.', explicacao: 'Roda programas de qualquer tamanho (bancos de dados, inclusive).' },
-    ],
+  licao({
+    id: 'n0-por-que-orquestrar',
+    titulo: 'Por que orquestrar?',
+    vidaReal: 'Uma casinha você mesmo cuida. Um condomínio com 500 apartamentos precisa de uma administração: alguém para alocar, consertar, contar e trocar.',
+    limite: 'A administração de um condomínio tem gente; a do Kubernetes são programas que agem sozinhos, em segundos, sem pedir licença.',
+    conteudo: `
+      <p>Rodar um contêiner é fácil. Rodar centenas, em várias máquinas, o tempo todo, é outra história:</p>
+      <ul>
+        <li><b>Onde</b> roda cada um? Em qual máquina cabe?</li>
+        <li><b>Caiu</b> às 3 da manhã: quem sobe outro?</li>
+        <li>Chegou a <b>versão nova</b>: como trocar sem tirar o site do ar?</li>
+        <li>A <b>Black Friday</b> chegou: como passar de 3 para 30 cópias?</li>
+        <li>Como um contêiner <b>acha o outro</b>, se eles mudam de endereço toda hora?</li>
+      </ul>
+      <p>Um <b>orquestrador</b> responde tudo isso. Você descreve o que quer ("3 cópias desta imagem, acessíveis por este
+         nome") e ele faz acontecer, e continua fazendo: se algo foge do combinado, ele corrige.</p>
+      <p>O orquestrador que venceu é o <b>Kubernetes</b>. Ele não cria imagens (isso é com o Docker, o Buildah...) e não
+         escreve seu código: ele <b>administra</b> contêineres que já existem.</p>`,
   }),
 
   quiz({
@@ -222,5 +237,22 @@ CMD ["python", "app.py"]</code></pre>
       { texto: 'Construir a imagem a partir do Dockerfile.', certa: true, explicacao: 'Isso: build de imagem é com Docker, Buildah, Kaniko... O Kubernetes usa a imagem pronta.' },
       { texto: 'Trocar a versão sem tirar o site do ar.', explicacao: 'Essa é dele (o rolling update do Deployment).' },
     ],
+  }),
+
+  licao({
+    id: 'n0-kubernetes-timoneiro',
+    titulo: 'Kubernetes, o timoneiro',
+    vidaReal: 'O timoneiro não rema nem constrói o navio: ele mantém o rumo combinado, corrigindo o leme o tempo todo.',
+    limite: 'Um timoneiro decide para onde ir; no Kubernetes quem decide o rumo é você (no YAML). Ele só mantém.',
+    conteudo: `
+      <p><b>Kubernetes</b> vem do grego κυβερνήτης: <i>timoneiro</i>, quem segura o leme. Por isso o logo é um leme de navio
+         e os contêineres viraram a metáfora de carga. Muita gente escreve <b>K8s</b>: um K, 8 letras no meio, um s.</p>
+      <p>Ele nasceu no Google, inspirado num sistema interno chamado Borg, e virou projeto aberto em 2014. Hoje é cuidado
+         pela CNCF (Cloud Native Computing Foundation) e roda em praticamente toda nuvem.</p>
+      <h2>A ideia central: estado desejado</h2>
+      <p>Você não manda o Kubernetes "subir um contêiner". Você <b>declara</b>: "quero 3 cópias da loja na versão 1.1". O
+         Kubernetes compara o que você quer com o que existe e age para os dois ficarem iguais. E fica comparando para sempre.
+         Essa ideia (desejado × real, corrige a diferença) aparece em <b>todo</b> o resto da trilha.</p>
+      <p>No próximo nível você conhece o condomínio por dentro: a administração, os prédios e os apartamentos.</p>`,
   }),
 ];

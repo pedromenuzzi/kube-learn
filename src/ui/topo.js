@@ -2,7 +2,10 @@
 // dias seguidos), o idioma (PT | EN) e o botão de acessibilidade. O placar e a aba ativa são atualizados a cada troca
 // de página; o topo e o rodapé são montados de novo quando o idioma muda.
 import { NIVEIS } from '../conteudo/index.js';
+import { GLOSSARIO } from '../conteudo/glossario.js';
 import { calcularJornada, sequenciaDeDias, hojeLocal } from '../jogo/gamificacao.js';
+import { termosVistos } from '../jogo/revisao.js';
+import { cartoesParaHoje } from '../jogo/hoje.js';
 import { ler, CHAVES } from '../armazenamento.js';
 import { idioma, t } from '../i18n.js';
 import { icone, marcaNavio } from './icones.js';
@@ -16,7 +19,7 @@ export function montarTopo(topo) {
     <div class="topo-dentro">
       <a class="marca" href="#/">${marcaNavio()}<span class="marca-nome">kube-learn</span></a>
       <nav class="nav" aria-label="${t('Principal')}">
-        <ul>${LINKS().map(([href, ic, rotulo, curto]) => `<li><a href="${href}">${icone(ic)}<span>${curto ? `<span class="rotulo-longo">${rotulo}</span><span class="rotulo-curto">${curto}</span>` : rotulo}</span></a></li>`).join('')}</ul>
+        <ul>${LINKS().map(([href, ic, rotulo, curto]) => `<li><a href="${href}">${icone(ic)}<span>${curto ? `<span class="rotulo-longo">${rotulo}</span><span class="rotulo-curto">${curto}</span>` : rotulo}</span>${href === '#/revisao' ? '<span class="contagem" hidden></span>' : ''}</a></li>`).join('')}</ul>
       </nav>
       <div class="topo-direita">
         <a class="placar-topo" href="#/trilha" title="${t('Seu placar')}"></a>
@@ -52,8 +55,16 @@ export function atualizarTopo(caminho) {
     if (a.getAttribute('href') === `#${caminho}`) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   }
-  const { xp } = calcularJornada(NIVEIS, ler(CHAVES.progresso, {}));
+  const jornada = calcularJornada(NIVEIS, ler(CHAVES.progresso, {}));
+  const { xp } = jornada;
   const dias = sequenciaDeDias(ler(CHAVES.dias, []), hojeLocal());
+  // Na aba Revisão, quantos cartões esperam hoje (some quando a revisão do dia foi feita).
+  const contagem = document.querySelector('.nav .contagem');
+  if (contagem) {
+    const n = cartoesParaHoje({ termos: termosVistos(GLOSSARIO, jornada), estado: ler(CHAVES.revisao, {}), hoje: hojeLocal() });
+    contagem.hidden = !n;
+    contagem.innerHTML = n ? `<span aria-hidden="true">${n}</span><span class="visualmente-oculto">${t(n === 1 ? ', 1 cartão para hoje' : ', {n} cartões para hoje', { n })}</span>` : '';
+  }
   const placar = document.querySelector('.placar-topo');
   if (!placar) return;
   placar.setAttribute('aria-label', t(dias === 1 ? 'Seu placar: {xp} XP e {dias} dia seguido de estudo' : 'Seu placar: {xp} XP e {dias} dias seguidos de estudo', { xp, dias }));

@@ -17,6 +17,7 @@ import glossario from './conteudo/glossario.json';
 import { REGRAS, STATUS } from './explicacoes.js';
 import uiExercicio from './ui-exercicio.js';
 import uiPaginas from './ui-paginas.js';
+import uiEngajamento from './ui-engajamento.js';
 
 export const itens = {
   ...nivel0, ...nivel1, ...nivel2, ...nivel3, ...nivel4, ...nivel5, ...nivel6, ...nivel7, ...nivel8, ...nivel9, ...nivel10, ...nivel11, ...troubleshooting,
@@ -24,7 +25,7 @@ export const itens = {
 };
 export { glossario };
 export const explicacoes = { REGRAS, STATUS };
-export const ui = { ...uiExercicio, ...uiPaginas };
+export const ui = { ...uiExercicio, ...uiPaginas, ...uiEngajamento };
 
 export const niveis = {
   0: { titulo: 'Containers', descricao: 'Before Kubernetes: image, container, registry and tags.' },

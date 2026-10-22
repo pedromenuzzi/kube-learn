@@ -157,6 +157,14 @@ h1.pixel { font-size: 1.3rem; line-height: 1.5; }
 .botao-icone:hover { background: var(--superficie); border-color: var(--borda-forte); }
 .botao-icone .icone { width: 1.3rem; height: 1.3rem; }
 
+/* Na aba Revisão, os cartões de hoje. */
+.nav a { position: relative; }
+.nav .contagem { display: inline-grid; place-items: center; min-width: 1.15rem; height: 1.15rem; padding: 0 0.3rem; border-radius: 999px; background: var(--destaque); color: var(--texto-botao); font-size: 0.7rem; font-weight: 700; line-height: 1; }
+.nav .contagem[hidden] { display: none; }
+@media (max-width: 55.99rem) {
+  .nav .contagem { position: absolute; top: 0.1rem; left: calc(50% + 0.35rem); }
+}
+
 /* O idioma: PT | EN, um clique troca (o ativo fica destacado). */
 .topo .idiomas { display: inline-flex; padding: 0.2rem; gap: 0.1rem; border-radius: 999px; background: var(--superficie-2); border: 1px solid var(--borda); }
 .topo .idiomas button { min-height: 0; padding: 0.3rem 0.55rem; border: 0; border-radius: 999px; background: none; color: var(--suave); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; }
@@ -480,6 +488,17 @@ dialog.festa-cartao canvas.navio { width: auto; max-width: 100%; max-height: min
   .festa-faixa { top: 3.9rem; border-radius: var(--raio-g); }
 }
 
+/* o painel Hoje (a página inicial de quem volta) */
+.hoje .hoje-numeros { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; margin: 0 0 1.1rem; }
+.hoje .hoje-numeros div { padding: 0.5rem 0.6rem; border-radius: var(--raio); background: var(--superficie-2); border: 1px solid var(--borda); }
+.hoje .hoje-numeros dt { font-size: 0.72rem; font-weight: 700; color: var(--suave); }
+.hoje .hoje-numeros dd { margin: 0; font-family: var(--pixel); font-size: 1rem; }
+.hoje .hoje-revisao { margin: 0.9rem 0 0; display: flex; align-items: center; gap: 0.4rem; color: var(--suave); }
+.hoje .hoje-depois { margin-top: 0.9rem; font-size: 0.92rem; }
+.hoje .hoje-depois p { margin: 0 0 0.3rem; color: var(--suave); font-weight: 700; }
+.hoje .hoje-depois ul { margin: 0; padding-left: 1.2rem; }
+@media (max-width: 40rem) { .hoje .hoje-numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
 /* a página que não existe */
 .nao-encontrada { padding: 2rem 0 1rem; }
 .nao-encontrada .acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-top: 1.5rem; }
@@ -546,6 +565,8 @@ blockquote.relato footer::before { content: '— '; }
 .ex-aviso.falha > .icone { color: var(--ruim); }
 .ex-aviso > .icone { flex: none; width: 1.15rem; height: 1.15rem; }
 .ex-aviso .aviso-texto { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.85rem; min-width: 0; }
+.ex-aviso .aviso-ajuda { flex-basis: 100%; display: flex; gap: 0.4rem; align-items: baseline; font-weight: 400; color: var(--suave); }
+.ex-aviso .aviso-ajuda .icone { flex: none; width: 1rem; height: 1rem; color: var(--espera); align-self: center; }
 .ex-aviso a { display: inline-flex; align-items: center; gap: 0.3rem; }
 .ex-aviso .aviso-fechar { flex: none; display: inline-grid; place-items: center; width: 2rem; height: 2rem; min-height: 0; padding: 0; border: 0; border-radius: 999px; background: none; color: var(--suave); }
 .ex-aviso .aviso-fechar:hover { background: var(--superficie-2); color: var(--texto); }
