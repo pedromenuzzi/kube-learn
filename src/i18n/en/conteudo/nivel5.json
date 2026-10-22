@@ -8,7 +8,7 @@
   "n5-licao-daemonset-init": {
     "titulo": "The fire extinguisher in every building and the inspection before the move",
     "enunciado": "\n      <h2>DaemonSet: one pod on each node</h2>\n      <p>Log collection, networking, monitoring: some things need to run on <b>every</b> node. The <b>DaemonSet</b> guarantees one\n         pod per node, and puts the pod on every new node by itself. The cluster itself uses it: see\n         <code>kubectl get ds -n kube-system</code> (<code>kube-proxy</code> and the <code>kindnet</code> network).</p>\n      <p>There are no <code>replicas</code>: the number of nodes is what counts. To pick the nodes, use\n         <code>nodeSelector</code>; to get onto a node with a taint (like the control plane), use <code>tolerations</code>.</p>\n      <h2>Init container: before everything else</h2>\n      <p>The <code>initContainers</code> run <b>before</b> the app’s containers, in order, and each one must finish\n         successfully. Good for preparing files, waiting for a database, migrating data. Meanwhile, the pod shows\n         <code>Init:0/1</code>; if one fails, <code>Init:Error</code> or <code>Init:CrashLoopBackOff</code>.</p>\n      <h2>Sidecar: alongside, from start to finish</h2>\n      <p>An init container with <code>restartPolicy: Always</code> becomes a <b>sidecar</b>: it starts before the app, keeps running\n         next to it (shipping logs, acting as a proxy) and exits when the app finishes. In a Job this matters: a regular container\n         that never finishes leaves the Job stuck forever.</p>",
-    "vidaReal": "The DaemonSet is the condo rule: every building has a fire extinguisher, including the one that’s finished tomorrow. The init container is the inspection: the move only comes in after it’s done. The sidecar is the doorman who works alongside the resident.",
+    "vidaReal": "The DaemonSet is the condo rule: every building has a fire extinguisher, including the one that’s finished tomorrow. The init container is the inspection: the move only comes in after it’s done. The sidecar is the assistant who works alongside the resident.",
     "limite": "The extinguisher only goes to the buildings that accept it: the management office (the control plane) has a taint, and the DaemonSet only gets in there with the toleration."
   },
   "n5-primeiro-job": {
@@ -86,7 +86,10 @@
     "comoSaber": "<code>kubectl get cronjob</code> shows the schedule; after 5 minutes, <code>kubectl get jobs</code> shows the first Job.",
     "testes": [
       {
-        "descricao": "kubectl apply -f ."
+        "descricao": "kubectl apply -f .",
+        "msgs": {
+          "1": "the schedule runs every 5 minutes"
+        }
       },
       {
         "descricao": "the pickup comes on its own",
@@ -130,7 +133,7 @@
   },
   "n5-extintor-na-administracao": {
     "titulo": "An extinguisher in the management office too",
-    "enunciado": "\n      <p>The DaemonSet <code>extintor</code> is on node-1 and node-2, but not on <code>control-plane</code>. Find out why\n         (<code>kubectl describe node control-plane</code>, under Taints) and get the extinguisher there too.</p>",
+    "enunciado": "\n      <p>The DaemonSet <code>extintor</code> is on node-1 and node-2, but not on <code>control-plane</code>. Find out why\n         (<code>kubectl describe node control-plane</code>, under Taints) and get the extinguisher there too.</p>\n      <p>A <b>taint</b> is a sign on the building that keeps pods away. To get in anyway, the pod carries a\n         <b>toleration</b> with the sign’s key and effect, in <code>spec.template.spec.tolerations</code> (next to\n         <code>containers</code>). You’ll see both in depth in level 7.</p>\n      <pre><code>tolerations:\n- key: KEY            # the taint’s key\n  operator: Exists    # any value works\n  effect: EFFECT      # the taint’s effect</code></pre>",
     "dica": "A toleration for the key node-role.kubernetes.io/control-plane, effect NoSchedule (operator Exists).",
     "vidaReal": "The condo’s management office is a building with a “staff only” sign. The extinguisher gets in if it’s authorized.",
     "limite": "The toleration allows entry, it doesn’t force it: in a Deployment, the pod might or might not go to the management office.",
@@ -144,7 +147,7 @@
     "titulo": "The inspection before the move",
     "enunciado": "\n      <p>The <code>painel</code> (dashboard) only opens if the file <code>/config/pronto</code> exists, and the one that creates the file is\n         the <code>preparo</code> (prep) container. Both start together, and the dashboard crashes (see <code>kubectl logs painel -c painel</code>).\n         Make <code>preparo</code> run <b>before</b> and finish first, without the dashboard restarting.</p>",
     "dica": "Move preparo from containers to initContainers (at the same level). A pod can’t change after it’s created: kubectl delete pod painel and apply.",
-    "vidaReal": "The move and the inspection arrived together: the truck unloads before the inspector gives the OK, and everything goes back onto the truck.",
+    "vidaReal": "The move and the inspection arrived together: the truck unloads before the inspection gives the OK, and everything goes back onto the truck.",
     "limite": "The inspection (init) runs once, when the pod starts; if the app restarts later, it doesn’t run again.",
     "comoSaber": "<code>kubectl get pod painel</code> goes through <code>Init:0/1</code> and reaches <code>1/1 Running</code> with 0 restarts.",
     "testes": [

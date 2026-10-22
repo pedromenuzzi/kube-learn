@@ -572,7 +572,7 @@ spec:
     dificuldade: 'medio',
     cluster: 'db-pronto',
     terminal: true,
-    vidaReal: 'Para falar com o apartamento 2, a portaria olha a lista de moradores pelo número, não pela cara.',
+    vidaReal: 'Para falar com o apartamento 2, a telefonista (o DNS) procura pelo número do apartamento, não pela cara de quem mora lá.',
     limite: 'Se o db-2 for recriado, o nome continua o mesmo, mas o IP pode mudar: guarde o nome, não o IP.',
     enunciado: `
       <p>O StatefulSet <code>db</code> está no ar. A partir do pod <code>cliente</code> (busybox), descubra pelo

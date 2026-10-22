@@ -267,6 +267,17 @@ export const IMAGENS = {
       }),
     },
   },
+  // O caixa da loja: uma imagem particular (só baixa com o crachá do registro, num imagePullSecret).
+  'docker.io/kubelearn/caixa': {
+    tamanho: 8412331, puxaEm: 1200, digest: 'ca1a0000ca1a0000ca1a0000ca1a0000ca1a0000ca1a0000ca1a0000ca1a0000',
+    credenciais: { usuario: 'condominio', senha: 'tijolo-azul-42' },
+    tags: {
+      '1.0': loja('1.0', {
+        logs: () => ['{"level":"info","msg":"caixa ouvindo na porta 8080"}'],
+        servidor: { portas: [8080], http: (caminho, { hostname }) => ({ status: 200, corpo: `${JSON.stringify({ app: 'caixa', aberto: true, pod: hostname })}\n`, tipo: 'application/json' }) },
+      }),
+    },
+  },
   // O operador de backup: vigia os Backups (o CRD backups.kube-learn.dev) e cria um CronJob para cada um (crds.js).
   'docker.io/kubelearn/operador-backup': {
     tamanho: 14120331, puxaEm: 1200, digest: '0be4a7000be4a7000be4a7000be4a7000be4a7000be4a7000be4a7000be4a700',
@@ -327,15 +338,32 @@ export function referencia(imagem) {
   return { repo, tag, completo: `${repo}:${tag}` };
 }
 
+// O servidor de uma credencial ("https://index.docker.io/v1/", o padrão do kubectl) → o registry ("docker.io").
+const DOCKER_HUB = new Set(['index.docker.io', 'registry-1.docker.io', 'docker.io']);
+const registryDe = (servidor) => {
+  const host = servidor.replace(/^\w+:\/\//, '').split('/')[0];
+  return DOCKER_HUB.has(host) ? 'docker.io' : host;
+};
+
 /**
  * Procura a imagem. Devolve { ok, comportamento, info } ou { ok: false, erro } com a mensagem do containerd.
+ * `chaves` (as credenciais dos imagePullSecrets, [{ servidor, usuario, senha }]) só conta no pull de uma imagem
+ * particular: sem a do registry dela, o registro responde como se a imagem não existisse (é o que o Docker Hub faz).
  */
-export function buscarImagem(imagem) {
+export function buscarImagem(imagem, chaves) {
   const ref = referencia(imagem);
   const info = IMAGENS[ref.repo];
   const base = `failed to pull and unpack image "${ref.completo}": failed to resolve reference "${ref.completo}"`;
-  if (!info) {
-    return { ok: false, erro: `${base}: pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed` };
+  const negado = { ok: false, erro: `${base}: pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed` };
+  if (!info) return negado;
+  if (info.credenciais && chaves) {
+    // ponytail: só o Docker Hub tem imagem particular no catálogo; outro registry teria outra URL de token.
+    const chave = chaves.find((k) => registryDe(k.servidor) === ref.repo.split('/')[0]);
+    if (!chave) return negado;
+    if (chave.usuario !== info.credenciais.usuario || chave.senha !== info.credenciais.senha) {
+      const escopo = encodeURIComponent(`repository:${ref.repo.split('/').slice(1).join('/')}:pull`);
+      return { ok: false, erro: `${base}: failed to authorize: failed to fetch oauth token: unexpected status from GET request to https://auth.docker.io/token?scope=${escopo}&service=registry.docker.io: 401 Unauthorized` };
+    }
   }
   const comportamento = info.tags[ref.tag];
   if (!comportamento) return { ok: false, erro: `rpc error: code = NotFound desc = ${base}: ${ref.completo}: not found` };

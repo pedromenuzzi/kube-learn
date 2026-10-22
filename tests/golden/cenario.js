@@ -605,5 +605,11 @@ export function rodarCenario() {
   c.avancar('15s');
   cap('get-svc-kubernetes', 'kubectl get svc kubernetes');
   cap('delete-label-nenhum', 'kubectl delete pods -l nada=1');
+
+  // Nível 9: o prédio desligado de vez (o taint out-of-service). O golden-worker2 está parado desde o nível 7, com o
+  // sozinho e dois pods do plantao Terminating nele: o pod-garbage-collector os apaga à força.
+  cap('taint-fora-de-servico', 'kubectl taint nodes golden-worker2 node.kubernetes.io/out-of-service=nodeshutdown:NoExecute');
+  c.avancar('40s');
+  cap('get-pods-fora-de-servico', 'kubectl get pods -l caiu=sim -o wide');
   return { saidas, cluster: c };
 }

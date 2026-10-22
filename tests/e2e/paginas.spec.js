@@ -1,6 +1,10 @@
 // Fase 3: o navio, o progresso, o glossário, as preferências e a acessibilidade (axe, WCAG 2.2 AA).
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { NIVEIS, TROUBLESHOOTING } from '../../src/conteudo/index.js';
+
+// Quantas missões contam na porcentagem do nível (as lições não contam): o número cresce com o conteúdo.
+const missoesDoNivel = (n) => NIVEIS[n].itens.filter((i) => i.tipo !== 'licao').length;
 
 const PAGINAS = ['#/', '#/trilha', '#/glossario', '#/livre', '#/ex/deploy-rolling-sem-indisponibilidade', '#/ex/n0-imagem-e-conteiner', '#/ex/n0-quiz-latest', '#/ex/n1-diario', '#/ex/n3-ingress-caminho', '#/ex/n9-imagem-errada', '#/troubleshooting', '#/ex/ts-loja-fora-do-ar'];
 const TEMAS = ['claro', 'escuro', 'contraste'];
@@ -55,7 +59,7 @@ test('resolver uma missão embarca um contêiner: o nível mostra o progresso e 
     localStorage.setItem('kube-learn:progresso', JSON.stringify(Object.fromEntries(ids.map((i) => [i, { status: 'resolvido', em: '2026-10-20' }]))));
   });
   await page.goto('#/trilha');
-  await expect(page.locator('#nivel-2')).toContainText('0 de 12 missões');
+  await expect(page.locator('#nivel-2')).toContainText(`0 de ${missoesDoNivel(2)} missões`);
   await expect(page.locator('#nivel-11')).toContainText('Bloqueado');
   await page.locator('#nivel-2').getByRole('link', { name: /Atualizar sem derrubar ninguém/ }).click();
   await page.getByRole('tab', { name: 'Solução' }).click();
@@ -64,7 +68,7 @@ test('resolver uma missão embarca um contêiner: o nível mostra o progresso e 
   await page.getByRole('button', { name: 'Entregar' }).click();
   await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
   await page.getByRole('link', { name: 'Voltar à Trilha' }).click();
-  await expect(page.locator('#nivel-2')).toContainText('1 de 12 missões (8%)');
+  await expect(page.locator('#nivel-2')).toContainText(`1 de ${missoesDoNivel(2)} missões (${Math.round(100 / missoesDoNivel(2))}%)`);
 
   await expect(page.locator('.placar')).toContainText('Dias seguidos');
   await expect(page.locator('#nivel-2').getByRole('link', { name: /resolvida/ })).toHaveCount(1);
@@ -75,7 +79,7 @@ test('troubleshooting: a seção abre sem desbloquear nada e marca o incidente r
   page.on('dialog', (d) => d.accept());
   await page.goto('#/');
   await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Troubleshooting' }).click();
-  await expect(page.locator('.chamado')).toHaveCount(3);
+  await expect(page.locator('.chamado')).toHaveCount(TROUBLESHOOTING.length);
   await page.getByRole('link', { name: 'A loja fora do ar' }).click();
   await expect(page.locator('.ex-topo')).not.toContainText('XP');
   await page.getByRole('tab', { name: 'Solução' }).click();

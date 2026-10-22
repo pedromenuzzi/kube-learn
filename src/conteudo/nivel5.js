@@ -37,6 +37,9 @@ const cron = (horario) => yaml`
               command: ["sh", "-c", "echo varrendo os corredores"]
 `;
 
+// "A cada 5 minutos" no cron: */5, 0/5, 0-59/5 (ou 0-55/5...) ou a lista 0,5,...,55 no minuto, e * no resto.
+const A_CADA_5_MINUTOS = '^\\s*(?:(?:\\*|0|0-5[5-9])/5|0,5,10,15,20,25,30,35,40,45,50,55)(?:\\s+\\*){4}\\s*$';
+
 const extintor = (tolerancia = '') => yaml`
   apiVersion: apps/v1
   kind: DaemonSet
@@ -174,7 +177,7 @@ spec:
   licao({
     id: 'n5-licao-daemonset-init',
     titulo: 'O extintor em cada prédio e a vistoria antes da mudança',
-    vidaReal: 'O DaemonSet é a regra do condomínio: todo prédio tem um extintor, inclusive o que ficar pronto amanhã. O init container é a vistoria: a mudança só entra depois que ela termina. O sidecar é o porteiro que trabalha junto com o morador.',
+    vidaReal: 'O DaemonSet é a regra do condomínio: todo prédio tem um extintor, inclusive o que ficar pronto amanhã. O init container é a vistoria: a mudança só entra depois que ela termina. O sidecar é o assistente que trabalha junto com o morador.',
     limite: 'O extintor só vai para os prédios que aceitam: a administração (o control plane) tem um taint, e o DaemonSet só entra lá com a tolerância.',
     conteudo: `
       <h2>DaemonSet: um pod em cada node</h2>
@@ -258,7 +261,7 @@ spec:
     manual: ['job.spec.completions', 'job.spec.parallelism'],
     inicial: { 'job.yaml': job({ nome: 'paredes', comando: 'echo levantando parede; sleep 10', especificacao: '    completions: 6\n' }) },
     solucao: { 'job.yaml': job({ nome: 'paredes', comando: 'echo levantando parede; sleep 10', especificacao: '    completions: 6\n    parallelism: 3\n' }) },
-    testes: [depois('as 6 paredes ficam prontas em 40 segundos', [{ semErros: true }, { objeto: 'job/paredes', campo: 'spec.parallelism', regex: '^[3-6]$', msg: 'pelo menos 3 pedreiros ao mesmo tempo' }, terminou('paredes', 6)], { esperar: '40s' })],
+    testes: [depois('as 6 paredes ficam prontas em 40 segundos', [{ semErros: true }, { objeto: 'job/paredes', campo: 'spec.parallelism', regex: '^([3-9]|[1-9]\\d+)$', msg: 'pelo menos 3 pedreiros ao mesmo tempo' }, terminou('paredes', 6)], { esperar: '40s' })],
   }),
 
   problema({
@@ -296,7 +299,7 @@ spec:
     inicial: { 'limpeza.yaml': cron('# quando?') },
     solucao: { 'limpeza.yaml': cron('*/5 * * * *') },
     testes: [
-      { descricao: 'kubectl apply -f .', passos: [{ comando: 'kubectl apply -f .' }], regras: [{ semErros: true }, { objeto: 'cronjob/limpeza', campo: 'spec.schedule', regex: '^\\*/5 \\* \\* \\* \\*$' }] },
+      { descricao: 'kubectl apply -f .', passos: [{ comando: 'kubectl apply -f .' }], regras: [{ semErros: true }, { objeto: 'cronjob/limpeza', campo: 'spec.schedule', regex: A_CADA_5_MINUTOS, msg: 'o schedule roda a cada 5 minutos' }] },
       {
         oculto: true,
         descricao: 'a coleta passa sozinha',
@@ -372,7 +375,14 @@ spec:
     limite: 'A tolerância libera a entrada, não obriga: num Deployment, o pod poderia ir para a administração ou não.',
     enunciado: `
       <p>O DaemonSet <code>extintor</code> está em node-1 e node-2, mas não no <code>control-plane</code>. Descubra por quê
-         (<code>kubectl describe node control-plane</code>, em Taints) e faça o extintor chegar lá também.</p>`,
+         (<code>kubectl describe node control-plane</code>, em Taints) e faça o extintor chegar lá também.</p>
+      <p>Um <b>taint</b> é uma placa no prédio que afasta os pods. Para entrar mesmo assim, o pod leva uma
+         <b>toleration</b> com a chave e o efeito da placa, em <code>spec.template.spec.tolerations</code> (ao lado de
+         <code>containers</code>). Você vê os dois a fundo no nível 7.</p>
+      <pre><code>tolerations:
+- key: CHAVE          # a do taint
+  operator: Exists    # qualquer valor serve
+  effect: EFEITO      # o do taint</code></pre>`,
     dica: 'Uma toleration para a chave node-role.kubernetes.io/control-plane, efeito NoSchedule (operator Exists).',
     manual: ['pod.spec.tolerations'],
     inicial: { 'extintor.yaml': extintor() },
@@ -385,7 +395,7 @@ spec:
     titulo: 'A vistoria antes da mudança',
     dificuldade: 'medio',
     cluster: 'painel',
-    vidaReal: 'A mudança e a vistoria chegaram juntas: o caminhão descarrega antes de o fiscal liberar, e tudo volta para o caminhão.',
+    vidaReal: 'A mudança e a vistoria chegaram juntas: o caminhão descarrega antes de a vistoria liberar, e tudo volta para o caminhão.',
     limite: 'A vistoria (init) roda uma vez, na subida do pod; se o app reiniciar depois, ela não roda de novo.',
     enunciado: `
       <p>O <code>painel</code> só abre se o arquivo <code>/config/pronto</code> existir, e quem cria o arquivo é o contêiner

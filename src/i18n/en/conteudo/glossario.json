@@ -134,9 +134,9 @@
   },
   "sidecar": {
     "termo": "Sidecar",
-    "definicao": "A helper container in the same pod as the main one (logs, proxy, sync).",
+    "definicao": "A helper container in the same pod as the main one (logs, proxy, sync). Today the right way is the native one: in initContainers, with restartPolicy: Always (level 5).",
     "vidaReal": "The roommate who helps out the main tenant.",
-    "limite": "It’s born and dies with the pod; you can’t scale the helper separately from the main tenant.",
+    "limite": "It’s born and dies with the pod: you can’t scale the assistant separately from the main tenant. Written as a regular container, it doesn’t know when to leave, and a Job with it never finishes.",
     "exemplo": "containers: [app, coletor-de-logs]"
   },
   "replicaset": {
@@ -188,6 +188,13 @@
     "limite": "It changes all the time, on its own: never write pod IPs by hand.",
     "exemplo": "kubectl get endpoints web"
   },
+  "kube-proxy": {
+    "termo": "kube-proxy",
+    "definicao": "The program on each node that makes the Service IP work: it writes the node’s network rules (iptables or nftables) that send each connection to one of the ready pods.",
+    "vidaReal": "Each building’s phone technician: wires things up so a call to the extension rings at one of the apartments that answer.",
+    "limite": "He doesn’t sit in the middle of the call: he only leaves the wires ready (kernel rules), and the kernel forwards each call. With some network plugins (like Cilium) there’s no technician at all: the plugin does the job.",
+    "exemplo": "iptables -t nat -L KUBE-SERVICES"
+  },
   "nodeport": {
     "termo": "NodePort",
     "definicao": "A Service that opens the same port (30000–32767) on every node.",
@@ -202,6 +209,13 @@
     "limite": "Outside the cloud (kind, minikube) the external IP stays <pending> without some extra help (MetalLB, cloud-provider-kind). Here the simulator plays that role, like cloud-provider-kind does, and the IP shows up.",
     "exemplo": "type: LoadBalancer"
   },
+  "port-forward": {
+    "termo": "port-forward",
+    "definicao": "A temporary tunnel, opened by kubectl, from a port on your computer to a pod (or to a Service, which picks a pod).",
+    "vidaReal": "A temporary passage from your house straight to an apartment, without going through the front gate.",
+    "limite": "The passage goes to a single pod (picked when it opens), only you use it, and it disappears when the command stops: it’s for testing, not for serving customers.",
+    "exemplo": "Forwarding from 127.0.0.1:8080 -> 80"
+  },
   "headless": {
     "termo": "Headless Service",
     "definicao": "A Service with no IP of its own (clusterIP: None): the DNS name returns the IP of each ready pod. It’s what gives each pod in a StatefulSet its name (db-0.db).",
@@ -215,6 +229,13 @@
     "vidaReal": "The full address: name, company, neighborhood and city.",
     "limite": "Within the same namespace the short name is enough; from another namespace, you need the name with the namespace.",
     "exemplo": "curl http://web.loja.svc.cluster.local"
+  },
+  "coredns": {
+    "termo": "CoreDNS",
+    "definicao": "The cluster’s name server: a Deployment in kube-system, behind the kube-dns Service, that answers each pod with the IP of the name it asked for.",
+    "vidaReal": "The condo’s switchboard operator: you say the company’s name, she gives you the extension number.",
+    "limite": "She only gives out the number, she doesn’t complete the call: if the extension doesn’t answer, it’s not her fault. And whoever knows the IP by heart can call even without her.",
+    "exemplo": "kubectl get pods -n kube-system -l k8s-app=kube-dns"
   },
   "ingress": {
     "termo": "Ingress",
@@ -304,7 +325,7 @@
     "termo": "CronJob",
     "definicao": "Creates a Job at scheduled times (cron syntax).",
     "vidaReal": "Trash pickup every Tuesday at 7 a.m.",
-    "limite": "The time is the cluster’s clock (usually UTC), not yours.",
+    "limite": "The time is the cluster’s clock (usually UTC), not yours: for another time zone, set timeZone (e.g. America/Sao_Paulo).",
     "exemplo": "schedule: \"0 7 * * 2\""
   },
   "init-container": {
@@ -317,7 +338,7 @@
   "sidecar-nativo": {
     "termo": "Native sidecar",
     "definicao": "An init container with restartPolicy: Always: it starts before the app, keeps running beside it and exits when the app finishes.",
-    "vidaReal": "The doorman who works alongside the resident: arrives before, stays all day and leaves when the resident goes out.",
+    "vidaReal": "The assistant who works alongside the resident: arrives before, stays all day and leaves when the resident goes out.",
     "limite": "A sidecar written as a regular container never finishes, and a Job with it never becomes Complete.",
     "exemplo": "initContainers: [{ name: logs, restartPolicy: Always }]"
   },

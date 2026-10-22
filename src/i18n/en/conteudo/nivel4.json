@@ -222,7 +222,7 @@
     "titulo": "Who lives in number 2?",
     "enunciado": "\n      <p>The StatefulSet <code>db</code> is up. From the pod <code>cliente</code> (busybox), find the IP of <code>db-2</code> through\n         <b>DNS</b>.</p>",
     "dica": "kubectl exec cliente -- nslookup db-2.db.default.svc.cluster.local (busybox’s nslookup needs the full name).",
-    "vidaReal": "To talk to apartment 2, the front gate looks up the list of residents by number, not by face.",
+    "vidaReal": "To talk to apartment 2, the switchboard operator (the DNS) looks it up by apartment number, not by the face of whoever lives there.",
     "limite": "If db-2 is recreated, the name stays the same, but the IP may change: keep the name, not the IP.",
     "rotuloResposta": "The IP of db-2",
     "testes": [

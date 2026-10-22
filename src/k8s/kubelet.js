@@ -178,7 +178,14 @@ export class Kubelet {
       let { loja } = vol;
       if (m.subPath) { // só um arquivo (ou uma pasta) de dentro do volume
         const sub = m.subPath.replace(/^\/+|\/+$/g, '');
-        loja = loja.has(sub) ? new Map([['', loja.get(sub)]]) : new Map([...loja].filter(([k]) => k.startsWith(`${sub}/`)).map(([k, v]) => [k.slice(sub.length + 1), v]));
+        const recorte = () => (loja.has(sub) ? new Map([['', loja.get(sub)]]) : new Map([...loja].filter(([k]) => k.startsWith(`${sub}/`)).map(([k, v]) => [k.slice(sub.length + 1), v])));
+        // De um ConfigMap ou Secret, o kubelet monta o arquivo como estava na criação do contêiner e nunca mais
+        // atualiza (só um contêiner novo vê o conteúdo novo).
+        if (vol.fonte) {
+          est.fotos ??= new Map();
+          if (!est.fotos.has(m.mountPath)) est.fotos.set(m.mountPath, recorte());
+          loja = est.fotos.get(m.mountPath);
+        } else loja = recorte();
       }
       return [{ caminho: sem(m.mountPath), loja, somenteLeitura: !!vol.somenteLeitura || !!m.readOnly }];
     });
@@ -396,18 +403,43 @@ export class Kubelet {
       return;
     }
     this.evento(pod, ct, 'Normal', 'Pulling', `Pulling image "${ct.image}"`);
-    const r = buscarImagem(ct.image);
+    const r = buscarImagem(ct.image, this.credenciais(pod).chaves);
     const base = r.ok ? (presente ? 400 : r.info.puxaEm) : 1000;
     est.duracaoPull = Math.round(base * (0.8 + c.aleatorio.proximo() * 0.4));
     est.fase = 'puxando';
     est.ate = c.agora + est.duracaoPull;
   }
 
+  /** As credenciais dos imagePullSecrets do pod (Secrets do tipo dockerconfigjson) e os nomes dos que não existem. */
+  credenciais(pod) {
+    const chaves = [];
+    const faltam = [];
+    for (const { name } of pod.spec.imagePullSecrets ?? []) {
+      const s = this.c.obter('Secret', pod.metadata.namespace, name);
+      if (!s) {
+        faltam.push(name);
+        continue;
+      }
+      if (s.type !== 'kubernetes.io/dockerconfigjson') continue;
+      try {
+        for (const [servidor, a] of Object.entries(JSON.parse(atobUtf8(s.data?.['.dockerconfigjson'] ?? '')).auths ?? {})) {
+          const [usuario, senha] = a.username !== undefined ? [a.username, a.password] : atobUtf8(a.auth ?? '').split(/:(.*)/s);
+          chaves.push({ servidor, usuario, senha });
+        }
+      } catch { /* um .dockerconfigjson quebrado não dá credencial nenhuma */ }
+    }
+    return { chaves, faltam };
+  }
+
   terminarPull(pod, ct, est) {
-    const r = buscarImagem(ct.image);
+    const { chaves, faltam } = this.credenciais(pod);
+    const r = buscarImagem(ct.image, chaves);
+    // O Secret do imagePullSecrets não existe (no namespace do pod): o kubelet avisa e tenta sem ele.
+    const avisar = () => faltam.length && this.c.evento(pod, 'Warning', 'FailedToRetrieveImagePullSecret', `Unable to retrieve some image pull secrets (${faltam.join(', ')}); attempting to pull the image may not succeed.`, { componente: 'kubelet', host: pod.spec.nodeName });
     if (!r.ok) {
       this.evento(pod, ct, 'Warning', 'Failed', `Failed to pull image "${ct.image}": ${r.erro}`);
       this.evento(pod, ct, 'Warning', 'Failed', 'Error: ErrImagePull');
+      avisar();
       est.fase = 'erroPull';
       est.erroPull = r.erro;
       est.ate = this.c.agora + 1000;
@@ -417,6 +449,7 @@ export class Kubelet {
     est.erroPull = null;
     const d = duracaoGo(est.duracaoPull);
     this.evento(pod, ct, 'Normal', 'Pulled', `Successfully pulled image "${ct.image}" in ${d} (${d} including waiting). Image size: ${r.info.tamanho} bytes.`);
+    avisar();
     this.criar(pod, ct, est);
   }
 
@@ -455,6 +488,7 @@ export class Kubelet {
     est.logsAnteriores = est.logs;
     est.logs = [];
     est.camada = new Map(); // contêiner novo, camada gravável nova (o que não estava num volume se perde)
+    est.fotos = new Map(); // e os subPath de ConfigMap/Secret leem o conteúdo de agora
     for (const st of Object.values(est.sondas ?? {})) { // o relógio das probes continua; só a contagem recomeça
       st.falhas = 0;
       st.sucessos = 0;

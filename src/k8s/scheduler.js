@@ -227,7 +227,7 @@ export function agendar(c) {
       if (node.spec.unschedulable && !(interditado && tolera(pod, interditado))) { falha('node(s) were unschedulable'); continue; }
       const taints = [...(node.spec.taints ?? []), ...(nodePronto(node) ? [] : [{ key: 'node.kubernetes.io/not-ready', effect: 'NoSchedule' }])];
       if (taints.some((t) => (t.effect === 'NoSchedule' || t.effect === 'NoExecute') && !tolera(pod, t))) { falha('node(s) had untolerated taint(s)'); continue; }
-      if (nodesDosDiscos.some((lista) => !lista.includes(node.metadata.name))) { falha('node(s) had volume node affinity conflict'); continue; }
+      if (nodesDosDiscos.some((lista) => !lista.includes(node.metadata.name))) { falha("node(s) didn't match PersistentVolume's node affinity"); continue; }
       if (!casaSeletorENode(pod, node)) { falha("node(s) didn't match Pod's node affinity/selector"); continue; }
       const r = filtrosDePods(c, pod, node, nodes, undefined, passe);
       if (r.motivos.length) {

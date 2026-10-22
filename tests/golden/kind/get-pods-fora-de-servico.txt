@@ -1,0 +1,4 @@
+NAME                      READY   STATUS    RESTARTS   AGE   IP           NODE               NOMINATED NODE   READINESS GATES
+plantao-7b557f655-4th4x   1/1     Running   0          72s   10.244.2.6   golden-worker      <none>           <none>
+plantao-7b557f655-pc7qd   1/1     Running   0          72s   10.244.2.5   golden-worker      <none>           <none>
+exit=0

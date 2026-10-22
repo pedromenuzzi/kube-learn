@@ -1,1 +1,634 @@
-{}
+{
+  "n1-quiz-apply-create": {
+    "titulo": "Quiz: apply or create?",
+    "enunciado": "<p>The <code>recepcao</code> pod already exists: you applied <code>recepcao.yaml</code>. Now you add a label to the file and run <code>kubectl create -f recepcao.yaml</code>. What happens?</p>",
+    "vidaReal": "create is a request for a brand-new build: if the apartment already exists, the doorman sends it back. apply is the updated blueprint: the doorman compares and changes only the difference.",
+    "limite": "apply isn’t magic: almost nothing in a pod’s spec can change after it’s created (you can swap the image, but you can’t add a container), and then it’s delete and create again.",
+    "alternativas": [
+      {
+        "texto": "The pod gets the new label.",
+        "explicacao": "That’s <code>kubectl apply</code>: it creates or updates. <code>create</code> only knows how to create."
+      },
+      {
+        "texto": "A second <code>recepcao</code> pod is born, already with the label.",
+        "explicacao": "No: in the same namespace, two objects of the same kind can’t have the same name."
+      },
+      {
+        "texto": "Error: the pod already exists (<code>AlreadyExists</code>), and nothing changes.",
+        "explicacao": "Right. To update from the file, use <code>kubectl apply -f</code>; if nothing changed, it answers <code>unchanged</code>."
+      },
+      {
+        "texto": "The old pod is deleted and created again, with the label.",
+        "explicacao": "Neither <code>create</code> nor <code>apply</code> deletes the pod to recreate it. A new label is something <code>apply</code> changes on the pod itself."
+      }
+    ]
+  },
+  "n1-quiz-namespace-rede": {
+    "titulo": "Quiz: does the namespace lock the door?",
+    "enunciado": "<p>Can the <code>sala-de-reuniao</code> pod in <code>financeiro</code> talk, over the network, to the <code>sala-de-reuniao</code> in <code>rh</code>?</p>",
+    "vidaReal": "Two companies in the same condo: different signs on the door, but the hallway is the same.",
+    "limite": "In the condo, each company locks its own door. In the cluster, without a NetworkPolicy, no door has a lock.",
+    "alternativas": [
+      {
+        "texto": "No: different namespaces have separate networks.",
+        "explicacao": "That’s the most common mistake. The namespace separates names (and, later on, badges and quotas), not the network."
+      },
+      {
+        "texto": "Only if both pods have the same label.",
+        "explicacao": "Labels don’t open or close the network: they’re only for picking pods."
+      },
+      {
+        "texto": "Yes: by default, every pod talks to every pod, in any namespace.",
+        "explicacao": "Right. To close the way, there are turnstiles (NetworkPolicy), in level 8."
+      }
+    ]
+  },
+  "n2-quiz-reforma": {
+    "titulo": "Quiz: what does a version change create?",
+    "enunciado": "<p>The <code>loja</code> (store) Deployment, with 3 replicas, runs 1.0. You change the image to 1.1 and apply. What happens under the hood?</p>",
+    "vidaReal": "The renovation in stages: the new floor is built next door, the residents move a few at a time, and the old floor stays empty, kept in case you need to go back.",
+    "limite": "An empty floor would cost rent; a ReplicaSet with 0 pods costs nothing, but only the last 10 are kept (revisionHistoryLimit).",
+    "alternativas": [
+      {
+        "texto": "The existing ReplicaSet swaps the pods’ image, one by one, without recreating them.",
+        "explicacao": "No: the Deployment doesn’t renovate the old ReplicaSet, it creates another one (with another hash in the name). And the pods are replaced, not renovated: new name, new IP."
+      },
+      {
+        "texto": "The Deployment creates a new ReplicaSet, scales its pods up and the old one’s down, a few at a time. The old one stays, with 0 pods.",
+        "explicacao": "Right. The old, empty ReplicaSet is the previous revision: it’s what <code>kubectl rollout undo</code> goes back to."
+      },
+      {
+        "texto": "The Deployment deletes the 3 pods and only then creates the 3 new ones.",
+        "explicacao": "That’s how the <code>Recreate</code> strategy works. The default is <code>RollingUpdate</code>: a few at a time, without closing the store."
+      },
+      {
+        "texto": "Nothing: the pods only get the new image when they’re deleted.",
+        "explicacao": "That would happen with a ReplicaSet on its own. The Deployment notices the new template and starts the swap right away."
+      }
+    ]
+  },
+  "n2-quiz-scale-e-apply": {
+    "titulo": "Quiz: scale and the file",
+    "enunciado": "<p>On Black Friday, you ran <code>kubectl scale deploy/loja --replicas=5</code>. Days later, someone applies the <code>loja.yaml</code> from the repository, which says <code>replicas: 3</code>. How many replicas does <code>loja</code> end up with?</p>",
+    "vidaReal": "The temps were hired over the phone, but the contract on file still says 3: when someone sends the contract again, the 3 is what counts.",
+    "limite": "To change the number for good, change the file. And when the HPA (level 6) takes care of the replicas, it’s best not to write replicas in the YAML at all.",
+    "alternativas": [
+      {
+        "texto": "5",
+        "explicacao": "<code>scale</code> changed only the cluster, not the file. <code>apply</code> writes what the file declares."
+      },
+      {
+        "texto": "8",
+        "explicacao": "<code>apply</code> doesn’t add anything up: it makes the field match the file."
+      },
+      {
+        "texto": "3",
+        "explicacao": "Right: <code>apply</code> sets <code>replicas</code> back to what the file says. A change made from the terminal is lost on the next apply of the old file."
+      }
+    ]
+  },
+  "n2-quiz-undo": {
+    "titulo": "Quiz: the revision number",
+    "enunciado": "<p><code>kubectl rollout history deploy/loja</code> shows revisions 1, 2 and 3. You run <code>kubectl rollout undo deploy/loja --to-revision=1</code>. What does the history look like afterward?</p>",
+    "vidaReal": "Nobody tears pages out of the renovation log: undoing a renovation means writing a new page that says “we went back to the opening-day design”.",
+    "limite": "In a paper log, the old page is still there. Here the old number disappears, because the ReplicaSet is the same one and just gets a new number.",
+    "alternativas": [
+      {
+        "texto": "1, 2 and 3, with 1 marked as current.",
+        "explicacao": "The history has no “current” marker: the current one is always the highest number."
+      },
+      {
+        "texto": "Only 1: revisions 2 and 3 are deleted.",
+        "explicacao": "Nothing is deleted: 2 and 3 are still there, so you can go back to them too."
+      },
+      {
+        "texto": "2, 3 and 4: revision 1 became 4.",
+        "explicacao": "Right: going back is moving forward. Revision 1’s template (the same ReplicaSet) gets number 4, and 1 leaves the list."
+      }
+    ]
+  },
+  "n3-quiz-sorteio": {
+    "titulo": "Quiz: who answers the extension?",
+    "enunciado": "<p>There are 3 pods behind the <code>loja</code> Service. A client opens 3 connections, one after another. How does the extension split them?</p>",
+    "vidaReal": "The extension’s switchboard draws a clerk at random for every call: there’s no queue and no turns.",
+    "limite": "At a real switchboard, the call goes to whoever is free. The Service doesn’t know who’s busy: it just draws at random.",
+    "alternativas": [
+      {
+        "texto": "Round-robin: one connection to each pod, in order.",
+        "explicacao": "It’s what almost everyone imagines, but kube-proxy (in its default mode) doesn’t keep track of anyone’s turn."
+      },
+      {
+        "texto": "Each connection goes to a randomly drawn pod: the same pod may handle all three.",
+        "explicacao": "Right: a random draw for every new connection. With many connections the load evens out; with few, it can be lopsided. And it’s per connection: a client that reuses its connection (keep-alive) always talks to the same pod."
+      },
+      {
+        "texto": "They all go to the least busy pod.",
+        "explicacao": "The extension doesn’t measure load: it doesn’t know whether the clerk is busy."
+      },
+      {
+        "texto": "They all go to the first pod, until it goes down.",
+        "explicacao": "No: the Service spreads connections across all ready pods."
+      }
+    ]
+  },
+  "n3-quiz-porta": {
+    "titulo": "Quiz: which port do you dial?",
+    "enunciado": "<p>The <code>loja</code> Service has <code>port: 80</code> and <code>targetPort: 8080</code>. From inside another pod, which address reaches the store through the extension?</p>",
+    "vidaReal": "The extension is the switchboard’s 80; inside, the clerk sits in room 8080. Callers dial the extension, not the room number.",
+    "limite": "Dialing a pod’s IP on 8080 also gets you there, but it skips the extension: no random draw and no guarantee that pod still exists.",
+    "alternativas": [
+      {
+        "texto": "<code>http://loja</code> (port 80)",
+        "explicacao": "Right: the client uses the Service’s <code>port</code> (80, the http default), and the Service delivers to the <code>targetPort</code> (8080) of the drawn pod."
+      },
+      {
+        "texto": "<code>http://loja:8080</code>",
+        "explicacao": "The Service doesn’t listen on 8080: that’s the port inside the pod. On the extension, the port is 80."
+      },
+      {
+        "texto": "Both: the Service listens on both ports.",
+        "explicacao": "No: the Service only listens on the ports in its <code>ports</code> list (here, 80)."
+      }
+    ]
+  },
+  "n3-quiz-ingress-sem-controlador": {
+    "titulo": "Quiz: the front desk with no staff",
+    "enunciado": "<p>In a cluster with no Ingress controller at all, you apply an Ingress that sends <code>/api</code> to the <code>loja</code> Service. What happens?</p>",
+    "vidaReal": "Hanging an “information desk” sign at a front gate with no staff: the sign is there, but nobody answers.",
+    "limite": "At a real front gate, someone would find the unstaffed sign odd. Kubernetes doesn’t: the Ingress just sits there, with no ADDRESS, and nobody warns you.",
+    "alternativas": [
+      {
+        "texto": "The apply is rejected: the controller is missing.",
+        "explicacao": "The doorman accepts it: the Ingress is just an object kept in the book. He doesn’t check whether anyone will carry it out."
+      },
+      {
+        "texto": "Kubernetes installs a controller on its own.",
+        "explicacao": "It doesn’t: picking and installing the controller (Traefik, NGINX, HAProxy...) is up to whoever runs the cluster."
+      },
+      {
+        "texto": "The <code>loja</code> Service becomes a LoadBalancer.",
+        "explicacao": "The Ingress doesn’t change the Service: it just points to it."
+      },
+      {
+        "texto": "The Ingress is created, but nothing starts answering.",
+        "explicacao": "Right: with no controller, nobody reads the rules. The Ingress has no address (the ADDRESS column is empty)."
+      }
+    ]
+  },
+  "n4-quiz-aviso-mudou": {
+    "titulo": "Quiz: who sees the new notice?",
+    "enunciado": "<p>Three pods read the <code>loja-config</code> ConfigMap, each in a different way. You change the ConfigMap. Which one sees the new value without restarting?</p>",
+    "vidaReal": "Whoever has the poster hanging in the living room sees the new notice; whoever copied the notice into a notebook when moving in still has the old copy.",
+    "limite": "The poster changes by itself, but someone has to look again: a program that only reads the file when it starts won’t notice the change either.",
+    "alternativas": [
+      {
+        "texto": "The one that reads one key with <code>env</code> and <code>configMapKeyRef</code>.",
+        "explicacao": "The environment variable is read when the container is born and never changes again."
+      },
+      {
+        "texto": "The one that reads all the keys with <code>envFrom</code>.",
+        "explicacao": "Those are environment variables too: they keep the value from birth."
+      },
+      {
+        "texto": "The one that mounts the ConfigMap as a volume in a folder.",
+        "explicacao": "Right: the mounted file follows along by itself, within a minute or so. The exception: mounted with <code>subPath</code> (a single file, inside a folder that already exists), it doesn’t follow."
+      },
+      {
+        "texto": "None: the kubelet restarts every pod when the ConfigMap changes.",
+        "explicacao": "Nobody restarts anything on their own. For the variables to change, you’re the one who runs <code>kubectl rollout restart</code>."
+      }
+    ]
+  },
+  "n4-quiz-mesa": {
+    "titulo": "Quiz: the desk after the fall",
+    "enunciado": "<p>The <code>nginx</code> container in the <code>placa</code> pod crashed and the kubelet restarted it. What happened to what was in the emptyDir?</p>",
+    "vidaReal": "The resident fainted and came to: the desk still has the papers on it. On a move (a new pod), the desk stays behind.",
+    "limite": "A real desk could go along on the move; the emptyDir never does: new pod, empty desk.",
+    "alternativas": [
+      {
+        "texto": "It vanished along with the container.",
+        "explicacao": "What vanishes on a restart is what was written to the container’s own disk, outside the volumes. The emptyDir belongs to the pod."
+      },
+      {
+        "texto": "It’s still there: the pod is the same, and the emptyDir belongs to it.",
+        "explicacao": "Right: the emptyDir survives a container restart. It only vanishes when the pod goes away (deleted, evicted or replaced by a Deployment)."
+      },
+      {
+        "texto": "It was copied to a PVC.",
+        "explicacao": "Nobody copies anything to a PVC on their own: the PVC is a separate request of yours."
+      }
+    ]
+  },
+  "n4-quiz-volta-da-temporada": {
+    "titulo": "Quiz: back for the season",
+    "enunciado": "<p>You scaled <code>db</code> down from 3 replicas to 1, and the <code>dados-db-1</code> and <code>dados-db-2</code> PVCs stayed. Now you go back to 3. What does the new <code>db-1</code> get?</p>",
+    "vidaReal": "The resident of number 1 comes back from a trip and storage unit 1 is right there, with their things inside.",
+    "limite": "In the condo, nobody forgets a full storage unit. In the cluster, an idle PVC doesn’t warn anyone. You can ask for it to be deleted on scale-down (persistentVolumeClaimRetentionPolicy), but then the data goes with it.",
+    "alternativas": [
+      {
+        "texto": "A new, empty disk.",
+        "explicacao": "The <code>dados-db-1</code> PVC still exists: the StatefulSet doesn’t request another one."
+      },
+      {
+        "texto": "A copy of <code>db-0</code>’s data.",
+        "explicacao": "The StatefulSet doesn’t copy data between replicas: that’s the program’s job (redis, postgres)."
+      },
+      {
+        "texto": "Nothing: <code>db-1</code> won’t come back until someone deletes the old PVC.",
+        "explicacao": "The old PVC doesn’t get in the way: it’s exactly what <code>db-1</code> is looking for."
+      },
+      {
+        "texto": "The same <code>dados-db-1</code> PVC, with the data from before.",
+        "explicacao": "Right: the PVC’s name follows the pod’s, and <code>db-1</code> finds its storage unit again. That’s why the PVCs stay when the StatefulSet scales down."
+      }
+    ]
+  },
+  "n5-quiz-coleta-atrasada": {
+    "titulo": "Quiz: the late pickup",
+    "enunciado": "<p>The <code>limpeza</code> (cleanup) job runs every 5 minutes. Today, one run took 7 minutes. What happens when the next one is due?</p>",
+    "vidaReal": "The 7:05 truck leaves even if the 7:00 one is still out: two trucks on the same block.",
+    "limite": "Two trucks at once just snarl traffic; two Jobs at once can corrupt data (two backups writing the same file). For those, Forbid.",
+    "alternativas": [
+      {
+        "texto": "The CronJob waits for the late run to finish and only then starts the next one.",
+        "explicacao": "It never waits. With <code>concurrencyPolicy: Forbid</code>, it skips the new run."
+      },
+      {
+        "texto": "Another run starts, at the same time as the late one.",
+        "explicacao": "Right: the default (<code>concurrencyPolicy: Allow</code>) lets both run together. <code>Forbid</code> skips the new one; <code>Replace</code> stops the old one and starts the new one."
+      },
+      {
+        "texto": "The late run is canceled.",
+        "explicacao": "Only with <code>concurrencyPolicy: Replace</code>. The default leaves both running."
+      }
+    ]
+  },
+  "n5-quiz-fuso": {
+    "titulo": "Quiz: 3 a.m. where?",
+    "enunciado": "<p>The <code>backup</code> CronJob has <code>schedule: \"0 3 * * *\"</code>, with no <code>timeZone</code>. Conceição (the controller manager) keeps her clock on UTC, and the company runs on Brasília time (UTC−3). At what time, Brasília time, does the backup run?</p>",
+    "vidaReal": "The pickup follows the management office’s clock, not yours: if the office sets its clock by Greenwich, its 3 a.m. is midnight in Brasília.",
+    "limite": "In the condo, everyone lives in the same time zone. A cloud cluster almost always uses UTC, wherever it is.",
+    "alternativas": [
+      {
+        "texto": "At 3 a.m.",
+        "explicacao": "That would be the case if the controller manager used Brasília time. It uses UTC."
+      },
+      {
+        "texto": "At 6 a.m.",
+        "explicacao": "The math goes the other way: Brasília is 3 hours behind UTC, not ahead."
+      },
+      {
+        "texto": "It depends on the time zone of the computer of whoever applied the YAML.",
+        "explicacao": "kubectl doesn’t send any time zone: the schedule is read by the controller manager, in the cluster."
+      },
+      {
+        "texto": "At midnight.",
+        "explicacao": "Right: without <code>spec.timeZone</code>, the controller manager’s time zone applies (almost always UTC), and 3 a.m. UTC is midnight in Brasília. For 3 a.m. local time: <code>timeZone: America/Sao_Paulo</code>."
+      }
+    ]
+  },
+  "n6-quiz-readiness": {
+    "titulo": "Quiz: when readiness fails",
+    "enunciado": "<p>A <code>loja</code> pod was ready. Now its readinessProbe fails 3 times in a row, while the livenessProbe keeps passing. What happens?</p>",
+    "vidaReal": "The clerk says “I can’t right now”: the front gate stops sending customers, but nobody pulls them out of the chair.",
+    "limite": "If everyone says “I can’t right now” at the same time, the extension has no one and the call is refused: readiness doesn’t call for backup.",
+    "alternativas": [
+      {
+        "texto": "The kubelet restarts the container.",
+        "explicacao": "Restarting is liveness’s job, and it’s passing. Readiness only decides whether the pod gets customers."
+      },
+      {
+        "texto": "The Deployment deletes the pod and creates another.",
+        "explicacao": "Nobody deletes the pod because of readiness: it stays there, waiting to get better."
+      },
+      {
+        "texto": "The pod leaves the Service’s endpoints (READY 0/1), but keeps running, and comes back when the probe passes.",
+        "explicacao": "Right: off the extension, no restart. When the probe passes again, the pod gets customers again."
+      },
+      {
+        "texto": "Nothing changes: the pod is just marked as not ready.",
+        "explicacao": "It does change: a pod that isn’t ready stops getting customers through the Service."
+      }
+    ]
+  },
+  "n6-quiz-request-limit": {
+    "titulo": "Quiz: does the scheduler look at the limit?",
+    "enunciado": "<p><code>node-1</code> has 1 CPU left (adding up the requests of everyone already living there). A pod arrives with <code>requests.cpu: 500m</code> and <code>limits.cpu: 2</code>. Can the scheduler put it on <code>node-1</code>?</p>",
+    "vidaReal": "The building accepts a resident based on their contracted power; their circuit breaker can be bigger than what the building has left, because not everyone turns everything on at once.",
+    "limite": "If everyone draws up to their limit at the same time, CPU gets shared (everyone slows down); memory can’t be shared: someone gets killed or evicted.",
+    "alternativas": [
+      {
+        "texto": "No: a 2-CPU limit doesn’t fit in 1.",
+        "explicacao": "The scheduler doesn’t look at the limit, only the request. The limit can go beyond what the node has."
+      },
+      {
+        "texto": "Only if the pod is using less than 1 CPU right now.",
+        "explicacao": "The scheduler doesn’t look at usage (<code>kubectl top</code>): the pod hasn’t even started. It adds up the reservations."
+      },
+      {
+        "texto": "Yes: the scheduler only adds up requests; the limit is the usage ceiling.",
+        "explicacao": "Right: 500m fits in the 1 CPU left. The limit of 2 only says how far the container can draw, if there’s free CPU."
+      }
+    ]
+  },
+  "n6-quiz-hpa-replicas": {
+    "titulo": "Quiz: the manager and the file",
+    "enunciado": "<p>The HPA took <code>loja</code> to 6 replicas. In the middle of the sale, someone applies <code>loja.yaml</code>, which says <code>replicas: 2</code>. What happens?</p>",
+    "vidaReal": "The manager hired 6 temps; the old contract arrives saying 2 and HR lets 4 go. Minutes later, the manager hires again.",
+    "limite": "In a real HR department, someone would notice the tug-of-war. In the cluster nobody warns you: the number goes up and down, and customers feel it.",
+    "alternativas": [
+      {
+        "texto": "The store drops to 2, and the HPA scales back up on its next calculation: the two fight.",
+        "explicacao": "Right. With an HPA, leave <code>replicas</code> out of the YAML: the manager decides the number."
+      },
+      {
+        "texto": "The apply is rejected, because the HPA is in charge of the replicas.",
+        "explicacao": "apply doesn’t know about the HPA: it writes what the file says."
+      },
+      {
+        "texto": "The HPA locks the number at 6, and the apply ignores the field.",
+        "explicacao": "The HPA doesn’t lock anything: it just changes <code>replicas</code> from time to time, like anyone else."
+      },
+      {
+        "texto": "The HPA is deleted.",
+        "explicacao": "No: the HPA is a separate object and stays there (hence the fight)."
+      }
+    ]
+  },
+  "n7-quiz-toleration": {
+    "titulo": "Quiz: does the authorization take you there?",
+    "enunciado": "<p><code>node-2</code> has the taint <code>dedicado=gpu:NoSchedule</code>. A pod has the toleration for that taint and no nodeSelector or affinity. Where can it land?</p>",
+    "vidaReal": "Authorization to enter the GPU building isn’t an order to move there: the authorized resident may very well live in a regular building.",
+    "limite": "In the condo, whoever has authorization usually goes to the special building. In the cluster, the real-estate agent ignores the authorization when choosing: only the nodeSelector (or affinity) pulls the pod there.",
+    "alternativas": [
+      {
+        "texto": "Only on <code>node-2</code>.",
+        "explicacao": "The toleration doesn’t take anyone there: it just moves the sign out of the way."
+      },
+      {
+        "texto": "On <code>node-1</code> or <code>node-2</code>: the toleration allows <code>node-2</code>, it doesn’t force it.",
+        "explicacao": "Right. To go only to <code>node-2</code>, combine the toleration with a nodeSelector (<code>dedicado: gpu</code>)."
+      },
+      {
+        "texto": "Nowhere: it stays Pending.",
+        "explicacao": "<code>node-1</code> has no taint at all: any pod gets in."
+      },
+      {
+        "texto": "On any node, including the <code>control-plane</code>.",
+        "explicacao": "The <code>control-plane</code> has a different taint (<code>node-role.kubernetes.io/control-plane</code>), which this toleration doesn’t cover."
+      }
+    ]
+  },
+  "n7-quiz-uncordon": {
+    "titulo": "Quiz: the building reopened",
+    "enunciado": "<p>You emptied <code>node-1</code> (<code>kubectl drain</code>), swapped the disk and ran <code>kubectl uncordon node-1</code>. What happens to the pods that left it?</p>",
+    "vidaReal": "The renovation is over and the building reopened, but nobody moves back just because the sign came down.",
+    "limite": "Real residents might want to go back. In the cluster, the node stays empty until new pods arrive (a rollout, one more replica).",
+    "alternativas": [
+      {
+        "texto": "They go back to <code>node-1</code> on their own.",
+        "explicacao": "Nobody tells them to go back: uncordon only lifts the closure."
+      },
+      {
+        "texto": "The scheduler redistributes everything, to balance the nodes.",
+        "explicacao": "The scheduler only chooses on arrival: it never moves a pod that’s already running."
+      },
+      {
+        "texto": "They stay where they are; only the next pods can go to <code>node-1</code>.",
+        "explicacao": "Right: the node accepts new pods again, and the old ones stay on the other nodes until they’re replaced."
+      }
+    ]
+  },
+  "n7-quiz-pdb": {
+    "titulo": "Quiz: what does the PDB hold back?",
+    "enunciado": "<p><code>loja</code> has 3 replicas and a PDB with <code>minAvailable: 2</code>. Which of these situations does the PDB hold back?</p>",
+    "vidaReal": "The elevator agreement holds for the scheduled renovation; if the power goes out, the building goes down with whoever is inside.",
+    "limite": "In the condo, breaking the agreement starts a fight. In the cluster, a kubectl delete runs right over the PDB without even asking.",
+    "alternativas": [
+      {
+        "texto": "<code>node-1</code> loses power, with 2 of the store’s pods inside.",
+        "explicacao": "An outage doesn’t ask permission: the PDB has nobody to say “no” to."
+      },
+      {
+        "texto": "A <code>kubectl delete pod</code> on all 3 pods.",
+        "explicacao": "delete doesn’t go through the eviction API: the PDB isn’t even consulted."
+      },
+      {
+        "texto": "A version change of the store (the rolling update).",
+        "explicacao": "The version change follows the Deployment’s <code>maxUnavailable</code>, not the PDB."
+      },
+      {
+        "texto": "A <code>kubectl drain</code> that would leave only 1 pod ready.",
+        "explicacao": "Right: drain evicts through the eviction API, which checks the PDB and waits for the replacements to be ready."
+      }
+    ]
+  },
+  "n8-quiz-rolebinding": {
+    "titulo": "Quiz: how far does the badge reach?",
+    "enunciado": "<p>A RoleBinding in the <code>loja</code> namespace gives <code>ana</code> the <code>view</code> ClusterRole. Where can Ana read?</p>",
+    "vidaReal": "The “visitor” badge design belongs to the whole condo, but block B’s front desk only hands out badges that open block B.",
+    "limite": "A real badge can be lent. In the cluster, it’s valid only for whoever received it (User, Group or ServiceAccount).",
+    "alternativas": [
+      {
+        "texto": "In every namespace, because <code>view</code> is a ClusterRole.",
+        "explicacao": "The reach is decided by the handout, not the badge: a RoleBinding only counts in its own namespace."
+      },
+      {
+        "texto": "Only in the <code>loja</code> namespace.",
+        "explicacao": "Right. The ClusterRole is just the badge design. To count in every namespace, it’s a ClusterRoleBinding."
+      },
+      {
+        "texto": "Nowhere: a RoleBinding can’t point to a ClusterRole.",
+        "explicacao": "It can, and it’s common: that’s how <code>view</code>, <code>edit</code> and <code>admin</code> get reused across namespaces, without copying the Role."
+      }
+    ]
+  },
+  "n8-quiz-cni": {
+    "titulo": "Quiz: the paper turnstile",
+    "enunciado": "<p>You apply a NetworkPolicy that closes ingress to every pod in the namespace. It’s accepted, but everything still gets through. What could be the reason?</p>",
+    "vidaReal": "The management office approved the turnstile on paper, but nobody installed it at the door: the paper is on file, and the door is still open.",
+    "limite": "On a real building site, someone would see the door with no turnstile. In the cluster, the policy shows up in kubectl get netpol as if it worked.",
+    "alternativas": [
+      {
+        "texto": "The policy only applies to pods created after it.",
+        "explicacao": "It applies right away, to pods that already exist too."
+      },
+      {
+        "texto": "NetworkPolicy only blocks what comes from other namespaces.",
+        "explicacao": "It blocks from anywhere, including the same namespace."
+      },
+      {
+        "texto": "The cluster’s network plugin (CNI) doesn’t implement NetworkPolicy.",
+        "explicacao": "Right: the API stores the policy, but the CNI is what blocks the packets. With one that doesn’t implement it, the policy is just decoration, with no error at all."
+      }
+    ]
+  },
+  "n8-quiz-catracas-somam": {
+    "titulo": "Quiz: two turnstiles on the same door",
+    "enunciado": "<p>In the <code>rede</code> namespace, two policies select the <code>api</code>: <code>nega-tudo</code> (deny-all, closes ingress) and the one that allows ingress from <code>app=vitrine</code>. Does the storefront get through?</p>",
+    "vidaReal": "Each new turnstile is one more list of who may pass: the doorman lets in anyone on any of the lists.",
+    "limite": "In a building, a “no entry” sign can outweigh a pass. Here there’s no “no entry” sign: what closes the door is the lack of a pass.",
+    "alternativas": [
+      {
+        "texto": "No: deny beats allow.",
+        "explicacao": "A NetworkPolicy has no way to deny: each one only allows, and the allowances add up."
+      },
+      {
+        "texto": "It depends on which policy was applied last.",
+        "explicacao": "Order doesn’t matter: there’s no priority between them."
+      },
+      {
+        "texto": "Yes: the rules add up, and whatever any of them allows gets through.",
+        "explicacao": "Right. <code>nega-tudo</code> only “closes” because it selects the pods without allowing anything; the other one adds an allowance."
+      }
+    ]
+  },
+  "n9-quiz-previous": {
+    "titulo": "Quiz: yesterday’s journal",
+    "enunciado": "<p>The database crashes every minute (RESTARTS keeps climbing). Right now it’s Running again, and <code>kubectl logs NAME</code> only shows the startup, with no error at all. Where is the error message?</p>",
+    "vidaReal": "The resident faints, is woken up and remembers nothing: what they said before fainting is in yesterday’s journal.",
+    "limite": "The cluster only keeps the previous attempt: older ones are lost. To keep everything, logs are shipped somewhere else (Loki, Elasticsearch).",
+    "alternativas": [
+      {
+        "texto": "In <code>kubectl logs NAME --previous</code>.",
+        "explicacao": "Right: the container running now is a different one, which just started. The error stayed in the previous attempt’s log."
+      },
+      {
+        "texto": "Nowhere: the log vanishes along with the container that crashed.",
+        "explicacao": "The kubelet keeps the last attempt’s log: that’s what <code>--previous</code> shows."
+      },
+      {
+        "texto": "In <code>kubectl get pods -o wide</code>.",
+        "explicacao": "That shows the node and the IP, not what the program wrote."
+      }
+    ]
+  },
+  "n9-quiz-apagar-o-pod": {
+    "titulo": "Quiz: does deleting the pod fix it?",
+    "enunciado": "<p>The <code>vitrine</code> (storefront) pods, from a Deployment, are in ImagePullBackOff: the YAML asks for <code>nginx:1.27-vitrine</code>, a tag that was never pushed to the registry. You delete one of them with <code>kubectl delete pod</code>. What happens?</p>",
+    "vidaReal": "Throwing out the defective prefab module doesn’t help if the factory order still has the wrong model: another identical one arrives.",
+    "limite": "Sometimes deleting the pod does fix it: when the defect was in the pod (a stuck state, a bad node), not in the blueprint.",
+    "alternativas": [
+      {
+        "texto": "Another pod is born, and this time the image is found.",
+        "explicacao": "The new pod comes from the same template, which still asks for the tag that doesn’t exist in the registry."
+      },
+      {
+        "texto": "The storefront is left with one pod fewer.",
+        "explicacao": "The Deployment (through the ReplicaSet) replaces the pod right away."
+      },
+      {
+        "texto": "Another pod is born, with the same wrong image, and the error comes back.",
+        "explicacao": "Right: the fix goes in the Deployment (in the YAML or with <code>kubectl set image</code>). Then the pods are replaced on their own."
+      }
+    ]
+  },
+  "n10-quiz-install-de-novo": {
+    "titulo": "Quiz: install or upgrade?",
+    "enunciado": "<p>The <code>loja</code> release is already installed. To change the version, someone runs <code>helm install loja kube-learn/loja --set image.tag=1.1</code>. What happens?</p>",
+    "vidaReal": "Asking the builder for a new build with the name of one that already exists: they refuse and tell you to request a renovation.",
+    "limite": "Two builds with the same name can exist, in different blocks: a release name is unique only within its namespace.",
+    "alternativas": [
+      {
+        "texto": "The <code>loja</code> release is updated to 1.1.",
+        "explicacao": "That’s <code>helm upgrade</code>. <code>install</code> only creates a new release."
+      },
+      {
+        "texto": "Error: the name <code>loja</code> is already in use, and nothing changes.",
+        "explicacao": "Right. To change an existing release: <code>helm upgrade</code> (or <code>helm upgrade --install</code>, which installs it if it doesn’t exist yet)."
+      },
+      {
+        "texto": "A second <code>loja</code> is born, next to the first.",
+        "explicacao": "In the same namespace, the release name is unique. For a second one, use another name."
+      },
+      {
+        "texto": "The release is deleted and installed again.",
+        "explicacao": "Helm doesn’t delete anything without a <code>helm uninstall</code>."
+      }
+    ]
+  },
+  "n10-quiz-overlay": {
+    "titulo": "Quiz: does the overlay touch the base?",
+    "enunciado": "<p><code>overlays/prod</code> asks for 3 replicas and tag 1.1. You run <code>kubectl apply -k overlays/prod</code>. What happens to <code>base/deployment.yaml</code>?</p>",
+    "vidaReal": "The branch’s sheet says “here, 3 clerks”: the original blueprint stays in the drawer, unchanged, for the other cities.",
+    "limite": "A paper sheet gets filed away; Kustomize’s output isn’t kept anywhere. To see what went to the cluster, run kubectl kustomize again.",
+    "alternativas": [
+      {
+        "texto": "It’s rewritten with <code>replicas: 3</code> and tag 1.1.",
+        "explicacao": "Kustomize never writes to your files: it only reads them."
+      },
+      {
+        "texto": "Nothing: Kustomize builds the result on the fly, and only the result goes to the cluster.",
+        "explicacao": "Right. The base stays the same, and the other overlays (dev, staging) keep building on it."
+      },
+      {
+        "texto": "It stays the same, but the dev overlay gets 3 replicas too.",
+        "explicacao": "Each overlay only sees the base and its own tweaks: dev doesn’t even know prod exists."
+      }
+    ]
+  },
+  "n10-quiz-crd-sem-operador": {
+    "titulo": "Quiz: the form with no specialist",
+    "enunciado": "<p>In a cluster with the <code>backups.kube-learn.dev</code> CRD, but without the backup operator, you apply the <code>noturno</code> (nightly) Backup. What happens?</p>",
+    "vidaReal": "The backup request is accepted at the front desk and filed, but the specialist hasn’t been hired yet: the request sits in the pile.",
+    "limite": "When the specialist arrives, they read the whole pile: the operator also handles the requests that already existed.",
+    "alternativas": [
+      {
+        "texto": "The apply is rejected: the operator is missing.",
+        "explicacao": "The CRD has already taught the API the new kind: the Backup is accepted (and validated against the schema)."
+      },
+      {
+        "texto": "Kubernetes creates the backup’s CronJob on its own.",
+        "explicacao": "Kubernetes doesn’t know what a Backup means: the operator is the one that creates the CronJob."
+      },
+      {
+        "texto": "The Backup is stored (<code>kubectl get backups</code> shows it), but no backup is made.",
+        "explicacao": "Right: the CRD only stores the request. The operator is the one that acts."
+      }
+    ]
+  },
+  "n11-quiz-pdb-rollout": {
+    "titulo": "Quiz: who holds the line during a version change?",
+    "enunciado": "<p><code>loja</code> has 4 replicas, a PDB with <code>minAvailable: 3</code> and a rolling update with <code>maxUnavailable: 0</code>. During the version change, what guarantees the ready pods?</p>",
+    "vidaReal": "The elevator agreement is with the management office, for building maintenance; the store’s renovation follows the store’s own rules.",
+    "limite": "In real life, an “at least 3” agreement would cover everything. In the cluster, each rule only counts for whoever checks it.",
+    "alternativas": [
+      {
+        "texto": "The PDB.",
+        "explicacao": "The PDB only applies to evictions through the eviction API (drain). The rollout doesn’t even check the PDB."
+      },
+      {
+        "texto": "Both together: the stricter one wins.",
+        "explicacao": "They don’t combine: the rollout doesn’t check the PDB, and drain doesn’t look at the strategy."
+      },
+      {
+        "texto": "The Deployment’s strategy (<code>maxUnavailable: 0</code>).",
+        "explicacao": "Right. Each one protects a different moment: the strategy, the version change; the PDB, node maintenance."
+      }
+    ]
+  },
+  "n11-quiz-normas-e-pods-antigos": {
+    "titulo": "Quiz: the new code and the current residents",
+    "enunciado": "<p>The <code>legado</code> namespace has pods running as root. You give it the label <code>pod-security.kubernetes.io/enforce=restricted</code>. What happens to those pods?</p>",
+    "vidaReal": "The fire marshals’ new code applies to whoever moves in from now on; whoever already lives there stays, until they leave.",
+    "limite": "Real fire marshals could condemn a noncompliant apartment. Pod Security can’t: it only stops people at the door.",
+    "alternativas": [
+      {
+        "texto": "They’re evicted on the spot.",
+        "explicacao": "The fire marshals don’t evict anyone: the code applies when pods are created."
+      },
+      {
+        "texto": "<code>kubectl label</code> is rejected while any pod breaks the code.",
+        "explicacao": "The label is accepted; the response just comes with a warning."
+      },
+      {
+        "texto": "They keep running: <code>kubectl label</code> only warns (Warning) which ones break the code.",
+        "explicacao": "Right. Careful: if one of them crashes or gets replaced, the new pod is rejected. Fix the pods before setting the code."
+      },
+      {
+        "texto": "They’re restarted as a regular user.",
+        "explicacao": "Pod Security doesn’t change pods: it only accepts or rejects them."
+      }
+    ]
+  }
+}
