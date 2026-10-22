@@ -1,0 +1,2 @@
+error: not enough information provided: every ingress has to either specify a default-backend (which catches all traffic) or a list of rules (which catch specific paths)
+exit=1

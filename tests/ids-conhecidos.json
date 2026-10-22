@@ -249,5 +249,17 @@
  "ts-cracha-do-suporte",
  "ts-normas-so-no-papel",
  "ts-promocao-que-nao-abre",
- "ts-relatorio-sem-folego"
+ "ts-relatorio-sem-folego",
+ "of-gerar-yaml",
+ "of-expor",
+ "of-trocar-versao",
+ "of-desfazer",
+ "of-rotulos",
+ "of-jsonpath",
+ "of-autoscale",
+ "of-colunas",
+ "of-ordenar",
+ "of-eventos",
+ "of-patch",
+ "of-set-env"
 ]

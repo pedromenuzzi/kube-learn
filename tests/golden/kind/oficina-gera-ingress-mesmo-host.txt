@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    a: b
+  name: ing8
+  namespace: oficina
+spec:
+  rules:
+  - host: foo.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: web
+            port:
+              number: 80
+        path: /a
+        pathType: Exact
+      - backend:
+          service:
+            name: web
+            port:
+              number: 80
+        path: /b
+        pathType: Exact
+  tls:
+  - hosts:
+    - foo.com
+status:
+  loadBalancer: {}
+exit=0

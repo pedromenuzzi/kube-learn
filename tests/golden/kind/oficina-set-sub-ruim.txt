@@ -1,0 +1,3 @@
+error: unknown command "nada"
+See 'kubectl set -h' for help and examples
+exit=1

@@ -1,0 +1,21 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: relogio2
+  namespace: oficina
+spec:
+  jobTemplate:
+    metadata:
+      name: relogio2
+    spec:
+      template:
+        metadata: {}
+        spec:
+          containers:
+          - image: busybox:1.36
+            name: relogio2
+            resources: {}
+          restartPolicy: Never
+  schedule: '*/1 * * * *'
+status: {}
+exit=0

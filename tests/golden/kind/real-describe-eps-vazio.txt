@@ -1,0 +1,10 @@
+Name:         vazio-jh8hh
+Namespace:    realismo
+Labels:       endpointslice.kubernetes.io/managed-by=endpointslice-controller.k8s.io
+              kubernetes.io/service-name=vazio
+Annotations:  endpoints.kubernetes.io/last-change-trigger-time: 2026-10-22T17:44:27Z
+AddressType:  IPv4
+Ports: <unset>
+Endpoints: <none>
+Events:  <none>
+exit=0

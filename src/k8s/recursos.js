@@ -26,6 +26,7 @@ export const RECURSOS = [
   { kind: 'GatewayClass', plural: 'gatewayclasses', singular: 'gatewayclass', curtos: ['gc'], grupo: 'gateway.networking.k8s.io', versao: 'v1', namespaced: false },
   { kind: 'Gateway', plural: 'gateways', singular: 'gateway', curtos: ['gtw'], grupo: 'gateway.networking.k8s.io', versao: 'v1', namespaced: true },
   { kind: 'HTTPRoute', plural: 'httproutes', singular: 'httproute', curtos: [], grupo: 'gateway.networking.k8s.io', versao: 'v1', namespaced: true },
+  { kind: 'EndpointSlice', plural: 'endpointslices', singular: 'endpointslice', curtos: [], grupo: 'discovery.k8s.io', versao: 'v1', namespaced: true },
   { kind: 'NetworkPolicy', plural: 'networkpolicies', singular: 'networkpolicy', curtos: ['netpol'], grupo: 'networking.k8s.io', versao: 'v1', namespaced: true },
   { kind: 'Role', plural: 'roles', singular: 'role', curtos: [], grupo: 'rbac.authorization.k8s.io', versao: 'v1', namespaced: true },
   { kind: 'RoleBinding', plural: 'rolebindings', singular: 'rolebinding', curtos: [], grupo: 'rbac.authorization.k8s.io', versao: 'v1', namespaced: true },

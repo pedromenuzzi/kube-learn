@@ -1,0 +1,3 @@
+NAME    READY   STATUS              RESTARTS   AGE
+nunca   0/1     ErrImageNeverPull   0          68s
+exit=0

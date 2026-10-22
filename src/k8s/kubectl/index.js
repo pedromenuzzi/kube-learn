@@ -8,7 +8,7 @@ import { descrever, temDescritor, templateCru } from './describe.js';
 import { paraYaml, paraJson, comoLista, nomeComTipo, jsonpath } from './formatos.js';
 import { lerCaminhos, lerYaml, ultimaAplicada, mesclar } from './manifestos.js';
 import { todosOsRecursos, acharRecurso, recursoDoKind, apiVersion, nomeQualificado, pluralQualificado } from '../recursos.js';
-import { decodificar, validar, explicar, btoaUtf8, esquemaDe } from '../esquema.js';
+import { decodificar, validar, explicar, btoaUtf8, esquemaDe, aplicarPadroes } from '../esquema.js';
 import { ErroApi, VERSAO_SERVIDOR } from '../cluster.js';
 import { portaAlvo } from '../rede.js';
 import { canonico } from '../aleatorio.js';
@@ -16,13 +16,23 @@ import { iso, parseDuracao, cpuMili as cpuMiliDe, bytes as bytesDe } from '../un
 import { cordon, taint, drain } from './manutencao.js';
 import { construir } from '../kustomize.js';
 import { autorizar, auth, moldeDeSeguranca, FLAGS_DE_SEGURANCA } from './seguranca.js';
+import { eventos } from './eventos.js';
+import { lerColunas, tabelaDeColunas, ordenarPor, semCampo, chavesDeLabel, cabecalhoDeLabel, sprint } from './colunas.js';
+import { estrategico, mesclarJson, aplicarJsonPatch, lerPatch, tirarCampos } from './patch.js';
+import { t } from '../../i18n.js';
+import { listarPermissoes } from './permissoes.js';
+import { conteineres, lerEnv, envDaFonte, atualizarEnv, sobrescreve, listarEnv, lerRecursos } from './set.js';
 
 export const VERSAO_CLIENTE = 'v1.37.1';
 const PROTEGIDOS = new Set(['default', 'kube-system', 'kube-public']);
-const FORMATOS = 'custom-columns,custom-columns-file,go-template,go-template-file,json,jsonpath,jsonpath-as-json,jsonpath-file,name,template,templatefile,wide,yaml';
+const SEM_RECURSOS = "error: You must provide one or more resources by argument or filename.\nExample resource specifications include:\n   '-f rsrc.yaml'\n   '--filename=rsrc.json'\n   '<resource> <name>'\n   '<resource>'";
+const FORMATOS = 'custom-columns,custom-columns-file,go-template,go-template-file,json,jsonpath,jsonpath-as-json,jsonpath-file,kyaml,name,template,templatefile,wide,yaml';
 const COMANDOS_REAIS = ['annotate', 'api-resources', 'api-versions', 'apply', 'attach', 'auth', 'autoscale', 'certificate', 'cluster-info', 'completion', 'config', 'cordon', 'cp', 'create', 'debug', 'delete', 'describe', 'diff', 'drain', 'edit', 'events', 'exec', 'explain', 'expose', 'get', 'help', 'kustomize', 'label', 'logs', 'patch', 'plugin', 'port-forward', 'proxy', 'replace', 'rollout', 'run', 'scale', 'set', 'taint', 'top', 'uncordon', 'version', 'wait'];
 
 class Erro extends Error {}
+
+/** Um comando (ou subcomando) que o kubectl de verdade tem e o simulador ainda não: dizer isso, sem prometer nada. */
+const naoSimulado = (cmd) => t('error: "kubectl {cmd}" existe no kubectl de verdade, mas este simulador ainda não o imita.', { cmd });
 
 /** Acumula stdout e stderr na ordem em que saem. */
 class Saida {
@@ -178,11 +188,12 @@ function linhasTabela(cluster, grupo, flags, { prefixo, cabecalho = true }) {
   const t = tabelaDe(grupo.recurso);
   const largo = flags.output === 'wide';
   const comNs = flags['all-namespaces'] && grupo.recurso.namespaced;
-  const cab = [...(comNs ? ['NAMESPACE'] : []), ...t.colunas, ...(largo && t.largas ? t.largas : []), ...(flags['show-labels'] ? ['LABELS'] : [])];
+  const rotulos = chavesDeLabel(flags['label-columns']); // -L
+  const cab = [...(comNs ? ['NAMESPACE'] : []), ...t.colunas, ...(largo && t.largas ? t.largas : []), ...rotulos.map(cabecalhoDeLabel), ...(flags['show-labels'] ? ['LABELS'] : [])];
   const linhas = grupo.objetos.map((o) => {
     const l = t.linha(o, cluster.agora);
     if (prefixo && !t.semNome) l[0] = `${nomeQualificado(grupo.recurso)}/${l[0]}`;
-    return [...(comNs ? [o.metadata.namespace] : []), ...l, ...(largo && t.linhaLarga ? t.linhaLarga(o, cluster.agora) : []), ...(flags['show-labels'] ? [labelsTexto(o.metadata.labels)] : [])];
+    return [...(comNs ? [o.metadata.namespace] : []), ...l, ...(largo && t.linhaLarga ? t.linhaLarga(o, cluster.agora) : []), ...rotulos.map((k) => o.metadata.labels?.[k] ?? ''), ...(flags['show-labels'] ? [labelsTexto(o.metadata.labels)] : [])];
   });
   return cabecalho && !flags['no-headers'] ? [cab, ...linhas] : linhas;
 }
@@ -211,14 +222,47 @@ function get(cluster, a, s) {
     return;
   }
   const fmt = flags.output ?? '';
-  if (fmt && !['wide', 'yaml', 'json', 'name'].includes(fmt) && !/^jsonpath(-as-json)?=/.test(fmt)) {
+  let colunas = null;
+  if (/^custom-columns(=|$)/.test(fmt)) {
+    try {
+      colunas = lerColunas(fmt.slice('custom-columns='.length));
+    } catch (e) {
+      return s.falha(`error: ${e.message}`);
+    }
+  } else if (fmt && !['wide', 'yaml', 'json', 'name'].includes(fmt) && !/^jsonpath(-as-json)?=/.test(fmt)) {
+    const base = fmt.split('=')[0];
+    if (FORMATOS.split(',').includes(base)) return s.falha(naoSimulado(`get -o ${base}`)); // existe, mas não é simulado
     s.falha(`error: unable to match a printer suitable for the output format "${fmt}", allowed formats are: ${FORMATOS}`);
     return;
   }
   const sel = selecionar(cluster, posicionais, flags);
-  const objetos = sel.grupos.flatMap((g) => g.objetos);
+  let objetos = sel.grupos.flatMap((g) => g.objetos);
   const unico = sel.nomeado && objetos.length === 1 && sel.erros.length === 0 && posicionais.length <= 2 && !posicionais[0].includes(',');
-  if (!imprimirObjetos(cluster, s, objetos, flags, unico)) {
+  const tabelado = !fmt || fmt === 'wide';
+  const por = flags['sort-by'];
+  if (por) {
+    try {
+      if (!tabelado) {
+        if (!unico) objetos = ordenarPor(objetos, por);
+      } else if ((sel.nomeado ? objetos.length : sel.grupos.length) > 1 && objetos.length) {
+        throw new Error(semCampo(por)); // o kubectl 1.37 não ordena tabelas de mais de uma busca (tipos ou nomes)
+      } else {
+        for (const g of sel.grupos) {
+          try {
+            if (g.objetos.length > 1) g.objetos = ordenarPor(g.objetos, por);
+          } catch (e) {
+            if (!e.semCampo) throw e;
+            g.objetos = []; // a tabela some e sobra o "No resources found", como no real
+          }
+        }
+        objetos = sel.grupos.flatMap((g) => g.objetos);
+      }
+    } catch (e) {
+      return s.falha(`error: ${e.message}`);
+    }
+  }
+  if (colunas) s.out(tabelaDeColunas(colunas, objetos, flags['no-headers']));
+  else if (!imprimirObjetos(cluster, s, objetos, flags, unico)) {
     const comObjetos = sel.grupos.filter((g) => g.objetos.length);
     const prefixo = sel.grupos.length > 1;
     for (const g of comObjetos) if (tabelaDe(g.recurso).aviso) s.err(tabelaDe(g.recurso).aviso);
@@ -490,6 +534,7 @@ const nomeDoConteiner = (imagem) => imagem.split('@')[0].replace(/:[^/:]+$/, '')
 /** Cria (ou mostra, com --dry-run) um objeto gerado por create/run. */
 function criarGerado(cluster, a, s, obj) {
   const r = recursoDoKind(obj.kind);
+  if (a.flags.namespace && r.namespaced) obj.metadata.namespace ??= a.flags.namespace; // com -n, o kubectl escreve o namespace
   const id = `${nomeQualificado(r)}/${obj.metadata.name}`;
   if (ehDryRun(a.flags)) {
     if (!imprimirObjetos(cluster, s, [obj], a.flags, true)) s.out(`${id} created${sufixoDryRun(a.flags)}\n`);
@@ -593,6 +638,7 @@ function create(cluster, a, s) {
     }
     case 'secret': {
       const [tipo, nomeSecret] = resto;
+      if (['docker-registry', 'tls'].includes(tipo)) return s.falha(naoSimulado(`create secret ${tipo}`));
       if (tipo !== 'generic') return s.falha(`error: unknown command "${tipo ?? ''}" for "kubectl create secret"`);
       if (!nomeSecret) return s.falha('error: exactly one NAME is required, got 0');
       const dados = literais(a.flags['from-literal'], s, a.arquivos, a.flags['from-file']);
@@ -603,20 +649,97 @@ function create(cluster, a, s) {
     case 'service':
     case 'svc': {
       const [tipo, nomeSvc] = resto;
-      const tipos = { clusterip: 'ClusterIP', nodeport: 'NodePort', loadbalancer: 'LoadBalancer' };
+      const tipos = { clusterip: 'ClusterIP', nodeport: 'NodePort', loadbalancer: 'LoadBalancer', externalname: 'ExternalName' };
       if (!tipos[tipo]) return s.falha(`error: unknown command "${tipo ?? ''}" for "kubectl create service"`);
       if (!nomeSvc) return s.falha('error: exactly one NAME is required, got 0');
+      const base = { apiVersion: 'v1', kind: 'Service', metadata: { labels: { app: nomeSvc }, name: nomeSvc }, status: { loadBalancer: {} } };
+      if (tipo === 'externalname') {
+        if (!a.flags['external-name']) return s.falha('error: required flag(s) "external-name" not set');
+        return criarGerado(cluster, a, s, { ...base, spec: { externalName: a.flags['external-name'], selector: { app: nomeSvc }, type: 'ExternalName' } });
+      }
+      const ip = tipo === 'clusterip' ? a.flags.clusterip : undefined;
+      if (!(a.flags.tcp ?? []).length && ip !== 'None') return s.falha('error: at least one tcp port specifier must be provided');
       const portas = (a.flags.tcp ?? []).map((t) => {
-        const [porta, alvo] = t.split(':');
-        return { name: `${porta}-${alvo ?? porta}`, port: Number(porta), protocol: 'TCP', targetPort: Number(alvo ?? porta) };
+        const [porta, alvo = porta] = t.split(':');
+        const nodePort = tipo === 'nodeport' && a.flags['node-port'] ? { nodePort: a.flags['node-port'] } : {};
+        return { name: t.replaceAll(':', '-'), ...nodePort, port: Number(porta), protocol: 'TCP', targetPort: /^\d+$/.test(alvo) ? Number(alvo) : alvo };
       });
+      return criarGerado(cluster, a, s, { ...base, spec: { ...(ip ? { clusterIP: ip } : {}), ...(portas.length ? { ports: portas } : {}), selector: { app: nomeSvc }, type: tipos[tipo] } });
+    }
+    case 'ingress':
+    case 'ing': {
+      if (precisaNome()) return;
+      const regras = a.flags.rule ?? [];
+      const padrao = a.flags['default-backend'];
+      if (!regras.length && !padrao) return s.falha('error: not enough information provided: every ingress has to either specify a default-backend (which catches all traffic) or a list of rules (which catch specific paths)');
+      const ruim = regras.find((x) => !/^([\w*.-]*)(\/.*)=([\w-]+):([\w-]+)(,(tls)=?([\w-]+)?)?/i.test(x));
+      if (ruim) return s.falha(`error: rule ${ruim} is invalid and should be in format host/path=svcname:svcport[,tls[=secret]]`);
+      const alvo = (x) => {
+        const [name, porta] = x.split(':');
+        return { service: { name, port: /^\d+$/.test(porta) ? { number: Number(porta) } : { name: porta } } };
+      };
+      const rules = [];
+      const tls = [];
+      for (const regra of regras) {
+        const [semTls, marca] = regra.split(',');
+        const [host, resto2] = [semTls.slice(0, semTls.indexOf('/')), semTls.slice(semTls.indexOf('/') + 1)];
+        const [caminho, servico] = [resto2.slice(0, resto2.lastIndexOf('=')), resto2.slice(resto2.lastIndexOf('=') + 1)];
+        const path = { backend: alvo(servico), path: `/${caminho.replace(/\*$/, '')}`, pathType: caminho.endsWith('*') ? 'Prefix' : 'Exact' };
+        const igual = rules.find((r) => (r.host ?? '') === host);
+        if (igual) igual.http.paths.push(path);
+        else rules.push({ ...(host ? { host } : {}), http: { paths: [path] } });
+        const segredo = marca?.split('=')[1];
+        if (marca && host && !tls.some((x) => x.hosts.includes(host))) tls.push({ hosts: [host], ...(segredo ? { secretName: segredo } : {}) });
+      }
+      const anotacoes = Object.fromEntries((a.flags.annotation ?? []).map((x) => [x.slice(0, x.indexOf('=')), x.slice(x.indexOf('=') + 1)]));
       return criarGerado(cluster, a, s, {
-        apiVersion: 'v1', kind: 'Service',
-        metadata: { labels: { app: nomeSvc }, name: nomeSvc },
-        spec: { ports: portas, selector: { app: nomeSvc }, type: tipos[tipo] },
+        apiVersion: 'networking.k8s.io/v1', kind: 'Ingress',
+        metadata: { ...(Object.keys(anotacoes).length ? { annotations: anotacoes } : {}), name: nome },
+        spec: { ...(padrao ? { defaultBackend: alvo(padrao) } : {}), ...(a.flags.class ? { ingressClassName: a.flags.class } : {}), ...(rules.length ? { rules } : {}), ...(tls.length ? { tls } : {}) },
         status: { loadBalancer: {} },
       });
     }
+    case 'quota':
+    case 'resourcequota': {
+      if (precisaNome()) return;
+      const hard = Object.fromEntries((a.flags.hard ? a.flags.hard.split(',') : []).map((x) => x.split('=')));
+      const escopos = a.flags.scopes ? a.flags.scopes.split(',') : [];
+      return criarGerado(cluster, a, s, { apiVersion: 'v1', kind: 'ResourceQuota', metadata: { name: nome }, spec: { ...(Object.keys(hard).length ? { hard } : {}), ...(escopos.length ? { scopes: escopos } : {}) }, status: {} });
+    }
+    case 'poddisruptionbudget':
+    case 'pdb': {
+      if (precisaNome()) return;
+      const min = a.flags['min-available'];
+      const max = a.flags['max-unavailable'];
+      if (!a.flags.selector) return s.falha('error: a selector must be specified');
+      if (min === undefined && max === undefined) return s.falha('error: one of min-available or max-unavailable must be specified');
+      if (min !== undefined && max !== undefined) return s.falha('error: min-available and max-unavailable cannot be both specified');
+      const intOuTexto = (v) => (/^\d+$/.test(v) ? Number(v) : v);
+      // O ParseToLabelSelector: igualdades viram matchLabels; o resto, matchExpressions (valores em ordem).
+      const matchLabels = {};
+      const matchExpressions = [];
+      for (const termo of a.flags.selector.split(/,(?![^(]*\))/).map((x) => x.trim()).filter(Boolean)) {
+        const m = termo.match(/^(!?)([\w./-]+)\s*(?:(==?|!=)\s*(.*)|\s+(in|notin)\s*\((.*)\))?$/);
+        if (!m) return s.falha(`error: unable to parse requirement: found '${termo}', expected: identifier`);
+        const [, nao, chave, op, valor, conjunto, valores] = m;
+        if (op === '=' || op === '==') matchLabels[chave] = valor;
+        else if (op === '!=') return s.falha('error: "!=" is not a valid label selector operator');
+        else if (conjunto) matchExpressions.push({ key: chave, operator: conjunto === 'in' ? 'In' : 'NotIn', values: valores.split(',').map((x) => x.trim()).sort() });
+        else matchExpressions.push({ key: chave, operator: nao ? 'DoesNotExist' : 'Exists' });
+      }
+      matchExpressions.sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0)); // o parser do Kubernetes ordena pela chave
+      const seletor = { ...(matchExpressions.length ? { matchExpressions } : {}), ...(Object.keys(matchLabels).length ? { matchLabels } : {}) };
+      return criarGerado(cluster, a, s, {
+        apiVersion: 'policy/v1', kind: 'PodDisruptionBudget',
+        metadata: { name: nome },
+        spec: { ...(max !== undefined ? { maxUnavailable: intOuTexto(max) } : {}), ...(min !== undefined ? { minAvailable: intOuTexto(min) } : {}), selector: seletor },
+        status: { currentHealthy: 0, desiredHealthy: 0, disruptionsAllowed: 0, expectedPods: 0 },
+      });
+    }
+    case 'priorityclass':
+    case 'pc':
+    case 'token':
+      return s.falha(naoSimulado(`create ${sub}`));
     case 'job': {
       if (precisaNome()) return;
       if (a.flags.from) { // um Job agora, a partir do molde de um CronJob (para testar sem esperar o horário)
@@ -629,6 +752,7 @@ function create(cluster, a, s) {
           apiVersion: 'batch/v1', kind: 'Job',
           metadata: { annotations: { 'cronjob.kubernetes.io/instantiate': 'manual', ...(molde.metadata?.annotations ?? {}) }, ...(molde.metadata?.labels ? { labels: molde.metadata.labels } : {}), name: nome, ownerReferences: [{ apiVersion: 'batch/v1', controller: true, kind: 'CronJob', name: cj.metadata.name, uid: cj.metadata.uid }] },
           spec: molde.spec,
+          status: {},
         });
       }
       const imagem = a.flags.image?.[0];
@@ -657,7 +781,7 @@ function create(cluster, a, s) {
       });
     }
     default:
-      return s.falha(`error: unknown command "${sub}" for "kubectl create"\n\nDid you mean this?\n\t${['deployment', 'namespace', 'configmap', 'secret', 'service', 'job', 'cronjob', 'role', 'rolebinding', 'clusterrole', 'clusterrolebinding', 'serviceaccount'].sort((x, y) => distancia(sub, x) - distancia(sub, y))[0]}\n`);
+      return s.falha(`error: unknown command "${sub}" for "kubectl create"\n\nDid you mean this?\n\t${['deployment', 'namespace', 'configmap', 'secret', 'service', 'job', 'cronjob', 'role', 'rolebinding', 'clusterrole', 'clusterrolebinding', 'serviceaccount', 'ingress', 'quota', 'poddisruptionbudget', 'priorityclass', 'token'].sort((x, y) => distancia(sub, x) - distancia(sub, y))[0]}\n`);
   }
 }
 
@@ -724,7 +848,7 @@ function delete_(cluster, a, s) {
       alvos.push(obj);
     }
   } else {
-    if (!a.posicionais.length) return s.adiar("error: You must provide one or more resources by argument or filename.\nExample resource specifications include:\n   '-f rsrc.yaml'\n   '--filename=rsrc.json'\n   '<resource> <name>'\n   '<resource>'");
+    if (!a.posicionais.length) return s.adiar(SEM_RECURSOS);
     const sel = selecionar(cluster, a.posicionais, f, { exigirNome: true });
     alvos.push(...sel.grupos.flatMap((g) => g.objetos));
     if (!alvos.length && !sel.nomeado && !sel.erros.length) s.out('No resources found\n');
@@ -789,9 +913,25 @@ function escolherConteiner(pod, nome, s) {
 
 const RFC3339NANO = (ms) => new Date(ms).toISOString().replace(/\.(\d{3})Z$/, '.$1000000Z');
 
+const DURACAO_GO = /^[-+]?(0|((\d+\.?\d*|\.\d+)(ns|us|µs|ms|s|m|h))+)$/;
+const RFC3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+
+/** --since e --since-time → o instante a partir do qual as linhas valem (ou null), ou { erro }. */
+function inicioDosLogs(cluster, f) {
+  if (f.since !== undefined && !DURACAO_GO.test(f.since)) return { erro: `error: invalid argument "${f.since}" for "--since" flag: time: invalid duration "${f.since}"\nSee 'kubectl logs --help' for usage.` };
+  if (f['since-time'] !== undefined && !RFC3339.test(f['since-time'])) return { erro: `error: parsing time "${f['since-time']}" as "2006-01-02T15:04:05Z07:00": cannot parse "${f['since-time']}" as "2006"` };
+  const ms = f.since === undefined || /^[-+]?0$/.test(f.since) ? 0 : parseDuracao(f.since.replace(/^[-+]/, '').replace(/(\d)(ns|us|µs)/g, '$1ms')) * (f.since.startsWith('-') ? -1 : 1);
+  if (ms && f['since-time'] !== undefined) return { erro: 'error: at most one of `sinceTime` or `sinceSeconds` may be specified' };
+  if (ms < 0) return { erro: 'error: --since must be greater than 0' };
+  if (f['since-time'] !== undefined) return { desde: Date.parse(f['since-time']) };
+  return { desde: ms ? cluster.agora - Math.round(ms / 1000) * 1000 : null }; // o kubelet conta em segundos
+}
+
 function logs(cluster, a, s) {
   const f = a.flags;
   const ns = namespaceDe(cluster, f);
+  const inicio = inicioDosLogs(cluster, f);
+  if (inicio.erro) return s.falha(inicio.erro);
   let pods;
   if (f.selector) {
     const casa = seletorDeLabels(f.selector);
@@ -830,6 +970,7 @@ function logs(cluster, a, s) {
   const vistos = new Map();
   for (const fonte of fontes) {
     let ls = fonte.linhas();
+    if (inicio.desde !== null) ls = ls.filter((l) => l.t >= inicio.desde);
     if (f.tail >= 0) ls = ls.slice(Math.max(0, ls.length - f.tail));
     s.out(ls.map((l) => formatar(fonte, l)).join(''));
     vistos.set(fonte, fonte.linhas().length);
@@ -1053,25 +1194,230 @@ function rollout(cluster, a, s) {
   }
 }
 
+const AJUDA_SET = `Configure application resources.
+
+ These commands help you make changes to existing application resources.
+
+Available Commands:
+  env              Update environment variables on a pod template
+  image            Update the image of a pod template
+  resources        Update resource requests/limits on objects with pod templates
+  selector         Set the selector on a resource
+  serviceaccount   Update the service account of a resource
+  subject          Update the user, group, or service account in a role binding or cluster role binding
+
+Usage:
+  kubectl set SUBCOMMAND [options]
+
+Use "kubectl set <command> --help" for more information about a given command.
+Use "kubectl options" for a list of global command-line options (applies to all commands).
+`;
+const COM_MODELO = new Set(['Pod', 'ReplicationController', 'Deployment', 'DaemonSet', 'StatefulSet', 'ReplicaSet', 'Job', 'CronJob']);
+const moldeDe = (o) => (o.kind === 'Pod' ? o.spec : o.kind === 'CronJob' ? o.spec.jobTemplate.spec.template.spec : o.spec.template.spec);
+
+/**
+ * set env, set image e set resources: muda o molde de pod de cada objeto. `mudar(spec, obj)` mexe na cópia e devolve
+ * um erro fatal (texto), um erro do objeto ({ doObjeto }) ou nada. Sem mudança, o kubectl não escreve nada.
+ */
+function mudarMoldes(cluster, a, s, recursos, { verbo, separador }, mudar) {
+  const f = a.flags;
+  if (!recursos.length) return s.falha(SEM_RECURSOS);
+  const sel = selecionar(cluster, recursos, f, { exigirNome: true });
+  for (const obj of sel.grupos.flatMap((g) => g.objetos)) {
+    const r = recursoDoKind(obj.kind);
+    const id = `${nomeQualificado(r)}/${obj.metadata.name}`;
+    if (!COM_MODELO.has(obj.kind)) {
+      s.adiar(`error: ${r.plural}/${obj.metadata.name} the object is not a pod or does not have a pod template: *${r.versao}.${obj.kind}`);
+      continue;
+    }
+    const novo = structuredClone(obj);
+    const erro = mudar(moldeDe(novo), novo);
+    if (typeof erro === 'string') return s.falha(erro);
+    if (erro?.doObjeto) {
+      s.adiar(`error: ${r.plural}/${obj.metadata.name} ${erro.doObjeto}`);
+      continue;
+    }
+    const erros = validar(novo, obj);
+    if (erros.length) {
+      s.adiar(`error: failed to patch ${verbo} update to pod template${separador} ${r.kind}${r.grupo ? `.${r.grupo}` : ''} "${obj.metadata.name}" is invalid: ${erros.length === 1 ? erros[0] : `[${erros.join(', ')}]`}`);
+      continue;
+    }
+    if (comoGuardado(novo) === comoGuardado(obj)) continue;
+    const final = ehDryRun(f) ? novo : cluster.substituir(obj, novo);
+    avisar(cluster, s);
+    if (!imprimirObjetos(cluster, s, [final], f, true)) s.out(`${id} ${verbo === 'resources' ? 'resource requirements' : verbo} updated${sufixoDryRun(f)}\n`);
+  }
+  for (const e of sel.erros) s.adiar(e);
+  cluster.reconciliar();
+}
+
 function set(cluster, a, s) {
   const [sub, ...resto] = a.posicionais;
-  if (sub !== 'image') return s.falha(sub ? `error: unknown command "${sub}" for "kubectl set"` : "error: Required resource not specified.\nSee 'kubectl set -h' for help and examples");
-  const pares = resto.filter((x) => x.includes('='));
-  const recursos = resto.filter((x) => !x.includes('='));
-  const alvo = alvoUnico(cluster, { ...a, posicionais: recursos }, s, 'set image');
-  if (!alvo) return;
-  if (!pares.length) return s.falha('error: at least one image update is required');
-  const { r, obj } = alvo;
-  const spec = obj.kind === 'Pod' ? obj.spec : obj.spec.template?.spec;
-  if (!spec) return s.falha(`error: ${r.kind} is not supported`);
-  for (const par of pares) {
-    const [ct, img] = par.split('=');
-    const lista = ct === '*' ? spec.containers : spec.containers.filter((c) => c.name === ct);
-    if (!lista.length) return s.falha(`error: unable to find container named "${ct}"`);
-    for (const c of lista) c.image = img;
+  const f = a.flags;
+  if (!sub) {
+    s.err(AJUDA_SET);
+    s.codigo = 1;
+    return;
   }
-  cluster.salvar(obj, { spec: obj.kind !== 'Pod' });
-  s.out(`${nomeQualificado(r)}/${obj.metadata.name} image updated\n`);
+  if (['selector', 'serviceaccount', 'sa', 'subject'].includes(sub)) return s.falha(naoSimulado(`set ${sub}`));
+  if (!['env', 'image', 'resources'].includes(sub)) return s.falha(`error: unknown command "${sub}"\nSee 'kubectl set -h' for help and examples`);
+  const pares = resto.filter((x) => x.includes('=') || (sub === 'env' && /-$/.test(x)));
+  const recursos = resto.filter((x) => !pares.includes(x));
+  if (sub === 'image') {
+    if (!pares.length) return s.falha('error: at least one image update is required');
+    return mudarMoldes(cluster, a, s, recursos, { verbo: 'image', separador: ':' }, (spec) => {
+      for (const par of pares) {
+        const [ct, img] = par.split('=');
+        const lista = ct === '*' ? [...spec.containers, ...(spec.initContainers ?? [])] : conteineres(spec, ct);
+        if (!lista.length) return `error: unable to find container named "${ct}"`;
+        for (const c of lista) c.image = img;
+      }
+      return null;
+    });
+  }
+  if (sub === 'resources') {
+    const limites = lerRecursos(f.limits);
+    const pedidos = lerRecursos(f.requests);
+    const erro = limites.erro ?? pedidos.erro;
+    if (erro) return s.falha(erro);
+    if (!Object.keys(limites.recursos).length && !Object.keys(pedidos.recursos).length) return s.falha('error: you must specify an update to requests or limits (in the form of --requests/--limits)');
+    return mudarMoldes(cluster, a, s, recursos, { verbo: 'resources', separador: '' }, (spec) => {
+      const cts = conteineres(spec, f.containers);
+      if (!cts.length) return `error: unable to find container named ${f.containers}`;
+      for (const c of cts) {
+        c.resources ??= {};
+        if (Object.keys(limites.recursos).length) c.resources.limits = { ...(c.resources.limits ?? {}), ...limites.recursos };
+        if (Object.keys(pedidos.recursos).length) c.resources.requests = { ...(c.resources.requests ?? {}), ...pedidos.recursos };
+      }
+      return null;
+    });
+  }
+  // set env
+  const lido = lerEnv([...(f.env ?? []), ...pares]);
+  if (lido.erro) return s.falha(lido.erro);
+  const env = [...lido.env];
+  const ns = namespaceDe(cluster, f);
+  if (f.from) {
+    const [tipo, nome] = f.from.split('/');
+    const r = acharRecurso(tipo);
+    if (!r || !['ConfigMap', 'Secret'].includes(r.kind) || !nome) return s.falha(`error: unsupported resource specified in --from: ${f.from}`);
+    const fonte = cluster.obter(r.kind, ns, nome);
+    if (!fonte) return s.falha(`Error from server (NotFound): ${pluralQualificado(r)} "${nome}" not found`);
+    const daFonte = envDaFonte(fonte, { prefixo: f.prefix, chaves: f.keys?.flatMap((k) => k.split(',')) });
+    for (const aviso of daFonte.avisos) s.err(aviso);
+    env.push(...daFonte.env);
+  }
+  const semConteiner = (obj) => s.err(`Warning: ${obj.kind}/${obj.metadata.name} does not have any containers matching "${f.containers}"\n`);
+  if (f.list) {
+    if (!recursos.length) return s.falha(SEM_RECURSOS);
+    const sel = selecionar(cluster, recursos, f, { exigirNome: true });
+    for (const obj of sel.grupos.flatMap((g) => g.objetos)) {
+      if (!COM_MODELO.has(obj.kind)) continue;
+      const cts = conteineres(moldeDe(obj), f.containers);
+      if (!cts.length) semConteiner(obj);
+      s.out(listarEnv(cluster, obj, cts, f.resolve));
+    }
+    for (const e of sel.erros) s.adiar(e);
+    return;
+  }
+  return mudarMoldes(cluster, a, s, recursos, { verbo: 'env', separador: ':' }, (spec, obj) => {
+    const cts = conteineres(spec, f.containers);
+    if (!cts.length) semConteiner(obj);
+    for (const c of cts) {
+      const conflito = f.overwrite === false && sobrescreve(c.env, env);
+      if (conflito) return { doObjeto: conflito };
+      c.env = atualizarEnv(c.env, env, lido.remover);
+      if (!c.env.length) delete c.env;
+    }
+    return null;
+  });
+}
+
+// ---------- patch ----------
+const tipoJson = (v) => (Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v === 'boolean' ? 'bool' : typeof v);
+
+/** O objeto como o servidor compara (sem status e com os padrões), para saber se o patch mudou alguma coisa. */
+const comoGuardado = (o) => {
+  const c = structuredClone(o);
+  delete c.status;
+  aplicarPadroes(c);
+  return canonico(c);
+};
+
+function patch(cluster, a, s) {
+  const f = a.flags;
+  if (f.patch && f['patch-file']) return s.falha('error: cannot specify --patch and --patch-file together');
+  if (!f.patch && !f['patch-file']) return s.falha('error: must specify --patch or --patch-file containing the contents of the patch');
+  const tipo = (f.type ?? 'strategic').toLowerCase();
+  if (!['json', 'merge', 'strategic'].includes(tipo)) return s.falha(`error: --type must be one of [json merge strategic], not "${f.type}"`);
+  let texto = f.patch;
+  if (f['patch-file']) {
+    texto = a.arquivos[f['patch-file'].replace(/^\.\//, '')];
+    if (texto === undefined) return s.falha(`error: unable to read patch file: open ${f['patch-file']}: no such file or directory`);
+  }
+  const lido = lerPatch(texto);
+  if (lido.erro) return s.falha(lido.erro);
+  if (!a.posicionais.length) return s.falha(SEM_RECURSOS);
+  const sel = selecionar(cluster, a.posicionais, f, { exigirNome: true });
+  const corpo = lido.corpo;
+  for (const obj of sel.grupos.flatMap((g) => g.objetos)) {
+    const r = recursoDoKind(obj.kind);
+    const base = structuredClone(obj);
+    delete base.status; // o status não muda pelo recurso principal
+    let novo;
+    if (lido.invalido) {
+      s.adiar('Error from server (BadRequest): invalid JSON patch');
+      continue;
+    }
+    if (tipo === 'json') {
+      if (!Array.isArray(corpo)) {
+        s.adiar(`Error from server (BadRequest): error decoding patch: json: cannot unmarshal ${tipoJson(corpo)} into Go value of type []handlers.jsonPatchOp`);
+        continue;
+      }
+      novo = aplicarJsonPatch(base, corpo);
+      if (!novo) {
+        s.adiar('The request is invalid: the server rejected our request due to an error in our request');
+        continue;
+      }
+    } else {
+      if (tipoJson(corpo) !== 'object') {
+        s.adiar(`Error from server (BadRequest): ${tipo === 'merge' ? 'error decoding patch: ' : ''}json: cannot unmarshal ${tipoJson(corpo)} into Go value of type map[string]interface {}`);
+        continue;
+      }
+      if (tipo === 'strategic' && r.crd) {
+        s.adiar(`error: application/strategic-merge-patch+json is not supported by ${apiVersion(r)}, Kind=${r.kind}: the body of the request was in an unknown format - accepted media types include: application/json-patch+json, application/merge-patch+json, application/apply-patch+yaml`);
+        continue;
+      }
+      try {
+        novo = tipo === 'merge' ? mesclarJson(base, corpo) : estrategico(base, corpo);
+      } catch (e) {
+        s.adiar(`Error from server: ${e.message}`);
+        continue;
+      }
+    }
+    if (novo?.metadata?.name !== obj.metadata.name) {
+      s.adiar(`Error from server (BadRequest): the name of the object (${novo?.metadata?.name ?? ''}) does not match the name on the URL (${obj.metadata.name})`);
+      continue;
+    }
+    const d = decodificar(novo);
+    if (d.tipo) { // ponytail: no merge e no json o real mostra o objeto inteiro com os managedFields; aqui, o objeto simulado
+      const valor = tipo === 'strategic' ? sprint(corpo) : JSON.stringify(novo);
+      s.adiar(`The request is invalid: patch: Invalid value: ${JSON.stringify(valor)}: ${tipo === 'strategic' ? `unrecognized type: ${d.tipo.match(/of type (\S+)$/)?.[1]}` : d.tipo}`);
+      continue;
+    }
+    for (const c of d.desconhecidos) s.err(`Warning: unknown field "${c}"\n`);
+    tirarCampos(novo, d.desconhecidos);
+    const erros = validar(novo, obj);
+    if (erros.length) {
+      s.adiar(erroInvalido(obj.kind, obj.metadata.name, erros));
+      continue;
+    }
+    const mudou = comoGuardado(novo) !== comoGuardado(obj);
+    const final = mudou && !ehDryRun(f) ? cluster.substituir(obj, novo) : mudou ? novo : obj;
+    avisar(cluster, s);
+    if (!imprimirObjetos(cluster, s, [final], f, true)) s.out(`${nomeQualificado(r)}/${obj.metadata.name} patched${mudou ? '' : ' (no change)'}\n`);
+  }
+  for (const e of sel.erros) s.adiar(e);
   cluster.reconciliar();
 }
 
@@ -1088,7 +1434,7 @@ function autoscale(cluster, a, s) {
   const alvoCpu = cpu === undefined ? null : /%$/.test(cpu) ? { averageUtilization: Number(cpu.slice(0, -1)), type: 'Utilization' } : { averageValue: cpu, type: 'AverageValue' };
   const hpa = {
     apiVersion: 'autoscaling/v2', kind: 'HorizontalPodAutoscaler',
-    metadata: { name: a.flags.name ?? obj.metadata.name },
+    metadata: { name: a.flags.name ?? obj.metadata.name, ...(a.flags.namespace ? { namespace: a.flags.namespace } : {}) },
     spec: {
       maxReplicas: max,
       ...(alvoCpu ? { metrics: [{ resource: { name: 'cpu', target: alvoCpu }, type: 'Resource' }] } : {}),
@@ -1215,8 +1561,8 @@ function expose(cluster, a, s) {
   const alvoPorta = a.flags['target-port'] ?? porta;
   const svc = {
     apiVersion: 'v1', kind: 'Service',
-    metadata: { ...(obj.metadata.labels ? { labels: { ...obj.metadata.labels } } : {}), name: a.flags.name ?? obj.metadata.name },
-    spec: { ports: [{ port: Number(porta), protocol: 'TCP', targetPort: /^\d+$/.test(String(alvoPorta)) ? Number(alvoPorta) : alvoPorta }], selector: { ...seletor }, ...(tipo !== 'ClusterIP' ? { type: tipo } : {}) },
+    metadata: { ...(obj.metadata.labels ? { labels: { ...obj.metadata.labels } } : {}), name: a.flags.name ?? obj.metadata.name, ...(a.flags.namespace ? { namespace: a.flags.namespace } : {}) },
+    spec: { ports: [{ port: Number(porta), protocol: a.flags.protocol ?? 'TCP', targetPort: /^\d+$/.test(String(alvoPorta)) ? Number(alvoPorta) : alvoPorta }], selector: { ...seletor }, ...(tipo !== 'ClusterIP' ? { type: tipo } : {}) },
     status: { loadBalancer: {} },
   };
   if (ehDryRun(a.flags)) {
@@ -1319,7 +1665,10 @@ function etiquetar(cluster, a, s, campo) {
       }
       obj.metadata[campo] = atual;
       if (!Object.keys(atual).length) delete obj.metadata[campo];
+      const vistos = cluster.avisos.length;
       cluster.salvar(obj);
+      // Os avisos da API (ex.: o rótulo de PodSecurity do namespace, com pods que violariam a norma nova), sem tirá-los da lista.
+      for (const aviso of cluster.avisos.slice(vistos)) s.err(`Warning: ${aviso}\n`);
       s.out(`${id} ${ehLabel ? (soRemocao ? 'unlabeled' : 'labeled') : 'annotated'}\n`);
     }
   }
@@ -1440,11 +1789,15 @@ const ARQUIVOS = { filename: { curto: 'f', tipo: 'lista' }, recursive: { curto: 
 const DRY = { 'dry-run': { tipo: 'string' } };
 
 const COMANDOS = {
-  get: { flags: { ...SAIDA, ...SELETOR, watch: { curto: 'w', tipo: 'bool' }, 'all-namespaces': { curto: 'A', tipo: 'bool' }, 'show-labels': { tipo: 'bool' }, 'no-headers': { tipo: 'bool' }, 'field-selector': { tipo: 'string' } }, rodar: get },
+  get: { flags: { ...SAIDA, ...SELETOR, watch: { curto: 'w', tipo: 'bool' }, 'all-namespaces': { curto: 'A', tipo: 'bool' }, 'show-labels': { tipo: 'bool' }, 'no-headers': { tipo: 'bool' }, 'field-selector': { tipo: 'string' }, 'sort-by': { tipo: 'string' }, 'label-columns': { curto: 'L', tipo: 'lista' } }, rodar: get },
+  events: { flags: { ...SAIDA, for: { tipo: 'string' }, types: { tipo: 'lista' }, 'all-namespaces': { curto: 'A', tipo: 'bool' }, 'no-headers': { tipo: 'bool' }, watch: { curto: 'w', tipo: 'bool' } }, rodar: (c, a, s) => eventos(c, a, s, namespaceDe(c, a.flags)) },
   describe: { flags: { ...SELETOR, 'all-namespaces': { curto: 'A', tipo: 'bool' }, 'show-events': { tipo: 'bool' } }, rodar: describe },
   apply: { flags: { ...ARQUIVOS, ...SAIDA, ...DRY, 'server-side': { tipo: 'bool' }, validate: { tipo: 'string' } }, rodar: apply },
   create: {
-    flags: { ...ARQUIVOS, ...SAIDA, ...DRY, ...FLAGS_DE_SEGURANCA, image: { tipo: 'lista' }, replicas: { curto: 'r', tipo: 'int' }, port: { tipo: 'string' }, 'from-literal': { tipo: 'lista' }, 'from-file': { tipo: 'lista' }, tcp: { tipo: 'lista' }, type: { tipo: 'string' }, 'save-config': { tipo: 'bool' }, validate: { tipo: 'string' }, schedule: { tipo: 'string' }, from: { tipo: 'string' }, restart: { tipo: 'string' } },
+    flags: { ...ARQUIVOS, ...SAIDA, ...DRY, ...FLAGS_DE_SEGURANCA, image: { tipo: 'lista' }, replicas: { curto: 'r', tipo: 'int' }, port: { tipo: 'string' }, 'from-literal': { tipo: 'lista' }, 'from-file': { tipo: 'lista' }, tcp: { tipo: 'lista' }, type: { tipo: 'string' }, 'save-config': { tipo: 'bool' }, validate: { tipo: 'string' }, schedule: { tipo: 'string' }, from: { tipo: 'string' }, restart: { tipo: 'string' },
+      'node-port': { tipo: 'int' }, clusterip: { tipo: 'string' }, 'external-name': { tipo: 'string' }, rule: { tipo: 'lista' }, 'default-backend': { tipo: 'string' }, class: { tipo: 'string' }, annotation: { tipo: 'lista' },
+      hard: { tipo: 'string' }, scopes: { tipo: 'string' }, 'min-available': { tipo: 'string' }, 'max-unavailable': { tipo: 'string' }, ...SELETOR,
+    },
     rodar: create,
   },
   run: {
@@ -1456,13 +1809,20 @@ const COMANDOS = {
     rodar: delete_,
   },
   logs: {
-    flags: { container: { curto: 'c', tipo: 'string' }, previous: { curto: 'p', tipo: 'bool' }, follow: { curto: 'f', tipo: 'bool' }, tail: { tipo: 'int', padrao: -1 }, timestamps: { tipo: 'bool' }, ...SELETOR, 'all-containers': { tipo: 'bool' }, prefix: { tipo: 'bool' } },
+    flags: { container: { curto: 'c', tipo: 'string' }, previous: { curto: 'p', tipo: 'bool' }, follow: { curto: 'f', tipo: 'bool' }, tail: { tipo: 'int', padrao: -1 }, timestamps: { tipo: 'bool' }, ...SELETOR, 'all-containers': { tipo: 'bool' }, prefix: { tipo: 'bool' }, since: { tipo: 'string' }, 'since-time': { tipo: 'string' } },
     rodar: logs,
   },
   exec: { flags: { container: { curto: 'c', tipo: 'string' }, stdin: { curto: 'i', tipo: 'bool' }, tty: { curto: 't', tipo: 'bool' }, quiet: { curto: 'q', tipo: 'bool' } }, rodar: exec },
   scale: { flags: { replicas: { tipo: 'int' }, 'current-replicas': { tipo: 'int' } }, rodar: scale },
   rollout: { flags: { revision: { tipo: 'int' }, 'to-revision': { tipo: 'int' }, timeout: { tipo: 'string' }, watch: { curto: 'w', tipo: 'bool' } }, rodar: rollout },
-  set: { flags: {}, rodar: set },
+  set: {
+    flags: {
+      ...SAIDA, ...DRY, ...SELETOR, all: { tipo: 'bool' }, containers: { curto: 'c', tipo: 'string', padrao: '*' }, env: { curto: 'e', tipo: 'lista' }, from: { tipo: 'string' },
+      prefix: { tipo: 'string' }, keys: { tipo: 'lista' }, list: { tipo: 'bool' }, resolve: { tipo: 'bool' }, overwrite: { tipo: 'bool', padrao: true }, limits: { tipo: 'string' }, requests: { tipo: 'string' },
+    },
+    rodar: set,
+  },
+  patch: { flags: { ...SAIDA, ...DRY, patch: { curto: 'p', tipo: 'string' }, 'patch-file': { tipo: 'string' }, type: { tipo: 'string' } }, rodar: patch },
   expose: { flags: { ...SAIDA, ...DRY, port: { tipo: 'string' }, 'target-port': { tipo: 'string' }, type: { tipo: 'string' }, name: { tipo: 'string' }, protocol: { tipo: 'string' } }, rodar: expose },
   'port-forward': { flags: { address: { tipo: 'string' } }, rodar: portForward },
   wait: { flags: { ...SELETOR, for: { tipo: 'string' }, timeout: { tipo: 'string' }, all: { tipo: 'bool' } }, rodar: wait },
@@ -1475,7 +1835,10 @@ const COMANDOS = {
   version: { flags: { ...SAIDA, client: { tipo: 'bool' } }, rodar: (c, a, s) => s.out(`Client Version: ${VERSAO_CLIENTE}\nKustomize Version: v5.8.1\n${a.flags.client ? '' : `Server Version: ${VERSAO_SERVIDOR}\n`}`) },
   'cluster-info': { flags: {}, rodar: (c, a, s) => s.out('Kubernetes control plane is running at https://127.0.0.1:6443\nCoreDNS is running at https://127.0.0.1:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy\n\nTo further debug and diagnose cluster problems, use \'kubectl cluster-info dump\'.\n') },
   top: { flags: { ...SELETOR, 'all-namespaces': { curto: 'A', tipo: 'bool' }, containers: { tipo: 'bool' }, 'sort-by': { tipo: 'string' }, 'no-headers': { tipo: 'bool' } }, rodar: top },
-  auth: { flags: { subresource: { tipo: 'string' }, 'all-namespaces': { curto: 'A', tipo: 'bool' } }, rodar: (c, a, s) => auth(c, a, s, namespaceDe(c, a.flags)) },
+  auth: {
+    flags: { subresource: { tipo: 'string' }, 'all-namespaces': { curto: 'A', tipo: 'bool' }, list: { tipo: 'bool' }, 'no-headers': { tipo: 'bool' } },
+    rodar: (c, a, s) => (a.flags.list && a.posicionais[0] === 'can-i' ? listarPermissoes(c, a, s, namespaceDe(c, a.flags)) : auth(c, a, s, namespaceDe(c, a.flags))),
+  },
   kustomize: {
     flags: {},
     rodar: (c, a, s) => {
@@ -1526,7 +1889,7 @@ export function kubectl(cluster, linha, { arquivos = {} } = {}) {
   const cmd = COMANDOS[nome];
   if (!cmd) {
     if (COMANDOS_REAIS.includes(nome)) {
-      s.falha(`error: o comando "${nome}" ainda não existe neste simulador (ele chega em um nível mais adiante da trilha).`);
+      s.falha(naoSimulado(nome));
       return s.resultado();
     }
     const sugestoes = COMANDOS_REAIS.filter((c) => distancia(nome, c) <= 2);
@@ -1542,7 +1905,7 @@ export function kubectl(cluster, linha, { arquivos = {} } = {}) {
     return s.resultado();
   }
   if (lidos.flags.help) {
-    s.out(`Use "kubectl ${nome} --help" no terminal de verdade para ver todas as opções. Aqui, a aba Manual da missão explica as que você vai usar.\n`);
+    s.out(`${t('Use "kubectl {nome} --help" no terminal de verdade para ver todas as opções. Aqui, a aba Manual da missão explica as que você vai usar.', { nome })}\n`);
     return s.resultado();
   }
   cluster.avisos = [];

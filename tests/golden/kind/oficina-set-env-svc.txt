@@ -1,0 +1,2 @@
+error: services/web the object is not a pod or does not have a pod template: *v1.Service
+exit=1

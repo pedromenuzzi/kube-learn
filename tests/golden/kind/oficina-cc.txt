@@ -1,0 +1,5 @@
+NAME                   IMAGE          LABELS                                      NADA
+bb                     busybox:1.36   map[app:bb tier:back]                       <none>
+web-69c6f74b8b-fcp5g   nginx:1.27     map[app:web pod-template-hash:69c6f74b8b]   <none>
+web-69c6f74b8b-zcnvn   nginx:1.27     map[app:web pod-template-hash:69c6f74b8b]   <none>
+exit=0

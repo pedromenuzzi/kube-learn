@@ -1,0 +1,2 @@
+error: unexpected path string, expected a 'name1.name2' or '.name1.name2' or '{name1.name2}' or '{.name1.name2}'
+exit=1

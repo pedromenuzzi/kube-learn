@@ -1,0 +1,2 @@
+error: unable to match a printer suitable for the output format "foo", allowed formats are: custom-columns,custom-columns-file,go-template,go-template-file,json,jsonpath,jsonpath-as-json,jsonpath-file,kyaml,name,template,templatefile,wide,yaml
+exit=1

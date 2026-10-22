@@ -1,0 +1,2 @@
+error: couldn't find any field with path "{.metadata.name}" in the list of objects
+exit=1

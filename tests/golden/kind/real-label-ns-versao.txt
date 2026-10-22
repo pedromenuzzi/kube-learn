@@ -1,0 +1,4 @@
+Warning: existing pods in namespace "realismo" violate the new PodSecurity enforce level "restricted:v1.36"
+Warning: caixa (and 1 other pod): allowPrivilegeEscalation != false, unrestricted capabilities, runAsNonRoot != true, seccompProfile
+namespace/realismo labeled
+exit=0

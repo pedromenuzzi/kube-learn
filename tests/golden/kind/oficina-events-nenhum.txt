@@ -1,0 +1,2 @@
+No events found in oficina namespace.
+exit=0

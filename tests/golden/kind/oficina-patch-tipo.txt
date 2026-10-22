@@ -1,0 +1,2 @@
+The request is invalid: patch: Invalid value: "map[spec:map[replicas:2]]": unrecognized type: int32
+exit=1

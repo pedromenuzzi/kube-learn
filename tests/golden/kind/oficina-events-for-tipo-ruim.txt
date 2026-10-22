@@ -1,0 +1,2 @@
+the server doesn't have a resource type "nada"
+exit=1

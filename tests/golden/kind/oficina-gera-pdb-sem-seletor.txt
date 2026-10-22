@@ -1,0 +1,2 @@
+error: a selector must be specified
+exit=1

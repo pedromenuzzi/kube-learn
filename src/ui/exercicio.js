@@ -17,7 +17,7 @@ import { hojeLocal } from '../jogo/gamificacao.js';
 import { criarTerminal } from './terminal.js';
 import { criarEditor } from './editor.js';
 import { htmlCluster, htmlRecursos, htmlEventos, htmlLegendaMapa } from './paineis.js';
-import { ativarAbas, htmlAbas, escapar } from './util.js';
+import { ativarAbas, htmlAbas, escapar, minutosESegundos } from './util.js';
 import { montarJanelas } from './janelas.js';
 import { icone } from './icones.js';
 
@@ -68,14 +68,21 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   estado.atual = Object.keys(estado.arquivos)[0] ?? null;
   const caixasVistas = new Set();
 
+  // A Oficina do kubectl corre contra o relógio (de verdade, não o do cluster): vale o recorde de cada exercício.
+  const naOficina = item.secao === 'oficina';
+  const recorde = naOficina ? ler(CHAVES.recordes, {})[item.id] : null;
+  let comecou = performance.now();
+  let terminouEm = null;
+  const voltarPara = { troubleshooting: 'Troubleshooting', oficina: t('Oficina') }[item.secao] ?? t('Trilha');
   raiz.innerHTML = `
     <div class="ex${temArquivos ? '' : ' ex-so-terminal'}">
       <header class="ex-topo">
-        <a class="voltar" href="#/${item.secao ?? 'trilha'}">${icone('voltar')}<span class="visualmente-oculto">${item.secao ? t('Voltar ao') : t('Voltar à')} </span>${item.secao ? 'Troubleshooting' : t('Trilha')}</a>
+        <a class="voltar" href="#/${item.secao ?? 'trilha'}">${icone('voltar')}<span class="visualmente-oculto">${item.secao === 'troubleshooting' ? t('Voltar ao') : t('Voltar à')} </span>${voltarPara}</a>
         <h1>${escapar(item.titulo)}</h1>
         ${item.projeto ? `<span class="chip chip-projeto">${icone('arvore')} ${escapar(item.projeto.titulo)} · ${t('etapa {etapa} de {total}', item.projeto)}</span>` : ''}
         ${item.dificuldade ? `<span class="chip chip-${item.dificuldade}">${t(DIFICULDADE[item.dificuldade])}</span>${item.secao ? '' : `<span class="chip">${XP[item.dificuldade]} XP</span>`}` : ''}
         ${ler(CHAVES.progresso, {})[item.id]?.status === 'resolvido' ? `<span class="chip chip-ok">${icone('certo')} ${t('Resolvida')}</span>` : ''}
+        ${naOficina ? `<span class="chip chip-cronometro" aria-hidden="true">${icone('relogio')} 0:00</span><span class="chip chip-recorde">${recorde ? `${icone('raio')} ${t('Recorde: {tempo}', { tempo: minutosESegundos(recorde) })}` : t('Primeira vez: o tempo de hoje vira o recorde')}</span>` : ''}
       </header>
       <div class="ex-acoes">
         ${temArquivos ? `<button type="button" class="botao" data-acao="aplicar" title="Ctrl+Enter">${icone('play')} ${t('Aplicar')}</button>` : `<button type="button" class="botao" data-acao="conferir" title="Ctrl+Enter">${icone('certo')} ${t('Conferir')}</button>`}
@@ -127,12 +134,13 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   let tempoDoAviso = 0;
   /** O aviso flutua sobre a tela (não empurra as janelas) e some sozinho; o de missão cumprida fica, com o link da próxima. */
   // `ajuda`: { texto, aba, rotulo } — a ajuda do degrau (a dica, o Manual, a Solução), com o botão que abre a aba.
-  const avisar = (texto, { tipo = 'info', proximo, ajuda } = {}) => {
+  const avisar = (texto, { tipo = 'info', proximo, ajuda, refazer } = {}) => {
     clearTimeout(tempoDoAviso);
     aviso.className = `ex-aviso ${tipo}`;
     aviso.innerHTML = `${tipo === 'info' ? '' : icone(tipo === 'ok' ? 'certo' : 'fechar')}<div class="aviso-texto"><span>${escapar(texto)}</span>`
       + (proximo ? `<a href="#/ex/${proximo.id}">${t('Próxima: {titulo}', { titulo: escapar(proximo.titulo) })} ${icone('seguir')}</a>` : '')
       + (ajuda ? `<span class="aviso-ajuda">${icone('lampada')} ${escapar(ajuda.texto)}</span><button type="button" class="link-botao" data-acao="abrir-aba" data-aba="${ajuda.aba}">${escapar(ajuda.rotulo)}</button>` : '')
+      + (refazer ? `<button type="button" class="link-botao" data-acao="refazer">${icone('reiniciar')} ${t('Tentar de novo')}</button>` : '')
       + `</div><button type="button" class="aviso-fechar" data-acao="fechar-aviso" aria-label="${t('Fechar o aviso')}">${icone('fechar')}</button>`;
     if (!proximo && !ajuda) tempoDoAviso = setTimeout(() => aviso.replaceChildren(), tipo === 'info' ? 4000 : 8000);
   };
@@ -328,6 +336,17 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   }
 
   let ultimoTeste = null; // para o feedback
+  /** Para o relógio da Oficina, guarda o recorde se bateu e devolve a mensagem. */
+  const tempoDaOficina = () => {
+    terminouEm ??= performance.now() - comecou;
+    const recordes = ler(CHAVES.recordes, {});
+    const antes = recordes[item.id];
+    const tempo = minutosESegundos(terminouEm);
+    if (!antes || terminouEm < antes) gravar(CHAVES.recordes, { ...recordes, [item.id]: Math.round(terminouEm) });
+    if (!antes) return t('Feito em {tempo}! Esse é o seu primeiro recorde.', { tempo });
+    return terminouEm < antes ? t('Novo recorde: {tempo}! (era {antes})', { tempo, antes: minutosESegundos(antes) })
+      : t('Feito em {tempo}. O recorde continua {antes}: tenta de novo?', { tempo, antes: minutosESegundos(antes) });
+  };
   // A escada de ajuda: cada entrega errada nesta visita abre um degrau (a dica, o Manual, a Solução), sem tirar XP.
   let falhas = 0;
   let acertosAntes = null;
@@ -353,7 +372,8 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
         const resolvido = ok === total;
         registrarComFesta(item, resolvido);
         if (resolvido && !$('.ex-topo .chip-ok')) $('.ex-topo').insertAdjacentHTML('beforeend', `<span class="chip chip-ok">${icone('certo')} ${t('Resolvida')}</span>`);
-        if (resolvido) avisar(item.secao ? t('Incidente resolvido! O morador agradece.') : t('Missão cumprida! +{xp} XP. Mais um contêiner embarcado no seu navio.', { xp: XP[item.dificuldade] ?? 0 }), { tipo: 'ok', proximo: proximoDe(item) });
+        if (resolvido && naOficina) avisar(tempoDaOficina(), { tipo: 'ok', proximo: proximoDe(item), refazer: true });
+        else if (resolvido) avisar(item.secao ? t('Incidente resolvido! O morador agradece.') : t('Missão cumprida! +{xp} XP. Mais um contêiner embarcado no seu navio.', { xp: XP[item.dificuldade] ?? 0 }), { tipo: 'ok', proximo: proximoDe(item) });
         else {
           falhas += 1;
           const melhorou = acertosAntes !== null && ok > acertosAntes ? ` (${t('antes eram {n}: quase lá!', { n: acertosAntes })})` : '';
@@ -387,6 +407,19 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
     'fechar-aviso': () => aviso.replaceChildren(),
     'abrir-aba': (botao) => abasLado.selecionar(botao.dataset.aba),
     feedback: () => abrirFeedback(item, () => ({ testes: ultimoTeste, comandos: terminal.historico.slice(-10) })),
+    // Oficina: de novo do zero, sem perguntar (o cluster, os arquivos e o relógio voltam ao começo).
+    refazer() {
+      estado.cluster = montarCluster(item.cluster, `${item.id}:aluno`);
+      estado.arquivos = { ...(item.inicial ?? {}) };
+      caixasVistas.clear();
+      terminal.limpar();
+      terminal.escrever(t('De novo, do zero: o relógio voltou a contar.'), 'term-info');
+      comecou = performance.now();
+      terminouEm = null;
+      aviso.replaceChildren();
+      atualizarPaineis();
+      terminal.focar();
+    },
     resetar() {
       if (!confirm(t('Voltar o cluster para o começo da missão? (Seus arquivos ficam.)'))) return;
       estado.cluster = montarCluster(item.cluster, `${item.id}:aluno`);
@@ -430,6 +463,7 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
 
   // ---------- relógio: 1 segundo do cluster por segundo de verdade ----------
   const relogio = setInterval(() => {
+    if (naOficina && terminouEm === null) $('.chip-cronometro').innerHTML = `${icone('relogio')} ${minutosESegundos(performance.now() - comecou)}`;
     if (document.hidden) return;
     estado.cluster.avancar(1000);
     terminal.tique();

@@ -94,6 +94,9 @@ export function enderecosEndpoints(ep) {
   return lista.length > 3 ? `${lista.slice(0, 3).join(',')} + ${lista.length - 3} more...` : lista.join(',');
 }
 
+/** As colunas PORTS e ENDPOINTS do EndpointSlice: até 3 itens, depois "+ N more...", e <unset> sem nenhum. */
+const ateTres = (lista) => (lista.length > 3 ? `${lista.slice(0, 3).join(',')} + ${lista.length - 3} more...` : lista.join(',') || '<unset>');
+
 const papeis = (node) => {
   const r = Object.keys(node.metadata.labels ?? {}).filter((k) => k.startsWith('node-role.kubernetes.io/')).map((k) => k.split('/')[1]).filter(Boolean);
   return r.length ? r.sort().join(',') : '<none>';
@@ -161,6 +164,15 @@ export const TABELAS = {
     colunas: ['NAME', 'ENDPOINTS', 'AGE'],
     linha: (e, agora) => [e.metadata.name, enderecosEndpoints(e), desde(agora, e.metadata.creationTimestamp)],
     aviso: 'Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice\n',
+  },
+  EndpointSlice: {
+    colunas: ['NAME', 'ADDRESSTYPE', 'PORTS', 'ENDPOINTS', 'AGE'],
+    linha: (e, agora) => [
+      e.metadata.name, e.addressType,
+      ateTres((e.ports ?? []).map((p) => String(p.port ?? p.name ?? '*'))),
+      ateTres((e.endpoints ?? []).flatMap((x) => x.addresses ?? [])),
+      desde(agora, e.metadata.creationTimestamp),
+    ],
   },
   Namespace: {
     colunas: ['NAME', 'STATUS', 'AGE'],

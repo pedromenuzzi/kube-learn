@@ -1,0 +1,188 @@
+{
+  "of-gerar-yaml": {
+    "titulo": "YAML without typing YAML",
+    "enunciado": "<p>Create the <code>api</code> Deployment (image <code>kubelearn/loja:1.0</code>, <b>3 replicas</b>) without writing the\n                YAML from scratch: generate it with kubectl, save it to <code>api.yaml</code> and apply it.</p>",
+    "dica": "kubectl create deployment api --image=kubelearn/loja:1.0 --replicas=3 --dry-run=client -o yaml > api.yaml && kubectl apply -f api.yaml (here, one command at a time)",
+    "vidaReal": "Asking the builder for the standard blueprint already filled in, instead of drawing every wall by hand.",
+    "limite": "The generated blueprint has the basics: probes, resources and the rest you still add to the file.",
+    "testes": [
+      {
+        "descricao": "the api was generated, saved and applied",
+        "msgs": {
+          "0": "you generated the YAML with --dry-run=client -o yaml > api.yaml"
+        }
+      }
+    ]
+  },
+  "of-expor": {
+    "titulo": "A phone extension in one command",
+    "enunciado": "<p>Give the <code>loja</code> (store) a <b>NodePort</b> Service on port <code>80</code>, delivering to the pods’ <code>8080</code>, with a single command.</p>",
+    "dica": "kubectl expose deployment loja --type=NodePort --port=80 --target-port=8080",
+    "vidaReal": "Asking for the phone extension over the phone, without filling in a form.",
+    "limite": "expose copies the Deployment’s selector at that moment: if the labels change later, the Service doesn’t follow.",
+    "testes": [
+      {
+        "descricao": "the store has its NodePort",
+        "msgs": {
+          "0": "you used kubectl expose"
+        }
+      }
+    ]
+  },
+  "of-trocar-versao": {
+    "titulo": "New version, no file opened",
+    "enunciado": "<p>Switch the <code>loja</code> image to <code>kubelearn/loja:1.1</code> from the terminal and watch the rollout until it finishes.</p>",
+    "dica": "kubectl set image deployment/loja loja=kubelearn/loja:1.1 and then kubectl rollout status deployment/loja",
+    "vidaReal": "Replacing the clerk at one counter at a time, without closing the store, and watching until the last one is swapped.",
+    "limite": "set image changes the cluster, not your file: the next apply of the old YAML brings the old version back.",
+    "testes": [
+      {
+        "descricao": "the store is on 1.1, and you watched it",
+        "msgs": {
+          "0": "you used kubectl set image",
+          "1": "you watched it with rollout status"
+        }
+      }
+    ]
+  },
+  "of-desfazer": {
+    "titulo": "Undo, undo!",
+    "enunciado": "<p>Someone shipped a <code>loja</code> version that crashes as soon as it starts. Go back to the previous version with <b>one command</b>.</p>",
+    "dica": "kubectl rollout undo deployment/loja",
+    "vidaReal": "Undoing the renovation that went wrong: the old painting goes back on the wall.",
+    "limite": "undo rolls back the Deployment, not the database: whatever the broken version wrote stays written.",
+    "testes": [
+      {
+        "descricao": "the store is back on 1.0",
+        "msgs": {
+          "0": "you used kubectl rollout undo"
+        }
+      }
+    ]
+  },
+  "of-rotulos": {
+    "titulo": "Tag and filter",
+    "enunciado": "<p>Put the label <code>tier=frontend</code> on every <code>vitrine</code> (storefront) pod (all at once, by selector) and list only the pods with that label.</p>",
+    "dica": "kubectl label pods -l app=vitrine tier=frontend and then kubectl get pods -l tier=frontend",
+    "vidaReal": "Putting the same sticker on every door of a floor and then calling only the ones with the sticker.",
+    "limite": "The label goes on today’s pods: a new pod from the Deployment is born without it (to last, the label goes in the template).",
+    "testes": [
+      {
+        "descricao": "the storefront pods are labeled",
+        "msgs": {
+          "0": "you labeled them by selector (-l app=vitrine)",
+          "1": "you listed them with -l tier=frontend"
+        }
+      }
+    ]
+  },
+  "of-jsonpath": {
+    "titulo": "Just what matters",
+    "enunciado": "<p>Which image does the <code>cofre</code> (safe) Deployment use? Find out with <code>-o jsonpath</code> (only the image in the output) and answer below.</p>",
+    "dica": "kubectl get deployment cofre -o jsonpath='{.spec.template.spec.containers[0].image}'",
+    "vidaReal": "Asking the doorman for just the apartment number, not the resident’s whole file.",
+    "limite": "jsonpath picks the exact field: if the list has two containers, [0] shows only the first.",
+    "rotuloResposta": "The safe’s image",
+    "testes": [
+      {
+        "descricao": "you found the image with jsonpath",
+        "msgs": {
+          "0": "you used -o jsonpath"
+        }
+      }
+    ]
+  },
+  "of-autoscale": {
+    "titulo": "The manager in one command",
+    "enunciado": "<p>Create an HPA for the <code>loja</code> from <b>2 to 6</b> replicas, targeting <b>60%</b> CPU, with a single command.</p>",
+    "dica": "kubectl autoscale deployment loja --min=2 --max=6 --cpu=60%",
+    "vidaReal": "Hiring the temp-staff manager with all the rules at once: minimum, maximum and when to call in help.",
+    "limite": "The command creates the HPA, but without CPU requests on the pods it can’t compute the percentage.",
+    "testes": [
+      {
+        "descricao": "the store has its manager",
+        "msgs": {
+          "0": "you used kubectl autoscale"
+        }
+      }
+    ]
+  },
+  "of-colunas": {
+    "titulo": "The table your way",
+    "enunciado": "<p>Build a table of the Deployments with only two columns, <code>NOME</code> and <code>IMAGEM</code>, using\n                <code>-o custom-columns</code>. Which Deployment uses the <code>nginx:1.28</code> image?</p>",
+    "dica": "kubectl get deployments -o custom-columns=NOME:.metadata.name,IMAGEM:.spec.template.spec.containers[0].image",
+    "vidaReal": "Asking the management office for a spreadsheet with just each resident’s name and phone number, not the whole file.",
+    "limite": "Each column is a fixed path: if a Deployment has two containers, [0] shows only the first one’s image.",
+    "rotuloResposta": "The Deployment",
+    "testes": [
+      {
+        "descricao": "you built the table and found the Deployment",
+        "msgs": {
+          "0": "you used -o custom-columns"
+        }
+      }
+    ]
+  },
+  "of-ordenar": {
+    "titulo": "Who arrived last?",
+    "enunciado": "<p>List the pods in creation order, with <code>--sort-by</code> (the newest ends up at the bottom). Which Deployment\n                do the newest pods belong to?</p>",
+    "dica": "kubectl get pods --sort-by=.metadata.creationTimestamp",
+    "vidaReal": "Asking for the list of residents in order of arrival, to find who moved in yesterday.",
+    "limite": "The order follows the field you pick: two pods created in the same second can show up in either order.",
+    "rotuloResposta": "The Deployment",
+    "testes": [
+      {
+        "descricao": "you sorted and found the newest pods",
+        "msgs": {
+          "0": "you sorted by creation (--sort-by=.metadata.creationTimestamp)"
+        }
+      }
+    ]
+  },
+  "of-eventos": {
+    "titulo": "Only the bad news",
+    "enunciado": "<p>Some Deployment in the neighborhood isn’t coming up. Without opening pod after pod, list only the namespace’s warnings with\n                <code>kubectl events --types=Warning</code>. Which Deployment has the problem?</p>",
+    "dica": "kubectl events --types=Warning (the OBJECT column says who the warning is about)",
+    "vidaReal": "Reading only the complaints in the front desk log, not the whole log.",
+    "limite": "Events disappear after an hour: an old problem with no new warning won’t show up here anymore.",
+    "rotuloResposta": "The Deployment",
+    "testes": [
+      {
+        "descricao": "you filtered the warnings and found the problem",
+        "msgs": {
+          "0": "you used kubectl events --types=Warning"
+        }
+      }
+    ]
+  },
+  "of-patch": {
+    "titulo": "A surgical patch",
+    "enunciado": "<p>On the next version rollout, <code>loja</code> can’t take any pod down before its replacement is ready:\n                set <code>maxUnavailable: 0</code> in its strategy with <code>kubectl patch</code>, without opening a file.</p>",
+    "dica": "kubectl patch deployment loja -p '{\"spec\":{\"strategy\":{\"rollingUpdate\":{\"maxUnavailable\":0}}}}'",
+    "vidaReal": "Replacing one roof tile without redoing the whole roof.",
+    "limite": "The patch changes the cluster, not your file: on the next apply of the old YAML, the field goes back to what it says there.",
+    "testes": [
+      {
+        "descricao": "loja rolls out without taking anyone down",
+        "msgs": {
+          "0": "you used kubectl patch"
+        }
+      }
+    ]
+  },
+  "of-set-env": {
+    "titulo": "A variable without YAML",
+    "enunciado": "<p>Add the environment variable <code>MODO=manutencao</code> to <code>loja</code> with <code>kubectl set env</code>.</p>",
+    "dica": "kubectl set env deployment/loja MODO=manutencao",
+    "vidaReal": "Changing the notice on the front desk board without reprinting the house rules.",
+    "limite": "Changing env changes the template: the Deployment replaces every pod, one by one, as if it were a new version.",
+    "testes": [
+      {
+        "descricao": "loja has MODO=manutencao",
+        "msgs": {
+          "0": "you used kubectl set env"
+        }
+      }
+    ]
+  }
+}

@@ -4,7 +4,7 @@
 // a parte N fica com uma de cada PARTES missões, em rodízio. Para mais partes, copie um deles com o próximo N.
 import { readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ITENS, TROUBLESHOOTING } from '../src/conteudo/index.js';
+import { ITENS, OFICINA, TROUBLESHOOTING } from '../src/conteudo/index.js';
 import { montarCluster, CLUSTERS } from '../src/conteudo/clusters.js';
 import { rodarTestes, TIPOS_DE_REGRA } from '../src/verificacoes.js';
 import { rodarLinha } from '../src/k8s/linha.js';
@@ -27,7 +27,7 @@ function aluno(item, { resolvido }) {
 }
 
 // A trilha e os incidentes da seção Troubleshooting (fora dos níveis).
-const TODOS = [...ITENS, ...TROUBLESHOOTING];
+const TODOS = [...ITENS, ...TROUBLESHOOTING, ...OFICINA];
 
 // As partes: o N de cada tests/trilha-N.test.js, em ordem.
 const PARTES = readdirSync(new URL('.', import.meta.url)).flatMap((f) => f.match(/^trilha-(\d+)\.test\.js$/)?.[1] ?? []).map(Number).sort((a, b) => a - b);

@@ -11,6 +11,7 @@ import { PARTIDA7 } from './nivel7.js';
 import { PARTIDA8 } from './nivel8.js';
 import { PARTIDA9 } from './nivel9.js';
 import { PARTIDA_TS } from './troubleshooting.js';
+import { PARTIDA_OF } from './oficina.js';
 import { PARTIDA10 } from './nivel10.js';
 import { PARTIDA11 } from './nivel11.js';
 
@@ -360,6 +361,8 @@ export const CLUSTERS = {
   'projeto-black-friday': { metricas: true },
   // A seção Troubleshooting (troubleshooting.js)
   ...PARTIDA_TS,
+  // A Oficina do kubectl (oficina.js)
+  ...PARTIDA_OF,
 };
 
 /** Monta o cluster de partida (sempre igual para a mesma semente). */

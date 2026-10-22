@@ -1,0 +1,3 @@
+LAST SEEN   TYPE      REASON                 OBJECT        MESSAGE
+0s          Warning   BackoffLimitExceeded   Job/tropeco   Job has reached the specified backoff limit
+exit=0

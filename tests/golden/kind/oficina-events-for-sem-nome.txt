@@ -1,0 +1,2 @@
+error: --for must be in resource/name form
+exit=1

@@ -1,0 +1,4 @@
+deployment.apps/web patched
+deployment.apps/web patched (no change)
+Error from server (NotFound): deployments.apps "svc" not found
+exit=1

@@ -1,0 +1,3 @@
+NAME            ADDRESSTYPE   PORTS     ENDPOINTS   AGE
+vitrine-zx8h6   IPv4          <unset>   <unset>     52s
+exit=0

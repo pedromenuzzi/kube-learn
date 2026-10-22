@@ -1,0 +1,2 @@
+error: unable to read patch file: open /tmp/kl-of-nada.json: no such file or directory
+exit=1

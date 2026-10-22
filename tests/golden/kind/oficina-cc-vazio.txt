@@ -1,0 +1,2 @@
+error: custom-columns format specified but no custom columns given
+exit=1

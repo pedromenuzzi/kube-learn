@@ -1,0 +1,9 @@
+# Deployment web, container nginx
+B=2
+A=1
+MODO=teste
+TAMANHO=g
+COR=azul
+LOG_LEVEL=debug
+APP_SENHA=x
+exit=0

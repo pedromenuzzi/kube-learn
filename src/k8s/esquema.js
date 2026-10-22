@@ -3,7 +3,7 @@
 // O motor só cresce com o conteúdo: um campo entra aqui quando algum exercício precisa dele. Subárvores
 // que ainda não simulamos ficam como `qualquer` (aceitas sem conferir), para não recusar YAML válido.
 import { canonico } from './aleatorio.js';
-import { lerCron } from './cron.js';
+import { lerCron, errosDoFuso } from './cron.js';
 
 // ---------- construtores ----------
 const campo = (tipo, desc = '', extra = {}) => ({ tipo, desc, ...extra });
@@ -700,6 +700,11 @@ export const ESQUEMAS = {
   }),
   Node: raiz('Node', 'O Node é uma máquina do cluster, onde os pods rodam.', { spec: qualquer('', { go: 'NodeSpec' }), status: status('Node') }),
   Endpoints: raiz('Endpoints', 'A lista de IPs e portas dos pods atrás de um Service.', { subsets: qualquer('') }),
+  EndpointSlice: raiz('EndpointSlice', 'Um pedaço da lista de endereços (IPs e portas) dos pods atrás de um Service: o substituto do Endpoints.', {
+    addressType: texto('IPv4, IPv6 ou FQDN.', { obrigatorio: true }),
+    endpoints: qualquer('Os endereços, cada um com as condições (ready, serving, terminating) e o pod de onde veio.'),
+    ports: qualquer('As portas (nome, número e protocolo) que valem para todos os endereços.'),
+  }),
   Event: raiz('Event', 'Uma ocorrência registrada no cluster.', {}),
 };
 
@@ -1036,7 +1041,13 @@ export function validar(obj, antigo) {
     case 'CronJob': {
       const horario = s?.schedule === undefined ? null : lerCron(String(s.schedule));
       if (!s?.schedule) erros.push(obrigatorio('spec.schedule'));
-      else if (horario.erro) erros.push(invalido('spec.schedule', s.schedule, horario.erro));
+      else {
+        if (horario.erro) erros.push(invalido('spec.schedule', s.schedule, horario.erro));
+        if (String(s.schedule).includes('TZ')) erros.push(invalido('spec.schedule', s.schedule, 'cannot use TZ or CRON_TZ in schedule, use timeZone field instead'));
+      }
+      if (typeof s?.timeZone === 'string' && (!antigo || antigo.spec.timeZone !== s.timeZone)) {
+        for (const msg of errosDoFuso(s.timeZone)) erros.push(invalido('spec.timeZone', s.timeZone, msg));
+      }
       if (!s?.jobTemplate) erros.push(obrigatorio('spec.jobTemplate'));
       else validarJob(s.jobTemplate.spec, 'spec.jobTemplate.spec', erros);
       if (s?.concurrencyPolicy && !['Allow', 'Forbid', 'Replace'].includes(s.concurrencyPolicy)) {

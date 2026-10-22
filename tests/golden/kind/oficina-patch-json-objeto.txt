@@ -1,0 +1,2 @@
+Error from server (BadRequest): error decoding patch: json: cannot unmarshal object into Go value of type []handlers.jsonPatchOp
+exit=1

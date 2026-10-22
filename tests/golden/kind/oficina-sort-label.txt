@@ -1,0 +1,5 @@
+NAME                   READY   STATUS    RESTARTS   AGE
+web-69c6f74b8b-zcnvn   1/1     Running   0          3s
+web-69c6f74b8b-fcp5g   1/1     Running   0          3s
+bb                     1/1     Running   0          3s
+exit=0

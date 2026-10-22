@@ -1,0 +1,3 @@
+Warning: key senha transferred to SENHA
+deployment.apps/web env updated
+exit=0

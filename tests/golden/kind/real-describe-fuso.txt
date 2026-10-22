@@ -1,0 +1,32 @@
+Name:                          fuso
+Namespace:                     realismo
+Labels:                        <none>
+Annotations:                   <none>
+Schedule:                      0 3 1 1 *
+Concurrency Policy:            Allow
+Suspend:                       False
+Time Zone:                     America/Sao_Paulo
+Successful Job History Limit:  3
+Failed Job History Limit:      1
+Starting Deadline Seconds:     <unset>
+Selector:                      <unset>
+Parallelism:                   <unset>
+Completions:                   <unset>
+Pod Template:
+  Labels:  <none>
+  Containers:
+   c:
+    Image:      busybox:1.36
+    Port:       <none>
+    Host Port:  <none>
+    Command:
+      true
+    Environment:     <none>
+    Mounts:          <none>
+  Volumes:           <none>
+  Node-Selectors:    <none>
+  Tolerations:       <none>
+Last Schedule Time:  <unset>
+Active Jobs:         <none>
+Events:              <none>
+exit=0

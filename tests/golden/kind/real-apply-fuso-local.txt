@@ -1,0 +1,4 @@
+The CronJob "local" is invalid: 
+* spec.timeZone: Invalid value: "local": timeZone must be an explicit time zone as defined in https://www.iana.org/time-zones
+* spec.timeZone: Invalid value: "local": unknown time zone local
+exit=1

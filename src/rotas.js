@@ -6,6 +6,7 @@ export const ROTAS = {
   '/ex': { titulo: 'Exercício', comParametro: true },
   '/livre': { titulo: 'Playground livre' },
   '/troubleshooting': { titulo: 'Troubleshooting' },
+  '/oficina': { titulo: 'Oficina do kubectl' },
   '/glossario': { titulo: 'Glossário' },
   '/revisao': { titulo: 'Revisão do dia' },
   '/certificado': { titulo: 'Certificado' },

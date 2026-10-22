@@ -494,10 +494,21 @@ dialog.festa-cartao canvas.navio { width: auto; max-width: 100%; max-height: min
 .hoje .hoje-numeros dt { font-size: 0.72rem; font-weight: 700; color: var(--suave); }
 .hoje .hoje-numeros dd { margin: 0; font-family: var(--pixel); font-size: 1rem; }
 .hoje .hoje-revisao { margin: 0.9rem 0 0; display: flex; align-items: center; gap: 0.4rem; color: var(--suave); }
+.hoje .hoje-oficina { margin-top: 0.4rem; }
 .hoje .hoje-depois { margin-top: 0.9rem; font-size: 0.92rem; }
 .hoje .hoje-depois p { margin: 0 0 0.3rem; color: var(--suave); font-weight: 700; }
 .hoje .hoje-depois ul { margin: 0; padding-left: 1.2rem; }
 @media (max-width: 40rem) { .hoje .hoje-numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* a Oficina do kubectl: a lista de exercícios com o recorde de cada um */
+ol.oficina { list-style: none; padding: 0; margin: 1rem 0 0; display: grid; gap: 0.5rem; counter-reset: exercicio; }
+ol.oficina a { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 0.75rem; padding: 0.8rem 1rem; border: 1px solid var(--borda); border-radius: var(--raio-g); background: var(--superficie); box-shadow: var(--sombra-1); color: var(--texto); text-decoration: none; transition: border-color var(--anim), transform var(--anim); }
+ol.oficina a:hover { border-color: var(--destaque); transform: translateY(-1px); }
+ol.oficina .oficina-titulo { font-weight: 700; }
+ol.oficina .oficina-titulo::before { counter-increment: exercicio; content: counter(exercicio) ". "; color: var(--suave); }
+ol.oficina .oficina-recorde { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; color: var(--suave); font-variant-numeric: tabular-nums; }
+@media (max-width: 40rem) { ol.oficina a { grid-template-columns: minmax(0, 1fr) auto; } ol.oficina .oficina-recorde { grid-column: 1 / -1; } }
+.chip-cronometro { font-variant-numeric: tabular-nums; }
 
 /* a página que não existe */
 .nao-encontrada { padding: 2rem 0 1rem; }

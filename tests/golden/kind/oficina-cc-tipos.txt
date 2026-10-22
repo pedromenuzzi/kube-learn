@@ -1,0 +1,6 @@
+NAME                   KIND
+bb                     Pod
+web-69c6f74b8b-fcp5g   Pod
+web-69c6f74b8b-zcnvn   Pod
+web                    Deployment
+exit=0

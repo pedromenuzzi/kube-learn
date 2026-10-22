@@ -1,0 +1,2 @@
+error: min-available and max-unavailable cannot be both specified
+exit=1

@@ -1,0 +1,4 @@
+LAST SEEN   TYPE      REASON                 OBJECT        MESSAGE
+3s          Normal    SuccessfulCreate       Job/tropeco   Created pod: tropeco-gddrk
+0s          Warning   BackoffLimitExceeded   Job/tropeco   Job has reached the specified backoff limit
+exit=0

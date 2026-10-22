@@ -1,0 +1,2 @@
+error: resource(s) were provided, but no name was specified
+exit=1

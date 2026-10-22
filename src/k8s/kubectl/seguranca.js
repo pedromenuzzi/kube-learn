@@ -46,13 +46,14 @@ function pedidosDoComando(nome, a, ns, docs) {
     }
     case 'apply':
       return docs.map(({ r, nome: n, arquivo }) => ({ r, ...pedido(r, 'get', ns, n), aplicar: true, arquivo }));
-    case 'logs': {
-      const r = acharRecurso('pods');
-      return [{ r, ...pedido(r, 'get', ns, p[0]?.replace(/^(po|pod|pods)\//, ''), 'log') }];
-    }
+    case 'logs':
     case 'exec': {
+      // O kubectl primeiro lê o pod (get pods) e só então pede o log ou a conexão do exec (o subrecurso).
       const r = acharRecurso('pods');
-      return [{ r, ...pedido(r, 'create', ns, p[0]?.replace(/^(po|pod|pods)\//, ''), 'exec') }];
+      const n = p[0]?.replace(/^(po|pod|pods)\//, '');
+      const ehPod = !!n && !n.includes('/'); // deploy/web e afins: só o subrecurso, como antes
+      const sub = { r, ...pedido(r, nome === 'exec' ? 'create' : 'get', ns, n, nome === 'exec' ? 'exec' : 'log'), depoisDoPod: ehPod };
+      return ehPod ? [{ r, ...pedido(r, 'get', ns, n) }, sub] : [sub];
     }
     case 'scale':
       return alvos(p).filter((x) => x.r).map(({ r, nome: n }) => ({ r, ...pedido(r, 'patch', ns, n, 'scale') }));
@@ -75,8 +76,10 @@ export function autorizar(cluster, nome, a, s, ns, docs = []) {
   const quem = quemPede(a);
   for (const p of pedidos) {
     if (pode(cluster, quem, p)) continue;
+    if (p.depoisDoPod && !cluster.obter('Pod', p.ns, p.nome)) return true; // o comando é que diz NotFound
     const msg = proibido(quem, p, p.r);
-    if (p.aplicar) {
+    if (p.sub === 'exec') s.falha(`error: unable to upgrade connection: ${msg}`); // o "não" vem na troca de protocolo
+    else if (p.aplicar) {
       const gv = apiVersion(p.r);
       s.falha(`Error from server (Forbidden): error when retrieving current configuration of:\nResource: "${gv.includes('/') ? gv : `/${gv}`}, Resource=${p.r.plural}", GroupVersionKind: "${gv.includes('/') ? gv : `/${gv}`}, Kind=${p.r.kind}"\nName: "${p.nome}", Namespace: "${p.ns ?? ''}"\nfrom server for: "${p.arquivo}": ${msg}`);
     } else s.falha(`Error from server (Forbidden): ${msg}`);

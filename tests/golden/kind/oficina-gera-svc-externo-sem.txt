@@ -1,0 +1,2 @@
+error: required flag(s) "external-name" not set
+exit=1

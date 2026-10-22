@@ -1,0 +1,2 @@
+deployment.apps/web image updated (dry run)
+exit=0

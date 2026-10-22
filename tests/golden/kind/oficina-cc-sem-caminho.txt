@@ -1,0 +1,2 @@
+error: unexpected custom-columns spec: NAME, expected <header>:<json-path-expr>
+exit=1

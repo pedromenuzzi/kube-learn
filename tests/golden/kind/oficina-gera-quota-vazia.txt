@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: q3
+  namespace: oficina
+spec: {}
+status: {}
+exit=0

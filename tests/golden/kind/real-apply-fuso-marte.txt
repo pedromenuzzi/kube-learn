@@ -1,0 +1,2 @@
+The CronJob "marte" is invalid: spec.timeZone: Invalid value: "Mars/Olympus": unknown time zone Mars/Olympus
+exit=1

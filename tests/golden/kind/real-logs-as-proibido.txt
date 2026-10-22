@@ -1,0 +1,2 @@
+Error from server (Forbidden): pods "caixa" is forbidden: User "carla" cannot get resource "pods/log" in API group "" in the namespace "realismo"
+exit=1

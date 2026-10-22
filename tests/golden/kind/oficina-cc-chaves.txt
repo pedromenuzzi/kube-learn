@@ -1,0 +1,5 @@
+NAME                   FASE
+bb                     Running
+web-69c6f74b8b-fcp5g   Running
+web-69c6f74b8b-zcnvn   Running
+exit=0

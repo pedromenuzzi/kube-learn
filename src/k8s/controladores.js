@@ -1,10 +1,10 @@
 // Os controladores do kube-controller-manager: cada um compara o desejado (spec) com o real e corrige.
 // Rodam em laço até nada mudar (ver Cluster.reconciliar).
-import { hashTemplate, canonico } from './aleatorio.js';
+import { hashTemplate, canonico, uuidDe, ALFABETO } from './aleatorio.js';
 import { casaSeletor, estaPronto, portaAlvo, classeDoIngress, IP_INGRESS } from './rede.js';
 import { iso, cpuMili, bytes, textoMemoria } from './unidades.js';
 import { controladorDeDiscos } from './discos.js';
-import { lerCron } from './cron.js';
+import { lerCron, isoNoFuso } from './cron.js';
 import { padroesJob } from './esquema.js';
 import { tolera } from './scheduler.js';
 import { controladorDeCotas } from './cotas.js';
@@ -599,6 +599,7 @@ function jobs(c) {
     const sucesso = pods.filter((p) => p.status?.phase === 'Succeeded');
     const falhos = pods.filter((p) => p.status?.phase === 'Failed');
     const ativos = pods.filter((p) => !TERMINAIS.has(p.status?.phase) && !p.metadata.deletionTimestamp);
+    const saindo = pods.filter((p) => !TERMINAIS.has(p.status?.phase) && p.metadata.deletionTimestamp);
     // Com OnFailure o contêiner reinicia no mesmo pod: cada reinício também conta como falha.
     const reinicios = ativos.reduce((t, p) => t + (p.status?.containerStatuses ?? []).reduce((x, st) => x + st.restartCount, 0), 0);
     const falhas = falhos.length + reinicios;
@@ -607,13 +608,28 @@ function jobs(c) {
     st.startTime ??= iso(c.agora);
 
     if (ttlVencido(c, job)) continue;
-    if (!terminou(job) && !s.suspend) {
+    const alvo = st.conditions?.find((x) => x.type === 'FailureTarget');
+    if (alvo && !terminou(job)) {
+      // Já falhou (FailureTarget): o Failed só vem quando os pods que ele mandou parar terminarem de sair.
+      if (!saindo.length) {
+        st.conditions = [alvo, condJob('Failed', alvo.reason, alvo.message, c.agora)];
+        evento('Warning', alvo.reason, alvo.message);
+      }
+    } else if (!terminou(job) && !s.suspend) {
       const prazo = s.activeDeadlineSeconds !== undefined && c.agora - Date.parse(st.startTime) >= s.activeDeadlineSeconds * 1000;
       if (falhas > s.backoffLimit || prazo) {
         const [motivo, msg] = prazo ? ['DeadlineExceeded', 'Job was active longer than specified deadline'] : ['BackoffLimitExceeded', 'Job has reached the specified backoff limit'];
-        for (const p of ativos) c.remover(p);
-        st.conditions = [condJob('FailureTarget', motivo, msg, c.agora), condJob('Failed', motivo, msg, c.agora)];
-        evento('Warning', motivo, msg);
+        for (const p of ativos) {
+          c.remover(p);
+          evento('Normal', 'SuccessfulDelete', `Deleted pod: ${p.metadata.name}`);
+        }
+        st.failed = falhos.length + ativos.length; // quem foi mandado parar já conta como falha
+        // FailureTarget já; o Failed (e o evento) quando ninguém mais estiver saindo (agora mesmo, se ninguém ficou).
+        st.conditions = [condJob('FailureTarget', motivo, msg, c.agora)];
+        if (!saindo.length && !ativos.some((p) => c.obter('Pod', p.metadata.namespace, p.metadata.name) === p)) {
+          st.conditions.push(condJob('Failed', motivo, msg, c.agora));
+          evento('Warning', motivo, msg);
+        }
       } else if (s.completions !== undefined && sucesso.length >= s.completions) {
         st.completionTime = iso(c.agora);
         st.conditions = [condJob('SuccessCriteriaMet', 'CompletionsReached', 'Reached expected number of succeeded pods', c.agora), condJob('Complete', 'CompletionsReached', 'Reached expected number of succeeded pods', c.agora)];
@@ -641,16 +657,17 @@ function jobs(c) {
         }
       }
     }
-    const agora = c.listar('Pod', job.metadata.namespace).filter((p) => controlador(p)?.uid === job.metadata.uid && !TERMINAIS.has(p.status?.phase) && !p.metadata.deletionTimestamp);
+    const vivos = c.listar('Pod', job.metadata.namespace).filter((p) => controlador(p)?.uid === job.metadata.uid && !TERMINAIS.has(p.status?.phase));
+    const agora = vivos.filter((p) => !p.metadata.deletionTimestamp);
     const status = {
       ...(agora.length ? { active: agora.length } : {}),
       ...(st.completionTime ? { completionTime: st.completionTime } : {}),
       ...(st.conditions ? { conditions: st.conditions } : {}),
-      ...(falhos.length ? { failed: falhos.length } : {}),
+      ...(Math.max(falhos.length, st.failed ?? 0) ? { failed: Math.max(falhos.length, st.failed ?? 0) } : {}),
       ready: agora.filter(estaPronto).length,
       startTime: st.startTime,
       ...(sucesso.length ? { succeeded: sucesso.length } : {}),
-      terminating: 0,
+      terminating: vivos.length - agora.length,
       uncountedTerminatedPods: {},
     };
     c.trocarStatus(job, status);
@@ -706,7 +723,7 @@ function cronjobs(c) {
       if (fim.type === 'Complete') st.lastSuccessfulTime = j.status.completionTime;
     }
     // O horário: um Job por minuto marcado, sem repetir o mesmo minuto.
-    const horario = lerCron(cj.spec.schedule);
+    const horario = lerCron(cj.spec.schedule, cj.spec.timeZone);
     const ultimo = st.lastScheduleTime ? Date.parse(st.lastScheduleTime) : Date.parse(cj.metadata.creationTimestamp);
     const ativos = () => c.listar('Job', ns).filter((j) => controlador(j)?.uid === cj.metadata.uid && !terminou(j));
     if (cj.spec.suspend) c.cronVisto.delete(cj.metadata.uid); // ao voltar, olha de novo desde o último horário
@@ -727,7 +744,7 @@ function cronjobs(c) {
         const nome = `${cj.metadata.name}-${Math.floor(minuto / 60_000)}`;
         c.criar({
           apiVersion: 'batch/v1', kind: 'Job',
-          metadata: { ...(molde.metadata ?? {}), name: nome, namespace: ns, annotations: { ...(molde.metadata?.annotations ?? {}), 'batch.kubernetes.io/cronjob-scheduled-timestamp': iso(minuto) }, ownerReferences: [dono(cj)] },
+          metadata: { ...(molde.metadata ?? {}), name: nome, namespace: ns, annotations: { ...(molde.metadata?.annotations ?? {}), 'batch.kubernetes.io/cronjob-scheduled-timestamp': isoNoFuso(minuto, cj.spec.timeZone) }, ownerReferences: [dono(cj)] },
           spec,
         });
         evento('Normal', 'SuccessfulCreate', `Created job ${nome}`);
@@ -964,20 +981,23 @@ function escalarPeloUso(c, hpa, marca) {
 }
 
 // ---------- Endpoints ----------
+const semIp = (svc) => (svc.spec.clusterIP === 'None' ? { 'service.kubernetes.io/headless': '' } : {}); // Service headless
 const porIp = new Intl.Collator(undefined, { numeric: true }).compare; // o mesmo que localeCompare(b, undefined, { numeric: true }), sem criar um Collator por comparação
 function endpoints(c) {
   for (const svc of c.listar('Service')) {
     const sel = svc.spec.selector;
     if (!sel || !Object.keys(sel).length) continue;
     const ns = svc.metadata.namespace;
-    const pods = c.listar('Pod', ns)
-      .filter((p) => casaSeletor(sel, p.metadata.labels) && p.status?.podIP && !p.metadata.deletionTimestamp && !TERMINAIS.has(p.status?.phase))
+    const comIp = c.listar('Pod', ns)
+      .filter((p) => casaSeletor(sel, p.metadata.labels) && p.status?.podIP && !TERMINAIS.has(p.status?.phase))
       .sort((a, b) => porIp(a.status.podIP, b.status.podIP));
     const endereco = (p) => ({ ip: p.status.podIP, nodeName: p.spec.nodeName, targetRef: { kind: 'Pod', name: p.metadata.name, namespace: ns, uid: p.metadata.uid } });
-    const comPorta = pods.filter((p) => svc.spec.ports.every((sp) => portaAlvo(p, sp.targetPort) !== null));
+    const naFatia = comIp.filter((p) => svc.spec.ports.every((sp) => portaAlvo(p, sp.targetPort) !== null)); // o EndpointSlice mostra também quem está saindo
+    const comPorta = naFatia.filter((p) => !p.metadata.deletionTimestamp);
+    const modelo = comPorta[0] ?? naFatia[0];
     const portas = svc.spec.ports.map((sp) => ({
       ...(sp.name ? { name: sp.name } : {}),
-      port: comPorta.length ? portaAlvo(comPorta[0], sp.targetPort) : Number(sp.targetPort) || sp.port,
+      port: modelo ? portaAlvo(modelo, sp.targetPort) : Number(sp.targetPort) || sp.port,
       protocol: sp.protocol,
     }));
     const prontos = comPorta.filter(estaPronto);
@@ -987,12 +1007,13 @@ function endpoints(c) {
       ...(naoProntos.length ? { notReadyAddresses: naoProntos.map(endereco) } : {}),
       ports: portas,
     }] : undefined;
+    fatiaDoServico(c, svc, naFatia, naFatia.length ? portas.map((p) => ({ name: '', ...p })) : null);
     const atual = c.obter('Endpoints', ns, svc.metadata.name);
     if (!atual) {
       c.criar({
         apiVersion: 'v1',
         kind: 'Endpoints',
-        metadata: { name: svc.metadata.name, namespace: ns, labels: { ...(svc.metadata.labels ?? {}), 'endpoints.kubernetes.io/managed-by': 'endpoint-controller' } },
+        metadata: { name: svc.metadata.name, namespace: ns, labels: { ...(svc.metadata.labels ?? {}), 'endpoints.kubernetes.io/managed-by': 'endpoint-controller', ...semIp(svc) } },
         ...(subsets ? { subsets } : {}),
       });
     } else if (c.jsonDe(atual, 'subsets') !== JSON.stringify(subsets)) {
@@ -1005,6 +1026,37 @@ function endpoints(c) {
   // Endpoints de Service que não existe mais.
   for (const ep of c.listar('Endpoints')) {
     if (ep.metadata.labels?.['endpoints.kubernetes.io/managed-by'] && !c.obter('Service', ep.metadata.namespace, ep.metadata.name)) c.finalizarRemocao(ep);
+  }
+}
+
+/**
+ * O EndpointSlice do Service, ao lado do Endpoints: o nome é o do Service com um sufixo (fixo, tirado do uid dele, para
+ * não gastar o sorteio), e quem está saindo continua lá, com terminating: true. Sem endereço, nem as portas ficam.
+ * ponytail: uma fatia só por Service; o real reparte de 100 em 100 endereços (e espelha o Endpoints feito à mão).
+ */
+function fatiaDoServico(c, svc, pods, ports) {
+  const ns = svc.metadata.namespace;
+  const endpoints = pods.length ? pods.map((p) => {
+    const saindo = !!p.metadata.deletionTimestamp;
+    const pronto = !!estaPronto(p);
+    return { addresses: [p.status.podIP], conditions: { ready: pronto && !saindo, serving: pronto, terminating: saindo }, nodeName: p.spec.nodeName, targetRef: { kind: 'Pod', name: p.metadata.name, namespace: ns, uid: p.metadata.uid } };
+  }) : null;
+  const labels = { ...(svc.metadata.labels ?? {}), 'endpointslice.kubernetes.io/managed-by': 'endpointslice-controller.k8s.io', 'kubernetes.io/service-name': svc.metadata.name, ...semIp(svc) };
+  const gatilho = { 'endpoints.kubernetes.io/last-change-trigger-time': iso(c.agora) };
+  const hash = uuidDe(`endpointslice/${svc.metadata.uid}`).replaceAll('-', '');
+  const nome = `${svc.metadata.name}-${Array.from({ length: 5 }, (_, i) => ALFABETO[parseInt(hash.slice(i * 2, i * 2 + 2), 16) % ALFABETO.length]).join('')}`;
+  const atual = c.obter('EndpointSlice', ns, nome);
+  if (!atual) {
+    c.criar({
+      apiVersion: 'discovery.k8s.io/v1', kind: 'EndpointSlice',
+      metadata: { name: nome, generateName: `${svc.metadata.name}-`, namespace: ns, labels, annotations: gatilho, ownerReferences: [dono(svc)] },
+      addressType: 'IPv4', endpoints, ports,
+    }, { uid: uuidDe(`endpointslice/${svc.metadata.uid}/uid`) });
+  } else if (c.jsonDe(atual, 'endpoints') !== JSON.stringify(endpoints) || c.jsonDe(atual, 'ports') !== JSON.stringify(ports) || JSON.stringify(atual.metadata.labels) !== JSON.stringify(labels)) {
+    Object.assign(atual, { endpoints, ports });
+    atual.metadata.labels = labels;
+    atual.metadata.annotations = { ...atual.metadata.annotations, ...gatilho };
+    c.salvar(atual, { spec: true });
   }
 }
 
