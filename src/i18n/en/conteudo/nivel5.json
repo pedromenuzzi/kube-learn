@@ -164,7 +164,10 @@
       {
         "descricao": "the measurement finishes and so does the Job",
         "msgs": {
-          "1": "the Job medicao finished successfully"
+          "1": "the Job medicao finished successfully",
+          "2": "enviador is in initContainers",
+          "3": "enviador has restartPolicy: Always (sidecar)",
+          "4": "enviador sent the report"
         }
       }
     ]

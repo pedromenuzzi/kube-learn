@@ -990,10 +990,13 @@ export const NIVEL11 = [
         enunciado: '<p>Disco do contêiner só leitura (<code>readOnlyRootFilesystem</code>) e um <code>emptyDir</code> em <code>/tmp</code>.</p>',
         dica: 'readOnlyRootFilesystem: true no securityContext do contêiner; volumes: [{ name: tmp, emptyDir: {} }] e o volumeMount em /tmp.',
         solucao: { 'cofre.yaml': cofre({ usuario: true, poderes: true, lacrado: true }) },
-        testes: [depois('só a mesa aceita escrita', [
-          { saida: 'Read-only file system', msg: 'escrever em / é recusado' },
-          { objeto: 'deployment/cofre', campo: 'spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', igual: true },
-        ], { mais: [{ comando: 'kubectl exec deploy/cofre -- touch /tmp/ok' }, { comando: 'kubectl exec deploy/cofre -- touch /x' }] })],
+        testes: [
+          depois('a mesa aceita escrita', [{ semErros: true, msg: 'escrever em /tmp funciona' }], { mais: [{ comando: 'kubectl exec deploy/cofre -- touch /tmp/ok' }] }),
+          depois('as paredes não aceitam', [
+            { saida: 'Read-only file system', msg: 'escrever em / é recusado' },
+            { objeto: 'deployment/cofre', campo: 'spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', igual: true },
+          ], { mais: [{ comando: 'kubectl exec deploy/cofre -- touch /x' }] }),
+        ],
       },
       {
         titulo: 'As normas do bloco',

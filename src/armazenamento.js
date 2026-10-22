@@ -1,5 +1,6 @@
 // Tudo o que o site guarda fica no localStorage deste navegador, com o prefixo kube-learn:.
 // O acesso pode falhar (janela anônima, dados bloqueados): o site continua funcionando sem guardar.
+import { hojeLocal } from './jogo/gamificacao.js';
 
 const PREFIXO = 'kube-learn:';
 
@@ -70,7 +71,7 @@ export function apagar(chave) {
 }
 
 /** Marca o item como resolvido (não desfaz) ou tentado. */
-export function registrarResultado(id, resolvido, hoje = new Date().toISOString().slice(0, 10)) {
+export function registrarResultado(id, resolvido, hoje = hojeLocal()) { // a data local (em UTC, depois das 21h no Brasil já era amanhã)
   const p = ler(CHAVES.progresso, {});
   if (p[id]?.status === 'resolvido') return p;
   p[id] = { status: resolvido ? 'resolvido' : 'tentado', em: hoje };

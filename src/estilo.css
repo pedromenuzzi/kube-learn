@@ -464,7 +464,8 @@ dialog.feedback .fb-estado:empty { display: none; }
 @keyframes festa-descer { from { opacity: 0; transform: translate(-50%, -1rem); } }
 
 /* o lacre carimbado e o navio carregado: um cartão no centro (não modal) */
-dialog.festa-cartao { position: fixed; inset: 0; z-index: 80; margin: auto; width: min(27rem, calc(100vw - 2rem)); height: max-content; max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.6rem 1.5rem 1.4rem; text-align: center; color: var(--texto); background: var(--superficie); border: 1px solid var(--borda-forte); border-radius: var(--raio-g); box-shadow: var(--sombra-3), 0 0 0 100vmax rgb(5 10 20 / 35%); animation: aparecer 220ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+dialog.festa-cartao { position: fixed; inset: 0; z-index: 80; margin: auto; width: min(27rem, calc(100vw - 2rem)); height: max-content; max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.6rem 1.5rem 1.4rem; text-align: center; color: var(--texto); background: var(--superficie); border: 1px solid var(--borda-forte); border-radius: var(--raio-g); box-shadow: var(--sombra-3); animation: aparecer 220ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+dialog.festa-cartao::backdrop { background: rgb(5 10 20 / 35%); }
 dialog.festa-cartao h2 { margin: 0.9rem 0 0.5rem; font-size: 1.25rem; }
 dialog.festa-cartao p { margin: 0; color: var(--suave); }
 dialog.festa-cartao .acoes { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.6rem 1rem; margin-top: 1.25rem; }
@@ -583,6 +584,7 @@ blockquote.relato footer::before { content: '— '; }
   .janelas > .coluna { flex-basis: auto !important; }
   .janela { flex-basis: auto !important; min-height: 24rem; margin-bottom: 0.75rem; }
   .divisor { display: none; }
+  .janela-topo { touch-action: auto; } /* empilhadas, as janelas não se arrastam: o dedo rola a página */
 }
 
 /* abas */
@@ -687,4 +689,4 @@ pre.eventos { margin: 0; font-size: 0.8rem; white-space: pre; font-family: var(-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
-:root[data-movimento="reduzido"] *, :root[data-movimento="reduzido"] *::before, :root[data-movimento="reduzido"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+:root[data-movimento="reduzido"], :root[data-movimento="reduzido"] *, :root[data-movimento="reduzido"] *::before, :root[data-movimento="reduzido"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

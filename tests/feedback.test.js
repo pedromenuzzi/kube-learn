@@ -27,7 +27,7 @@ describe('o feedback', () => {
     const u = new URL(linkDaIssue(missao, { reacao: 'Gostei', texto: 'Muito bom & claro' }));
     expect(u.origin + u.pathname).toBe('https://github.com/pedromenuzzi/kube-learn/issues/new');
     expect(u.searchParams.get('title')).toBe('[feedback] O ramal da loja: Gostei');
-    expect(u.searchParams.get('labels')).toBe('feedback');
-    expect(u.searchParams.get('body')).toContain('Muito bom & claro');
+    expect(u.searchParams.get('template')).toBe('feedback.yml'); // o formulário põe a etiqueta (para qualquer pessoa)
+    expect(u.searchParams.get('relato')).toContain('Muito bom & claro');
   });
 });

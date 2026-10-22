@@ -280,6 +280,9 @@ const COMANDOS = {
   nslookup: (args, ctx) => nslookup(args, ctx),
 };
 
+/** O host de uma URL que o separarUrl não aceitou ("http://" e "/healthz" não têm host). */
+const hostDaUrl = (url) => url.replace(/^[a-z]+:\/\//i, '').split('/')[0];
+
 function separarUrl(url) {
   const m = url.match(/^(?:(https?):\/\/)?([^/:]+)(?::(\d+))?(\/.*)?$/);
   if (!m) return null;
@@ -315,8 +318,13 @@ function curl(args, ctx) {
   }
   if (!url) return { saida: "curl: try 'curl --help' or 'curl --manual' for more information\n", codigo: 2 };
   const u = separarUrl(url);
-  const r = ctx.rede.http(u, { agente: ctx.agenteCurl ?? 'curl/7.88.1', metodo: soCabecalho ? 'HEAD' : 'GET', host });
   const falhar = (codigo, msg) => ({ saida: !silencioso || mostrarErro ? `curl: (${codigo}) ${msg}\n` : '', codigo });
+  if (!u) {
+    const h = hostDaUrl(url);
+    const curl8 = ctx.agenteCurl?.startsWith('curl/8'); // o curl 7.88 dos contêineres só tem a mensagem genérica
+    return falhar(3, curl8 && !h ? 'URL rejected: No host part in the URL' : curl8 && /:\d*\D/.test(h) ? 'URL rejected: Port number was not a decimal number between 0 and 65535' : 'URL using bad/illegal format or missing URL');
+  }
+  const r = ctx.rede.http(u, { agente: ctx.agenteCurl ?? 'curl/7.88.1', metodo: soCabecalho ? 'HEAD' : 'GET', host });
   if (r.erro === 'dns') return falhar(6, `Could not resolve host: ${u.host}`);
   if (r.erro === 'recusada') return falhar(7, `Failed to connect to ${u.host} port ${u.porta} after 1 ms: Couldn't connect to server`);
   if (r.erro === 'timeout') {
@@ -349,6 +357,7 @@ function wget(args, ctx) {
   }
   if (!url) return { saida: 'BusyBox v1.36.1 (2023-05-18 22:34:17 UTC) multi-call binary.\n\nUsage: wget [-cqS] [--spider] [-O FILE] [-o LOGFILE] [--header STR]\n', codigo: 1 };
   const u = separarUrl(url);
+  if (!u) return { saida: `wget: bad address '${hostDaUrl(url)}'\n`, codigo: 1 };
   const r = ctx.rede.http(u, { agente: 'Wget', metodo: 'GET' });
   if (r.erro === 'dns') return { saida: `wget: bad address '${u.host}'\n`, codigo: 1 };
   if (r.erro === 'recusada') return { saida: `wget: can't connect to remote host (${r.ip}): Connection refused\n`, codigo: 1 };

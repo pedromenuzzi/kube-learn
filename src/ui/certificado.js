@@ -76,12 +76,13 @@ export function paginaPrivacidade() {
       a.href = URL.createObjectURL(blob);
       a.download = 'kube-learn-meus-dados.json';
       a.click();
-      URL.revokeObjectURL(a.href);
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000); // depois que o download começou
       aviso.textContent = t('Arquivo baixado: kube-learn-meus-dados.json.');
     });
     main.querySelector('[data-apagar]').addEventListener('click', () => {
       if (!confirm(t('Apagar todo o seu progresso, arquivos e preferências deste navegador? Não dá para desfazer.'))) return;
       apagarTudo();
+      dispatchEvent(new Event('kube-learn:progresso')); // o placar do topo zera junto
       aviso.textContent = t('Pronto: tudo apagado. O navio voltou vazio para o porto.');
     });
     return {};

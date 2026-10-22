@@ -1,6 +1,6 @@
 // O editor de YAML (CodeMirror 6): recuo de 2 espaços, Tab recua (Esc e depois Tab sai do editor).
 import { EditorView, basicSetup } from 'codemirror';
-import { EditorState } from '@codemirror/state';
+import { EditorState, Prec } from '@codemirror/state';
 import { keymap } from '@codemirror/view';
 import { indentWithTab } from '@codemirror/commands';
 import { indentUnit, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
@@ -32,6 +32,8 @@ export function criarEditor(raiz, { texto, aoMudar, rotulo }) {
     indentUnit.of('  '),
     EditorState.tabSize.of(2),
     keymap.of([indentWithTab]),
+    // Ctrl+Enter é o atalho do Aplicar (e Ctrl+Shift+Enter, do Entregar): o editor não insere a linha em branco do padrão.
+    Prec.highest(keymap.of([{ key: 'Mod-Enter', run: () => true }, { key: 'Mod-Shift-Enter', run: () => true }])),
     EditorView.lineWrapping,
     EditorView.contentAttributes.of({ 'aria-label': nome }),
     EditorView.updateListener.of((u) => {

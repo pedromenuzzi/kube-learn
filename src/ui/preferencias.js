@@ -45,7 +45,7 @@ export function montarPreferencias(botao, aoMudar) {
   };
   form.addEventListener('change', (e) => {
     const p = { tema: form.tema.value, texto: form.texto.value, movimento: form.movimento.checked ? 'reduzido' : 'normal', som: form.som.checked ? 'ligado' : 'desligado' };
-    gravar(CHAVES.preferencias, p);
+    gravar(CHAVES.preferencias, { ...ler(CHAVES.preferencias, {}), ...p }); // sem apagar o idioma, que fica na mesma chave
     if (e.target.name === 'som' && form.som.checked) tocar('embarque'); // uma amostra do som
     aplicarPreferencias(p);
     aoMudar?.();

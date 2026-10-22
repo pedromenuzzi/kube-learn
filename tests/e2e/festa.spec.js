@@ -55,8 +55,8 @@ test('feedback: o diálogo monta a issue com a reação, o texto e os comandos',
   const url = new URL(await dialogo.getByRole('link', { name: 'Abrir no GitHub' }).getAttribute('href'));
   expect(url.origin + url.pathname).toBe('https://github.com/pedromenuzzi/kube-learn/issues/new');
   expect(url.searchParams.get('title')).toBe('[feedback] O ramal da loja: Achei um erro');
-  expect(url.searchParams.get('body')).toContain('targetPort como texto');
-  expect(url.searchParams.get('body')).toContain('kubectl get svc');
+  expect(url.searchParams.get('relato')).toContain('targetPort como texto');
+  expect(url.searchParams.get('relato')).toContain('kubectl get svc');
   await semViolacoes(page);
   await dialogo.getByRole('button', { name: 'Fechar' }).click();
   await expect(dialogo).toHaveCount(0);

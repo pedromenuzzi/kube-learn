@@ -456,7 +456,13 @@
     "limite": "/tmp is an emptyDir: whatever is there disappears when the pod goes away.",
     "testes": [
       {
-        "descricao": "only the workbench accepts writes",
+        "descricao": "the workbench accepts writes",
+        "msgs": {
+          "0": "writing to /tmp works"
+        }
+      },
+      {
+        "descricao": "the walls don’t",
         "msgs": {
           "0": "writing to / is refused"
         }

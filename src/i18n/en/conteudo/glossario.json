@@ -157,7 +157,7 @@
     "termo": "maxSurge and maxUnavailable",
     "definicao": "The limits of the gradual swap: how many extra pods can exist and how many can be unavailable during the swap.",
     "vidaReal": "How many extra temporary apartments can open / how many can be closed during the renovation.",
-    "limite": "With both at zero the swap would never move; that’s why Kubernetes forces maxUnavailable 1 in that case.",
+    "limite": "The API rejects both at zero: the swap would never move. If a percentage rounds down to zero (maxSurge: 0 and maxUnavailable: 10% of 3 pods), Kubernetes uses 1.",
     "exemplo": "maxSurge: 1 · maxUnavailable: 0"
   },
   "recreate": {
@@ -199,14 +199,14 @@
     "termo": "LoadBalancer",
     "definicao": "A Service that asks the cloud provider for a load balancer with an external IP.",
     "vidaReal": "The street-side front gate, with turnstiles that spread people out.",
-    "limite": "Outside the cloud (kind, minikube) the external IP stays <pending> without some extra help (MetalLB, cloud-provider-kind).",
+    "limite": "Outside the cloud (kind, minikube) the external IP stays <pending> without some extra help (MetalLB, cloud-provider-kind). Here the simulator plays that role, like cloud-provider-kind does, and the IP shows up.",
     "exemplo": "type: LoadBalancer"
   },
   "headless": {
     "termo": "Headless Service",
     "definicao": "A Service with no IP of its own (clusterIP: None): the DNS name returns the IP of each ready pod. It’s what gives each pod in a StatefulSet its name (db-0.db).",
     "vidaReal": "Instead of the main extension, a list with each clerk’s direct extension.",
-    "limite": "Without a Service IP there’s no rotation: the caller picks the pod (and has to deal with pods that come and go).",
+    "limite": "Without a Service IP, nobody picks a clerk at random: the caller picks the pod (and has to deal with pods that come and go).",
     "exemplo": "clusterIP: None"
   },
   "dns": {

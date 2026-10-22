@@ -295,6 +295,7 @@ function lerDocumentos(a, s, contexto) {
       s.adiar(r.erro);
       return [];
     }
+    if (!r.objetos.length && contexto !== 'delete') s.adiar(`error: no objects passed to ${contexto}`);
     return r.objetos.map((doc) => ({ arquivo: a.flags.kustomize, doc }));
   }
   if (!a.flags.filename?.length) {
@@ -307,14 +308,17 @@ function lerDocumentos(a, s, contexto) {
     return [];
   }
   const docs = [];
+  let erros = 0;
   for (const { arquivo, texto } of r.lista) {
     const y = lerYaml(texto, arquivo);
     if (y.erro) {
       s.adiar(y.erro);
+      erros++;
       continue;
     }
     for (const doc of y.docs) docs.push({ arquivo, doc });
   }
+  if (!docs.length && !erros && contexto !== 'delete') s.adiar(`error: no objects passed to ${contexto}`);
   return docs;
 }
 
@@ -704,7 +708,9 @@ function delete_(cluster, a, s) {
   const propagacao = { orphan: 'Orphan', foreground: 'Foreground', background: 'Background', true: 'Background', false: 'Orphan' }[f.cascade] ?? 'Background';
   const alvos = [];
   if (f.filename?.length) {
-    for (const item of lerDocumentos(a, s, 'delete')) {
+    const itens = lerDocumentos(a, s, 'delete');
+    if (!itens.length && !s.adiados?.length) s.out('No resources found\n');
+    for (const item of itens) {
       const p = prepararDoc(cluster, item, f, 'delete');
       if (typeof p === 'string') {
         s.adiar(p);
@@ -721,7 +727,7 @@ function delete_(cluster, a, s) {
     if (!a.posicionais.length) return s.adiar("error: You must provide one or more resources by argument or filename.\nExample resource specifications include:\n   '-f rsrc.yaml'\n   '--filename=rsrc.json'\n   '<resource> <name>'\n   '<resource>'");
     const sel = selecionar(cluster, a.posicionais, f, { exigirNome: true });
     alvos.push(...sel.grupos.flatMap((g) => g.objetos));
-    if (!alvos.length && !sel.nomeado && !sel.erros.length) s.err(semResultados(cluster, f));
+    if (!alvos.length && !sel.nomeado && !sel.erros.length) s.out('No resources found\n');
     for (const e of sel.erros) if (!f['ignore-not-found']) s.adiar(e);
   }
   const uids = [];

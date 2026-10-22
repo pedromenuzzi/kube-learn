@@ -970,6 +970,9 @@ export function validar(obj, antigo) {
       if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? {}, '`selector` does not match template `labels`'));
       validarPodSpec(s?.template?.spec, 'spec.template.spec', erros);
       if (s?.replicas < 0) erros.push(invalido('spec.replicas', s.replicas, 'must be greater than or equal to 0'));
+      const ru = obj.kind === 'Deployment' && (s?.strategy?.type ?? 'RollingUpdate') === 'RollingUpdate' ? s?.strategy?.rollingUpdate ?? {} : null;
+      const zero = (v) => parseInt(v ?? '25%', 10) === 0; // o padrão (25%) entra antes da validação no apiserver
+      if (ru && zero(ru.maxUnavailable) && zero(ru.maxSurge)) erros.push(invalido('spec.strategy.rollingUpdate.maxUnavailable', ru.maxUnavailable, 'may not be 0 when `maxSurge` is 0'));
       if (s?.template?.spec?.restartPolicy && s.template.spec.restartPolicy !== 'Always') {
         erros.push(`spec.template.spec.restartPolicy: Unsupported value: ${JSON.stringify(s.template.spec.restartPolicy)}: supported values: "Always"`);
       }

@@ -1,0 +1,2 @@
+Error: flag needs an argument: --set
+exit=1

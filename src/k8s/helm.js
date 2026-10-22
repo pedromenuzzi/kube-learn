@@ -79,7 +79,10 @@ function lerArgs(args) {
       pos.push(a);
       continue;
     }
-    if (COM_VALOR.has(a) && valor === null) valor = args[++i];
+    if (COM_VALOR.has(a) && valor === null) {
+      if (i + 1 >= args.length) return { flags, pos, erro: `flag needs an argument: ${a.startsWith('--') ? a : `'${a.slice(1)}' in ${a}`}` };
+      valor = args[++i];
+    }
     if (a === '-n' || a === '--namespace') flags.ns = valor;
     else if (a === '--set') flags.set.push(lerSet(valor));
     else if (a === '--set-string') flags.set.push(lerSet(valor, true));
@@ -214,12 +217,13 @@ export function helm(c, linha, { arquivos = {} } = {}) {
   };
   const args = palavras(linha).slice(1);
   const [sub, ...resto] = args;
-  const { flags, pos } = lerArgs(resto);
+  const { flags, pos, erro } = lerArgs(resto);
   const ns = flags.ns ?? c.contexto.namespace;
   const releases = estado(c).releases;
   const atual = (n, nsx = ns) => releases.get(chave(nsx, n))?.at(-1);
 
-  switch (sub) {
+  if (erro) falha(erro);
+  else switch (sub) {
     case 'version':
       out.push('version.BuildInfo{Version:"v4.3.1", GitCommit:"c0d08d0d6d9424d4a14febb5e8a3e51b0dd00dff", GitTreeState:"clean", GoVersion:"go1.27.2", KubeClientVersion:"v1.37"}\n');
       break;

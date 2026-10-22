@@ -1786,3 +1786,120 @@ cap describe-prefixo-barra kc describe cm/prefixo
 cap describe-prefixo-eventos kc describe cm prefixo --show-events=true
 cap describe-um-sem-eventos kc describe cm prefixo-a --show-events=false
 cap create-deploy-comando kc create deployment comando --image=busybox:1.36 --dry-run=client -o yaml -- sleep 3600
+
+# ---------- Consertos: rollingUpdate 0/0, arquivo sem objetos, URL sem host, --set sem valor, CronJob que sai do suspend e service/kubernetes ----------
+cat > /tmp/kl-surge-zero.yaml <<'Y'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: travado
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: travado
+  template:
+    metadata:
+      labels:
+        app: travado
+    spec:
+      containers:
+      - name: c
+        image: nginx:1.27
+Y
+cat > /tmp/kl-surge-zero-pct.yaml <<'Y'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: travado
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate:
+      maxSurge: 0%
+      maxUnavailable: 0%
+  selector:
+    matchLabels:
+      app: travado
+  template:
+    metadata:
+      labels:
+        app: travado
+    spec:
+      containers:
+      - name: c
+        image: nginx:1.27
+Y
+cat > /tmp/kl-vazio.yaml <<'Y'
+# ainda sem nada
+Y
+mkdir -p /tmp/k-vazio
+cat > /tmp/k-vazio/kustomization.yaml <<'Y'
+resources: []
+Y
+cat > /tmp/kl-atrasado.yaml <<'Y'
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: atrasado
+spec:
+  schedule: "* * * * *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: c
+            image: busybox:1.36
+            command: ["sleep", "40"]
+Y
+cat > /tmp/kl-atrasado-volta.yaml <<'Y'
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: atrasado
+spec:
+  schedule: "* * * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: c
+            image: busybox:1.36
+            command: ["sleep", "40"]
+Y
+cap apply-surge-zero kc apply -f /tmp/kl-surge-zero.yaml
+cap apply-surge-zero-pct kc apply -f /tmp/kl-surge-zero-pct.yaml
+cap apply-vazio kc apply -f /tmp/kl-vazio.yaml
+cap create-vazio kc create -f /tmp/kl-vazio.yaml
+cap delete-vazio kc delete -f /tmp/kl-vazio.yaml
+cap apply-k-vazio kc apply -k /tmp/k-vazio
+cap helm-set-sem-valor ${HELM:-helm} install x /tmp/charts/loja --set
+kc run sem-host --image=nginx:1.27 >/dev/null 2>&1
+kc run sem-host-bb --image=busybox:1.36 -- sleep 3600 >/dev/null 2>&1
+kc wait --for=condition=Ready pod/sem-host pod/sem-host-bb --timeout=180s >/dev/null 2>&1
+cap exec-curl-sem-host kc exec sem-host -- curl http://
+cap exec-curl-barra kc exec sem-host -- curl /healthz
+cap exec-wget-sem-host kc exec sem-host-bb -- wget http://
+cap exec-wget-barra kc exec sem-host-bb -- wget /healthz
+cap apply-atrasado kc apply -f /tmp/kl-atrasado.yaml
+sleep 130
+cap get-atrasado-suspenso kc get cronjob atrasado
+cap apply-atrasado-volta kc apply -f /tmp/kl-atrasado-volta.yaml
+sleep 5
+cap get-atrasado kc get cronjob atrasado
+cap delete-svc-kubernetes kc delete svc kubernetes
+sleep 15
+cap get-svc-kubernetes kc get svc kubernetes
+cap delete-label-nenhum kc delete pods -l nada=1

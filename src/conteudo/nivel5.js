@@ -420,8 +420,14 @@ spec:
     solucao: { 'medicao.yaml': jobComSidecar(true) },
     testes: [{
       descricao: 'a medição termina e o Job também',
-      passos: [{ comando: 'kubectl apply -f .' }, { avancar: '40s' }],
-      regras: [{ semErros: true }, terminou('medicao')],
+      passos: [{ comando: 'kubectl apply -f .' }, { avancar: '40s' }, { comando: 'kubectl logs job/medicao -c enviador' }],
+      regras: [
+        { semErros: true },
+        terminou('medicao'),
+        { objeto: 'job/medicao', campo: 'spec.template.spec.initContainers[0].name', igual: 'enviador', msg: 'o enviador está nos initContainers' },
+        { objeto: 'job/medicao', campo: 'spec.template.spec.initContainers[0].restartPolicy', igual: 'Always', msg: 'o enviador tem restartPolicy: Always (sidecar)' },
+        { saida: 'enviando o relatorio', msg: 'o enviador mandou o relatório' },
+      ],
     }],
   }),
 ];

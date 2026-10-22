@@ -579,5 +579,31 @@ export function rodarCenario() {
   cap('describe-prefixo-eventos', 'kubectl describe cm prefixo --show-events=true');
   cap('describe-um-sem-eventos', 'kubectl describe cm prefixo-a --show-events=false');
   cap('create-deploy-comando', 'kubectl create deployment comando --image=busybox:1.36 --dry-run=client -o yaml -- sleep 3600');
+
+  // Consertos: rollingUpdate 0/0, arquivo sem objetos, URL sem host, --set sem valor, CronJob que sai do suspend e service/kubernetes
+  cap('apply-surge-zero', 'kubectl apply -f /tmp/kl-surge-zero.yaml');
+  cap('apply-surge-zero-pct', 'kubectl apply -f /tmp/kl-surge-zero-pct.yaml');
+  cap('apply-vazio', 'kubectl apply -f /tmp/kl-vazio.yaml');
+  cap('create-vazio', 'kubectl create -f /tmp/kl-vazio.yaml');
+  cap('delete-vazio', 'kubectl delete -f /tmp/kl-vazio.yaml');
+  cap('apply-k-vazio', 'kubectl apply -k /tmp/k-vazio');
+  cap('helm-set-sem-valor', 'helm install x /tmp/charts/loja --set');
+  k('kubectl run sem-host --image=nginx:1.27');
+  k('kubectl run sem-host-bb --image=busybox:1.36 -- sleep 3600');
+  c.avancarAte(() => podPronto('sem-host')() && podPronto('sem-host-bb')(), '3m');
+  cap('exec-curl-sem-host', 'kubectl exec sem-host -- curl http://');
+  cap('exec-curl-barra', 'kubectl exec sem-host -- curl /healthz');
+  cap('exec-wget-sem-host', 'kubectl exec sem-host-bb -- wget http://');
+  cap('exec-wget-barra', 'kubectl exec sem-host-bb -- wget /healthz');
+  cap('apply-atrasado', 'kubectl apply -f /tmp/kl-atrasado.yaml');
+  c.avancar('130s');
+  cap('get-atrasado-suspenso', 'kubectl get cronjob atrasado');
+  cap('apply-atrasado-volta', 'kubectl apply -f /tmp/kl-atrasado-volta.yaml');
+  c.avancar('5s');
+  cap('get-atrasado', 'kubectl get cronjob atrasado');
+  cap('delete-svc-kubernetes', 'kubectl delete svc kubernetes');
+  c.avancar('15s');
+  cap('get-svc-kubernetes', 'kubectl get svc kubernetes');
+  cap('delete-label-nenhum', 'kubectl delete pods -l nada=1');
   return { saidas, cluster: c };
 }

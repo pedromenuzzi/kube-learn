@@ -1,0 +1,2 @@
+error: no objects passed to create
+exit=1

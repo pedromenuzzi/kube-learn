@@ -593,7 +593,7 @@ export const NIVEL9 = [
     relato: 'A coleta de lixo era para passar todo minuto. Não passou nenhuma vez esta semana.',
     tarefa: '<p>O CronJob <code>limpeza</code> nunca criou um Job. Descubra o motivo e faça a coleta voltar.</p>',
     vidaReal: 'Alguém pendurou a placa "coleta suspensa" na reforma da semana passada e ninguém tirou.',
-    limite: 'Ao voltar, a coleta não passa pelas vezes que perdeu: segue do próximo horário em diante.',
+    limite: 'Ao voltar, a coleta não repõe cada vez que perdeu: passa uma vez na hora (pela última perdida, se ainda estiver dentro do startingDeadlineSeconds) e segue o horário.',
     dica: 'kubectl get cronjob limpeza (a coluna SUSPEND). Mude suspend para false e aplique.',
     arquivos: { 'limpeza.yaml': limpeza(true) },
     correcao: { 'limpeza.yaml': limpeza(false) },

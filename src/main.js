@@ -41,17 +41,42 @@ const PAGINAS = {
   '/privacidade': paginaPrivacidade,
 };
 
+/**
+ * Depois de um deploy, os arquivos antigos (com o hash no nome) somem do servidor: a aba aberta recarrega uma vez, em vez
+ * de ficar em "Montando o cluster…" para sempre. A marca na sessão evita recarregar em loop.
+ */
+function recarregarUmaVez() {
+  try {
+    if (Date.now() - Number(sessionStorage.getItem('kube-learn:recarregou') ?? 0) < 60_000) return;
+    sessionStorage.setItem('kube-learn:recarregou', String(Date.now()));
+  } catch { /* sem sessionStorage: recarrega mesmo assim */ }
+  location.reload();
+}
+window.addEventListener('vite:preloadError', (e) => {
+  e.preventDefault();
+  recarregarUmaVez();
+});
+
+let paginaAtual = null;
+let geracao = 0; // cada desenho é uma geração: o que chega atrasado de uma geração velha não entra na tela
+let primeiroDesenho = true;
+
 // A tela do exercício (com o editor e o simulador) só é baixada quando alguém abre uma missão.
 // `opcoes.manter`: a mesma missão de novo (troca de idioma), com o cluster como estava.
 const montarTela = (main, item, opcoes) => {
+  const minha = geracao;
   main.innerHTML = `<p class="nota carregando" role="status">${t('Montando o cluster…')}</p>`;
-  return import('./ui/exercicio.js').then((m) => m.montarExercicio(main, item, opcoes));
+  return import('./ui/exercicio.js').then(
+    (m) => (minha === geracao ? m.montarExercicio(main, item, opcoes) : null), // o aluno já saiu para outra página
+    recarregarUmaVez,
+  );
 };
-
-let paginaAtual = null;
 
 function desenhar(opcoes = {}) {
   const main = document.getElementById('conteudo');
+  geracao += 1;
+  // Página nova começa no topo (a trilha rola até o nível atual depois); a troca de idioma fica onde está.
+  if (!opcoes.manter && !primeiroDesenho) window.scrollTo({ top: 0, behavior: 'instant' });
   Promise.resolve(paginaAtual).then((p) => p?.destruir?.());
   paginaAtual = null;
   const rota = resolverRota(location.hash);
@@ -71,8 +96,10 @@ function desenhar(opcoes = {}) {
   main.classList.remove('entrando');
   void main.offsetWidth;
   main.classList.add('entrando');
-  // Ao trocar de página, o foco vai para o conteúdo (o leitor de tela anuncia o novo título).
-  if (document.activeElement !== document.body) main.focus();
+  // Ao trocar de página, o foco vai para o conteúdo (o leitor de tela anuncia o novo título). Na primeira, não: quem
+  // chega pelo link fica no começo da página, com o "pular para o conteúdo".
+  if (!primeiroDesenho) main.focus({ preventScroll: true });
+  primeiroDesenho = false;
 }
 
 // O topo, o rodapé e o diálogo das preferências (montados de novo quando o idioma muda).
@@ -91,7 +118,12 @@ function montarMoldura() {
 topo.addEventListener('click', async (e) => {
   const novo = e.target.closest('[data-idioma]')?.dataset.idioma;
   if (!novo || novo === idioma()) return;
-  await definirIdioma(novo);
+  try {
+    await definirIdioma(novo);
+  } catch {
+    recarregarUmaVez(); // o pacote do inglês sumiu num deploy
+    return;
+  }
   montarMoldura();
   desenhar({ manter: true });
   topo.querySelector(`[data-idioma="${novo}"]`)?.focus();
@@ -100,7 +132,7 @@ topo.addEventListener('click', async (e) => {
 function iniciar() {
   montarMoldura();
   window.addEventListener('hashchange', () => desenhar());
-  (window.requestIdleCallback ?? setTimeout)(() => import('./ui/exercicio.js'));
+  (window.requestIdleCallback ?? setTimeout)(() => import('./ui/exercicio.js').catch(() => {})); // só adianta: se falhar, a missão tenta de novo
   window.addEventListener('kube-learn:progresso', () => atualizarTopo(resolverRota(location.hash)?.caminho));
   desenhar();
 }

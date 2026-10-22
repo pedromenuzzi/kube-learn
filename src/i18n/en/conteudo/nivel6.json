@@ -55,7 +55,10 @@
     "comoSaber": "<code>kubectl get pods</code>: <code>1/1 Running</code>, with 0 restarts.",
     "testes": [
       {
-        "descricao": "loja starts without restarting"
+        "descricao": "loja starts without restarting",
+        "msgs": {
+          "3": "the livenessProbe is unchanged"
+        }
       }
     ]
   },
@@ -63,7 +66,7 @@
     "titulo": "The wrong question",
     "enunciado": "\n      <p>The loja pods are <code>Running</code>, but <code>0/1</code>, and the <code>loja</code> Service has no endpoints.\n         Find the reason in the Events (<code>kubectl describe pod NAME</code>) and fix it. loja reports its health on\n         <code>/healthz</code>.</p>",
     "dica": "The readinessProbe asks on a path loja doesn’t know (404).",
-    "vidaReal": "To find out whether the shop has opened, the building manager asks “is the meeting room free?”: the answer is always “no idea”, and the shop never opens.",
+    "vidaReal": "To find out whether the store has opened, the building manager asks “is the meeting room free?”: the answer is always “no idea”, and the store never opens.",
     "limite": "A wrong readiness probe doesn’t take anything down: it just quietly keeps the pod out of the Service, which sometimes takes a while for anyone to notice.",
     "testes": [
       {
@@ -75,8 +78,8 @@
     "titulo": "Too much power",
     "enunciado": "\n      <p>One of the 3 loja pods is <code>Pending</code>. Check the reason (<code>kubectl describe pod NAME</code>, under Events) and\n         how much loja really uses (<code>kubectl top pods</code>). Adjust the request so all 3 fit.</p>",
     "dica": "resources.requests.cpu: 1500m is too much. loja uses just a few millicores; 250m is plenty.",
-    "vidaReal": "Each shop asked for 1.5 kW of contracted power, but each building only has 2 kW: the third shop doesn’t fit anywhere.",
-    "limite": "The request isn’t what the program uses: it’s what gets reserved. The shop uses far less, and the reservation still takes up the space.",
+    "vidaReal": "Each store asked for 1.5 kW of contracted power, but each building only has 2 kW: the third store doesn’t fit anywhere.",
+    "limite": "The request isn’t what the program uses: it’s what gets reserved. The store uses far less, and the reservation still takes up the space.",
     "comoSaber": "<code>kubectl get pods</code>: 3 pods <code>Running</code>.",
     "testes": [
       {
@@ -161,7 +164,7 @@
     "enunciado": "\n      <p>In the <code>vendas</code> namespace, the <code>loja</code> Deployment can’t create any pods. Find the reason\n         (<code>kubectl describe rs -n vendas</code>, under Events, and <code>kubectl describe quota -n vendas</code>) and fix\n         the Deployment so it fits within the quota.</p>",
     "dica": "The quota has requests.cpu and limits.memory: every container must declare both. Each loja pod can ask for 250m of CPU and a 256Mi memory limit.",
     "vidaReal": "The condo gave the Vendas (Sales) company a power quota and requires every appliance to come with an energy label. An appliance without a label doesn’t get in.",
-    "limite": "The quota adds up what’s declared, not what’s used: an exaggerated request takes up quota even with the shop idle.",
+    "limite": "The quota adds up what’s declared, not what’s used: an exaggerated request takes up quota even with the store idle.",
     "comoSaber": "<code>kubectl get pods -n vendas</code>: 2 pods <code>Running</code>.",
     "testes": [
       {

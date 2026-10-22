@@ -22,7 +22,7 @@
     "enunciado": "\n      <p>The loja app has 3 pods, but nobody knows where to call. Create a <b>Service</b> named <code>loja</code> that receives on\n         port <code>80</code> and delivers to port <code>8080</code> of the pods with the label <code>app: loja</code>.</p>",
     "dica": "spec.selector (the labels) and spec.ports: port and targetPort.",
     "vidaReal": "Giving loja a fixed extension that rings any of the clerks.",
-    "limite": "The extension doesn’t know whether a clerk is busy: it just spreads the calls around (round-robin).",
+    "limite": "The extension doesn’t know whether a clerk is busy: it just spreads the calls around, picking a clerk at random for each one (not round-robin: one clerk may get two in a row).",
     "comoSaber": "<code>kubectl get endpoints loja</code> shows 3 addresses.",
     "testes": [
       {
@@ -169,10 +169,10 @@
   },
   "n3-headless": {
     "titulo": "The apartments by name",
-    "enunciado": "\n      <p>The 3 replicas of the <code>banco</code> database (Redis, port 6379) need to find each other <b>one by one</b>, without round-robin. Create a\n         <b>headless</b> Service named <code>banco</code>: with no IP of its own, the DNS returns each pod’s IP.</p>\n      <p>Check from a test pod: <code>kubectl run t --image=busybox:1.36 -- sleep 3600</code> and then\n         <code>kubectl exec t -- nslookup banco</code>.</p>",
+    "enunciado": "\n      <p>The 3 replicas of the <code>banco</code> database (Redis, port 6379) need to find each other <b>one by one</b>, not at random. Create a\n         <b>headless</b> Service named <code>banco</code>: with no IP of its own, the DNS returns each pod’s IP.</p>\n      <p>Check from a test pod: <code>kubectl run t --image=busybox:1.36 -- sleep 3600</code> and then\n         <code>kubectl exec t -- nslookup banco</code>.</p>",
     "dica": "spec.clusterIP: None",
     "vidaReal": "Instead of an extension that spreads the calls around, a list with each apartment’s number: whoever calls picks who to talk to.",
-    "limite": "Without the extension’s round-robin, the caller has to know how to choose (that’s the case for databases with replicas and for StatefulSets, in level 4).",
+    "limite": "Without the extension picking the clerk, the caller has to know how to choose (that’s the case for databases with replicas and for StatefulSets, in level 4).",
     "testes": [
       {
         "descricao": "kubectl apply -f ."
