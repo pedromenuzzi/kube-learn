@@ -1,0 +1,2 @@
+error: rule foo.com=web:80 is invalid and should be in format host/path=svcname:svcport[,tls[=secret]]
+exit=1

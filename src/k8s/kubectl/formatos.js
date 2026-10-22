@@ -55,7 +55,7 @@ function analisarTemplate(t) {
 }
 
 /** Avalia um caminho (.a.b[0].c, .items[*], [?(@.type=="Ready")]) e devolve a lista de resultados. */
-function avaliar(caminho, raiz, atual) {
+export function avaliar(caminho, raiz, atual) {
   let valores = [caminho.startsWith('$') ? raiz : atual];
   const resto = caminho.replace(/^[$@]/, '');
   const re = /\.\.|\.([\w-]+|\*)|\[([^\]]*)\]|\.?'([^']*)'/g;

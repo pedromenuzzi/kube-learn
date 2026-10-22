@@ -1,0 +1,3 @@
+NAME   SCHEDULE    TIMEZONE            SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+fuso   0 3 1 1 *   America/Sao_Paulo   False     0        <none>          2s
+exit=0

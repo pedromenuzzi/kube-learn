@@ -1,0 +1,4 @@
+The Deployment "web" is invalid: 
+* spec.template.metadata.labels: Invalid value: {"app":"web"}: `selector` does not match template `labels`
+* spec.selector: Invalid value: {"matchLabels":{"app":"outro"}}: field is immutable
+exit=1

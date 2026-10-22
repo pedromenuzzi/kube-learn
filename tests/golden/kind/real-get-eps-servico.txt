@@ -1,0 +1,3 @@
+NAME            ADDRESSTYPE   PORTS   ENDPOINTS                 AGE
+vitrine-zx8h6   IPv4          80      10.244.1.10,10.244.3.16   8s
+exit=0

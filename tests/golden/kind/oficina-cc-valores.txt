@@ -1,0 +1,3 @@
+ARGS           R     READY
+[sleep 3600]   0     true
+exit=0

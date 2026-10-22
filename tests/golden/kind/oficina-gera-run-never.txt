@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: p3
+  name: p3
+  namespace: oficina
+spec:
+  containers:
+  - args:
+    - echo
+    - oi
+    image: busybox:1.36
+    name: p3
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Never
+status: {}
+exit=0

@@ -1,0 +1,1 @@
+{"waiting":{"message":"Container image \"busybox:1.34\" is not present with pull policy of Never","reason":"ErrImageNeverPull"}}exit=0

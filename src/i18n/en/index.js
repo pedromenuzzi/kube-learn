@@ -14,6 +14,7 @@ import nivel10 from './conteudo/nivel10.json';
 import nivel11 from './conteudo/nivel11.json';
 import troubleshooting from './conteudo/troubleshooting.json';
 import quizzes from './conteudo/quizzes.json';
+import oficina from './conteudo/oficina.json';
 import glossario from './conteudo/glossario.json';
 import { REGRAS, STATUS } from './explicacoes.js';
 import uiExercicio from './ui-exercicio.js';
@@ -21,7 +22,7 @@ import uiPaginas from './ui-paginas.js';
 import uiEngajamento from './ui-engajamento.js';
 
 export const itens = {
-  ...nivel0, ...nivel1, ...nivel2, ...nivel3, ...nivel4, ...nivel5, ...nivel6, ...nivel7, ...nivel8, ...nivel9, ...nivel10, ...nivel11, ...troubleshooting, ...quizzes,
+  ...nivel0, ...nivel1, ...nivel2, ...nivel3, ...nivel4, ...nivel5, ...nivel6, ...nivel7, ...nivel8, ...nivel9, ...nivel10, ...nivel11, ...troubleshooting, ...quizzes, ...oficina,
   livre: { titulo: 'Free playground', enunciado: '<p>A cluster all to yourself, with 1 control plane and 2 workers. Write YAML, apply it and explore with <code>kubectl</code>. Nothing here is graded.</p>' },
 };
 export { glossario };

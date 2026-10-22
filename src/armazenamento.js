@@ -13,6 +13,7 @@ export const CHAVES = {
   preferencias: 'preferencias', // { tema, texto, movimento, som, idioma }
   revisao: 'revisao', // { [idDoTermo]: { caixa, proxima } }: os cartões da revisão do dia
   nome: 'nome', // o nome que vai no certificado (só se você escrever)
+  recordes: 'recordes', // { [idDoExercicio]: ms }: o menor tempo de cada exercício da Oficina do kubectl
 };
 
 /** O que cada chave guarda, em português (a página de privacidade mostra esta lista). */
@@ -24,6 +25,7 @@ export const DESCRICOES = {
   preferencias: 'Tema, tamanho do texto, reduzir movimento, efeitos sonoros e idioma.',
   revisao: 'Em que caixa está cada cartão da revisão e quando ele volta.',
   nome: 'O nome que você escreveu para o certificado.',
+  recordes: 'O seu menor tempo em cada exercício da Oficina do kubectl.',
 };
 
 /** Todas as chaves do site neste navegador. */

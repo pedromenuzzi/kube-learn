@@ -1,0 +1,26 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: guarda6
+  namespace: oficina
+spec:
+  minAvailable: 1
+  selector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values:
+      - a
+      - b
+    - key: w
+      operator: Exists
+    - key: z
+      operator: DoesNotExist
+    matchLabels:
+      tier: x
+status:
+  currentHealthy: 0
+  desiredHealthy: 0
+  disruptionsAllowed: 0
+  expectedPods: 0
+exit=0

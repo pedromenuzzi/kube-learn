@@ -1,0 +1,2 @@
+error: couldn't find any field with path "{.spec.nada}" in the list of objects
+exit=1

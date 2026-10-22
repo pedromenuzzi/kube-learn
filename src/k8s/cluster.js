@@ -76,6 +76,7 @@ export class Cluster {
     this.esquemasExtras = {};
     this.crdsApagados = [];
     this.avisos = []; // avisos da API para o kubectl mostrar ("Warning: would violate PodSecurity...")
+    this.enforceDosNs = new Map(); // namespace → o nível de PodSecurity enforce da última versão guardada ("restricted:latest")
     this.nodesCaidos = new Map(); // nome do node → quando o kubelet dele parou (o prédio ficou sem luz)
     this.ipsServico = new Set(['10.96.0.1', '10.96.0.10']);
     this.proximoIp = new Map();
@@ -175,7 +176,7 @@ export class Cluster {
     obj.metadata = {
       ...m,
       creationTimestamp: iso(this.agora),
-      ...(['Pod', 'Deployment', 'ReplicaSet', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'HorizontalPodAutoscaler', 'PodDisruptionBudget', 'CustomResourceDefinition'].includes(obj.kind) || r.crd ? { generation: 1 } : {}),
+      ...(['Pod', 'Deployment', 'ReplicaSet', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'HorizontalPodAutoscaler', 'PodDisruptionBudget', 'CustomResourceDefinition', 'EndpointSlice'].includes(obj.kind) || r.crd ? { generation: 1 } : {}),
       resourceVersion: String(++this.rv),
       uid: uid ?? this.aleatorio.uuid(),
     };
@@ -188,7 +189,10 @@ export class Cluster {
     this.registrar('ADDED', obj);
     if (['PersistentVolumeClaim', 'PersistentVolume', 'StorageClass'].includes(obj.kind)) this.mudancasDeCapacidade++; // o scheduler tenta de novo quem esperava disco
     if (['ResourceQuota', 'LimitRange'].includes(obj.kind)) this.esperaCriacao.clear(); // cota nova: os controladores tentam criar de novo já
-    if (obj.kind === 'Namespace') this.criar(contaPadrao(obj.metadata.name), { uid: uidDaConta(obj.metadata.name, 'default') });
+    if (obj.kind === 'Namespace') {
+      this.conferirPodsDoNamespace(obj);
+      this.criar(contaPadrao(obj.metadata.name), { uid: uidDaConta(obj.metadata.name, 'default') });
+    }
     if (obj.kind === 'CustomResourceDefinition') registrarCrd(this, obj);
     return obj;
   }
@@ -202,10 +206,12 @@ export class Cluster {
       const s = obj.spec;
       // ServiceAccount: o "crachá" do pod precisa existir no namespace.
       const conta = s.serviceAccountName ?? 'default';
-      if (!this.obter('ServiceAccount', obj.metadata.namespace, conta)) {
+      const contaObj = this.obter('ServiceAccount', obj.metadata.namespace, conta);
+      if (!contaObj) {
         throw new ErroApi('Forbidden', `pods "${obj.metadata.name}" is forbidden: error looking up service account ${obj.metadata.namespace}/${conta}: serviceaccount "${conta}" not found`);
       }
-      if (s.automountServiceAccountToken !== false && !s.hostNetwork) {
+      // O token é montado se o pod não disser nada e a conta também não (o campo do pod vence o da conta).
+      if ((s.automountServiceAccountToken ?? contaObj.automountServiceAccountToken ?? true) && !s.hostNetwork) {
         const nome = `kube-api-access-${this.aleatorio.sufixo(5)}`;
         s.volumes = [...(s.volumes ?? []), {
           name: nome,
@@ -294,6 +300,33 @@ export class Cluster {
     if (spec && obj.metadata.generation !== undefined) obj.metadata.generation += 1;
     this.registrar('MODIFIED', obj);
     if (obj.kind === 'Node') this.mudancasDeCapacidade++; // label, taint ou cordon: o scheduler tenta de novo
+    if (obj.kind === 'Namespace') this.conferirPodsDoNamespace(obj);
+  }
+
+  /**
+   * O rótulo pod-security.kubernetes.io/enforce mudou para um nível mais que privileged: os pods que já estão no
+   * namespace continuam rodando, mas a API avisa quem violaria a norma nova (os pods com os mesmos problemas numa
+   * linha só, pelo menor nome), como o PodSecurity admission.
+   */
+  conferirPodsDoNamespace(ns) {
+    const nome = ns.metadata.name;
+    const enforce = normasDe(this, nome).enforce ?? { nivel: 'privileged', versao: 'latest' };
+    const nivel = `${enforce.nivel}:${enforce.versao}`;
+    const antes = this.enforceDosNs.get(nome);
+    this.enforceDosNs.set(nome, nivel);
+    if (antes === undefined || antes === nivel || enforce.nivel === 'privileged') return;
+    const porProblema = new Map(); // "allowPrivilegeEscalation != false, ..." → { pod (o menor nome), n }
+    for (const pod of this.listar('Pod', nome)) {
+      const lista = violacoes(pod.spec, enforce.nivel);
+      if (!lista.length) continue;
+      const problema = lista.map((v) => v.split(' (')[0]).join(', ');
+      const p = porProblema.get(problema);
+      if (!p) porProblema.set(problema, { pod: pod.metadata.name, n: 1 });
+      else p.n++;
+    }
+    if (!porProblema.size) return;
+    this.avisos.push(`existing pods in namespace "${nome}" violate the new PodSecurity enforce level "${nivel}"`);
+    for (const [problema, { pod, n }] of porProblema) this.avisos.push(`${pod}${n > 1 ? ` (and ${n - 1} other pod${n > 2 ? 's' : ''})` : ''}: ${problema}`);
   }
 
   /** O JSON de um campo (status, data...) de um objeto guardado, anotado até o campo ser trocado ou o objeto mudar de versão. */
@@ -615,6 +648,11 @@ export class Cluster {
       metadata: { name: 'kubernetes', namespace: 'default', labels: { 'endpointslice.kubernetes.io/skip-mirror': 'true' } },
       subsets: [{ addresses: [{ ip: this.ipDoNode(cp) }], ports: [{ name: 'https', port: 6443, protocol: 'TCP' }] }],
     });
+    this.criar({ // o do apiserver: sem dono nem controlador (quem cuida é o próprio apiserver)
+      apiVersion: 'discovery.k8s.io/v1', kind: 'EndpointSlice',
+      metadata: { name: 'kubernetes', namespace: 'default', labels: { 'kubernetes.io/service-name': 'kubernetes' } },
+      addressType: 'IPv4', endpoints: [{ addresses: [this.ipDoNode(cp)], conditions: { ready: true } }], ports: [{ name: 'https', port: 6443, protocol: 'TCP' }],
+    }, { uid: uuidDe('endpointslice/default/kubernetes') });
     this.criar({
       apiVersion: 'v1', kind: 'Service',
       metadata: { name: 'kube-dns', namespace: 'kube-system', labels: { 'k8s-app': 'kube-dns', 'kubernetes.io/cluster-service': 'true', 'kubernetes.io/name': 'CoreDNS' } },

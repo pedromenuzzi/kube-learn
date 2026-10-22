@@ -404,6 +404,36 @@ const DESCRITORES = {
     escreverEventos(w, ctx.eventos, ctx.agora);
   },
 
+  EndpointSlice(w, e, ctx) {
+    const ou = (v) => (v === undefined || v === null || v === '' ? '<unset>' : String(v));
+    w.w(0, `Name:\t${e.metadata.name}\n`);
+    w.w(0, `Namespace:\t${e.metadata.namespace}\n`);
+    labels(w, 'Labels', e.metadata.labels);
+    anotacoes(w, 'Annotations', e.metadata.annotations);
+    w.w(0, `AddressType:\t${e.addressType}\n`);
+    if (!e.ports?.length) w.w(0, 'Ports: <unset>\n');
+    else {
+      w.w(0, 'Ports:\n');
+      w.w(1, 'Name\tPort\tProtocol\n');
+      w.w(1, '----\t----\t--------\n');
+      for (const p of e.ports) w.w(1, `${ou(p.name)}\t${ou(p.port)}\t${p.protocol}\n`);
+    }
+    if (!e.endpoints?.length) w.w(0, 'Endpoints: <none>\n');
+    else {
+      w.w(0, 'Endpoints:\n');
+      for (const x of e.endpoints) {
+        w.w(1, `- Addresses:\t${(x.addresses ?? []).join(', ') || '<none>'}\n`);
+        w.w(2, 'Conditions:\n');
+        w.w(3, `Ready:\t${ou(x.conditions?.ready)}\n`);
+        w.w(2, `Hostname:\t${ou(x.hostname)}\n`);
+        if (x.targetRef) w.w(2, `TargetRef:\t${x.targetRef.kind}/${x.targetRef.name}\n`);
+        w.w(2, `NodeName:\t${ou(x.nodeName)}\n`);
+        w.w(2, `Zone:\t${ou(x.zone)}\n`);
+      }
+    }
+    escreverEventos(w, ctx.eventos, ctx.agora);
+  },
+
   Namespace(w, n, ctx) {
     w.w(0, `Name:\t${n.metadata.name}\n`);
     labels(w, 'Labels', n.metadata.labels);

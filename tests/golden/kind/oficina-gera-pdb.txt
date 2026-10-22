@@ -1,0 +1,16 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: guarda
+  namespace: oficina
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: web
+status:
+  currentHealthy: 0
+  desiredHealthy: 0
+  disruptionsAllowed: 0
+  expectedPods: 0
+exit=0

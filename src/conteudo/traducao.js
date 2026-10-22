@@ -1,7 +1,7 @@
 // A troca de idioma do conteúdo: o texto de cada missão, termo do glossário e nível é trocado no lugar, nos próprios
 // objetos (o português fica guardado em `_pt` para voltar). O formato de textosDoItem é o dos arquivos de tradução
 // (src/i18n/en/conteudo/*.json), e scripts/textos.mjs o exporta para quem for traduzir.
-import { ITENS, NIVEIS, PLAYGROUND, TROUBLESHOOTING } from './index.js';
+import { ITENS, NIVEIS, OFICINA, PLAYGROUND, TROUBLESHOOTING } from './index.js';
 import { GLOSSARIO } from './glossario.js';
 
 const CAMPOS = ['titulo', 'enunciado', 'dica', 'vidaReal', 'limite', 'comoSaber', 'explicacao', 'dicaErro', 'rotuloResposta', 'relato', 'morador'];
@@ -44,7 +44,7 @@ function mesclar(pt, en) {
 
 /** `en`: o pacote src/i18n/en/index.js, ou null para voltar ao português. */
 export function trocarConteudo(en) {
-  const itens = [...ITENS, ...TROUBLESHOOTING, PLAYGROUND];
+  const itens = [...ITENS, ...TROUBLESHOOTING, ...OFICINA, PLAYGROUND];
   // O português de todos antes de trocar qualquer um: há regras de teste (com a mensagem) compartilhadas entre missões.
   for (const item of itens) item._pt ??= textosDoItem(item);
   for (const item of itens) aplicarTextos(item, en ? mesclar(item._pt, en.itens[item.id]) : item._pt);

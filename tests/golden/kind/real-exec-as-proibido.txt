@@ -1,0 +1,2 @@
+error: unable to upgrade connection: pods "caixa" is forbidden: User "carla" cannot create resource "pods/exec" in API group "" in the namespace "realismo"
+exit=1

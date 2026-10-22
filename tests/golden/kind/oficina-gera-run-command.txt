@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: p2
+  name: p2
+  namespace: oficina
+spec:
+  containers:
+  - command:
+    - sleep
+    - "3600"
+    image: busybox:1.36
+    name: p2
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}
+exit=0

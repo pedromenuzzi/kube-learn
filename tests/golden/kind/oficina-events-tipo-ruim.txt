@@ -1,0 +1,2 @@
+error: valid --types are Normal or Warning
+exit=1

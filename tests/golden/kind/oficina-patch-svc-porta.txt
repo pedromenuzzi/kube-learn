@@ -1,0 +1,2 @@
+The Service "web" is invalid: spec.ports[1].name: Required value
+exit=1

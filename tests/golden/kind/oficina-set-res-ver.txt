@@ -1,0 +1,1 @@
+{"limits":{"cpu":"200m"},"requests":{"cpu":"100m","memory":"64Mi"}}exit=0

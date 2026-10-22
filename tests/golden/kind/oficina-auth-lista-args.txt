@@ -1,0 +1,2 @@
+error: list option must be specified with no arguments
+exit=1

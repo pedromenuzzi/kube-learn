@@ -1,0 +1,2 @@
+error: "!=" is not a valid label selector operator
+exit=1

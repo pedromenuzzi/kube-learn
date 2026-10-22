@@ -1,0 +1,2 @@
+The CronJob "tz" is invalid: spec.schedule: Invalid value: "CRON_TZ=America/Sao_Paulo 0 3 * * *": cannot use TZ or CRON_TZ in schedule, use timeZone field instead
+exit=1

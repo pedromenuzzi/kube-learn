@@ -1,0 +1,2 @@
+error: unable to parse "a: b: c": yaml: mapping values are not allowed in this context
+exit=1

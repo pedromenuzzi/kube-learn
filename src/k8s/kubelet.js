@@ -351,8 +351,8 @@ export class Kubelet {
       case 'backoffPull':
         if (agora >= est.ate) this.iniciarPull(pod, ct, est);
         break;
-      case 'erroConfig':
-        if (agora >= est.ate) this.criar(pod, ct, est);
+      case 'erroConfig': // ErrImageNeverPull confere de novo se a imagem chegou ao node; o resto tenta criar outra vez
+        if (agora >= est.ate) (est.motivo === 'ErrImageNeverPull' ? this.iniciarPull(pod, ct, est) : this.criar(pod, ct, est));
         break;
       case 'rodando':
         this.avancarProcesso(pod, ct, est);
@@ -400,6 +400,7 @@ export class Kubelet {
       est.mensagem = `Container image "${ct.image}" is not present with pull policy of Never`;
       est.ate = c.agora + BACKOFF_INICIAL;
       this.evento(pod, ct, 'Warning', 'ErrImageNeverPull', est.mensagem);
+      this.evento(pod, ct, 'Warning', 'Failed', 'Error: ErrImageNeverPull');
       return;
     }
     this.evento(pod, ct, 'Normal', 'Pulling', `Pulling image "${ct.image}"`);

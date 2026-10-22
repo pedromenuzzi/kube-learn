@@ -1,0 +1,2 @@
+error: at most one of `sinceTime` or `sinceSeconds` may be specified
+exit=1

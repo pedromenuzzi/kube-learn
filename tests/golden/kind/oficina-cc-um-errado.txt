@@ -1,0 +1,4 @@
+NAME
+bb
+Error from server (NotFound): pods "nada" not found
+exit=1

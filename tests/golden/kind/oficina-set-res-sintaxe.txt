@@ -1,0 +1,2 @@
+error: invalid argument syntax cpu, expected <resource>=<value>
+exit=1

@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: multi
+  name: multi
+  namespace: oficina
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: multi
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: multi
+    spec:
+      containers:
+      - image: nginx:1.27
+        name: nginx
+        resources: {}
+      - image: busybox:1.36
+        name: busybox
+        resources: {}
+status: {}
+exit=0

@@ -1,0 +1,2 @@
+error: --type must be one of [json merge strategic], not "xml"
+exit=1

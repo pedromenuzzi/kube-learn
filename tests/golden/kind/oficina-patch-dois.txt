@@ -1,0 +1,2 @@
+error: cannot specify --patch and --patch-file together
+exit=1

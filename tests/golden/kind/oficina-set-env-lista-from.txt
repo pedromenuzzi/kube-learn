@@ -1,0 +1,9 @@
+# Deployment web, container nginx
+B=2
+A=1
+MODO=teste
+# TAMANHO from configmap cfg, key TAMANHO
+# COR from configmap cfg, key cor
+# LOG_LEVEL from configmap cfg, key log.level
+# APP_SENHA from secret seg, key senha
+exit=0

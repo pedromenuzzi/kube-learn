@@ -50,7 +50,9 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
   `tests/golden.test.js` compara. Mudou um formato de saída? O golden tem de continuar passando. Novo comando
   ou formato? Acrescente o passo nos dois lados e capture de novo num kind. Os manifestos novos ficam só no script
   (blocos `cat > /tmp/... <<'Y'`): o `cenario.js` lê de lá. Para capturar só uma seção nova, rode o cabeçalho do
-  script mais a seção, num kind limpo.
+  script mais a seção, num kind limpo. Seção nova pode ir em arquivo próprio: `scripts/golden/NN-nome.sh` (lido no fim
+  do script, em ordem) e a gêmea `tests/golden/secoes/NN-nome.js` (`export default ({ c, k, cap }) => { ... }`), num
+  namespace só dela: assim duas frentes acrescentam casos ao mesmo tempo sem pisar uma na outra.
 
 ## Conteúdo (`src/conteudo/`)
 

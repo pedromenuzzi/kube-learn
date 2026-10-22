@@ -1,0 +1,2 @@
+Error from server: map: map[image:nginx:1.27] does not contain declared merge key: name
+exit=1

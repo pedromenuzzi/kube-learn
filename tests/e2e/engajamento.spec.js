@@ -21,7 +21,7 @@ test('quem chega pela primeira vez vê a apresentação; quem volta vê o painel
   await expect(page.locator('.hoje-numeros')).toContainText('3'); // os 3 dias de estudo (e a melhor sequência)
   await expect(page.locator('.cartoes')).toHaveCount(0);
   // os termos do nível 0 já vistos: a revisão do dia tem cartões, e a aba mostra quantos
-  await expect(page.locator('.hoje-revisao')).toContainText('cartões');
+  await expect(page.locator('.hoje-cartoes')).toContainText('cartões');
   await expect(page.getByRole('navigation').first().getByRole('link', { name: /Revisão.*cartões para hoje/ })).toBeVisible();
 });
 

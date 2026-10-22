@@ -2,6 +2,12 @@
 
 export const escapar = (texto) => String(texto).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
+/** Um tempo em milissegundos como "m:ss" (o relógio e os recordes da Oficina do kubectl). */
+export const minutosESegundos = (ms) => {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
 /**
  * Abas acessíveis (padrão WAI-ARIA): setas trocam de aba, Home/End vão para a primeira/última.
  * `raiz` contém [role=tab] com aria-controls apontando para os [role=tabpanel].

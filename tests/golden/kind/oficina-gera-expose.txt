@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: web
+    time: azul
+    x: "y"
+  name: web
+  namespace: oficina
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: web
+status:
+  loadBalancer: {}
+exit=0

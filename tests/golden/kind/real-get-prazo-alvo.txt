@@ -1,0 +1,3 @@
+NAME    STATUS          COMPLETIONS   DURATION   AGE
+prazo   FailureTarget   0/1           20s        20s
+exit=0

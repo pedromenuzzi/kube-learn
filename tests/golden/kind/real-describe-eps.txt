@@ -1,0 +1,28 @@
+Name:         vitrine-zx8h6
+Namespace:    realismo
+Labels:       app=vitrine
+              endpointslice.kubernetes.io/managed-by=endpointslice-controller.k8s.io
+              kubernetes.io/service-name=vitrine
+Annotations:  endpoints.kubernetes.io/last-change-trigger-time: 2026-10-22T17:44:29Z
+AddressType:  IPv4
+Ports:
+  Name     Port  Protocol
+  ----     ----  --------
+  <unset>  80    TCP
+Endpoints:
+  - Addresses:  10.244.1.10
+    Conditions:
+      Ready:    true
+    Hostname:   <unset>
+    TargetRef:  Pod/vitrine-768475f9f6-zzp5q
+    NodeName:   golden-worker
+    Zone:       <unset>
+  - Addresses:  10.244.3.16
+    Conditions:
+      Ready:    true
+    Hostname:   <unset>
+    TargetRef:  Pod/vitrine-768475f9f6-b6fj4
+    NodeName:   golden-worker2
+    Zone:       <unset>
+Events:         <none>
+exit=0

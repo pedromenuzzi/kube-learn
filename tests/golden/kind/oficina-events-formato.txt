@@ -1,0 +1,2 @@
+error: unable to match a printer suitable for the output format "wide", allowed formats are: go-template,go-template-file,json,jsonpath,jsonpath-as-json,jsonpath-file,kyaml,name,template,templatefile,yaml
+exit=1

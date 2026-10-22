@@ -1,0 +1,5 @@
+# Deployment web, container nginx
+B=2
+A=1
+MODO=teste
+exit=0

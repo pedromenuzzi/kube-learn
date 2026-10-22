@@ -1,0 +1,3 @@
+inicio
+depois
+exit=0

@@ -1,0 +1,1 @@
+vitrine- {"app":"vitrine","endpointslice.kubernetes.io/managed-by":"endpointslice-controller.k8s.io","kubernetes.io/service-name":"vitrine"} [{"name":"","port":80,"protocol":"TCP"}] {"ready":true,"serving":true,"terminating":false} Service/vitrineexit=0

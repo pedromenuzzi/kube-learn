@@ -1,0 +1,2 @@
+error: must specify --patch or --patch-file containing the contents of the patch
+exit=1

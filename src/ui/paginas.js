@@ -1,5 +1,5 @@
 // As páginas fora do exercício: início, trilha (o navio) e glossário.
-import { NIVEIS, TROUBLESHOOTING } from '../conteudo/index.js';
+import { NIVEIS, OFICINA, TROUBLESHOOTING } from '../conteudo/index.js';
 import { GLOSSARIO } from '../conteudo/glossario.js';
 import { calcularJornada, sequenciaDeDias, hojeLocal } from '../jogo/gamificacao.js';
 import { termosVistos } from '../jogo/revisao.js';
@@ -7,7 +7,7 @@ import { cartoesParaHoje, numerosDosDias } from '../jogo/hoje.js';
 import { ler, CHAVES } from '../armazenamento.js';
 import { desenharNavio, CORES } from './navio.js';
 import { svgSelo, linkCompartilhar } from './selos.js';
-import { escapar } from './util.js';
+import { escapar, minutosESegundos } from './util.js';
 import { icone } from './icones.js';
 import { t } from '../i18n.js';
 
@@ -53,9 +53,10 @@ function painelHoje(j) {
         <div><dt>XP</dt><dd>${j.xp}</dd></div>
       </dl>
       <p class="acoes">${continuar(j, 'botao-grande')}</p>
-      <p class="hoje-revisao">${cartoes
+      <p class="hoje-revisao hoje-cartoes">${cartoes
     ? `<a class="link-seta" href="#/revisao">${icone('cartas')} ${t(cartoes === 1 ? 'Revisão do dia: 1 cartão, uns 2 minutos' : 'Revisão do dia: {n} cartões, uns 2 minutos', { n: cartoes })} ${icone('seguir')}</a>`
     : `${icone('certo')} ${t('Revisão do dia em dia.')}`}</p>
+      <p class="hoje-revisao hoje-oficina"><a class="link-seta" href="#/oficina">${icone('raio')} ${t('Oficina do kubectl: bata um recorde')} ${icone('seguir')}</a></p>
       ${depois.length ? `<div class="hoje-depois"><p>${t('Ficaram para depois:')}</p><ul>${depois.map((i) => `<li><a href="#/ex/${i.id}">${escapar(i.titulo)}</a></li>`).join('')}</ul></div>` : ''}
     </div>`;
 }
@@ -152,7 +153,7 @@ export function paginaTrilha() {
           <aside class="trilha-lateral" aria-label="${t('Seu navio')}">
             <canvas class="navio" aria-hidden="true"></canvas>
             ${continuar(j)}
-            <p class="atalhos"><a href="#/revisao">${icone('cartas')} ${t('Revisão do dia')}</a> <a href="#/certificado">${icone('lacre')} ${t('Seus lacres')}</a></p>
+            <p class="atalhos"><a href="#/revisao">${icone('cartas')} ${t('Revisão do dia')}</a> <a href="#/certificado">${icone('lacre')} ${t('Seus lacres')}</a> <a href="#/oficina">${icone('raio')} ${t('Oficina do kubectl')}</a></p>
           </aside>
           <ol class="niveis">${j.niveis.map(nivel).join('')}
           </ol>
@@ -183,7 +184,25 @@ export function paginaTroubleshooting() {
     <p class="sobretitulo">${t('Plantão')}</p>
     <h1 class="pixel">Troubleshooting</h1>
     <p>${t('Clusters que chegam quebrados com <b>mais de um defeito</b>: cada conserto revela o próximo. Investigue no terminal (<code>get</code>, <code>describe</code>, <code>logs</code>, <code>get events</code>) e conserte até o morador ficar satisfeito. Abre desde o começo e não vale XP: é treino de plantão. Os incidentes de um defeito só ficam no <a href="#/trilha">nível 9 da trilha</a>.')}</p>
-    <ul class="chamados">${TROUBLESHOOTING.map((i) => chamado(i, progresso[i.id]?.status)).join('')}</ul>`;
+    <ul class="chamados">${TROUBLESHOOTING.map((i) => chamado(i, progresso[i.id]?.status)).join('')}</ul>
+    <p class="nota">${icone('raio')} ${t('Quer treinar os comandos em si? A <a href="#/oficina">Oficina do kubectl</a> tem exercícios curtos, contra o relógio.')}</p>`;
+}
+
+// A Oficina do kubectl: os exercícios e o seu recorde em cada um.
+export function paginaOficina() {
+  const recordes = ler(CHAVES.recordes, {});
+  const comRecorde = OFICINA.filter((i) => recordes[i.id]).length;
+  return `
+    <p class="sobretitulo">${t('Fluência')}</p>
+    <h1 class="pixel">${t('Oficina do kubectl')}</h1>
+    <p>${t('Exercícios curtos de terminal, contra o relógio: os comandos que poupam tempo no dia a dia (e na prova CKAD). O relógio começa quando o exercício abre, e vale o seu recorde. Abre desde o começo e não vale XP.')}</p>
+    <p class="nota">${t('{n} de {total} com recorde', { n: comRecorde, total: OFICINA.length })}</p>
+    <ol class="oficina">${OFICINA.map((i) => `
+      <li><a href="#/ex/${i.id}">
+        <span class="oficina-titulo">${escapar(i.titulo)}</span>
+        <span class="chip chip-${i.dificuldade}">${DIFICULDADE()[i.dificuldade]}</span>
+        <span class="oficina-recorde">${recordes[i.id] ? `${icone('raio')} ${t('Recorde: {tempo}', { tempo: minutosESegundos(recordes[i.id]) })}` : t('Sem recorde ainda')}</span>
+      </a></li>`).join('')}</ol>`;
 }
 
 const semAcento = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();

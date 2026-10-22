@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: ext
+  name: ext
+  namespace: oficina
+spec:
+  externalName: example.com
+  selector:
+    app: ext
+  type: ExternalName
+status:
+  loadBalancer: {}
+exit=0

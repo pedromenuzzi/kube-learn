@@ -1910,3 +1910,10 @@ cap delete-label-nenhum kc delete pods -l nada=1
 cap taint-fora-de-servico kc taint nodes golden-worker2 node.kubernetes.io/out-of-service=nodeshutdown:NoExecute
 sleep 40
 cap get-pods-fora-de-servico kc get pods -l caiu=sim -o wide
+
+# ---------- Seções em arquivos próprios (scripts/golden/NN-nome.sh), em ordem: cada uma no seu namespace, para que
+# duas pessoas (ou dois agentes) acrescentem casos ao mesmo tempo sem pisar uma na outra. O cenário do simulador
+# (tests/golden/cenario.js) roda as gêmeas em tests/golden/secoes/NN-nome.js, na mesma ordem.
+for secao in "$(dirname "$0")"/golden/*.sh; do
+  [ -e "$secao" ] && . "$secao"
+done

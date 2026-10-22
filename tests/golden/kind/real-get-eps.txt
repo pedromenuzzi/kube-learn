@@ -1,0 +1,4 @@
+NAME            ADDRESSTYPE   PORTS     ENDPOINTS                 AGE
+vazio-jh8hh     IPv4          <unset>   <unset>                   7s
+vitrine-zx8h6   IPv4          80        10.244.1.10,10.244.3.16   7s
+exit=0

@@ -157,6 +157,10 @@ export const REGRAS = [
     re: /namespaces "[^"]+" is forbidden: this namespace may not be deleted/,
     t: () => ({ titulo: 'Esse namespace é do sistema', texto: '<code>default</code>, <code>kube-system</code> e <code>kube-public</code> não podem ser apagados.', vidaReal: 'Tentar demolir a administração do condomínio.' }),
   },
+  {
+    re: /spec\.timeZone: Invalid value: "([^"]+)": unknown time zone/,
+    t: (m) => ({ titulo: `"${m[1]}" não é um fuso horário`, texto: 'O <code>timeZone</code> do CronJob usa os nomes da base de fusos (IANA), com a região e a cidade: <code>America/Sao_Paulo</code>, <code>Europe/Lisbon</code>, <code>Etc/UTC</code>. Sem o campo, vale o fuso do kube-controller-manager (quase sempre UTC).', vidaReal: 'Marcar a reunião "às 9h no horário de Marte": ninguém sabe que horas são lá.' }),
+  },
 ];
 
 export const STATUS = [
@@ -185,6 +189,9 @@ export const STATUS = [
   { re: /download timed out|Connection timed out|connection timed out; no servers could be reached/, titulo: 'A conexão não completou', texto: 'Nada respondeu: uma NetworkPolicy descartando o pedido (veja <code>kubectl get netpol -A</code>), um programa travado ou um endereço que não existe.', vidaReal: 'A catraca não deixou passar e ninguém avisou: o visitante fica esperando na porta.' },
   { re: /Read-only file system/, titulo: 'O disco é só leitura', texto: 'O contêiner tem <code>readOnlyRootFilesystem: true</code> (ou o volume foi montado como só leitura). Para gravar, monte um volume (um <code>emptyDir</code>) na pasta onde o programa escreve.', vidaReal: 'As paredes estão lacradas: para trabalhar, só na mesa (o volume).' },
   { re: /\bPending\b/, titulo: 'Pending: o pod ainda não tem lugar', texto: 'Ou o scheduler não achou um node que caiba (veja <code>kubectl describe pod NOME</code>, em Events: <i>FailedScheduling</i>), ou ele está só começando.', vidaReal: 'Esperando no lobby: a corretora ainda não achou um prédio com espaço.' },
+  { re: /\bErrImageNeverPull\b/, titulo: 'A imagem não está no node, e o pod proibiu baixar', texto: 'Com <code>imagePullPolicy: Never</code>, o kubelet só usa a imagem que já estiver no node (no kind, carregada com <code>kind load docker-image</code>). Tire o <code>Never</code> (o padrão <code>IfNotPresent</code> baixa quando falta) ou ponha a imagem no node.', vidaReal: 'A regra é "só móveis que já estão no depósito", e o sofá nunca foi para o depósito.' },
+  { re: /existing pods in namespace "[^"]+" violate the new PodSecurity enforce level/, titulo: 'A norma nova vale para os próximos pods', texto: 'A label foi aplicada, mas os pods que já rodam não passam nela. Eles continuam rodando (a norma é conferida só quando um pod é criado); o próximo pod igual, numa troca de versão ou num reinício pelo Deployment, vai ser recusado. Ajuste o <code>securityContext</code> antes que isso aconteça.', vidaReal: 'O regulamento novo do prédio não despeja quem já mora, mas a próxima mudança tem de seguir as regras.' },
+  { re: /^Warning: unknown field "[^"]+"/m, titulo: 'O campo foi ignorado', texto: 'O patch tinha um campo que o Kubernetes não conhece (erro de digitação, como <code>replica</code> em vez de <code>replicas</code>, ou o caminho no lugar errado). Ele foi jogado fora, e por isso o resto pode dizer <code>patched (no change)</code>: nada mudou. Confira o nome com <code>kubectl explain</code>.', vidaReal: 'O formulário voltou carimbado, mas a linha com o campo inventado foi riscada.' },
 ];
 
 /** Explicações para a saída de um comando: erros (se falhou) e status problemáticos (numa tabela). */

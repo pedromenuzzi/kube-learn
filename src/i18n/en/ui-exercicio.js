@@ -220,4 +220,6 @@ export default {
   'o namespace padrão do kubectl é {ns}': 'kubectl’s default namespace is {ns}',
   'o cluster do terminal': 'the terminal’s cluster',
   'abra o exercício e use o terminal': 'open the exercise and use the terminal',
+  'error: "kubectl {cmd}" existe no kubectl de verdade, mas este simulador ainda não o imita.': 'error: "kubectl {cmd}" exists in the real kubectl, but this simulator doesn’t imitate it yet.',
+  'Use "kubectl {nome} --help" no terminal de verdade para ver todas as opções. Aqui, a aba Manual da missão explica as que você vai usar.': 'Use "kubectl {nome} --help" in a real terminal to see every option. Here, the mission’s Manual tab explains the ones you’ll use.',
 };
