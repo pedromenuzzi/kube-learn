@@ -48,7 +48,8 @@ export function paginaRevisao() {
         <article class="cartao-revisao">
           <p class="progresso-revisao"><span>${t('Cartão {n} de {total}', { n: i + 1, total: cartoes.length })}</span><span class="barra" aria-hidden="true"><span style="width: ${(i / cartoes.length) * 100}%"></span></span></p>
           <form class="quiz">
-            <fieldset><legend>${c.pergunta}</legend>
+            <fieldset${c.codigo ? ' aria-describedby="revisao-codigo"' : ''}><legend>${c.pergunta}</legend>
+              ${c.codigo ? `<pre class="manual" id="revisao-codigo"><code>${escapar(c.codigo)}</code></pre>` : ''}
               ${c.opcoes.map((o, k) => `<label class="alternativa"><input type="radio" name="escolha" value="${k}" required> <span>${escapar(o.texto)}</span></label>`).join('')}
             </fieldset>
             <p><button type="submit" class="botao">${icone('certo')} ${t('Responder')}</button></p>

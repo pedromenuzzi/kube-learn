@@ -141,6 +141,8 @@ export default {
   '<b>{termo}</b> é como <q>{vidaReal}</q> Verdadeiro ou falso: um limite dessa comparação é <q>{limite}</q>': '<b>{termo}</b> is like <q>{vidaReal}</q> True or false: one limit of this analogy is <q>{limite}</q>',
   'Verdadeiro': 'True',
   'Falso': 'False',
+  'Qual termo tem esta definição? <q>{definicao}</q>': 'Which term has this definition? <q>{definicao}</q>',
+  'Qual termo este exemplo mostra?': 'Which term does this example show?',
   // certificado.js e selos.js: os lacres, o certificado e a privacidade
   'Nenhum lacre ainda: um nível é lacrado com 100% das missões resolvidas.': 'No seals yet: a level is sealed when 100% of its missions are solved.',
   'ainda sem lacre': 'not sealed yet',

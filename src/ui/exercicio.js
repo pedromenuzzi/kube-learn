@@ -126,13 +126,15 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   const aviso = $('.ex-aviso');
   let tempoDoAviso = 0;
   /** O aviso flutua sobre a tela (não empurra as janelas) e some sozinho; o de missão cumprida fica, com o link da próxima. */
-  const avisar = (texto, { tipo = 'info', proximo } = {}) => {
+  // `ajuda`: { texto, aba, rotulo } — a ajuda do degrau (a dica, o Manual, a Solução), com o botão que abre a aba.
+  const avisar = (texto, { tipo = 'info', proximo, ajuda } = {}) => {
     clearTimeout(tempoDoAviso);
     aviso.className = `ex-aviso ${tipo}`;
     aviso.innerHTML = `${tipo === 'info' ? '' : icone(tipo === 'ok' ? 'certo' : 'fechar')}<div class="aviso-texto"><span>${escapar(texto)}</span>`
       + (proximo ? `<a href="#/ex/${proximo.id}">${t('Próxima: {titulo}', { titulo: escapar(proximo.titulo) })} ${icone('seguir')}</a>` : '')
+      + (ajuda ? `<span class="aviso-ajuda">${icone('lampada')} ${escapar(ajuda.texto)}</span><button type="button" class="link-botao" data-acao="abrir-aba" data-aba="${ajuda.aba}">${escapar(ajuda.rotulo)}</button>` : '')
       + `</div><button type="button" class="aviso-fechar" data-acao="fechar-aviso" aria-label="${t('Fechar o aviso')}">${icone('fechar')}</button>`;
-    if (!proximo) tempoDoAviso = setTimeout(() => aviso.replaceChildren(), tipo === 'info' ? 4000 : 8000);
+    if (!proximo && !ajuda) tempoDoAviso = setTimeout(() => aviso.replaceChildren(), tipo === 'info' ? 4000 : 8000);
   };
 
   // ---------- lado: missão, vida real, manual, solução, testes ----------
@@ -326,6 +328,18 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   }
 
   let ultimoTeste = null; // para o feedback
+  // A escada de ajuda: cada entrega errada nesta visita abre um degrau (a dica, o Manual, a Solução), sem tirar XP.
+  let falhas = 0;
+  let acertosAntes = null;
+  const degrauDeAjuda = () => {
+    const solucao = item.solucao || item.solucaoTerminal ? { texto: t('Travou? A aba Solução tem a referência, e ver não tira XP.'), aba: 'solucao', rotulo: t('Abrir a Solução') } : null;
+    if (falhas === 2 && item.dica) {
+      $('#lado-missao details')?.setAttribute('open', '');
+      return { texto: t('Dica: {dica}', { dica: item.dica }), aba: 'missao', rotulo: t('Ver na missão') };
+    }
+    if (falhas === 3 && item.manual?.length) return { texto: t('A aba Manual tem os campos certos, com a explicação de cada um.'), aba: 'manual', rotulo: t('Abrir o Manual') };
+    return falhas >= 3 ? solucao : null;
+  };
   function testar(todos) {
     avisar(todos ? t('Rodando todos os testes, inclusive os ocultos…') : t('Rodando os testes visíveis…'));
     registrarDia(hojeLocal());
@@ -340,7 +354,12 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
         registrarComFesta(item, resolvido);
         if (resolvido && !$('.ex-topo .chip-ok')) $('.ex-topo').insertAdjacentHTML('beforeend', `<span class="chip chip-ok">${icone('certo')} ${t('Resolvida')}</span>`);
         if (resolvido) avisar(item.secao ? t('Incidente resolvido! O morador agradece.') : t('Missão cumprida! +{xp} XP. Mais um contêiner embarcado no seu navio.', { xp: XP[item.dificuldade] ?? 0 }), { tipo: 'ok', proximo: proximoDe(item) });
-        else avisar(`${resumoDosTestes(ok, total)}. ${t('Veja o que faltou na aba Testes.')}`, { tipo: 'falha' });
+        else {
+          falhas += 1;
+          const melhorou = acertosAntes !== null && ok > acertosAntes ? ` (${t('antes eram {n}: quase lá!', { n: acertosAntes })})` : '';
+          acertosAntes = ok;
+          avisar(`${resumoDosTestes(ok, total)}${melhorou}. ${t('Veja o que faltou na aba Testes.')}`, { tipo: 'falha', ajuda: degrauDeAjuda() });
+        }
       } else {
         avisar(ok === total ? t('Testes visíveis: {ok} de {total} passaram. Agora é só entregar.', { ok, total }) : t('Testes visíveis: {ok} de {total} passaram. Veja a aba Testes.', { ok, total }), { tipo: ok === total ? 'ok' : 'falha' });
       }
@@ -366,6 +385,7 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
       avisar(t('O relógio do cluster andou 30 segundos.'));
     },
     'fechar-aviso': () => aviso.replaceChildren(),
+    'abrir-aba': (botao) => abasLado.selecionar(botao.dataset.aba),
     feedback: () => abrirFeedback(item, () => ({ testes: ultimoTeste, comandos: terminal.historico.slice(-10) })),
     resetar() {
       if (!confirm(t('Voltar o cluster para o começo da missão? (Seus arquivos ficam.)'))) return;
@@ -397,8 +417,8 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   // O <main> e o document continuam depois que a missão sai: os ouvintes saem junto, no destruir().
   const fim = new AbortController();
   raiz.addEventListener('click', (e) => {
-    const acao = e.target.closest('[data-acao]')?.dataset.acao;
-    if (acoes[acao]) acoes[acao]();
+    const alvo = e.target.closest('[data-acao]');
+    if (acoes[alvo?.dataset.acao]) acoes[alvo.dataset.acao](alvo);
   }, { signal: fim.signal });
   const teclas = (e) => {
     if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey) || e.target.closest?.('dialog')) return;

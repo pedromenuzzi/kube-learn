@@ -2,6 +2,8 @@
 import { NIVEIS, TROUBLESHOOTING } from '../conteudo/index.js';
 import { GLOSSARIO } from '../conteudo/glossario.js';
 import { calcularJornada, sequenciaDeDias, hojeLocal } from '../jogo/gamificacao.js';
+import { termosVistos } from '../jogo/revisao.js';
+import { cartoesParaHoje, numerosDosDias } from '../jogo/hoje.js';
 import { ler, CHAVES } from '../armazenamento.js';
 import { desenharNavio, CORES } from './navio.js';
 import { svgSelo, linkCompartilhar } from './selos.js';
@@ -29,25 +31,55 @@ const continuar = (j, classe = '') => (j.proximo
   ? `<a class="botao ${classe}" href="#/ex/${j.proximo.id}">${icone('play')}<span>${j.proximo.estado === 'tentado' ? t('Continuar') : t('Próxima missão')}: ${escapar(j.proximo.titulo)}</span></a>`
   : `<p>${t('Tudo embarcado por aqui. Novos níveis chegam em breve!')}</p>`);
 
+/** O painel de quem volta: a sequência, o próximo passo, a revisão de hoje e o que ficou para depois. */
+function painelHoje(j) {
+  const hoje = hojeLocal();
+  const dias = ler(CHAVES.dias, []);
+  const n = numerosDosDias(dias, hoje, sequenciaDeDias(dias, hoje));
+  const cartoes = cartoesParaHoje({ termos: termosVistos(GLOSSARIO, j), estado: ler(CHAVES.revisao, {}), hoje });
+  const depois = j.niveis.flatMap((x) => x.itens).filter((i) => i.estado === 'tentado' && i.id !== j.proximo?.id).slice(0, 3);
+  // Sem cobrança: a sequência quebrada vira convite, e a melhor e o total de dias ficam (o esforço não some).
+  const selo = n.atual > 1 ? t('{n} dias seguidos. Bora manter?', { n: n.atual })
+    : n.atual === 1 ? t('Primeiro dia da sequência. Amanhã tem mais.')
+      : t('Recomeçar hoje vale: 2 minutos de revisão já contam.');
+  return `
+    <div class="heroi-texto hoje">
+      <p class="heroi-selo">${icone('chama')} ${selo}</p>
+      <h1 class="pixel titulo-heroi">${t('Bom te ver de volta')}</h1>
+      <dl class="hoje-numeros">
+        <div><dt>${t('Dias seguidos')}</dt><dd>${n.atual}</dd></div>
+        <div><dt>${t('Melhor sequência')}</dt><dd>${n.melhor}</dd></div>
+        <div><dt>${t('Dias de estudo')}</dt><dd>${n.total}</dd></div>
+        <div><dt>XP</dt><dd>${j.xp}</dd></div>
+      </dl>
+      <p class="acoes">${continuar(j, 'botao-grande')}</p>
+      <p class="hoje-revisao">${cartoes
+    ? `<a class="link-seta" href="#/revisao">${icone('cartas')} ${t(cartoes === 1 ? 'Revisão do dia: 1 cartão, uns 2 minutos' : 'Revisão do dia: {n} cartões, uns 2 minutos', { n: cartoes })} ${icone('seguir')}</a>`
+    : `${icone('certo')} ${t('Revisão do dia em dia.')}`}</p>
+      ${depois.length ? `<div class="hoje-depois"><p>${t('Ficaram para depois:')}</p><ul>${depois.map((i) => `<li><a href="#/ex/${i.id}">${escapar(i.titulo)}</a></li>`).join('')}</ul></div>` : ''}
+    </div>`;
+}
+
 export function paginaInicio() {
   return (main) => {
     const j = jornadaAtual();
+    const voltou = Object.keys(ler(CHAVES.progresso, {})).length > 0;
     main.innerHTML = `
       <section class="heroi">
         <canvas class="navio" aria-hidden="true"></canvas>
-        <div class="heroi-texto">
+        ${voltou ? painelHoje(j) : `<div class="heroi-texto">
           <p class="heroi-selo">${icone('frasco')} ${t('Um cluster de verdade, simulado no navegador')}</p>
           <h1 class="pixel titulo-heroi">${t('Aprenda Kubernetes contêiner por contêiner')}</h1>
           <p class="chamada">${t('Você escreve YAML, usa o <code>kubectl</code> e vê os pods nascerem, quebrarem e voltarem. Cada missão resolvida embarca um contêiner no seu navio.')}</p>
           <p class="acoes">${continuar(j, 'botao-grande')} <a class="link-seta" href="#/trilha">${t('Ver a trilha')} ${icone('seguir')}</a></p>
           <ul class="vantagens"><li>${icone('certo')} ${t('Sem conta')}</li><li>${icone('certo')} ${t('Sem custo')}</li><li>${icone('certo')} ${t('Tudo fica no seu navegador')}</li></ul>
-        </div>
+        </div>`}
       </section>
-      <section class="cartoes" aria-label="${t('Como funciona')}">
+      ${voltou ? '' : `<section class="cartoes" aria-label="${t('Como funciona')}">
         <article><span class="cartao-icone">${icone('terminal')}</span><h2>${t('kubectl de verdade')}</h2><p>${t('A saída do terminal é igual à de um cluster real (conferida contra um cluster kind). O que você aprende aqui vale lá fora.')}</p></article>
         <article><span class="cartao-icone">${icone('casa')}</span><h2>${t('Vida real em tudo')}</h2><p>${t('Pod é apartamento, Service é ramal, limite de memória é disjuntor. E cada comparação diz onde deixa de valer. <a href="#/glossario">Veja o glossário</a>.')}</p></article>
         <article><span class="cartao-icone">${icone('trilha')}</span><h2>${t('Seu navio enche')}</h2><p>${t('Cada missão embarca um contêiner com a cor do nível; com 70% de um nível, o próximo abre. Até onde a pilha aguenta?')}</p></article>
-      </section>`;
+      </section>`}`;
     return { destruir: desenharNavio(main.querySelector('canvas'), j) };
   };
 }
