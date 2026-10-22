@@ -3,7 +3,7 @@ import '@fontsource/atkinson-hyperlegible/700.css';
 import '@fontsource/press-start-2p/400.css';
 import { resolverRota } from './rotas.js';
 import { acharItem, PLAYGROUND } from './conteudo/index.js';
-import { paginaInicio, paginaTrilha, paginaGlossario, paginaTroubleshooting, paginaOficina } from './ui/paginas.js';
+import { paginaInicio, paginaTrilha, paginaGlossario, paginaTroubleshooting, paginaOficina, paginaPlantao, paginaDiario } from './ui/paginas.js';
 import { aplicarPreferencias, montarPreferencias } from './ui/preferencias.js';
 import { montarLeitura } from './ui/leitura.js';
 import { paginaRevisao } from './ui/revisao.js';
@@ -36,6 +36,8 @@ const PAGINAS = {
   '/livre': (_, opcoes) => (main) => montarTela(main, PLAYGROUND, opcoes),
   '/troubleshooting': paginaTroubleshooting,
   '/oficina': paginaOficina,
+  '/plantao': paginaPlantao,
+  '/diario': paginaDiario,
   '/glossario': paginaGlossario,
   '/revisao': paginaRevisao,
   '/certificado': paginaCertificado,
@@ -89,7 +91,7 @@ function desenhar(opcoes = {}) {
   const conteudo = rota ? PAGINAS[rota.caminho](rota.parametro, opcoes) : naoEncontrada(false);
   const leitura = rota?.caminho === '/ex' && ['quiz', 'licao'].includes(acharItem(rota.parametro)?.tipo) && !acharItem(rota.parametro)?.inicial;
   main.classList.toggle('largo', !leitura && ['/ex', '/livre', '/trilha', '/'].includes(rota?.caminho));
-  main.classList.toggle('medio', ['/glossario', '/troubleshooting', '/oficina'].includes(rota?.caminho));
+  main.classList.toggle('medio', ['/glossario', '/troubleshooting', '/oficina', '/plantao', '/diario'].includes(rota?.caminho));
   if (typeof conteudo === 'function') {
     main.replaceChildren();
     paginaAtual = conteudo(main);

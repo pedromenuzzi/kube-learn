@@ -73,11 +73,11 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   const recorde = naOficina ? ler(CHAVES.recordes, {})[item.id] : null;
   let comecou = performance.now();
   let terminouEm = null;
-  const voltarPara = { troubleshooting: 'Troubleshooting', oficina: t('Oficina') }[item.secao] ?? t('Trilha');
+  const voltarPara = { troubleshooting: 'Troubleshooting', oficina: t('Oficina'), plantao: t('Plantão do dia') }[item.secao] ?? t('Trilha');
   raiz.innerHTML = `
     <div class="ex${temArquivos ? '' : ' ex-so-terminal'}">
       <header class="ex-topo">
-        <a class="voltar" href="#/${item.secao ?? 'trilha'}">${icone('voltar')}<span class="visualmente-oculto">${item.secao === 'troubleshooting' ? t('Voltar ao') : t('Voltar à')} </span>${voltarPara}</a>
+        <a class="voltar" href="#/${item.secao ?? 'trilha'}">${icone('voltar')}<span class="visualmente-oculto">${['troubleshooting', 'plantao'].includes(item.secao) ? t('Voltar ao') : t('Voltar à')} </span>${voltarPara}</a>
         <h1>${escapar(item.titulo)}</h1>
         ${item.projeto ? `<span class="chip chip-projeto">${icone('arvore')} ${escapar(item.projeto.titulo)} · ${t('etapa {etapa} de {total}', item.projeto)}</span>` : ''}
         ${item.dificuldade ? `<span class="chip chip-${item.dificuldade}">${t(DIFICULDADE[item.dificuldade])}</span>${item.secao ? '' : `<span class="chip">${XP[item.dificuldade]} XP</span>`}` : ''}
@@ -434,7 +434,8 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
       // Os comandos (missão de terminal) e os arquivos consertados (quando o conserto também mexe neles).
       const arquivos = Object.entries(item.solucao ?? {});
       const mudam = !item.solucaoTerminal || arquivos.some(([n, t]) => item.inicial?.[n] !== t);
-      div.innerHTML = (item.solucaoTerminal ? `<pre>${escapar(item.solucaoTerminal.join('\n'))}</pre>` : '')
+      div.innerHTML = (item.diagnostico ? `<h3>${t('O que estava quebrado')}</h3>${item.diagnostico}` : '')
+        + (item.solucaoTerminal ? `<pre>${escapar(item.solucaoTerminal.join('\n'))}</pre>` : '')
         + (arquivos.length && mudam ? arquivos.map(([n, t]) => `<h3>${escapar(n)}</h3><pre>${escapar(t)}</pre>`).join('') + `<button type="button" data-acao="usar-solucao">${t('Copiar para o editor')}</button>` : '');
     },
     arrumacao: () => janelas.restaurar(),

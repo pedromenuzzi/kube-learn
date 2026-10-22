@@ -15,7 +15,7 @@ import { NIVEIS } from '../src/conteudo/niveis.js';
 import { conferirQuiz } from '../src/ui/leitura.js';
 
 /** Monta o que o aluno teria: arquivos e, nos exercícios de terminal, o cluster depois dos comandos. */
-function aluno(item, { resolvido }) {
+export function aluno(item, { resolvido }) {
   const arquivos = { ...(resolvido ? item.solucao : item.inicial) };
   const clusterDoAluno = montarCluster(item.cluster, item.id);
   const historico = resolvido ? item.solucaoTerminal ?? [] : [];

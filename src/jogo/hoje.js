@@ -27,3 +27,24 @@ export function numerosDosDias(dias, hoje, atual) {
   });
   return { atual, melhor: Math.max(melhor, atual), total: unicos.length };
 }
+
+/** Quantas coisas o aluno fez em cada dia: as missões (a data em que resolveu ou tentou); dia de estudo sem missão vale 1. */
+export function atividadePorDia(progresso, dias) {
+  const atividade = {};
+  for (const p of Object.values(progresso)) if (p.em) atividade[p.em] = (atividade[p.em] ?? 0) + 1;
+  for (const d of dias) atividade[d] = Math.max(atividade[d] ?? 0, 1);
+  return atividade;
+}
+
+/**
+ * O calendário do Diário de bordo: as últimas `semanas` semanas, de domingo a sábado, terminando na semana de hoje.
+ * → [semana][diaDaSemana] = { dia, n, futuro }
+ */
+export function calendario(atividade, hoje, semanas = 18) {
+  const domingo = somarDias(hoje, -new Date(`${hoje}T12:00:00Z`).getUTCDay());
+  const inicio = somarDias(domingo, -7 * (semanas - 1));
+  return Array.from({ length: semanas }, (_, s) => Array.from({ length: 7 }, (_, d) => {
+    const dia = somarDias(inicio, s * 7 + d);
+    return { dia, n: atividade[dia] ?? 0, futuro: dia > hoje };
+  }));
+}
