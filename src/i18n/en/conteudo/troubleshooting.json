@@ -51,5 +51,113 @@
         }
       }
     ]
+  },
+  "ts-imagem-particular": {
+    "titulo": "The cash register that never arrives",
+    "enunciado": "<blockquote class=\"relato\"><p>We bought the new cash register software and IT installed it yesterday: they even put the registry login in a safe, they said.\n             But the register won’t open, and the error says the image doesn’t even exist. It does: I can see it on Docker Hub, with our login!</p><footer>Neide, from the bakery</footer></blockquote><p>Get both replicas of <code>caixa</code> (cash register, in the <code>padaria</code> namespace) running with the image\n             <code>kubelearn/caixa:1.0</code>, which is private. There’s more than one defect: each fix reveals the next.</p>",
+    "dica": "kubectl describe pod -n padaria NAME (Events: “may require authorization”). The pod only uses the badge listed in imagePullSecrets. Then: kubectl get events -n padaria (FailedToRetrieveImagePullSecret) and kubectl get secrets -A: a Secret only counts in its own namespace.",
+    "vidaReal": "The new register sits in the warehouse of a supplier that only delivers to whoever shows a badge. The badge was made, but nobody told the delivery person to bring it, and it ended up in the safe of another block.",
+    "limite": "A real supplier would say “you don’t have access.” Docker Hub gives the same answer for an image that doesn’t exist and for a private image without a login, so it doesn’t tell strangers what it has.",
+    "comoSaber": "<code>kubectl get pods -n padaria</code>: both <code>caixa</code> replicas <code>Running</code>, <code>1/1</code>.",
+    "relato": "We bought the new cash register software and IT installed it yesterday: they even put the registry login in a safe, they said.\n             But the register won’t open, and the error says the image doesn’t even exist. It does: I can see it on Docker Hub, with our login!",
+    "morador": "Neide, from the bakery",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "ts-cardapio-de-ontem": {
+    "titulo": "Yesterday’s menu",
+    "enunciado": "<blockquote class=\"relato\"><p>Last night I changed the dish of the day on the bulletin board, like always: today it’s moqueca. But some customers see\n             yesterday’s feijoada, and some see a page that says “It works!”. What is that?</p><footer>Bento, from the ground-floor restaurant</footer></blockquote><p>Make the <code>cardapio</code> (menu) Service (in the <code>restaurante</code> namespace) always show today’s dish, which\n             is in the <code>cardapio</code> ConfigMap. And make the next change on the board show up by itself, without restarting anything.</p>",
+    "dica": "kubectl get endpoints -n restaurante and kubectl get pods -n restaurante --show-labels: who else answers this extension? Then: kubectl get deploy cardapio -n restaurante -o yaml (volumeMounts). A file mounted with subPath never gets the new version of the ConfigMap.",
+    "vidaReal": "Two clerks on the same phone extension: the old site’s, which nobody turned off, and the menu’s. And the menu clerk doesn’t read the bulletin board: they read a photocopy made the day they arrived.",
+    "limite": "Without subPath, the kubelet swaps the mounted file by itself, but not right away (around a minute), and the program has to read the file again (nginx reads it on every request). An environment variable from a ConfigMap never changes: only in a new container.",
+    "comoSaber": "From any pod, <code>wget -qO- http://cardapio.restaurante</code> always shows the moqueca, and the Deployment mounts the board without <code>subPath</code>.",
+    "relato": "Last night I changed the dish of the day on the bulletin board, like always: today it’s moqueca. But some customers see\n             yesterday’s feijoada, and some see a page that says “It works!”. What is that?",
+    "morador": "Bento, from the ground-floor restaurant",
+    "testes": [
+      {
+        "descricao": "the incident is resolved",
+        "msgs": {
+          "0": "only the menu answers the extension",
+          "1": "today’s dish always shows up",
+          "2": "the board is mounted without subPath (the next change shows up by itself)"
+        }
+      }
+    ]
+  },
+  "ts-cracha-do-suporte": {
+    "titulo": "The support badge",
+    "enunciado": "<blockquote class=\"relato\"><p>They gave me a badge to handle the store’s tickets, but it doesn’t open anything: not even the list of pods in the store’s\n             block. And once it does, I need to read the logs and get into the cash register to investigate.</p><footer>Bia, from support</footer></blockquote><p>Fix Bia’s badge (the user <code>bia</code>) in the <code>loja</code> namespace: she needs to list the pods,\n             read the logs and get into them with <code>kubectl exec</code>. Without being able to delete anything. Test as her, with\n             <code>--as=bia</code>.</p>",
+    "dica": "kubectl get pods -n loja --as=bia and kubectl describe rolebinding suporte -n loja (the name under Subjects). Logs and exec are subresources: pods/log (get) and pods/exec (create). Check with kubectl auth can-i get pods --subresource=log -n loja --as=bia.",
+    "vidaReal": "The badge was printed with the name “Bia” and the turnstile looks for “bia”. And even with the right name, it only opened the apartments’ door: the incident book (logs) and the key to get in (exec) are separate doors.",
+    "limite": "At the front gate, someone would look at the badge and let Bia through. RBAC compares the name letter by letter, and doesn’t warn you that the binding points to a user who never shows up.",
+    "comoSaber": "With <code>--as=bia</code>: <code>kubectl get pods -n loja</code>, <code>kubectl logs caixa -n loja</code> and <code>kubectl exec caixa -n loja -- ls</code> work; <code>kubectl delete pod caixa -n loja</code> is refused.",
+    "relato": "They gave me a badge to handle the store’s tickets, but it doesn’t open anything: not even the list of pods in the store’s\n             block. And once it does, I need to read the logs and get into the cash register to investigate.",
+    "morador": "Bia, from support",
+    "testes": [
+      {
+        "descricao": "the incident is resolved"
+      }
+    ]
+  },
+  "ts-normas-so-no-papel": {
+    "titulo": "The fire code on paper only",
+    "enunciado": "<blockquote class=\"relato\"><p>At today’s inspection, the billing app in the pagamentos block was running as root, with every power there is. The restricted\n             fire code sign is right there on the block’s door, but apparently it doesn’t stop anyone.</p><footer>Captain Rocha, from the fire marshals</footer></blockquote><p>Make the <code>pagamentos</code> namespace <b>block</b> (not just warn about) pods that break the\n             <code>restricted</code> standard, with both <code>cobranca</code> (billing) replicas running within it. Billing runs fine\n             as any user other than root (1000, for example).</p>",
+    "dica": "kubectl get ns pagamentos --show-labels: warn only warns, enforce blocks. Pods that are already running aren’t kicked out (at most, a warning): to see whether billing meets the standard, create new pods (kubectl rollout restart deployment/cobranca -n pagamentos) and look at kubectl describe rs -n pagamentos. Then, kubectl describe pod (runAsNonRoot).",
+    "vidaReal": "The fire marshals’ sign was hung in “warning” mode: the doorman read the code out loud and let people in anyway. Switching to “block” doesn’t evict whoever is already inside: it only applies to whoever arrives.",
+    "limite": "Passing the standard doesn’t make the program secure: it only ensures it starts without powers it doesn’t need.",
+    "comoSaber": "<code>kubectl get pods -n pagamentos</code>: 2 <code>cobranca</code> pods ready, created after the code took effect; and the namespace with <code>pod-security.kubernetes.io/enforce=restricted</code>.",
+    "relato": "At today’s inspection, the billing app in the pagamentos block was running as root, with every power there is. The restricted\n             fire code sign is right there on the block’s door, but apparently it doesn’t stop anyone.",
+    "morador": "Captain Rocha, from the fire marshals",
+    "testes": [
+      {
+        "descricao": "the incident is resolved",
+        "msgs": {
+          "0": "the block stops whoever breaks the code",
+          "1": "billing follows the restricted standard",
+          "3": "all pods are from the version that meets the code"
+        }
+      }
+    ]
+  },
+  "ts-promocao-que-nao-abre": {
+    "titulo": "The sale that closed the store",
+    "enunciado": "<blockquote class=\"relato\"><p>I asked my nephew to turn on the store’s sale mode. While he was at it, he copied a “health check” from another\n             site, which he said is what professionals do. The store hasn’t opened since.</p><footer>Jorge, who owns the ground-floor shop</footer></blockquote><p>Get the <code>loja</code> (store) answering through the <code>loja</code> Service again, without restarting on its own, in sale\n             mode (the <code>/loja</code> program takes <code>--modo promocao</code>) and keeping the livenessProbe: it’s a\n             good idea, it just has to be right.</p>",
+    "dica": "kubectl describe pod NAME (Last State: Terminated, Reason: StartError, exec: \"--modo\": executable file not found). The arguments go in args. Then: kubectl get pods (RESTARTS going up) and kubectl get events (Liveness probe failed: connection refused). Which port does the store listen on?",
+    "vidaReal": "The note said “open the store in sale mode,” and the nephew wrote just “sale mode” where the employee’s name goes: nobody was called in to open. And the health inspector knocks on the door of the room next door (80): since nobody answers there, he sends the employee home every half minute.",
+    "limite": "In a container, command replaces the program the image runs (the ENTRYPOINT); args only replaces its arguments. A wrong livenessProbe is worse than none: it restarts a program that was working.",
+    "comoSaber": "<code>kubectl get pods</code>: both replicas ready, with <code>RESTARTS</code> stuck at 0; and <code>kubectl exec cliente -- wget -qO- http://loja</code> responds.",
+    "relato": "I asked my nephew to turn on the store’s sale mode. While he was at it, he copied a “health check” from another\n             site, which he said is what professionals do. The store hasn’t opened since.",
+    "morador": "Jorge, who owns the ground-floor shop",
+    "testes": [
+      {
+        "descricao": "the incident is resolved",
+        "msgs": {
+          "2": "the store is in sale mode",
+          "3": "the livenessProbe is still there"
+        }
+      }
+    ]
+  },
+  "ts-relatorio-sem-folego": {
+    "titulo": "The report that runs out of breath",
+    "enunciado": "<blockquote class=\"relato\"><p>The report starts, crashes, starts again, crashes again. They said it’s out of memory, but I didn’t set any memory\n             limit: look at the YAML! Oh, and management already approved up to 1Gi per container in finance.</p><footer>Lima, from finance</footer></blockquote><p>Get both replicas of <code>relatorio</code> (report, in the <code>financeiro</code> namespace) running. The report loads the\n             whole spreadsheet into memory (about 300Mi): declare its memory limit in the Deployment itself (512Mi gives\n             some headroom). The block’s ceiling can go up to 1Gi, but it can’t disappear.</p>",
+    "dica": "kubectl describe pod -n financeiro NAME (Last State: OOMKilled; Limits; and the kubernetes.io/limit-ranger annotation). Who set the limit? kubectl describe limitrange -n financeiro. After declaring the limit: kubectl describe rs -n financeiro (FailedCreate).",
+    "vidaReal": "The apartment’s blueprint came without a circuit breaker, so the management office installed the block’s standard breaker, too small for the accounting machine. And the block also has a ceiling: a breaker bigger than that isn’t even allowed in.",
+    "limite": "A LimitRange only acts when the pod is created: changing the default or the ceiling doesn’t touch pods that already exist. That’s why the hidden limit shows up on the pod (kubectl describe pod), not in your YAML.",
+    "comoSaber": "<code>kubectl get pods -n financeiro</code>: 2 <code>relatorio</code> pods <code>Running</code>, without restarting.",
+    "relato": "The report starts, crashes, starts again, crashes again. They said it’s out of memory, but I didn’t set any memory\n             limit: look at the YAML! Oh, and management already approved up to 1Gi per container in finance.",
+    "morador": "Lima, from finance",
+    "testes": [
+      {
+        "descricao": "the incident is resolved",
+        "msgs": {
+          "1": "the report declares its own memory limit",
+          "2": "the block still has a ceiling"
+        }
+      }
+    ]
   }
 }

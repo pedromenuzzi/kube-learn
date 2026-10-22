@@ -234,6 +234,10 @@ helm list                                   # as releases do namespace</code></p
             loja</code> mostra todas.</li>
         <li><code>helm template</code>: mostra os manifestos que o chart geraria, sem instalar nada.</li>
       </ul>
+      <p>Muitos charts hoje ficam num <b>registry OCI</b>, o mesmo tipo de servidor das imagens. Aí não há
+         <code>helm repo add</code>: o endereço vai direto no comando
+         (<code>helm install loja oci://ghcr.io/empresa/charts/loja --version 1.2.0</code>). Neste simulador, só existe o
+         repositório <code>kube-learn</code>.</p>
       <p>O Helm guarda cada revisão num Secret do namespace (<code>sh.helm.release.v1.loja.v1</code>...). Não apague esses
          Secrets: sem eles, o Helm esquece a release.</p>`,
   }),

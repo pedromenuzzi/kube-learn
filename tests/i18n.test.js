@@ -12,7 +12,7 @@ import { ITENS, NIVEIS, TROUBLESHOOTING } from '../src/conteudo/index.js';
 import { GLOSSARIO } from '../src/conteudo/glossario.js';
 import { textosDoItem, textosDoTermo, trocarConteudo } from '../src/conteudo/traducao.js';
 
-const ARQUIVOS = ['nivel0', 'nivel1', 'nivel2', 'nivel3', 'nivel4', 'nivel5', 'nivel6', 'nivel7', 'nivel8', 'nivel9', 'nivel10', 'nivel11', 'troubleshooting', 'glossario'];
+const ARQUIVOS = ['nivel0', 'nivel1', 'nivel2', 'nivel3', 'nivel4', 'nivel5', 'nivel6', 'nivel7', 'nivel8', 'nivel9', 'nivel10', 'nivel11', 'troubleshooting', 'quizzes', 'glossario'];
 const MARCAS = [/<code>/g, /<pre>/g, /<li>/g, /<h2>/g, /<tr>/g, /<p>/g, /<blockquote/g];
 const contar = (s, re) => (s.match(re) ?? []).length;
 

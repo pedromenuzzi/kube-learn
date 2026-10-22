@@ -567,7 +567,7 @@ export const NIVEL11 = [
       {
         titulo: 'O banco de dados',
         dificuldade: 'medio',
-        vidaReal: 'O apartamento 0 do banco, com número fixo e o porteiro do prédio (o Service headless) que sabe chamar pelo nome.',
+        vidaReal: 'O apartamento 0 do banco, com número fixo, e a lista com o ramal direto de cada apartamento (o Service headless), que chama pelo nome.',
         limite: 'O headless não reparte as ligações: ele só dá o endereço de cada apartamento (db-0.db).',
         enunciado: `<p>O <code>banco.yaml</code> tem o StatefulSet <code>db</code> (postgres), que cai sem senha. Dê a ele a
                     <code>POSTGRES_PASSWORD</code> lida do Secret <code>banco</code> e crie o Service <b>headless</b>
@@ -1124,8 +1124,10 @@ kubectl apply -f loja.yaml
 kind delete cluster --name estudo</code></pre>
       <p>Para 3 nodes como aqui, um arquivo de configuração com um <code>control-plane</code> e dois <code>worker</code>.</p>
       <h2>minikube</h2>
-      <p>Outro cluster local, com extras prontos (<code>minikube addons enable ingress</code>,
-         <code>minikube addons enable metrics-server</code>, <code>minikube dashboard</code>).</p>
+      <p>Outro cluster local, com extras prontos (<code>minikube addons enable metrics-server</code>,
+         <code>minikube dashboard</code>). Cuidado com o addon <code>ingress</code>: ele instala o ingress-nginx, aposentado
+         em 2026 (nível 3). Para a portaria, prefira o <b>Gateway API</b>: instale as CRDs dele e uma implementação, como o
+         Envoy Gateway ou o Traefik.</p>
       <h2>Para onde ir</h2>
       <ul>
         <li>A documentação oficial, em português: <a href="https://kubernetes.io/pt-br/docs/home/" target="_blank" rel="noopener">kubernetes.io/pt-br</a>.</li>

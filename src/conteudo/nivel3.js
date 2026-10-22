@@ -102,6 +102,8 @@ spec:
             o seletor não achou ninguém, ou ninguém está pronto);</li>
         <li>o nome no DNS: <code>loja</code> (no mesmo namespace), <code>loja.vendas</code> (de outro namespace) ou
             <code>loja.vendas.svc.cluster.local</code> (o nome completo).</li>
+        <li>quem faz o ramal funcionar: o <b>kube-proxy</b> de cada node (escreve as regras de rede que levam o IP do
+            Service a um dos pods) e o <b>CoreDNS</b> (a telefonista, que dá o IP de cada nome).</li>
       </ul>
       <h2>Testando de dentro</h2>
       <p>O Service do tipo padrão (<b>ClusterIP</b>) só existe dentro do cluster. Para testar, entre num pod:

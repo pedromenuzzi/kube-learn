@@ -393,7 +393,8 @@ web    1/1     Running   0          2m</code></pre>
     solucaoTerminal: ['kubectl explain pod.spec.containers'],
     testes: noCluster('você achou o campo', [
       { comando: '^kubectl\\s+explain\\b', msg: 'você usou o kubectl explain' },
-      { resposta: /^(pod\.spec\.containers\.)?workingdir$/ },
+      // workingDir, sozinho ou com o caminho (containers.workingDir, spec.containers[0].workingDir, pod.spec.containers.workingDir...)
+      { resposta: /^(\.?((pod\.)?spec\.)?containers(\[[^\]]*\])?\.)?workingdir$/ },
     ]),
   }),
 

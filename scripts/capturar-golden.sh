@@ -1903,3 +1903,10 @@ cap delete-svc-kubernetes kc delete svc kubernetes
 sleep 15
 cap get-svc-kubernetes kc get svc kubernetes
 cap delete-label-nenhum kc delete pods -l nada=1
+
+# ---------- Nível 9: o prédio desligado de vez (o taint out-of-service) ----------
+# O golden-worker2 está parado desde o nível 7 (docker stop), com o sozinho e dois pods do plantao Terminating nele. Com o
+# taint, o pod-garbage-collector (que passa a cada 20 s) apaga à força quem está saindo do node NotReady.
+cap taint-fora-de-servico kc taint nodes golden-worker2 node.kubernetes.io/out-of-service=nodeshutdown:NoExecute
+sleep 40
+cap get-pods-fora-de-servico kc get pods -l caiu=sim -o wide

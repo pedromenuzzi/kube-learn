@@ -1,12 +1,15 @@
 // A manutenção dos prédios: o PodDisruptionBudget ("pelo menos 2 elevadores funcionando"), o despejo (eviction)
 // que o kubectl drain usa, o ciclo de vida dos nodes (o prédio sem luz vira NotReady e ganha os taints de
-// unreachable) e o despejo pelos taints NoExecute (quem não tolera sai; quem tolera por N segundos sai depois).
+// unreachable), o despejo pelos taints NoExecute (quem não tolera sai; quem tolera por N segundos sai depois) e o
+// node desligado de vez (o taint out-of-service: quem estava saindo dele é apagado à força).
 import { iso } from './unidades.js';
 import { estaPronto } from './rede.js';
-import { tolera, casaLabelSelector } from './scheduler.js';
+import { tolera, casaLabelSelector, nodePronto } from './scheduler.js';
 
 const GRACA_DO_NODE = 50_000; // node-monitor-grace-period: sem notícias do kubelet por 50 s, o node fica NotReady
 const NAO_RESPONDE = 'node.kubernetes.io/unreachable';
+const FORA_DE_SERVICO = 'node.kubernetes.io/out-of-service';
+const VOLTA_DO_GC = 20_000; // o pod-garbage-collector passa a cada 20 s
 const INTERDITADO = 'node.kubernetes.io/unschedulable';
 const TERMINAIS = new Set(['Succeeded', 'Failed']);
 
@@ -109,7 +112,9 @@ function trocarTaints(c, node, taints) {
  * - node interditado (cordon) ganha o taint node.kubernetes.io/unschedulable:NoSchedule;
  * - node cujo kubelet parou de dar notícias há 50 s fica NotReady (condições Unknown), ganha os taints de
  *   unreachable e os pods dele deixam de estar prontos (saem dos Services);
- * - pods num node com taint NoExecute que não toleram saem na hora; os que toleram por N segundos, depois.
+ * - pods num node com taint NoExecute que não toleram saem na hora; os que toleram por N segundos, depois;
+ * - num node NotReady com o taint out-of-service (alguém garantiu que ele está desligado), o pod-garbage-collector
+ *   apaga à força quem está Terminating: o kubelet dele não vai voltar para confirmar a saída.
  */
 export function controladorDeNodes(c) {
   // O pod-garbage-collector: pod de um node que não existe mais (kubectl delete node) é apagado de vez.
@@ -148,6 +153,14 @@ export function controladorDeNodes(c) {
       if (Math.min(...prazos) > 0) continue;
       marcarRuptura(c, pod, 'DeletionByTaintManager', 'Taint manager: deleting due to NoExecute taint');
       c.remover(pod);
+    }
+  }
+
+  if (c.agora >= (c.voltaDoGcDePods ??= c.agora)) {
+    c.voltaDoGcDePods = c.agora + VOLTA_DO_GC;
+    for (const pod of c.listar('Pod').filter((p) => p.metadata.deletionTimestamp && p.spec.nodeName)) {
+      const node = c.obter('Node', null, pod.spec.nodeName);
+      if (node && !nodePronto(node) && (node.spec.taints ?? []).some((t) => t.key === FORA_DE_SERVICO)) c.remover(pod, { graca: 0 });
     }
   }
 }

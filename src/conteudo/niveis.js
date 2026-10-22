@@ -12,6 +12,7 @@ import { NIVEL8 } from './nivel8.js';
 import { NIVEL9 } from './nivel9.js';
 import { NIVEL10 } from './nivel10.js';
 import { NIVEL11 } from './nivel11.js';
+import { QUIZZES } from './quizzes.js';
 
 const nivel = (numero, icone, titulo, descricao, itens = []) => ({ id: `nivel-${numero}`, numero, icone, titulo, descricao, itens });
 
@@ -29,5 +30,12 @@ export const NIVEIS = [
   nivel(10, '📐', 'Helm, Kustomize e GitOps', 'O projeto padrão da construtora, a mesma planta em cada cidade, o formulário novo e a planta em cartório.', NIVEL10),
   nivel(11, '⚓', 'Projetos finais', 'Tudo junto, em etapas: cada etapa parte do que você fez na anterior.', NIVEL11),
 ];
+
+// Os quizzes (quizzes.js) entram logo depois do item que eles revisam.
+for (const q of QUIZZES) {
+  const nivel = NIVEIS.find((n) => n.itens.some((i) => i.id === q.depois));
+  if (!nivel) throw new Error(`quiz ${q.id}: o item ${q.depois} não existe`);
+  nivel.itens.splice(nivel.itens.findIndex((i) => i.id === q.depois) + 1, 0, q);
+}
 
 for (const n of NIVEIS) for (const i of n.itens) i.nivel = n.numero;
