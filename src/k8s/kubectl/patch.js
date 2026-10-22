@@ -2,6 +2,7 @@
 // containers e env, se juntam item a item), merge (RFC 7386: listas são trocadas inteiras) e json (RFC 6902: operações).
 import { parse } from 'yaml';
 import { sprint } from './colunas.js';
+import { canonico } from '../aleatorio.js';
 
 const ehMapa = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -71,12 +72,54 @@ export function estrategico(original, patch) {
   if (!ehMapa(original)) return limpar(patch);
   const saida = structuredClone(original);
   for (const [k, v] of Object.entries(patch)) {
-    if (k.startsWith('$')) continue; // ponytail: $retainKeys, $setElementOrder e $deleteFromPrimitiveList não são simulados
+    if (k.startsWith('$deleteFromPrimitiveList/') && Array.isArray(saida[k.slice(25)])) saida[k.slice(25)] = saida[k.slice(25)].filter((x) => !v.includes(x));
+    if (k.startsWith('$')) continue; // ponytail: $retainKeys e $setElementOrder não são simulados
     if (v === null) delete saida[k];
     else if (Array.isArray(v) && Array.isArray(saida[k])) saida[k] = listaEstrategica(k, saida[k], v);
     else saida[k] = ehMapa(v) ? estrategico(saida[k], v) : limpar(v);
   }
   return saida;
+}
+
+/**
+ * O patch do original para o editado, como o kubectl edit manda (o CreateTwoWayMergePatch): mapas só com o que mudou
+ * (null apaga); listas com chave (containers, env...) só com os itens que mudaram, mais o $setElementOrder e os
+ * $patch: delete; finalizers com o $deleteFromPrimitiveList; as outras listas, inteiras. Com `merge` (os tipos de CRD,
+ * que o kubectl não conhece), o merge patch do RFC 7386: toda lista vai inteira.
+ */
+export function diferenca(original, editado, merge = false) {
+  const patch = {};
+  for (const [k, v] of Object.entries(editado)) {
+    const o = original[k];
+    if (canonico(o) === canonico(v)) continue;
+    if (ehMapa(o) && ehMapa(v)) {
+      const sub = diferenca(o, v, merge);
+      if (Object.keys(sub).length) patch[k] = sub;
+    } else if (!merge && Array.isArray(o) && Array.isArray(v) && LISTAS_DE_VALORES.has(k)) {
+      const novos = v.filter((x) => !o.includes(x));
+      const saem = o.filter((x) => !v.includes(x));
+      Object.assign(patch, { [`$setElementOrder/${k}`]: v }, novos.length ? { [k]: novos } : {}, saem.length ? { [`$deleteFromPrimitiveList/${k}`]: saem } : {});
+    } else if (!merge && Array.isArray(o) && Array.isArray(v) && [...o, ...v].every(ehMapa) && chaveDa(k, [...o, ...v])) {
+      Object.assign(patch, diferencaDeLista(k, o, v));
+    } else patch[k] = v;
+  }
+  for (const k of Object.keys(original)) if (!(k in editado)) patch[k] = null;
+  return patch;
+}
+
+function diferencaDeLista(campo, original, editado) {
+  const chave = chaveDa(campo, [...original, ...editado]);
+  const itens = [];
+  for (const item of editado) {
+    const o = original.find((x) => x[chave] === item[chave]);
+    const d = o ? diferenca(o, item) : item;
+    if (Object.keys(d).length) itens.push(o ? { ...d, [chave]: item[chave] } : item);
+  }
+  for (const o of original) if (!editado.some((x) => x[chave] === o[chave])) itens.push({ $patch: 'delete', [chave]: o[chave] });
+  const ordem = editado.map((x) => ({ [chave]: x[chave] }));
+  const mesmaOrdem = canonico(ordem) === canonico(original.filter((o) => editado.some((x) => x[chave] === o[chave])).map((x) => ({ [chave]: x[chave] })));
+  if (!itens.length && mesmaOrdem) return {};
+  return { [`$setElementOrder/${campo}`]: ordem, ...(itens.length ? { [campo]: itens } : {}) };
 }
 
 /** JSON merge patch (RFC 7386). */

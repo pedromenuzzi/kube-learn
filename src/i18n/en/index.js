@@ -16,6 +16,7 @@ import troubleshooting from './conteudo/troubleshooting.json';
 import quizzes from './conteudo/quizzes.json';
 import oficina from './conteudo/oficina.json';
 import glossario from './conteudo/glossario.json';
+import esquema from './esquema.json'; // as descrições do kubectl explain (scripts/explain-ingles.mjs)
 import { REGRAS, STATUS } from './explicacoes.js';
 import uiExercicio from './ui-exercicio.js';
 import uiPaginas from './ui-paginas.js';
@@ -25,7 +26,7 @@ export const itens = {
   ...nivel0, ...nivel1, ...nivel2, ...nivel3, ...nivel4, ...nivel5, ...nivel6, ...nivel7, ...nivel8, ...nivel9, ...nivel10, ...nivel11, ...troubleshooting, ...quizzes, ...oficina,
   livre: { titulo: 'Free playground', enunciado: '<p>A cluster all to yourself, with 1 control plane and 2 workers. Write YAML, apply it and explore with <code>kubectl</code>. Nothing here is graded.</p>' },
 };
-export { glossario };
+export { glossario, esquema };
 export const explicacoes = { REGRAS, STATUS };
 export const ui = { ...uiExercicio, ...uiPaginas, ...uiEngajamento };
 

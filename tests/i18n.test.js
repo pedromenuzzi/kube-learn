@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { textosDoArquivo } from '../scripts/textos.mjs';
 import * as EN from '../src/i18n/en/index.js';
 import { REGRAS, STATUS } from '../src/k8s/explicacoes.js';
+import { ESQUEMAS } from '../src/k8s/esquema.js';
 import { ITENS, NIVEIS, TROUBLESHOOTING } from '../src/conteudo/index.js';
 import { GLOSSARIO } from '../src/conteudo/glossario.js';
 import { textosDoItem, textosDoTermo, trocarConteudo } from '../src/conteudo/traducao.js';
@@ -73,6 +74,24 @@ describe('inglês', () => {
     expect([...ITENS, ...TROUBLESHOOTING].map(textosDoItem)).toEqual(antes);
     expect(GLOSSARIO.map(textosDoTermo)).toEqual(termos);
     expect(NIVEIS.map((n) => n.titulo)).toEqual(niveis);
+  });
+
+  it('kubectl explain: todo campo do esquema com descrição em português tem a de verdade, em inglês', () => {
+    const { raizes, tipos } = EN.esquema;
+    const faltam = [];
+    const visitar = (no, ref, caminho) => {
+      for (const [nome, campo] of Object.entries(no.campos ?? {})) {
+        const en = tipos[ref]?.c?.[nome];
+        const filho = campo.tipo === 'array' ? campo.item : campo;
+        if ((campo.desc && !en?.d) || (filho.campos && !en?.t)) faltam.push(`${caminho}.${nome}`);
+        if (en?.t) visitar(filho, en.t, `${caminho}.${nome}`);
+      }
+    };
+    for (const [kind, no] of Object.entries(ESQUEMAS)) {
+      if (!raizes[kind]) faltam.push(kind);
+      else visitar(no, raizes[kind], kind);
+    }
+    expect(faltam).toEqual([]);
   });
 
   it('os níveis', () => {

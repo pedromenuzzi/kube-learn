@@ -1,0 +1,3 @@
+configmap/cores edited
+deployment.apps/web skipped
+exit=0

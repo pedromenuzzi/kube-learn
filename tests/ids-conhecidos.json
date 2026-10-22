@@ -261,5 +261,8 @@
  "of-ordenar",
  "of-eventos",
  "of-patch",
- "of-set-env"
+ "of-set-env",
+ "of-editar",
+ "of-depurar",
+ "of-contar"
 ]

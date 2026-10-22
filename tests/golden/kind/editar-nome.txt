@@ -1,0 +1,3 @@
+A copy of your changes has been stored to "/tmp/kubectl-edit-4284295230.yaml"
+error: At least one of apiVersion, kind and name was changed
+exit=1

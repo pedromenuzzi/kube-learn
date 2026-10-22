@@ -394,10 +394,10 @@ canvas.navio { image-rendering: pixelated; width: 100%; height: auto; display: b
 .termo pre { margin: 0.2rem 0 0; background: var(--superficie-2); border: 1px solid var(--borda); padding: 0.4rem 0.6rem; border-radius: var(--raio-p); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.82rem; }
 
 /* ---------- diálogo de acessibilidade ---------- */
-:is(dialog.preferencias, dialog.feedback) { background: var(--superficie); color: var(--texto); border: 1px solid var(--borda); border-radius: var(--raio-g); padding: 0; width: min(28rem, calc(100vw - 2rem)); box-shadow: var(--sombra-3); }
-:is(dialog.preferencias, dialog.feedback)[open] { animation: aparecer 200ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+:is(dialog.preferencias, dialog.feedback, dialog.edicao) { background: var(--superficie); color: var(--texto); border: 1px solid var(--borda); border-radius: var(--raio-g); padding: 0; width: min(28rem, calc(100vw - 2rem)); box-shadow: var(--sombra-3); }
+:is(dialog.preferencias, dialog.feedback, dialog.edicao)[open] { animation: aparecer 200ms cubic-bezier(0.2, 0.7, 0.3, 1); }
 @keyframes aparecer { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
-:is(dialog.preferencias, dialog.feedback)::backdrop { background: rgb(5 10 20 / 55%); backdrop-filter: blur(2px); }
+:is(dialog.preferencias, dialog.feedback, dialog.edicao)::backdrop { background: rgb(5 10 20 / 55%); backdrop-filter: blur(2px); }
 :is(dialog.preferencias, dialog.feedback) form { padding: 1.4rem 1.5rem; display: grid; gap: 1rem; }
 :is(dialog.preferencias, dialog.feedback) h2 { margin: 0; font-size: 1.2rem; }
 :is(dialog.preferencias, dialog.feedback) fieldset { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
@@ -447,6 +447,17 @@ canvas.navio { image-rendering: pixelated; width: 100%; height: auto; display: b
 
 /* o diálogo de feedback (o resto do visual é o das preferências) */
 dialog.feedback { width: min(34rem, calc(100vw - 2rem)); }
+/* o editor do kubectl edit (o terminal abre; src/ui/terminal.js) */
+dialog.edicao { width: min(56rem, calc(100vw - 2rem)); height: min(44rem, calc(100dvh - 2rem)); padding: 1rem 1.2rem; display: none; }
+dialog.edicao[open] { display: flex; flex-direction: column; gap: 0.6rem; }
+dialog.edicao h2 { margin: 0; font-size: 1.05rem; }
+dialog.edicao .edicao-arquivo { margin: 0; color: var(--suave); font-family: var(--mono); font-size: 0.85rem; }
+dialog.edicao .edicao-editor { flex: 1; min-height: 0; border: 1px solid var(--borda); border-radius: var(--raio); overflow: hidden; }
+dialog.edicao .edicao-editor .cm-editor { height: 100%; font-size: 0.9rem; }
+dialog.edicao .edicao-editor .cm-focused { outline: 0; box-shadow: inset 0 0 0 2px var(--destaque); }
+dialog.edicao .nota { margin: 0; }
+dialog.edicao .edicao-botoes { margin: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; }
+dialog.edicao kbd { font-family: var(--mono); font-size: 0.8em; opacity: 0.8; }
 dialog.feedback h2 { display: flex; align-items: center; gap: 0.5rem; }
 dialog.feedback fieldset.reacoes { display: flex; flex-wrap: wrap; gap: 0.45rem; }
 dialog.feedback fieldset.reacoes legend { width: 100%; }

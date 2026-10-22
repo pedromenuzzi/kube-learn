@@ -3,7 +3,10 @@
 // O motor só cresce com o conteúdo: um campo entra aqui quando algum exercício precisa dele. Subárvores
 // que ainda não simulamos ficam como `qualquer` (aceitas sem conferir), para não recusar YAML válido.
 import { canonico } from './aleatorio.js';
+import { pacoteIngles } from '../i18n.js';
 import { lerCron, errosDoFuso } from './cron.js';
+import { textoQuantidade, valorQuantidade } from './unidades.js';
+import { errosDasNormas } from './seguranca.js';
 
 // ---------- construtores ----------
 const campo = (tipo, desc = '', extra = {}) => ({ tipo, desc, ...extra });
@@ -893,6 +896,10 @@ function validarPodSpec(spec, base, erros, volumesExtras = []) {
       else if (!volumes.has(m.name)) erros.push(`${cm}.name: Not found: ${JSON.stringify(m.name)}`);
       if (!m.mountPath) erros.push(obrigatorio(`${cm}.mountPath`));
     });
+    if (c.imagePullPolicy !== undefined && !['Always', 'IfNotPresent', 'Never'].includes(c.imagePullPolicy)) {
+      erros.push(`${cam}.imagePullPolicy: Unsupported value: ${JSON.stringify(c.imagePullPolicy)}: supported values: "Always", "IfNotPresent", "Never"`);
+    }
+    validarRecursos(c.resources, `${cam}.resources`, erros, base === 'spec'); // só o Pod tem o PodSpec em spec (os moldes, em .template.spec)
   });
   const politica = spec.restartPolicy;
   if (politica && !['Always', 'OnFailure', 'Never'].includes(politica)) {
@@ -909,6 +916,30 @@ function validarPodSpec(spec, base, erros, volumesExtras = []) {
     if (!k.topologyKey) erros.push(`${cam}.topologyKey: Required value: can not be empty`);
     if (!['DoNotSchedule', 'ScheduleAnyway'].includes(k.whenUnsatisfiable)) erros.push(`${cam}.whenUnsatisfiable: Unsupported value: ${JSON.stringify(k.whenUnsatisfiable ?? '')}: supported values: "DoNotSchedule", "ScheduleAnyway"`);
   });
+}
+
+// Os nomes de recurso sem domínio que o Kubernetes conhece (o IsStandardResourceName) e, desses, os de um contêiner.
+const RECURSO_CONHECIDO = /^((requests\.|limits\.)?(cpu|memory|ephemeral-storage)|(requests\.)?(storage|hugepages-.+)|pods|resourcequotas|services|replicationcontrollers|secrets|persistentvolumeclaims|services\.(nodeports|loadbalancers))$/;
+const RECURSO_DE_CONTEINER = /^(cpu|memory|ephemeral-storage|hugepages-.+)$/;
+
+/**
+ * requests e limits: o nome do recurso e o request no máximo igual ao limit (o ValidateContainerResourceRequirements).
+ * Num Pod (não num molde), o apiserver já copiou para os requests os limits que não tinham request.
+ */
+function validarRecursos(r, base, erros, ehPod) {
+  const requests = ehPod ? { ...r?.limits, ...r?.requests } : r?.requests;
+  for (const [tipo, mapa] of [['limits', r?.limits], ['requests', requests]]) {
+    for (const [nome, q] of Object.entries(mapa ?? {})) {
+      if (!nome.includes('/')) {
+        if (!RECURSO_CONHECIDO.test(nome)) erros.push(invalido(`${base}.${tipo}[${nome}]`, nome, 'must be a standard resource type or fully qualified'));
+        if (!RECURSO_DE_CONTEINER.test(nome)) erros.push(invalido(`${base}.${tipo}[${nome}]`, nome, 'must be a standard resource for containers'));
+      }
+      const limite = r.limits?.[nome];
+      if (tipo === 'requests' && limite !== undefined && valorQuantidade(q) > valorQuantidade(limite)) {
+        erros.push(invalido(`${base}.requests`, textoQuantidade(q), `must be less than or equal to ${nome} limit of ${textoQuantidade(limite)}`));
+      }
+    }
+  }
 }
 
 function validarJob(spec, base, erros) {
@@ -956,6 +987,9 @@ export function validar(obj, antigo) {
   validarNome(obj, erros);
   const s = obj.spec;
   switch (obj.kind) {
+    case 'Namespace':
+      erros.push(...errosDasNormas(obj.metadata?.labels));
+      break;
     case 'Pod':
       validarPodSpec(s, 'spec', erros);
       if (antigo && !erros.length) {
@@ -1286,49 +1320,92 @@ const nomeTipoExplain = (c) => {
   return c.tipo;
 };
 
-/** Quebra o texto em linhas de até 80 colunas, com o recuo dado. */
-function quebrar(textoLongo, recuo) {
-  const linhas = [];
-  let atual = '';
-  for (const palavra of textoLongo.split(/\s+/).filter(Boolean)) {
-    if (atual && recuo.length + atual.length + 1 + palavra.length > 80) {
-      linhas.push(recuo + atual);
-      atual = palavra;
-    } else atual = atual ? `${atual} ${palavra}` : palavra;
+/**
+ * Quebra o texto como o kubectl explain (o go-wordwrap): nos espaços, até 80 colunas com o recuo; uma palavra maior que a
+ * linha fica inteira; as quebras de linha do texto ficam. → as linhas, com o recuo (também nas vazias).
+ */
+function quebrar(texto, recuo) {
+  const limite = 80 - recuo.length;
+  let saida = '';
+  let atual = 0;
+  let palavra = '';
+  let espacos = '';
+  for (const ch of texto) {
+    if (ch === '\n') {
+      if (palavra) saida += espacos + palavra;
+      else if (atual + espacos.length <= limite) saida += espacos;
+      saida += '\n';
+      atual = 0;
+      palavra = '';
+      espacos = '';
+    } else if (/\s/.test(ch) && ch !== '\u00a0') {
+      if (!espacos || palavra) {
+        atual += espacos.length + palavra.length;
+        saida += espacos + palavra;
+        palavra = '';
+        espacos = '';
+      }
+      espacos += ch;
+    } else {
+      palavra += ch;
+      if (atual + espacos.length + palavra.length > limite && palavra.length < limite) {
+        saida += '\n';
+        atual = 0;
+        espacos = '';
+      }
+    }
   }
-  if (atual) linhas.push(recuo + atual);
-  return linhas;
+  saida += palavra ? espacos + palavra : atual + espacos.length <= limite ? espacos : '';
+  return saida.split('\n').map((l) => recuo + l);
 }
 
-/** Saída do `kubectl explain` para kind e caminho ('spec.replicas'). Erro → { erro }. */
+const porBytes = ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0); // a ordem do Go (maiúsculas antes)
+
+/**
+ * Saída do `kubectl explain` para kind e caminho ('spec.replicas'). Erro → { erro }. Em inglês, as descrições são as do
+ * kubectl de verdade (src/i18n/en/esquema.json, com os "enum" de cada campo); em português, as nossas, mais didáticas.
+ */
 export function explicar(recurso, caminho = []) {
-  let c = esquemaDe(recurso.kind);
+  const en = pacoteIngles()?.esquema;
+  const raiz = esquemaDe(recurso.kind);
+  let c = raiz;
+  let tipoEn = en?.raizes[recurso.kind];
+  let campoEn = null;
   const percorridos = [];
   for (const parte of caminho) {
     if (c.tipo === 'array') c = c.item;
     const filho = c.campos?.[parte];
     if (!filho) return { erro: `error: field "${parte}" does not exist` };
     percorridos.push(parte);
+    campoEn = en?.tipos[tipoEn]?.c?.[parte] ?? null;
+    tipoEn = campoEn?.t;
     c = filho;
   }
   const alvo = c.tipo === 'array' ? c.item : c;
+  const doCrd = !!raiz?.crd;
+  const emIngles = !!en && !doCrd;
+  const camposEn = en?.tipos[tipoEn]?.c ?? {};
   const linhas = [];
   if (recurso.grupo) linhas.push(`GROUP:      ${recurso.grupo}`);
   linhas.push(`KIND:       ${recurso.kind}`, `VERSION:    ${recurso.versao}`, '');
-  if (caminho.length) linhas.push(`FIELD: ${percorridos.at(-1)} <${nomeTipoExplain(c)}>`, '', '');
-  const doCrd = !!esquemaDe(recurso.kind)?.crd;
-  linhas.push('DESCRIPTION:', ...quebrar(c.desc || alvo.desc || (doCrd ? '<empty>' : '<sem descrição>'), '    '));
-  if (c !== alvo && alvo.desc && alvo.desc !== c.desc) linhas.push(...quebrar(alvo.desc, '    '));
-  if (!doCrd) linhas.push('    ');
+  if (caminho.length) {
+    const valores = emIngles ? campoEn?.e : null;
+    linhas.push(`FIELD: ${percorridos.at(-1)} <${nomeTipoExplain(c)}>`, ...(valores ? ['ENUM:', ...valores.map((v) => `    ${v}`)] : ['']), '');
+  }
+  const descricao = emIngles
+    ? [caminho.length ? campoEn?.d : '', en.tipos[tipoEn]?.d].filter(Boolean).join('\n')
+    : [c.desc || alvo.desc, c !== alvo && c.desc && alvo.desc !== c.desc ? alvo.desc : ''].filter(Boolean).join('\n');
+  linhas.push('DESCRIPTION:', ...quebrar(descricao || (doCrd ? '<empty>' : '<sem descrição>'), '    '));
+  if (descricao) linhas.push('    ');
   if (alvo.campos) {
     linhas.push('FIELDS:');
-    for (const [nome, f] of Object.entries(alvo.campos).sort(([a], [b]) => a.localeCompare(b))) {
-      linhas.push(`  ${nome}\t<${nomeTipoExplain(f)}>${f.obrigatorio ? ' -required-' : ''}`);
-      if (f.desc) linhas.push(...quebrar(f.desc, '    '));
+    for (const [nome, f] of Object.entries(alvo.campos).sort(porBytes)) {
+      const d = emIngles ? camposEn[nome] ?? {} : { d: f.desc };
+      linhas.push(`  ${nome}\t<${nomeTipoExplain(f)}>${f.obrigatorio ? ' -required-' : ''}`, ...(d.e ? [`  enum: ${d.e.join(', ')}`] : []));
+      if (d.d) linhas.push(...quebrar(d.d, '    '));
       linhas.push('');
     }
   }
-  linhas.push('');
-  if (doCrd) linhas.push('');
+  linhas.push('', '');
   return { saida: linhas.join('\n') };
 }

@@ -22,7 +22,7 @@ import { montarJanelas } from './janelas.js';
 import { icone } from './icones.js';
 
 const DIFICULDADE = { facil: 'Fácil', medio: 'Médio', dificil: 'Difícil' };
-const SUBCOMANDOS = ['annotate', 'api-resources', 'apply', 'cluster-info', 'config', 'create', 'delete', 'describe', 'exec', 'explain', 'expose', 'get', 'help', 'label', 'logs', 'port-forward', 'rollout', 'run', 'scale', 'set', 'version', 'wait', 'autoscale', 'top'];
+const SUBCOMANDOS = ['annotate', 'api-resources', 'apply', 'cluster-info', 'config', 'create', 'delete', 'describe', 'edit', 'exec', 'explain', 'expose', 'get', 'help', 'label', 'logs', 'port-forward', 'rollout', 'run', 'scale', 'set', 'version', 'wait', 'autoscale', 'top'];
 /** "1 de 3 testes passou", "0 de 1 teste passaram": as quatro combinações do resumo, cada uma com a sua tradução. */
 const resumoDosTestes = (ok, total) => (total > 1
   ? (ok === 1 ? t('{ok} de {total} testes passou', { ok, total }) : t('{ok} de {total} testes passaram', { ok, total }))
@@ -33,7 +33,9 @@ const ajuda = () => t(`Este terminal entende o kubectl (experimente: kubectl get
   cat ARQUIVO   mostra um arquivo
   curl URL      uma requisição do SEU computador (fora do cluster): port-forward, NodePort, LoadBalancer, Ingress
   helm, git     o helm e o git das missões de Helm e GitOps (nível 10)
+  ... | grep loja | wc -l   filtra a saída: grep, head, tail, wc, sort, awk '{print $1}'
   ... | base64 -d   decodifica a saída (ex.: o valor de um Secret)
+  a && b        roda o b se o a deu certo (também: a || b, a ; b)
   history       os comandos que você já digitou
   clear         limpa a tela (ou Ctrl+L)
 O relógio do cluster anda sozinho; o botão +30s adianta 30 segundos.
@@ -231,16 +233,11 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
 
   // ---------- terminal ----------
   function executar(linha) {
-    const [cmd, ...args] = palavras(linha);
+    // KUBE_EDITOR="sed -i ..." kubectl edit ...: o editor vem antes do comando (como no shell de verdade).
+    const [cmd] = palavras(linha).filter((p, i) => i || !p.startsWith('KUBE_EDITOR='));
     if (cmd === 'clear') return { limpar: true };
     if (cmd === 'help') return { saida: ajuda() };
     if (cmd === 'history') return { saida: terminal.historico.map((l, i) => `  ${i + 1}  ${l}\n`).join('') };
-    if (cmd === 'ls') return { saida: `${Object.keys(estado.arquivos).join('  ')}\n` };
-    if (cmd === 'cat') {
-      const faltam = args.filter((a) => !(a in estado.arquivos));
-      if (faltam.length) return { saida: `cat: ${faltam[0]}: No such file or directory\n`, codigo: 1, partes: [{ fluxo: 'err', texto: `cat: ${faltam[0]}: No such file or directory\n` }] };
-      return { saida: args.map((a) => estado.arquivos[a]).join('') };
-    }
     if (!COMANDOS.includes(cmd)) {
       const texto = `bash: ${cmd}: command not found\n`;
       return { saida: texto, codigo: 127, partes: [{ fluxo: 'err', texto }], caixas: [{ titulo: t('Aqui o terminal só fala kubectl'), texto: t('Use <code>kubectl ...</code>, ou <code>help</code> para ver os outros comandos.') }] };
@@ -249,10 +246,7 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
     try {
       r = rodarLinha(estado.cluster, linha, estado.arquivos);
     } catch (erro) {
-      // Um defeito do simulador não pode deixar o terminal mudo: diz o que houve e pede o relato (o Feedback leva os comandos).
-      console.error(erro);
-      const texto = `${t('erro interno do simulador: {erro}', { erro: erro.message })}\n`;
-      return { saida: texto, codigo: 1, partes: [{ fluxo: 'err', texto }], caixas: [{ titulo: t('O simulador tropeçou'), texto: t('Isso é um defeito nosso, não seu. Se puder, conte pelo botão <b>Feedback</b>: ele já leva os últimos comandos.') }] };
+      return tropecou(erro);
     }
     if (r.arquivoGravado && editor) {
       estado.atual = r.arquivoGravado;
@@ -260,10 +254,37 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
       salvar();
       desenharArquivos();
     }
+    return enfeitar(r);
+  }
+
+  /** Um defeito do simulador não pode deixar o terminal mudo: diz o que houve e pede o relato (o Feedback leva os comandos). */
+  function tropecou(erro) {
+    console.error(erro);
+    const texto = `${t('erro interno do simulador: {erro}', { erro: erro.message })}\n`;
+    return { saida: texto, codigo: 1, partes: [{ fluxo: 'err', texto }], caixas: [{ titulo: t('O simulador tropeçou'), texto: t('Isso é um defeito nosso, não seu. Se puder, conte pelo botão <b>Feedback</b>: ele já leva os últimos comandos.') }] };
+  }
+
+  /** As caixas "Na vida real" e os painéis depois do comando; no kubectl edit, também depois de cada vez que o editor fecha. */
+  function enfeitar(r) {
     const caixas = explicarSaida(r.saida, { falhou: r.codigo !== 0 }).filter((c) => r.codigo !== 0 || !caixasVistas.has(c.chave));
     for (const c of caixas) caixasVistas.add(c.chave);
     setTimeout(atualizarPaineis);
-    return { ...r, caixas };
+    if (!r.editar) return { ...r, caixas };
+    const { concluir } = r.editar;
+    return {
+      ...r,
+      caixas,
+      editar: {
+        ...r.editar,
+        concluir(texto) {
+          try {
+            return enfeitar(concluir(texto));
+          } catch (erro) {
+            return tropecou(erro);
+          }
+        },
+      },
+    };
   }
 
   function completar(linha) {

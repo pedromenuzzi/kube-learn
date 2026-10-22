@@ -1,0 +1,6 @@
+The Pod "placa" is invalid: 
+* spec.containers[0].resources.limits[gpu]: Invalid value: "gpu": must be a standard resource type or fully qualified
+* spec.containers[0].resources.limits[gpu]: Invalid value: "gpu": must be a standard resource for containers
+* spec.containers[0].resources.requests[gpu]: Invalid value: "gpu": must be a standard resource type or fully qualified
+* spec.containers[0].resources.requests[gpu]: Invalid value: "gpu": must be a standard resource for containers
+exit=1

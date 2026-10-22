@@ -1,0 +1,2 @@
+The Pod "guloso" is invalid: spec.containers[0].resources.requests: Invalid value: "2": must be less than or equal to cpu limit of 1
+exit=1

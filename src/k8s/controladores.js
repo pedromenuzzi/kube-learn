@@ -29,24 +29,42 @@ export function servicoKubernetes(c) {
 }
 
 /**
- * Um controlador que só lê o que está guardado (sem relógio nem estado próprio): se a última rodada, nesta mesma
- * versão do cluster, não mudou nada, esta também não mudaria. Toda mudança guardada troca a versão (c.rv).
+ * Um controlador que só lê o que está guardado (sem estado próprio): se a última rodada, nesta mesma versão do cluster,
+ * não mudou nada, esta também não mudaria. Toda mudança guardada troca a versão (c.rv). O que também olha o relógio
+ * diz, em `acorda(c)`, quando vence o próximo prazo que ele confere: até lá, a rodada sem mudança continua valendo.
  */
-function soDoEstado(c, controlador) {
-  if (c.ociosos.get(controlador) === c.rv) return;
+function soDoEstado(c, controlador, acorda = () => Infinity) {
+  const ocioso = c.ociosos.get(controlador);
+  if (ocioso?.rv === c.rv && c.agora < ocioso.ate) return;
   const antes = c.rv;
   controlador(c);
-  if (c.rv === antes) c.ociosos.set(controlador, antes);
+  if (c.rv === antes) c.ociosos.set(controlador, { rv: antes, ate: acorda(c) });
 }
+
+/** A próxima tentativa de criar um pod recusado (a espera crescente do FailedCreate, em criarPodDe). */
+const proximaTentativa = (c) => Math.min(Infinity, ...[...c.esperaCriacao.values()].map((e) => e.proxima));
+
+/** Quando vence o progressDeadlineSeconds de um rollout que não terminou (o Deployment vira ProgressDeadlineExceeded). */
+function prazoDosRollouts(c) {
+  let ate = Infinity;
+  for (const d of c.listar('Deployment')) {
+    const prog = d.status?.conditions?.find((x) => x.type === 'Progressing');
+    if (prog && !['NewReplicaSetAvailable', 'ProgressDeadlineExceeded'].includes(prog.reason)) ate = Math.min(ate, Date.parse(prog.lastUpdateTime) + d.spec.progressDeadlineSeconds * 1000 + 1);
+  }
+  return ate;
+}
+
+/** O ReplicaSet com minReadySeconds e pod pronto ainda não disponível muda só com o relógio: aí, roda toda vez. */
+const prazoDosReplicaSets = (c) => (c.listar('ReplicaSet').some((rs) => rs.spec.minReadySeconds && (rs.status?.readyReplicas ?? 0) !== (rs.status?.availableReplicas ?? 0)) ? -Infinity : proximaTentativa(c));
 
 export function rodarControladores(c) {
   servicoKubernetes(c);
   controladorDeNodes(c);
   soDoEstado(c, namespaces);
-  deployments(c);
-  replicasets(c);
+  soDoEstado(c, deployments, prazoDosRollouts);
+  soDoEstado(c, replicasets, prazoDosReplicaSets);
   statefulsets(c);
-  daemonsets(c);
+  soDoEstado(c, daemonsets, proximaTentativa);
   cronjobs(c);
   jobs(c);
   controladorDeDiscos(c);

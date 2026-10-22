@@ -94,6 +94,38 @@ export function bytes(q) {
 /** Uma quantidade é válida? (o formato que o apiserver aceita, sem notação exponencial). */
 export const quantidadeValida = (q) => /^[+]?(\d+(\.\d*)?|\.\d+)([KMGTPE]i|[mkMGTPE])?$/.test(String(q));
 
+const POT_BIN = ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei']; // potências de 1024
+const POT_DEC = ['m', '', 'k', 'M', 'G', 'T', 'P', 'E']; // potências de 1000, a partir do mili
+
+/** '500m' → { valor: 0.5, binario: false }; '1Gi' → { valor: 1073741824, binario: true }; fora do formato → null. */
+function lerQuantidade(q) {
+  const m = String(q).match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+))([KMGTPE]i|[mkMGTPE])?$/);
+  if (!m) return null;
+  const binario = m[2]?.endsWith('i') ?? false;
+  return { valor: Number(m[1]) * (binario ? 1024 ** POT_BIN.indexOf(m[2]) : 1000 ** (POT_DEC.indexOf(m[2] ?? '') - 1)), binario };
+}
+
+/** O valor de uma quantidade, na unidade base (cores, bytes): para comparar '0.5' com '500m'. */
+export const valorQuantidade = (q) => lerQuantidade(q)?.valor ?? NaN;
+
+/**
+ * A quantidade como o Kubernetes a reescreve (o Quantity.String() do Go), mantendo o formato (binário ou decimal):
+ * '0.5' → '500m', '1024Mi' → '1Gi', '1000' → '1k'. Binário abaixo de 1024 vira decimal, como no Go.
+ */
+export function textoQuantidade(q) {
+  const lida = lerQuantidade(q);
+  if (!lida) return String(q);
+  const { valor, binario } = lida;
+  if (binario && Math.abs(valor) >= 1024 && Number.isInteger(valor)) {
+    for (let e = POT_BIN.length - 1; e > 0; e--) if (valor % 1024 ** e === 0) return `${valor / 1024 ** e}${POT_BIN[e]}`;
+    return String(valor);
+  }
+  const mili = Math.round(valor * 1000);
+  if (mili === 0) return '0';
+  for (let e = POT_DEC.length - 1; e > 0; e--) if (mili % 1000 ** e === 0) return `${mili / 1000 ** e}${POT_DEC[e]}`;
+  return `${mili}m`;
+}
+
 /** Milicores como o Kubernetes escreve: 1500 → '1500m', 2000 → '2', 0 → '0'. */
 export const textoCpu = (m) => (m === 0 ? '0' : m % 1000 === 0 ? String(m / 1000) : `${m}m`);
 

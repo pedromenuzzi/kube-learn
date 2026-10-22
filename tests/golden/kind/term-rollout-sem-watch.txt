@@ -1,0 +1,2 @@
+error: deployment "loja" exceeded its progress deadline
+exit=1

@@ -114,6 +114,18 @@ export function normasDe(c, ns) {
   return { enforce: norma('enforce'), warn: norma('warn') };
 }
 
+/** Os rótulos de PodSecurity com valor inválido, como o apiserver recusa (o PolicyToEvaluate do PodSecurity admission). */
+export function errosDasNormas(labels = {}) {
+  const erros = [];
+  for (const modo of ['enforce', 'audit', 'warn']) {
+    const nivel = labels[`${ROTULO}${modo}`];
+    if (nivel !== undefined && !NIVEIS.includes(nivel)) erros.push(`metadata.labels[${ROTULO}${modo}]: Invalid value: ${JSON.stringify(nivel)}: must be one of ${NIVEIS.join(', ')}`);
+    const versao = labels[`${ROTULO}${modo}-version`];
+    if (versao !== undefined && !/^(latest|v1\.(0|[1-9]\d*))$/.test(versao)) erros.push(`metadata.labels[${ROTULO}${modo}-version]: Invalid value: ${JSON.stringify(versao)}: must be "latest" or "v1.x"`);
+  }
+  return erros;
+}
+
 /** O que o pod viola no nível pedido, na ordem das checagens do Kubernetes (pelo nome de cada uma). */
 export function violacoes(spec, nivel) {
   if (nivel === 'privileged') return [];

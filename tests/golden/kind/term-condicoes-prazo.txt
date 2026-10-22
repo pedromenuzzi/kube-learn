@@ -1,0 +1,3 @@
+Available True MinimumReplicasAvailable Deployment has minimum availability.
+Progressing False ProgressDeadlineExceeded ReplicaSet "loja-7b75db4cc7" has timed out progressing.
+exit=0

@@ -184,5 +184,52 @@
         }
       }
     ]
+  },
+  "of-editar": {
+    "titulo": "Editing the live object",
+    "enunciado": "<p><code>loja</code> keeps its last 10 versions for <code>rollout undo</code>. With <code>kubectl edit</code>, change it\n                to keep only the last <b>3</b> (<code>revisionHistoryLimit</code>), right on the object in the cluster.</p>",
+    "dica": "kubectl edit deployment loja: in the editor, find revisionHistoryLimit: 10, change it to 3 and save (Ctrl+S).",
+    "vidaReal": "Fixing the resident’s record right in the front desk’s file cabinet, without filling out a new form.",
+    "limite": "Edit changes the cluster, not your file: on the next apply of the old YAML, the value comes back (and with GitOps the edit is lost at the next sync).",
+    "testes": [
+      {
+        "descricao": "loja keeps only 3 versions",
+        "msgs": {
+          "0": "you used kubectl edit"
+        }
+      }
+    ]
+  },
+  "of-depurar": {
+    "titulo": "The disposable pod",
+    "enunciado": "<p>Test the <code>loja</code> Service from inside the cluster with a pod that deletes itself at the end: <code>kubectl run</code>\n                with <code>--rm -i</code>, the <code>busybox:1.36</code> image and a <code>wget -qO- http://loja</code>. Which version does the store answer with?</p>",
+    "dica": "kubectl run tmp --rm -i --restart=Never --image=busybox:1.36 -- wget -qO- http://loja",
+    "vidaReal": "Sending a test courier to the counter, who leaves as soon as they come back with the answer.",
+    "limite": "The disposable pod runs under the namespace’s rules: if a NetworkPolicy blocks egress, it gets blocked too (which, by the way, helps test the turnstile).",
+    "rotuloResposta": "The version",
+    "testes": [
+      {
+        "descricao": "you tested from inside the cluster, and the pod went away",
+        "msgs": {
+          "0": "you used kubectl run --rm"
+        }
+      }
+    ]
+  },
+  "of-contar": {
+    "titulo": "Count them for me",
+    "enunciado": "<p>How many pods does kind run in the <code>kube-system</code> namespace? Count them in the terminal, not in your head:\n                <code>--no-headers</code> drops the header, and <code>| wc -l</code> counts the lines.</p>",
+    "dica": "kubectl get pods -n kube-system --no-headers | wc -l",
+    "vidaReal": "Asking the doorman just for the number of residents in the block, not the list with every name.",
+    "limite": "wc counts lines, not pods: without --no-headers, the header gets counted (and an extra pod appears out of nowhere).",
+    "rotuloResposta": "How many pods",
+    "testes": [
+      {
+        "descricao": "you counted with wc -l",
+        "msgs": {
+          "0": "you counted with | wc -l"
+        }
+      }
+    ]
   }
 }

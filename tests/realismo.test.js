@@ -65,6 +65,8 @@ describe('PodSecurity: o namespace muda de norma', () => {
     ]);
     const r = rodar(c, 'kubectl apply -f ns.yaml', { 'ns.yaml': 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: loja\n  labels:\n    pod-security.kubernetes.io/enforce: restricted\n' });
     expect(r.stderr).toBe([
+      // o namespace nasceu de um create: o apply avisa (como o kubectl de verdade, no golden val-apply-ns-psa)
+      'Warning: resource namespaces/loja is missing the kubectl.kubernetes.io/last-applied-configuration annotation which is required by kubectl apply. kubectl apply should only be used on resources created declaratively by either kubectl create --save-config or kubectl apply. The missing annotation will be patched automatically.',
       'Warning: existing pods in namespace "loja" violate the new PodSecurity enforce level "restricted:latest"',
       'Warning: a (and 2 other pods): allowPrivilegeEscalation != false, unrestricted capabilities, runAsNonRoot != true, seccompProfile',
       'Warning: rede: allowPrivilegeEscalation != false, unrestricted capabilities, host namespaces, runAsNonRoot != true, seccompProfile',

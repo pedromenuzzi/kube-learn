@@ -1,0 +1,2 @@
+configmap/cores edited
+exit=0

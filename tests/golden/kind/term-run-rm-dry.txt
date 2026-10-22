@@ -1,0 +1,2 @@
+error: --dry-run=[server|client] can't be used with attached containers options (--attach, --stdin, or --tty)
+exit=1

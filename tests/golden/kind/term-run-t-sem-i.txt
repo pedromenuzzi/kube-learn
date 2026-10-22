@@ -1,0 +1,2 @@
+error: -i/--stdin is required for containers with -t/--tty=true
+exit=1

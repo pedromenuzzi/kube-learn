@@ -1,0 +1,2 @@
+pod/entrada created
+exit=0

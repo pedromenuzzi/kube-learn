@@ -1,0 +1,8 @@
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+
+Name:	loja.validacao.svc.cluster.local
+Address: 10.96.94.156
+
+exit=0

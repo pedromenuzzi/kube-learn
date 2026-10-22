@@ -1,0 +1,16 @@
+{
+    "apiVersion": "v1",
+    "data": {
+        "cor": "roxo"
+    },
+    "kind": "ConfigMap",
+    "metadata": {
+        "creationTimestamp": "2026-10-22T19:39:36Z",
+        "name": "cores",
+        "namespace": "editar",
+        "resourceVersion": "2828",
+        "uid": "eeabcd69-8f09-4818-ad48-93162deb8b32"
+    }
+}
+Edit cancelled, no changes made.
+exit=0

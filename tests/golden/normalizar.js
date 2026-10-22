@@ -22,6 +22,7 @@ const REGRAS = [
   [new RegExp(`\\b([a-z][a-z0-9-]*?)-${ALF}{5}\\b`, 'g'), '$1-<s>'], // nomes de generateName (pods de Job e DaemonSet)
   [/\blimpeza-\d{8}\b/g, 'limpeza-<minuto>'],
   [/127\.0\.0\.1:\d+/g, '127.0.0.1:<porta>'],
+  [/\/tmp\/kubectl-edit-\d+\.(yaml|json)/g, '/tmp/kubectl-edit-<n>.$1'], // o arquivo temporário do kubectl edit
   [/pod-template-hash([=:] ?)[456789bcdf]{8,10}\b/g, 'pod-template-hash$1<h>'],
   [new RegExp(`kube-api-access-${ALF}{5}`, 'g'), 'kube-api-access-<s>'],
   [/resourceVersion: "\d+"/g, 'resourceVersion: "<rv>"'],

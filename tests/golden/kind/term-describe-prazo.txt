@@ -1,0 +1,35 @@
+Name:                   loja
+Namespace:              terminal
+CreationTimestamp:      Thu, 22 Oct 2026 16:57:00 -0300
+Labels:                 <none>
+Annotations:            deployment.kubernetes.io/revision: 2
+Selector:               app=loja
+Replicas:               2 desired | 1 updated | 3 total | 2 available | 1 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+Pod Template:
+  Labels:  app=loja
+  Containers:
+   nginx:
+    Image:         nginx:nao-existe-kl
+    Port:          <none>
+    Host Port:     <none>
+    Environment:   <none>
+    Mounts:        <none>
+  Volumes:         <none>
+  Node-Selectors:  <none>
+  Tolerations:     <none>
+Conditions:
+  Type           Status  Reason
+  ----           ------  ------
+  Available      True    MinimumReplicasAvailable
+  Progressing    False   ProgressDeadlineExceeded
+OldReplicaSets:  loja-77bcbb65d4 (2/2 replicas created)
+NewReplicaSet:   loja-7b75db4cc7 (1/1 replicas created)
+Events:
+  Type    Reason             Age   From                   Message
+  ----    ------             ----  ----                   -------
+  Normal  ScalingReplicaSet  84s   deployment-controller  Scaled up replica set loja-77bcbb65d4 from 0 to 2
+  Normal  ScalingReplicaSet  33s   deployment-controller  Scaled up replica set loja-7b75db4cc7 from 0 to 1
+exit=0

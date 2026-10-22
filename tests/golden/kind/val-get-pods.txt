@@ -1,0 +1,6 @@
+NAME       READY   STATUS    RESTARTS   AGE
+alpino     1/1     Running   0          36s
+consulta   1/1     Running   0          36s
+docs       1/1     Running   0          36s
+pausa      1/1     Running   0          35s
+exit=0
