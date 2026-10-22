@@ -60,6 +60,9 @@ function redirecionamento(linha) {
   return null;
 }
 
+/** Os comandos que o terminal entende (a tela do exercício usa esta lista: o resto é "command not found"). */
+export const COMANDOS = ['kubectl', 'k', 'helm', 'git', 'curl', 'echo'];
+
 /** → resultado do kubectl/curl (com `arquivoGravado` quando houve `>`), ou um erro se o nome do arquivo não serve. */
 export function rodarLinha(cluster, linha, arquivos) {
   const cano = linha.match(/^(.*\S)\s*\|\s*base64(\s+(?:-d|--decode))?\s*$/);

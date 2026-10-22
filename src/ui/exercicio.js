@@ -3,7 +3,7 @@
 import { montarCluster } from '../conteudo/clusters.js';
 import { proximoDe } from '../conteudo/index.js';
 import { XP } from '../conteudo/util.js';
-import { rodarLinha } from '../k8s/linha.js';
+import { COMANDOS, rodarLinha } from '../k8s/linha.js';
 import { explicar as explicarSaida } from '../k8s/explicacoes.js';
 import { explicar as explicarCampo } from '../k8s/esquema.js';
 import { todosOsRecursos, acharRecurso } from '../k8s/recursos.js';
@@ -32,6 +32,7 @@ const ajuda = () => t(`Este terminal entende o kubectl (experimente: kubectl get
   ls            lista os arquivos do editor
   cat ARQUIVO   mostra um arquivo
   curl URL      uma requisição do SEU computador (fora do cluster): port-forward, NodePort, LoadBalancer, Ingress
+  helm, git     o helm e o git das missões de Helm e GitOps (nível 10)
   ... | base64 -d   decodifica a saída (ex.: o valor de um Secret)
   history       os comandos que você já digitou
   clear         limpa a tela (ou Ctrl+L)
@@ -230,7 +231,7 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
       if (faltam.length) return { saida: `cat: ${faltam[0]}: No such file or directory\n`, codigo: 1, partes: [{ fluxo: 'err', texto: `cat: ${faltam[0]}: No such file or directory\n` }] };
       return { saida: args.map((a) => estado.arquivos[a]).join('') };
     }
-    if (!['kubectl', 'k', 'curl', 'echo'].includes(cmd)) {
+    if (!COMANDOS.includes(cmd)) {
       const texto = `bash: ${cmd}: command not found\n`;
       return { saida: texto, codigo: 127, partes: [{ fluxo: 'err', texto }], caixas: [{ titulo: t('Aqui o terminal só fala kubectl'), texto: t('Use <code>kubectl ...</code>, ou <code>help</code> para ver os outros comandos.') }] };
     }
