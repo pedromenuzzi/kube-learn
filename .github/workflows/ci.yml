@@ -1,6 +1,6 @@
 name: CI
 
-# Portão de qualidade em todo PR (e reaproveitado pelo deploy.yml).
+# Portão de qualidade em todo PR (e reaproveitado pelo deploy.yml). Os dois jobs rodam ao mesmo tempo.
 on:
   pull_request:
   workflow_call:
@@ -21,9 +21,13 @@ jobs:
       - run: npm run lint -- --max-warnings 0
       - run: npm test
       - run: npm run build
+      # No deploy (fora de PR), este dist/ é o que vai para o GitHub Pages: o build é um só.
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
 
   e2e:
-    needs: qualidade
     runs-on: ubuntu-latest
     container: mcr.microsoft.com/playwright:v1.64.1-noble
     steps:

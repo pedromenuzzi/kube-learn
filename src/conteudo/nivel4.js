@@ -1,6 +1,6 @@
 // Nível 4: configuração e armazenamento (quadro de avisos, envelope lacrado, mesa de trabalho e box da garagem).
 import { licao, problema, yaml } from './util.js';
-import { BANCO, CADERNO, PVC, DB } from './clusters.js';
+import { BANCO, CADERNO, PVC, DB } from './manifestos.js';
 
 const noCluster = (descricao, regras) => [{ noClusterDoAluno: true, descricao, regras }];
 const aplicar = (regras) => ({ descricao: 'kubectl apply -f .', passos: [{ comando: 'kubectl apply -f .' }], regras: [{ semErros: true }, ...regras] });

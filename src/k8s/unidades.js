@@ -49,8 +49,17 @@ export function idade(ms) {
   return `${Math.floor(dias / 365)}y`;
 }
 
-/** '2026-10-16T19:54:21Z' (sem milissegundos, como a API). */
-export const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+/** '2026-10-16T19:54:21Z' (sem milissegundos, como a API). Guardado: o laço pede os mesmos instantes o tempo todo. */
+const isos = new Map();
+export function iso(ms) {
+  let t = isos.get(ms);
+  if (t === undefined) {
+    t = new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    if (isos.size >= 10_000) isos.clear();
+    isos.set(ms, t);
+  }
+  return t;
+}
 
 const DIAS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MESES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

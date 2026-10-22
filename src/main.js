@@ -66,8 +66,13 @@ let primeiroDesenho = true;
 const montarTela = (main, item, opcoes) => {
   const minha = geracao;
   main.innerHTML = `<p class="nota carregando" role="status">${t('Montando o cluster…')}</p>`;
+  // Um quadro antes de montar: montar o cluster segura a tela por um instante, e o "Montando o cluster…" aparece antes.
+  const umQuadro = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r)));
   return import('./ui/exercicio.js').then(
-    (m) => (minha === geracao ? m.montarExercicio(main, item, opcoes) : null), // o aluno já saiu para outra página
+    async (m) => {
+      await umQuadro();
+      return minha === geracao ? m.montarExercicio(main, item, opcoes) : null; // o aluno já saiu para outra página
+    },
     recarregarUmaVez,
   );
 };

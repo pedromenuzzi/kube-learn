@@ -10,7 +10,7 @@ import { tabela } from './tabwriter.js';
 import { recursoDoKind } from './recursos.js';
 import { btoaUtf8 } from './esquema.js';
 
-export const REPO_PADRAO = 'https://pedromenuzzi.github.io/kube-learn/charts';
+export { REPO_HELM as REPO_PADRAO } from '../constantes.js';
 
 // A ordem em que o Helm instala (e mostra) os objetos.
 const ORDEM = ['Namespace', 'NetworkPolicy', 'ResourceQuota', 'LimitRange', 'PodDisruptionBudget', 'ServiceAccount', 'Secret', 'ConfigMap', 'StorageClass', 'PersistentVolume',

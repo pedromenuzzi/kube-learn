@@ -11,4 +11,16 @@ export default [
       globals: { ...globals.browser, ...globals.node },
     },
   },
+  {
+    // O conteúdo (menos os clusters de partida) e as páginas fora do exercício não importam o simulador: ele iria inteiro
+    // para o pacote da página inicial. O simulador chega com a tela do exercício (import dinâmico).
+    files: ['src/conteudo/**/*.js', 'src/ui/paginas.js', 'src/ui/leitura.js', 'src/ui/revisao.js', 'src/ui/certificado.js', 'src/ui/festa.js', 'src/ui/topo.js', 'src/main.js'],
+    ignores: ['src/conteudo/clusters.js'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [
+        { group: ['**/k8s/*', '!**/k8s/aleatorio.js'], message: 'O simulador não entra no pacote da página inicial: use src/constantes.js ou src/conteudo/manifestos.js.' },
+        { group: ['./clusters.js', '**/conteudo/clusters.js'], message: 'clusters.js traz o simulador: use src/conteudo/manifestos.js.' },
+      ] }],
+    },
+  },
 ];

@@ -28,10 +28,21 @@ export function servicoKubernetes(c) {
   });
 }
 
+/**
+ * Um controlador que só lê o que está guardado (sem relógio nem estado próprio): se a última rodada, nesta mesma
+ * versão do cluster, não mudou nada, esta também não mudaria. Toda mudança guardada troca a versão (c.rv).
+ */
+function soDoEstado(c, controlador) {
+  if (c.ociosos.get(controlador) === c.rv) return;
+  const antes = c.rv;
+  controlador(c);
+  if (c.rv === antes) c.ociosos.set(controlador, antes);
+}
+
 export function rodarControladores(c) {
   servicoKubernetes(c);
   controladorDeNodes(c);
-  namespaces(c);
+  soDoEstado(c, namespaces);
   deployments(c);
   replicasets(c);
   statefulsets(c);
@@ -39,16 +50,16 @@ export function rodarControladores(c) {
   cronjobs(c);
   jobs(c);
   controladorDeDiscos(c);
-  controladorDeCotas(c);
+  soDoEstado(c, controladorDeCotas);
   autoscalers(c);
   operadorDeBackup(c);
   servidorDeMetricas(c);
   controladorDePdbs(c);
-  endpoints(c);
+  soDoEstado(c, endpoints);
   balanceadores(c);
-  ingresses(c);
-  gateways(c);
-  coletorDeLixo(c);
+  soDoEstado(c, ingresses);
+  soDoEstado(c, gateways);
+  soDoEstado(c, coletorDeLixo);
 }
 
 /**
@@ -71,11 +82,6 @@ function criarPodDe(c, controle, manifesto, componente) {
   }
 }
 
-const salvarStatus = (c, obj, status) => {
-  if (JSON.stringify(status) === JSON.stringify(obj.status)) return;
-  obj.status = status;
-  c.salvar(obj);
-};
 const cond = (tipo, motivo, mensagem, desde, status = 'True') => ({ lastTransitionTime: desde, message: mensagem, observedGeneration: 1, reason: motivo, status, type: tipo });
 
 // ---------- LoadBalancer: o "provedor de nuvem" do simulador dá um IP externo depois de uns segundos ----------
@@ -83,7 +89,7 @@ function balanceadores(c) {
   for (const s of c.listar('Service')) {
     if (s.spec.type !== 'LoadBalancer' || s.status?.loadBalancer?.ingress?.length) continue;
     if (c.agora - Date.parse(s.metadata.creationTimestamp) < 2000) continue;
-    salvarStatus(c, s, { loadBalancer: { ingress: [{ ip: c.alocarIpExterno(), ipMode: 'VIP' }] } });
+    c.trocarStatus(s, { loadBalancer: { ingress: [{ ip: c.alocarIpExterno(), ipMode: 'VIP' }] } });
     c.evento(s, 'Normal', 'EnsuredLoadBalancer', 'Ensured load balancer', { componente: 'service-controller' });
   }
 }
@@ -92,7 +98,7 @@ function balanceadores(c) {
 function ingresses(c) {
   for (const ing of c.listar('Ingress')) {
     const classe = classeDoIngress(c, ing);
-    salvarStatus(c, ing, { loadBalancer: classe ? { ingress: [{ ip: IP_INGRESS }] } : {} });
+    c.trocarStatus(ing, { loadBalancer: classe ? { ingress: [{ ip: IP_INGRESS }] } : {} });
   }
 }
 
@@ -100,7 +106,7 @@ function ingresses(c) {
 function gateways(c) {
   for (const gc of c.listar('GatewayClass')) {
     const desde = gc.status?.conditions?.[0]?.lastTransitionTime ?? iso(c.agora);
-    salvarStatus(c, gc, { conditions: [cond('Accepted', 'Accepted', 'Valid GatewayClass', desde)] });
+    c.trocarStatus(gc, { conditions: [cond('Accepted', 'Accepted', 'Valid GatewayClass', desde)] });
   }
   for (const gw of c.listar('Gateway')) {
     const classe = c.obter('GatewayClass', null, gw.spec.gatewayClassName);
@@ -113,7 +119,7 @@ function gateways(c) {
         listeners: gw.spec.listeners.map((l) => ({ attachedRoutes: rotas.length, name: l.name, supportedKinds: [{ group: 'gateway.networking.k8s.io', kind: 'HTTPRoute' }] })),
       }
       : { conditions: [cond('Accepted', 'NoResources', `GatewayClass "${gw.spec.gatewayClassName}" not found`, desde, 'False'), cond('Programmed', 'Pending', 'Waiting for controller', desde, 'False')] };
-    salvarStatus(c, gw, status);
+    c.trocarStatus(gw, status);
   }
   for (const r of c.listar('HTTPRoute')) {
     const desde = r.status?.parents?.[0]?.conditions?.[0]?.lastTransitionTime ?? iso(c.agora);
@@ -129,7 +135,7 @@ function gateways(c) {
         parentRef: { group: 'gateway.networking.k8s.io', kind: 'Gateway', name: p.name },
       };
     });
-    salvarStatus(c, r, { parents });
+    c.trocarStatus(r, { parents });
   }
 }
 
@@ -180,6 +186,21 @@ const moldeSemHash = (c, rs) => {
   if (!c.moldes.has(chave)) c.moldes.set(chave, semHash(rs.spec.template));
   return c.moldes.get(chave);
 };
+
+/**
+ * O hash do template de um DaemonSet ou StatefulSet, guardado enquanto o objeto não muda de versão (todo template novo
+ * passa por um salvar) nem de imagem (o kubectl set image troca a imagem antes de conferir os outros pares).
+ */
+const hashes = new WeakMap();
+function hashDoTemplate(obj) {
+  const t = obj.spec.template;
+  const imagens = (t.spec?.containers ?? []).map((ct) => ct.image).join('\n');
+  const m = hashes.get(obj);
+  if (m && m.t === t && m.rv === obj.metadata.resourceVersion && m.imagens === imagens) return m.hash;
+  const hash = hashTemplate(t);
+  hashes.set(obj, { t, rv: obj.metadata.resourceVersion, imagens, hash });
+  return hash;
+}
 
 const semHash = (template) => {
   const t = clone(template);
@@ -379,10 +400,7 @@ function statusDeployment(c, d, novo, antigos, criouNovo) {
     ...(indisponiveis ? { unavailableReplicas: indisponiveis } : {}),
     ...(atualizadas ? { updatedReplicas: atualizadas } : {}),
   };
-  if (JSON.stringify(status) !== JSON.stringify(d.status)) {
-    d.status = status;
-    c.salvar(d);
-  }
+  c.trocarStatus(d, status);
 }
 
 // ---------- ReplicaSet ----------
@@ -463,10 +481,7 @@ function replicasets(c) {
       const antes = rs.status?.conditions?.find((x) => x.type === 'ReplicaFailure');
       status.conditions = [{ lastTransitionTime: antes?.lastTransitionTime ?? iso(c.agora), message: falha, reason: 'FailedCreate', status: 'True', type: 'ReplicaFailure' }];
     }
-    if (JSON.stringify(status) !== JSON.stringify(rs.status)) {
-      rs.status = status;
-      c.salvar(rs);
-    }
+    c.trocarStatus(rs, status);
   }
 }
 
@@ -480,7 +495,7 @@ function statefulsets(c) {
     if (sts.metadata.deletionTimestamp) continue;
     const ns = sts.metadata.namespace;
     const nome = sts.metadata.name;
-    const revisao = `${nome}-${hashTemplate(sts.spec.template)}`;
+    const revisao = `${nome}-${hashDoTemplate(sts)}`;
     const meus = c.listar('Pod', ns).filter((p) => controlador(p)?.uid === sts.metadata.uid);
     const porIndice = new Map(meus.map((p) => [indice(p), p]));
     const n = sts.spec.replicas;
@@ -566,10 +581,7 @@ function statefulsets(c) {
       updateRevision: revisao,
       ...(novos.length ? { updatedReplicas: novos.length } : {}),
     };
-    if (JSON.stringify(status) !== JSON.stringify(sts.status)) {
-      sts.status = status;
-      c.salvar(sts);
-    }
+    c.trocarStatus(sts, status);
   }
 }
 
@@ -641,10 +653,7 @@ function jobs(c) {
       terminating: 0,
       uncountedTerminatedPods: {},
     };
-    if (JSON.stringify(status) !== JSON.stringify(job.status)) {
-      job.status = status;
-      c.salvar(job);
-    }
+    c.trocarStatus(job, status);
   }
 }
 
@@ -769,7 +778,7 @@ function daemonsets(c) {
       ds.metadata.annotations = { ...(ds.metadata.annotations ?? {}), 'deprecated.daemonset.template.generation': geracao };
       c.salvar(ds);
     }
-    const revisao = hashTemplate(ds.spec.template);
+    const revisao = hashDoTemplate(ds);
     const pods = c.listar('Pod', ns).filter((p) => controlador(p)?.uid === ds.metadata.uid && !p.metadata.deletionTimestamp);
     const noNode = (p) => p.spec.affinity?.nodeAffinity?.requiredDuringSchedulingIgnoredDuringExecution?.nodeSelectorTerms?.[0]?.matchFields?.[0]?.values?.[0] ?? p.spec.nodeName;
     const nodes = c.listar('Node');
@@ -823,10 +832,7 @@ function daemonsets(c) {
       observedGeneration: ds.metadata.generation,
       ...(atuais.filter((p) => p.metadata.labels['controller-revision-hash'] === revisao).length ? { updatedNumberScheduled: atuais.filter((p) => p.metadata.labels['controller-revision-hash'] === revisao).length } : {}),
     };
-    if (JSON.stringify(status) !== JSON.stringify(ds.status)) {
-      ds.status = status;
-      c.salvar(ds);
-    }
+    c.trocarStatus(ds, status);
   }
 }
 
@@ -883,12 +889,7 @@ function escalarPeloUso(c, hpa, marca) {
     const a = anteriores.find((x) => x.type === tipo);
     return { lastTransitionTime: a?.status === status ? a.lastTransitionTime : iso(c.agora), message: msg, reason: motivo, status, type: tipo };
   };
-  const salvar = (status) => {
-    if (JSON.stringify(status) !== JSON.stringify(hpa.status)) {
-      hpa.status = status;
-      c.salvar(hpa);
-    }
-  };
+  const salvar = (status) => c.trocarStatus(hpa, status);
   const alvo = c.obter(ref.kind, ns, ref.name);
   if (!alvo) {
     const msg = `${ref.kind.toLowerCase()}s/scale.apps "${ref.name}" not found`;
@@ -963,6 +964,7 @@ function escalarPeloUso(c, hpa, marca) {
 }
 
 // ---------- Endpoints ----------
+const porIp = new Intl.Collator(undefined, { numeric: true }).compare; // o mesmo que localeCompare(b, undefined, { numeric: true }), sem criar um Collator por comparação
 function endpoints(c) {
   for (const svc of c.listar('Service')) {
     const sel = svc.spec.selector;
@@ -970,7 +972,7 @@ function endpoints(c) {
     const ns = svc.metadata.namespace;
     const pods = c.listar('Pod', ns)
       .filter((p) => casaSeletor(sel, p.metadata.labels) && p.status?.podIP && !p.metadata.deletionTimestamp && !TERMINAIS.has(p.status?.phase))
-      .sort((a, b) => a.status.podIP.localeCompare(b.status.podIP, undefined, { numeric: true }));
+      .sort((a, b) => porIp(a.status.podIP, b.status.podIP));
     const endereco = (p) => ({ ip: p.status.podIP, nodeName: p.spec.nodeName, targetRef: { kind: 'Pod', name: p.metadata.name, namespace: ns, uid: p.metadata.uid } });
     const comPorta = pods.filter((p) => svc.spec.ports.every((sp) => portaAlvo(p, sp.targetPort) !== null));
     const portas = svc.spec.ports.map((sp) => ({
@@ -993,7 +995,7 @@ function endpoints(c) {
         metadata: { name: svc.metadata.name, namespace: ns, labels: { ...(svc.metadata.labels ?? {}), 'endpoints.kubernetes.io/managed-by': 'endpoint-controller' } },
         ...(subsets ? { subsets } : {}),
       });
-    } else if (JSON.stringify(atual.subsets) !== JSON.stringify(subsets)) {
+    } else if (c.jsonDe(atual, 'subsets') !== JSON.stringify(subsets)) {
       if (subsets) atual.subsets = subsets;
       else delete atual.subsets;
       atual.metadata.annotations = { 'endpoints.kubernetes.io/last-change-trigger-time': iso(c.agora) };

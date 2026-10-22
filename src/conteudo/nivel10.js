@@ -1,7 +1,7 @@
 // Nível 10: Helm, Kustomize, CRD e GitOps (o projeto padrão da construtora, a mesma planta em cada cidade, o
 // formulário novo da administração e a planta registrada em cartório).
 import { licao, problema, yaml } from './util.js';
-import { REPO_PADRAO } from '../k8s/helm.js';
+import { REPO_HELM as REPO_PADRAO } from '../constantes.js';
 
 const noCluster = (descricao, regras) => [{ noClusterDoAluno: true, descricao, regras }];
 const comK = (pasta, descricao, regras, { oculto = false, esperar = '1m' } = {}) => ({ oculto, descricao, passos: [{ comando: `kubectl apply -k ${pasta}` }, { avancar: esperar }], regras });

@@ -26,10 +26,21 @@ export const canonico = (v) => JSON.stringify(v, (_, x) => (x && typeof x === 'o
   ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, x[k]]))
   : x));
 
-/** pod-template-hash como o do Deployment: FNV-32a do template, escrito em decimal e codificado no alfabeto. */
+/**
+ * pod-template-hash como o do Deployment: FNV-32a do template, escrito em decimal e codificado no alfabeto.
+ * Guardado pelo JSON comum do template (bem mais barato que o canônico, e o mesmo JSON dá sempre o mesmo canônico).
+ */
+const hashes = new Map();
 export function hashTemplate(template, colisoes = 0) {
-  const decimal = String(hashTexto(canonico(template) + (colisoes ? `#${colisoes}` : '')));
-  return [...decimal].map((c) => ALFABETO[c.charCodeAt(0) % ALFABETO.length]).join('');
+  const chave = `${colisoes}#${JSON.stringify(template)}`;
+  let hash = hashes.get(chave);
+  if (hash === undefined) {
+    const decimal = String(hashTexto(canonico(template) + (colisoes ? `#${colisoes}` : '')));
+    hash = [...decimal].map((c) => ALFABETO[c.charCodeAt(0) % ALFABETO.length]).join('');
+    if (hashes.size >= 1000) hashes.clear();
+    hashes.set(chave, hash);
+  }
+  return hash;
 }
 
 export function criarAleatorio(semente = 'kube-learn') {

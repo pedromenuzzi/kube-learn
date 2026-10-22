@@ -19,6 +19,9 @@ export const ehSidecar = (ct) => ct.restartPolicy === 'Always';
 const todosOsConteineres = (pod) => [...(pod.spec.initContainers ?? []), ...pod.spec.containers];
 const terminouBem = (est) => est.fase === 'terminado' && est.atual?.exitCode === 0;
 
+/** Os dados de um ConfigMap ou Secret em JSON (para ver se mudaram), como JSON.stringify(obj?.data ?? null). */
+const assinaturaDos = (c, obj) => (obj?.data === undefined || obj.data === null ? 'null' : c.jsonDe(obj, 'data'));
+
 /** Duração no formato do Go: 3.214s, 520ms. */
 const duracaoGo = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(3).replace(/\.?0+$/, '')}s` : `${ms}ms`);
 
@@ -129,7 +132,7 @@ export class Kubelet {
     for (const [v, f] of fontes) {
       if (f) {
         const obj = c.obter(f.tipo, ns, f.nome);
-        e.volumes.set(v.name, { loja: this.dadosDaFonte(f, obj), somenteLeitura: true, fonte: { ...f, assinatura: JSON.stringify(obj?.data ?? null) } });
+        e.volumes.set(v.name, { loja: this.dadosDaFonte(f, obj), somenteLeitura: true, fonte: { ...f, assinatura: assinaturaDos(c, obj) } });
       } else if (v.emptyDir) e.volumes.set(v.name, { loja: new Map() });
       else if (v.persistentVolumeClaim) {
         const pvc = c.obter('PersistentVolumeClaim', ns, v.persistentVolumeClaim.claimName);
@@ -152,7 +155,7 @@ export class Kubelet {
       const f = vol.fonte;
       if (!f) continue;
       const obj = c.obter(f.tipo, pod.metadata.namespace, f.nome);
-      const assinatura = JSON.stringify(obj?.data ?? null);
+      const assinatura = assinaturaDos(c, obj);
       if (!obj || assinatura === f.assinatura) {
         f.mudouEm = null;
         continue;
@@ -752,7 +755,28 @@ export class Kubelet {
   }
 
   // ---------- status ----------
+  /**
+   * Tudo o que o status do pod lê (os objetos de status nunca mudam por dentro sem um salvar, que troca a versão).
+   * Igual à última vez em que o status saiu igual ao guardado: sairia igual de novo, e o escreverStatus nem monta.
+   */
+  entradasDoStatus(pod, e, hostIP) {
+    const v = [pod.metadata.resourceVersion, pod.status, pod.spec.containers, pod.spec.initContainers, hostIP, e.inicializado, e.ip, e.inicio];
+    for (const ct of todosOsConteineres(pod)) {
+      const est = e.conteineres.get(ct.name);
+      v.push(ct, ct.name, ct.image, ct.restartPolicy, ct.startupProbe, ct.readinessProbe, ct.volumeMounts, est, this.pronto(ct, est), est.fase, est.jaRodou, est.final,
+        est.atual, est.ultimoTermino, est.reinicios, est.id, est.ref, est.info, est.iniciou, est.erroPull, est.mensagem, est.motivo, est.esperaAtual);
+    }
+    return v;
+  }
+
   escreverStatus(pod, e) {
+    const hostIP = this.c.ipDoNode(this.c.obter('Node', null, pod.spec.nodeName));
+    const entradas = this.entradasDoStatus(pod, e, hostIP);
+    if (e.entradas?.length === entradas.length && e.entradas.every((x, i) => x === entradas[i])) return;
+    e.entradas = this.c.trocarStatus(pod, this.montarStatus(pod, e, hostIP)) ? null : entradas;
+  }
+
+  montarStatus(pod, e, hostIP) {
     const c = this.c;
     const ests = pod.spec.containers.map((ct) => [ct, e.conteineres.get(ct.name)]);
     const inits = (pod.spec.initContainers ?? []).map((ct) => [ct, e.conteineres.get(ct.name)]);
@@ -774,7 +798,7 @@ export class Kubelet {
     const naoProntos = ests.filter(([ct, est]) => !this.pronto(ct, est)).map(([ct]) => ct.name);
     const motivoNaoPronto = fase === 'Succeeded' ? { reason: 'PodCompleted' } : { message: `containers with unready status: [${naoProntos.join(' ')}]`, reason: 'ContainersNotReady' };
     const encerrado = fase === 'Succeeded' || fase === 'Failed';
-    const status = {
+    return {
       conditions: [
         condicao('PodReadyToStartContainers', encerrado || !e.ip ? 'False' : 'True'),
         condicao('Initialized', e.inicializado || !inits.length ? 'True' : 'False', e.inicializado || !inits.length ? {} : { message: `containers with incomplete status: [${incompletos.join(' ')}]`, reason: 'ContainersNotInitialized' }),
@@ -787,8 +811,8 @@ export class Kubelet {
         return !inits.length || e.inicializado || est.jaRodou ? st : { ...st, state: { waiting: { reason: 'PodInitializing' } } }; // o app espera os init containers
       }),
       ...(inits.length ? { initContainerStatuses: inits.map(([ct, est]) => this.statusConteiner(pod, ct, est, terminouBem(est))) } : {}),
-      hostIP: c.ipDoNode(c.obter('Node', null, pod.spec.nodeName)),
-      hostIPs: [{ ip: c.ipDoNode(c.obter('Node', null, pod.spec.nodeName)) }],
+      hostIP,
+      hostIPs: [{ ip: hostIP }],
       observedGeneration: 1,
       phase: fase,
       ...(e.ip ? { podIP: e.ip, podIPs: [{ ip: e.ip }] } : {}),
@@ -796,10 +820,6 @@ export class Kubelet {
       resources: {},
       startTime: iso(e.inicio),
     };
-    if (JSON.stringify(status) !== JSON.stringify(pod.status)) {
-      pod.status = status;
-      c.salvar(pod);
-    }
   }
 
   statusConteiner(pod, ct, est, concluido = false) {

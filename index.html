@@ -20,6 +20,17 @@
     <meta property="og:image:alt" content="O navio do kube-learn carregado de contêineres coloridos, ao lado do título Aprenda Kubernetes contêiner por contêiner." />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="stylesheet" href="./src/estilo.css" />
+    <script>
+      // O tema, o tamanho do texto e o movimento salvos, antes da primeira pintura: quem usa o escuro não vê o clarão do
+      // claro enquanto o resto do site baixa (src/ui/preferencias.js aplica o mesmo depois).
+      try {
+        const p = JSON.parse(localStorage.getItem('kube-learn:preferencias') || '{}');
+        const h = document.documentElement;
+        if (p.tema && p.tema !== 'auto') h.dataset.tema = p.tema;
+        if (p.texto) h.dataset.texto = p.texto;
+        if (p.movimento) h.dataset.movimento = p.movimento;
+      } catch { /* sem armazenamento: fica o padrão */ }
+    </script>
   </head>
   <body>
     <a class="pular" href="#conteudo">Pular para o conteúdo</a>

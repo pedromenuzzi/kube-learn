@@ -1,9 +1,8 @@
 // O editor de YAML (CodeMirror 6): recuo de 2 espaços, Tab recua (Esc e depois Tab sai do editor).
-import { EditorView, basicSetup } from 'codemirror';
 import { EditorState, Prec } from '@codemirror/state';
-import { keymap } from '@codemirror/view';
-import { indentWithTab } from '@codemirror/commands';
-import { indentUnit, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, drawSelection, dropCursor } from '@codemirror/view';
+import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { indentUnit, HighlightStyle, syntaxHighlighting, foldGutter, foldKeymap, indentOnInput, bracketMatching } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { yaml } from '@codemirror/lang-yaml';
 
@@ -24,8 +23,19 @@ const cores = syntaxHighlighting(HighlightStyle.define([
 ]));
 
 export function criarEditor(raiz, { texto, aoMudar, rotulo }) {
+  // Só o que um editor de YAML curto usa (o basicSetup traz autocompletar e busca, ~30 kB a mais no pacote).
   const extensoes = (nome) => [
-    basicSetup,
+    lineNumbers(),
+    highlightActiveLineGutter(),
+    highlightSpecialChars(),
+    history(),
+    foldGutter(),
+    drawSelection(),
+    dropCursor(),
+    indentOnInput(),
+    bracketMatching(),
+    highlightActiveLine(),
+    keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap]),
     yaml(),
     tema,
     cores,
