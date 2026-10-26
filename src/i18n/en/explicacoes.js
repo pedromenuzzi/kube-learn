@@ -11,6 +11,10 @@ export const REGRAS = [
     t: (m) => ({ titulo: `The ServiceAccount “${m[2]}” doesn’t exist`, texto: `The pod asks for the <code>${m[2]}</code> badge in the <code>${m[1]}</code> namespace, and it was never created. Create it before the pod (in the same file, the ServiceAccount goes first): <code>kubectl create serviceaccount ${m[2]} -n ${m[1]}</code>.`, vidaReal: 'The resident showed up with a badge the management office never issued.' }),
   },
   {
+    re: /unsupported role reference kind: "([^"]*)"/,
+    t: (m) => ({ titulo: m[1] ? `“${m[1]}” isn’t a kind of badge` : 'Which badge to hand out is missing', texto: 'The binding’s <code>roleRef</code> says which badge it hands out: <code>kind</code> (<code>Role</code> or <code>ClusterRole</code>, capitalized), <code>name</code> and <code>apiGroup: rbac.authorization.k8s.io</code>. Without one of those kinds, the API Server refuses it before looking at the rest.', vidaReal: 'A badge hand-over form that doesn’t say which badge.' }),
+  },
+  {
     re: /violates PodSecurity "(\w+):/,
     t: (m) => ({ titulo: `The namespace’s fire code (${m[1]}) rejected the pod`, texto: 'The message lists what’s missing, item by item (the field and the expected value). Under <code>restricted</code>, it’s almost always: <code>runAsNonRoot</code>, <code>allowPrivilegeEscalation: false</code>, <code>capabilities.drop: ["ALL"]</code> and <code>seccompProfile.type: RuntimeDefault</code>.', vidaReal: 'The block’s fire marshals stopped the move: safety gear is missing.' }),
   },
@@ -22,15 +26,23 @@ export const REGRAS = [
     re: /Error from server \(NotFound\): (?:error when \w+ "[^"]+": )?([\w.]+) "([^"]+)" not found/,
     t: (m) => m[1].startsWith('namespaces')
       ? { titulo: `The namespace “${m[2]}” doesn’t exist`, texto: `Create it with <code>kubectl create namespace ${m[2]}</code> or check the name.`, vidaReal: 'Sending a letter to a company that has no office in the building.' }
-      : { titulo: `There’s no ${m[1].split('.')[0]} called “${m[2]}”`, texto: `Check the name with <code>kubectl get ${m[1].split('.')[0]}</code> and the namespace (<code>-n</code>).`, vidaReal: 'The doorman (API Server) looked in the book and found no one by that name.' },
+      : { titulo: `Nothing in ${m[1].split('.')[0]} is named “${m[2]}”`, texto: `Check the name with <code>kubectl get ${m[1].split('.')[0]}</code> and the namespace (<code>-n</code>).`, vidaReal: 'The doorman (API Server) looked in the book and found no one by that name.' },
   },
   {
     re: /AlreadyExists\).*?([\w.]+) "([^"]+)" already exists/,
     t: (m) => ({ titulo: `“${m[2]}” already exists`, texto: '<code>create</code> only creates. To update an object that already exists, use <code>kubectl apply -f</code>: it compares and changes only what’s different.', vidaReal: 'Asking to build an apartment that’s already built.' }),
   },
   {
-    re: /strict decoding error: (unknown field .*)/,
-    t: (m) => ({ titulo: 'A field that doesn’t exist', texto: `Kubernetes doesn’t know ${m[1].replace(/unknown field "([^"]+)"/g, '<code>$1</code>')}. It’s usually a typo (<code>replica</code> instead of <code>replicas</code>) or wrong indentation, which puts the field inside the wrong block. The Manual tab shows the right names.`, vidaReal: 'A form with a made-up field: the management office sends it back unprocessed.' }),
+    re: /(?:cannot be handled as a (\w+): )?strict decoding error: (unknown field .*)/,
+    t: (m, { parecido } = {}) => {
+      const campos = [...m[2].matchAll(/unknown field &quot;(.*?)&quot;/g)].map((x) => x[1]);
+      const sugestoes = [...new Set(campos.map((c) => parecido?.(m[1], c)).filter(Boolean))];
+      return {
+        titulo: 'A field that doesn’t exist',
+        texto: `Kubernetes doesn’t know the ${campos.length > 1 ? 'fields' : 'field'} ${campos.map((c) => `<code>${c}</code>`).join(', ')}. ${sugestoes.length ? `Did you mean ${sugestoes.map((x) => `<code>${x}</code>`).join(' and ')}?` : 'It’s usually a typo (<code>replica</code> instead of <code>replicas</code>) or wrong indentation, which puts the field inside the wrong block.'} The Manual tab shows the right names.`,
+        vidaReal: 'A form with a made-up field: the management office sends it back unprocessed.',
+      };
+    },
   },
   {
     re: /cannot unmarshal (\w+) into Go struct field \w+\.([\w.]+) of type (\S+)/,
@@ -79,6 +91,10 @@ export const REGRAS = [
   {
     re: /PersistentVolumeClaim "[^"]+" is invalid: spec: Forbidden: spec is immutable/,
     t: () => ({ titulo: 'A storage request can’t change once it’s made', texto: 'On a PVC, you can only increase the size. To change the class or access mode: <code>kubectl delete pvc NAME</code> and create it again (careful: the data goes with it, if the policy is Delete).', vidaReal: 'The storage unit contract is already signed: to switch units, you cancel and sign a new one.' }),
+  },
+  {
+    re: /roleRef: Invalid value: .*: field is immutable/,
+    t: () => ({ titulo: 'The roleRef doesn’t change after creation', texto: 'A binding always hands out the same badge. To switch, delete it and create it again: <code>kubectl delete rolebinding NAME</code> (or <code>clusterrolebinding</code>) and apply again.', vidaReal: 'To change someone’s badge, the front desk takes back the old one and issues another: you can’t rewrite what’s on the card.' }),
   },
   {
     re: /field is immutable|Forbidden: updates to statefulset spec/,
@@ -219,5 +235,6 @@ export const STATUS = [
   { re: /\bErrImageNeverPull\b/, titulo: 'The image isn’t on the node, and the pod forbade pulling it', texto: 'With <code>imagePullPolicy: Never</code>, the kubelet only uses an image that’s already on the node (in kind, loaded with <code>kind load docker-image</code>). Drop the <code>Never</code> (the default <code>IfNotPresent</code> pulls when it’s missing) or put the image on the node.', vidaReal: 'The rule is “only furniture that’s already in the storage room”, and the couch never went to the storage room.' },
   { re: /existing pods in namespace "[^"]+" violate the new PodSecurity enforce level/, titulo: 'The new rule applies to the next pods', texto: 'The label was applied, but the pods already running don’t pass it. They keep running (the rule is only checked when a pod is created); the next identical pod, in a version rollout or a restart by the Deployment, will be rejected. Fix the <code>securityContext</code> before that happens.', vidaReal: 'The building’s new regulations don’t evict anyone who already lives there, but the next move-in has to follow the rules.' },
   { re: /^Warning: unknown field "[^"]+"/m, titulo: 'The field was ignored', texto: 'The patch had a field Kubernetes doesn’t know (a typo, like <code>replica</code> instead of <code>replicas</code>, or the path in the wrong place). It was thrown away, which is why the rest may say <code>patched (no change)</code>: nothing changed. Check the name with <code>kubectl explain</code>.', vidaReal: 'The form came back stamped, but the line with the made-up field was crossed out.' },
+  { re: /^Warning: v1 Endpoints is deprecated/m, titulo: 'Warning: Endpoints is on its way out', texto: 'Not an error: the list came right below. Endpoints (the IPs of the ready pods behind a Service) was replaced by EndpointSlice, which keeps the same list in slices, and since v1.33 the API Server warns every time someone reads the old one. The same IPs, without the warning: <code>kubectl describe svc NAME</code> (the Endpoints line) or <code>kubectl get endpointslices -l kubernetes.io/service-name=NAME</code>.', vidaReal: 'The front desk swapped the visitor logbook for separate cards: the old logbook is still on the counter, with a note saying “use the cards”.' },
   { re: /is missing the kubectl\.kubernetes\.io\/last-applied-configuration annotation/, titulo: 'Warning: the object wasn’t born from an apply', texto: 'It was created with <code>kubectl create</code> (or <code>run</code>, <code>expose</code>), which doesn’t keep the last applied version. kubectl warns and records that memory in this same apply: from here on, stick with <code>apply</code>. Without it, this first apply can’t tell which fields you removed from the YAML (they stay).', vidaReal: 'The building went up without a blueprint: the architect drew one now, from what was already built.' },
 ];

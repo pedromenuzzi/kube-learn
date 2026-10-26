@@ -406,7 +406,8 @@ const erroInvalido = (kind, nome, erros) => (erros.length === 1
 
 function mensagemErroApi(e, verbo, arquivo) {
   if (!(e instanceof ErroApi)) throw e;
-  return arquivo ? `Error from server (${e.codigo}): error when ${verbo} "${arquivo}": ${e.message}` : `Error from server (${e.codigo}): ${e.message}`;
+  const motivo = e.codigo ? ` (${e.codigo})` : ''; // sem motivo: um erro interno do apiserver ("Error from server: ...")
+  return arquivo ? `Error from server${motivo}: error when ${verbo} "${arquivo}": ${e.message}` : `Error from server${motivo}: ${e.message}`;
 }
 
 const sufixoDryRun = (flags) => (flags['dry-run'] === 'server' ? ' (server dry run)' : flags['dry-run'] && flags['dry-run'] !== 'none' ? ' (dry run)' : '');
@@ -426,6 +427,7 @@ function apply(cluster, a, s) {
     }
     const { recurso: r, ns, doc } = p;
     const vivo = cluster.obter(r.kind, ns, doc.metadata.name);
+    const anotacao = ultimaAplicada(doc, ns); // o arquivo como veio (com os null): a decodificação limpa o doc
     const erroDec = erroDecodificacao(doc, item.arquivo, vivo ? 'patching' : 'creating');
     if (erroDec) {
       s.adiar(erroDec);
@@ -433,7 +435,7 @@ function apply(cluster, a, s) {
     }
     const manifesto = structuredClone(doc);
     delete manifesto.status;
-    manifesto.metadata = { ...manifesto.metadata, annotations: { ...(manifesto.metadata.annotations ?? {}), 'kubectl.kubernetes.io/last-applied-configuration': ultimaAplicada(doc, ns) } };
+    manifesto.metadata = { ...manifesto.metadata, annotations: { ...(manifesto.metadata.annotations ?? {}), 'kubectl.kubernetes.io/last-applied-configuration': anotacao } };
     if (r.namespaced) manifesto.metadata.namespace = ns;
     const id = `${nomeQualificado(r)}/${doc.metadata.name}`;
     try {

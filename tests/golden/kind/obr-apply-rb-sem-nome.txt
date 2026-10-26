@@ -1,0 +1,2 @@
+The RoleBinding "sem-nome" is invalid: roleRef.name: Required value
+exit=1

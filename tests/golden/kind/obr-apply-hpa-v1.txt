@@ -1,0 +1,2 @@
+The HorizontalPodAutoscaler "grupo-core" is invalid: spec.scaleTargetRef.apiVersion: Invalid value: "v1": apiVersion must specify API group
+exit=1

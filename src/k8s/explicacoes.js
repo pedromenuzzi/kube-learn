@@ -1,6 +1,8 @@
 // A caixa "🏠 Na vida real" que aparece embaixo de um erro ou de um status problemático no terminal:
 // o que aconteceu, a comparação com o condomínio e onde mexer. O kubectl continua em inglês, como o real.
 import { pacoteIngles } from '../i18n.js';
+import { esquemaDe } from './esquema.js';
+import { distancia } from './kubectl/argv.js';
 
 export const REGRAS = [
   {
@@ -10,6 +12,10 @@ export const REGRAS = [
   {
     re: /error looking up service account ([\w-]+)\/([\w.-]+)/,
     t: (m) => ({ titulo: `A ServiceAccount "${m[2]}" não existe`, texto: `O pod pede o crachá <code>${m[2]}</code> no namespace <code>${m[1]}</code>, e ele não foi criado. Crie antes do pod (no mesmo arquivo, a ServiceAccount vem primeiro): <code>kubectl create serviceaccount ${m[2]} -n ${m[1]}</code>.`, vidaReal: 'O morador chegou com um crachá que a administração nunca emitiu.' }),
+  },
+  {
+    re: /unsupported role reference kind: "([^"]*)"/,
+    t: (m) => ({ titulo: m[1] ? `"${m[1]}" não é um tipo de crachá` : 'Falta dizer qual crachá entregar', texto: 'O <code>roleRef</code> do binding diz qual crachá ele entrega: <code>kind</code> (<code>Role</code> ou <code>ClusterRole</code>, com a maiúscula), <code>name</code> e <code>apiGroup: rbac.authorization.k8s.io</code>. Sem um <code>kind</code> desses, o API Server recusa antes de olhar o resto.', vidaReal: 'Um termo de entrega de crachá que não diz qual crachá.' }),
   },
   {
     re: /violates PodSecurity "(\w+):/,
@@ -23,15 +29,23 @@ export const REGRAS = [
     re: /Error from server \(NotFound\): (?:error when \w+ "[^"]+": )?([\w.]+) "([^"]+)" not found/,
     t: (m) => m[1].startsWith('namespaces')
       ? { titulo: `O namespace "${m[2]}" não existe`, texto: `Crie com <code>kubectl create namespace ${m[2]}</code> ou confira o nome.`, vidaReal: 'Mandar uma carta para uma empresa que não tem sala no prédio.' }
-      : { titulo: `Não existe ${m[1].split('.')[0]} chamado "${m[2]}"`, texto: `Confira o nome com <code>kubectl get ${m[1].split('.')[0]}</code> e o namespace (<code>-n</code>).`, vidaReal: 'O porteiro (API Server) procurou no livro e não achou ninguém com esse nome.' },
+      : { titulo: `Nenhum objeto em ${m[1].split('.')[0]} se chama "${m[2]}"`, texto: `Confira o nome com <code>kubectl get ${m[1].split('.')[0]}</code> e o namespace (<code>-n</code>).`, vidaReal: 'O porteiro (API Server) procurou no livro e não achou ninguém com esse nome.' },
   },
   {
     re: /AlreadyExists\).*?([\w.]+) "([^"]+)" already exists/,
     t: (m) => ({ titulo: `"${m[2]}" já existe`, texto: 'O <code>create</code> só cria. Para atualizar um objeto que já existe, use <code>kubectl apply -f</code>: ele compara e muda só o que for diferente.', vidaReal: 'Pedir para construir um apartamento que já está construído.' }),
   },
   {
-    re: /strict decoding error: (unknown field .*)/,
-    t: (m) => ({ titulo: 'Campo que não existe', texto: `O Kubernetes não conhece ${m[1].replace(/unknown field "([^"]+)"/g, '<code>$1</code>')}. Costuma ser erro de digitação (<code>replica</code> em vez de <code>replicas</code>) ou recuo errado, que põe o campo dentro do bloco errado. A aba Manual mostra os nomes certos.`, vidaReal: 'Um formulário com um campo inventado: a administração devolve sem processar.' }),
+    re: /(?:cannot be handled as a (\w+): )?strict decoding error: (unknown field .*)/,
+    t: (m, { parecido } = {}) => {
+      const campos = [...m[2].matchAll(/unknown field &quot;(.*?)&quot;/g)].map((x) => x[1]);
+      const sugestoes = [...new Set(campos.map((c) => parecido?.(m[1], c)).filter(Boolean))];
+      return {
+        titulo: 'Campo que não existe',
+        texto: `O Kubernetes não conhece ${campos.length > 1 ? 'os campos' : 'o campo'} ${campos.map((c) => `<code>${c}</code>`).join(', ')}. ${sugestoes.length ? `Você quis dizer ${sugestoes.map((x) => `<code>${x}</code>`).join(' e ')}?` : 'Costuma ser erro de digitação (<code>replica</code> em vez de <code>replicas</code>) ou recuo errado, que põe o campo dentro do bloco errado.'} A aba Manual mostra os nomes certos.`,
+        vidaReal: 'Um formulário com um campo inventado: a administração devolve sem processar.',
+      };
+    },
   },
   {
     re: /cannot unmarshal (\w+) into Go struct field \w+\.([\w.]+) of type (\S+)/,
@@ -80,6 +94,10 @@ export const REGRAS = [
   {
     re: /PersistentVolumeClaim "[^"]+" is invalid: spec: Forbidden: spec is immutable/,
     t: () => ({ titulo: 'O pedido de disco não muda depois de feito', texto: 'Num PVC, só dá para aumentar o tamanho. Para trocar classe ou modo de acesso: <code>kubectl delete pvc NOME</code> e crie de novo (com cuidado: os dados vão junto, se a política for Delete).', vidaReal: 'O contrato do box já foi assinado: para trocar de box, cancela e faz outro.' }),
+  },
+  {
+    re: /roleRef: Invalid value: .*: field is immutable/,
+    t: () => ({ titulo: 'O roleRef não muda depois de criado', texto: 'Um binding entrega sempre o mesmo crachá. Para trocar, apague e crie de novo: <code>kubectl delete rolebinding NOME</code> (ou <code>clusterrolebinding</code>) e aplique outra vez.', vidaReal: 'Para trocar o crachá de alguém, a portaria recolhe o antigo e emite outro: não dá para reescrever o que está no cartão.' }),
   },
   {
     re: /field is immutable|Forbidden: updates to statefulset spec/,
@@ -220,12 +238,26 @@ export const STATUS = [
   { re: /\bErrImageNeverPull\b/, titulo: 'A imagem não está no node, e o pod proibiu baixar', texto: 'Com <code>imagePullPolicy: Never</code>, o kubelet só usa a imagem que já estiver no node (no kind, carregada com <code>kind load docker-image</code>). Tire o <code>Never</code> (o padrão <code>IfNotPresent</code> baixa quando falta) ou ponha a imagem no node.', vidaReal: 'A regra é "só móveis que já estão no depósito", e o sofá nunca foi para o depósito.' },
   { re: /existing pods in namespace "[^"]+" violate the new PodSecurity enforce level/, titulo: 'A norma nova vale para os próximos pods', texto: 'A label foi aplicada, mas os pods que já rodam não passam nela. Eles continuam rodando (a norma é conferida só quando um pod é criado); o próximo pod igual, numa troca de versão ou num reinício pelo Deployment, vai ser recusado. Ajuste o <code>securityContext</code> antes que isso aconteça.', vidaReal: 'O regulamento novo do prédio não despeja quem já mora, mas a próxima mudança tem de seguir as regras.' },
   { re: /^Warning: unknown field "[^"]+"/m, titulo: 'O campo foi ignorado', texto: 'O patch tinha um campo que o Kubernetes não conhece (erro de digitação, como <code>replica</code> em vez de <code>replicas</code>, ou o caminho no lugar errado). Ele foi jogado fora, e por isso o resto pode dizer <code>patched (no change)</code>: nada mudou. Confira o nome com <code>kubectl explain</code>.', vidaReal: 'O formulário voltou carimbado, mas a linha com o campo inventado foi riscada.' },
+  { re: /^Warning: v1 Endpoints is deprecated/m, titulo: 'Aviso: o Endpoints está saindo de cena', texto: 'Não é erro: a lista veio logo abaixo. O Endpoints (os IPs dos pods prontos atrás de um Service) foi trocado pelo EndpointSlice, que guarda a mesma lista em fatias, e desde a v1.33 o API Server avisa toda vez que alguém lê o antigo. Os mesmos IPs, sem o aviso: <code>kubectl describe svc NOME</code> (a linha Endpoints) ou <code>kubectl get endpointslices -l kubernetes.io/service-name=NOME</code>.', vidaReal: 'A portaria trocou o caderno de visitas por fichas separadas: o caderno velho ainda está no balcão, com um bilhete "use as fichas".' },
   { re: /is missing the kubectl\.kubernetes\.io\/last-applied-configuration annotation/, titulo: 'Aviso: o objeto não nasceu de um apply', texto: 'Ele foi criado com <code>kubectl create</code> (ou <code>run</code>, <code>expose</code>), que não guarda a última versão aplicada. O kubectl avisa e grava essa memória neste mesmo apply: daqui em diante, siga com o <code>apply</code>. Sem ela, este primeiro apply não sabe que campos você tirou do YAML (eles ficam).', vidaReal: 'A obra foi feita sem planta: o arquiteto desenhou a planta agora, a partir do que já estava construído.' },
 ];
 
 /** Explicações para a saída de um comando: erros (se falhou) e status problemáticos (numa tabela). */
 // O que vem da saída (nomes, campos) entra no HTML da caixa: escapado aqui, uma vez, para as regras dos dois idiomas.
 const html = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** O campo irmão mais parecido (até 2 letras de diferença) com o que o Kubernetes não conhece: spec.container → containers. */
+function parecido(kind, caminho) {
+  const partes = caminho.replace(/\[\d+\]/g, '').split('.');
+  const nome = partes.pop();
+  let c = esquemaDe(kind);
+  for (const p of partes) {
+    c = c?.campos?.[p];
+    if (c?.tipo === 'array') c = c.item;
+  }
+  const [melhor] = Object.keys(c?.campos ?? {}).map((k) => [distancia(nome, k), k]).filter(([d]) => d <= 2).sort(([a], [b]) => a - b);
+  return melhor?.[1];
+}
 
 export function explicar(saida, { falhou }) {
   const caixas = [];
@@ -236,7 +268,7 @@ export function explicar(saida, { falhou }) {
     for (const r of regras) {
       const m = saida.match(r.re);
       if (m) {
-        caixas.push({ chave: r.re.source, ...r.t(m.map(html)) });
+        caixas.push({ chave: r.re.source, ...r.t(m.map(html), { parecido }) });
         break;
       }
     }

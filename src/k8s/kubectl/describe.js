@@ -941,7 +941,7 @@ DESCRITORES.LimitRange = (w, lr) => {
   w.w(0, `Namespace:\t${lr.metadata.namespace}\n`);
   w.w(0, 'Type\tResource\tMin\tMax\tDefault Request\tDefault Limit\tMax Limit/Request Ratio\n');
   w.w(0, '----\t--------\t---\t---\t---------------\t-------------\t-----------------------\n');
-  for (const l of lr.spec.limits) for (const linha of linhasDoLimite(l)) w.w(0, `${linha}\n`);
+  for (const l of lr.spec?.limits ?? []) for (const linha of linhasDoLimite(l)) w.w(0, `${linha}\n`);
 };
 
 DESCRITORES.HorizontalPodAutoscaler = (w, h, ctx) => {

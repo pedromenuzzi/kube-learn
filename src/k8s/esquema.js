@@ -785,8 +785,15 @@ const jsonTipo = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : type
 const tipoGo = (c) => c.go ?? (c.tipo === 'object' ? c.go : c.tipo === 'array' ? `[]${tipoGo(c.item)}` : GO[c.tipo]);
 const nomeStruct = (c) => (c.go ?? '').replace(/^v1\./, '');
 
+// O valor zero do Go para um null dentro de uma lista (`- ` sem nada).
+const ZERO = { object: () => ({}), map: () => ({}), string: () => '', integer: () => 0, boolean: () => false };
+const soNulos = (v) => jsonTipo(v) === 'object' && Object.keys(v).length > 0 && Object.values(v).every((x) => x === null);
+
 /**
  * Confere os tipos e os campos desconhecidos, como o apiserver (strict decoding).
+ * Como ele, trata null como campo não definido: apaga do objeto as chaves com null (num mapa também: `app:` sem valor
+ * some das labels, e o mapa que só tinha null some junto) e troca um null numa lista pelo valor zero
+ * (`containers:\n  -` vira [{}], e a validação diz "Required value"). O objeto muda aqui mesmo.
  * Devolve { desconhecidos: ['spec.replica', ...], tipo: 'json: cannot unmarshal ...' | null }.
  */
 export function decodificar(obj) {
@@ -807,10 +814,11 @@ export function decodificar(obj) {
       case 'IntOrString': if (t !== 'number' && t !== 'string') falha(); return;
       case 'map':
         if (t !== 'object') return falha();
-        for (const v of Object.values(valor)) {
+        for (const [k, v] of Object.entries(valor)) {
           const tv = jsonTipo(v);
           const ok = c.quantidade ? tv === 'string' || tv === 'number' : tv === 'string';
-          if (!ok && v !== null) {
+          if (v === null) delete valor[k];
+          else if (!ok) {
             erroTipo = `json: cannot unmarshal ${tv} into Go struct field ${nomeStruct(pai)}.${caminhoSemIndice} of type ${c.quantidade ? 'resource.Quantity' : 'string'}`;
             return;
           }
@@ -818,7 +826,10 @@ export function decodificar(obj) {
         return;
       case 'array':
         if (t !== 'array') return falha();
-        valor.forEach((v, i) => visitar(v, c.item, `${caminho}[${i}]`, caminhoSemIndice, pai));
+        valor.forEach((v, i) => {
+          if (v === null && ZERO[c.item.tipo]) valor[i] = ZERO[c.item.tipo]();
+          visitar(valor[i], c.item, `${caminho}[${i}]`, caminhoSemIndice, pai);
+        });
         return;
       case 'object':
         if (t !== 'object') return falha();
@@ -827,6 +838,7 @@ export function decodificar(obj) {
           const cam = caminho ? `${caminho}.${k}` : k;
           const camSem = caminhoSemIndice ? `${caminhoSemIndice}.${k}` : k;
           if (!filho) desconhecidos.push(cam);
+          else if (v === null || (filho.tipo === 'map' && soNulos(v))) delete valor[k];
           else visitar(v, filho, cam, camSem, c);
         }
     }
@@ -890,6 +902,14 @@ function validarPodSpec(spec, base, erros, volumesExtras = []) {
     (c.env ?? []).forEach((e, j) => {
       if (!e.name) erros.push(obrigatorio(`${cam}.env[${j}].name`));
     });
+    (c.envFrom ?? []).forEach((ef, j) => {
+      if (!ef.configMapRef && !ef.secretRef) erros.push(invalido(`${cam}.envFrom`, '', 'must specify one of: `configMapRef` or `secretRef`'));
+      for (const ref of ['configMapRef', 'secretRef']) if (ef[ref] && !ef[ref].name) erros.push(obrigatorio(`${cam}.envFrom[${j}].${ref}.name`));
+    });
+    for (const qual of ['livenessProbe', 'readinessProbe', 'startupProbe']) {
+      const p = c[qual];
+      if (p && !p.exec && !p.httpGet && !p.tcpSocket && !p.grpc) erros.push(`${cam}.${qual}: Required value: must specify a handler type`);
+    }
     (c.volumeMounts ?? []).forEach((m, j) => {
       const cm = `${cam}.volumeMounts[${j}]`;
       if (!m.name) erros.push(obrigatorio(`${cm}.name`));
@@ -900,6 +920,10 @@ function validarPodSpec(spec, base, erros, volumesExtras = []) {
       erros.push(`${cam}.imagePullPolicy: Unsupported value: ${JSON.stringify(c.imagePullPolicy)}: supported values: "Always", "IfNotPresent", "Never"`);
     }
     validarRecursos(c.resources, `${cam}.resources`, erros, base === 'spec'); // só o Pod tem o PodSpec em spec (os moldes, em .template.spec)
+  });
+  (spec.initContainers ?? []).forEach((c, i) => { // depois dos contêineres, como o apiserver
+    if (!c.name) erros.push(obrigatorio(`${base}.initContainers[${i}].name`));
+    if (!c.image) erros.push(obrigatorio(`${base}.initContainers[${i}].image`));
   });
   const politica = spec.restartPolicy;
   if (politica && !['Always', 'OnFailure', 'Never'].includes(politica)) {
@@ -1006,7 +1030,7 @@ export function validar(obj, antigo) {
       if (!s?.selector || (!ml && !s.selector.matchExpressions)) erros.push(obrigatorio('spec.selector'));
       else if (ml && !Object.keys(ml).length && !s.selector.matchExpressions) erros.push(invalido('spec.selector', s.selector, 'empty selector is invalid for deployment'));
       const labels = s?.template?.metadata?.labels;
-      if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? {}, '`selector` does not match template `labels`'));
+      if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? null, '`selector` does not match template `labels`'));
       validarPodSpec(s?.template?.spec, 'spec.template.spec', erros);
       if (s?.replicas < 0) erros.push(invalido('spec.replicas', s.replicas, 'must be greater than or equal to 0'));
       const ru = obj.kind === 'Deployment' && (s?.strategy?.type ?? 'RollingUpdate') === 'RollingUpdate' ? s?.strategy?.rollingUpdate ?? {} : null;
@@ -1015,8 +1039,8 @@ export function validar(obj, antigo) {
       if (s?.template?.spec?.restartPolicy && s.template.spec.restartPolicy !== 'Always') {
         erros.push(`spec.template.spec.restartPolicy: Unsupported value: ${JSON.stringify(s.template.spec.restartPolicy)}: supported values: "Always"`);
       }
-      if (antigo && JSON.stringify(antigo.spec.selector) !== JSON.stringify(s.selector)) {
-        erros.push(invalido('spec.selector', s.selector, 'field is immutable'));
+      if (antigo && JSON.stringify(antigo.spec.selector) !== JSON.stringify(s?.selector)) {
+        erros.push(invalido('spec.selector', s?.selector ?? null, 'field is immutable'));
       }
       break;
     }
@@ -1051,7 +1075,13 @@ export function validar(obj, antigo) {
       const ml = s?.selector?.matchLabels;
       if (!s?.selector || (!ml && !s.selector.matchExpressions)) erros.push(obrigatorio('spec.selector'));
       const labels = s?.template?.metadata?.labels;
-      if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? {}, '`selector` does not match template `labels`'));
+      if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? null, '`selector` does not match template `labels`'));
+      // O apiserver valida os volumeClaimTemplates como volumes a mais do molde (depois dos volumes dele).
+      (s?.volumeClaimTemplates ?? []).forEach((t, i) => {
+        if (t.metadata?.name) return;
+        const cam = `spec.template.spec.volumes[${(s.template?.spec?.volumes?.length ?? 0) + i}]`;
+        erros.push(obrigatorio(`${cam}.persistentVolumeClaim.claimName`), obrigatorio(`${cam}.name`));
+      });
       validarPodSpec(s?.template?.spec, 'spec.template.spec', erros, (s?.volumeClaimTemplates ?? []).map((t) => t.metadata?.name));
       if (s?.replicas < 0) erros.push(invalido('spec.replicas', s.replicas, 'must be greater than or equal to 0'));
       (s?.volumeClaimTemplates ?? []).forEach((t, i) => validarPvcSpec(t.spec, `spec.volumeClaimTemplates[${i}].spec`, erros));
@@ -1093,12 +1123,12 @@ export function validar(obj, antigo) {
       const ml = s?.selector?.matchLabels;
       if (!s?.selector || (!ml && !s.selector.matchExpressions)) erros.push(obrigatorio('spec.selector'));
       const labels = s?.template?.metadata?.labels;
-      if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? {}, '`selector` does not match template `labels`'));
+      if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? null, '`selector` does not match template `labels`'));
       validarPodSpec(s?.template?.spec, 'spec.template.spec', erros);
       if (s?.template?.spec?.restartPolicy && s.template.spec.restartPolicy !== 'Always') {
         erros.push(`spec.template.spec.restartPolicy: Unsupported value: ${JSON.stringify(s.template.spec.restartPolicy)}: supported values: "Always"`);
       }
-      if (antigo && JSON.stringify(antigo.spec.selector) !== JSON.stringify(s.selector)) erros.push(invalido('spec.selector', s.selector, 'field is immutable'));
+      if (antigo && JSON.stringify(antigo.spec.selector) !== JSON.stringify(s?.selector)) erros.push(invalido('spec.selector', s?.selector ?? null, 'field is immutable'));
       break;
     }
     case 'PersistentVolumeClaim':
@@ -1119,6 +1149,30 @@ export function validar(obj, antigo) {
         erros.push('provisioner: Forbidden: updates to provisioner are forbidden.');
       }
       break;
+    case 'HorizontalPodAutoscaler': {
+      const ref = s?.scaleTargetRef ?? {};
+      for (const k of ['kind', 'name']) if (!ref[k]) erros.push(obrigatorio(`spec.scaleTargetRef.${k}`));
+      const [grupo, versao] = (ref.apiVersion ?? '').split('/');
+      if (!grupo || versao === undefined) erros.push(invalido('spec.scaleTargetRef.apiVersion', ref.apiVersion ?? '', 'apiVersion must specify API group'));
+      break;
+    }
+    case 'RoleBinding':
+    case 'ClusterRoleBinding': {
+      const ref = obj.roleRef ?? {};
+      const go = (r) => JSON.stringify({ APIGroup: r?.apiGroup || 'rbac.authorization.k8s.io', Kind: r?.kind ?? '', Name: r?.name ?? '' });
+      // ponytail: numa atualização com kind inválido o real fala da escalada; aqui sai o "imutável" (os dois recusam)
+      if (antigo) {
+        if (go(antigo.roleRef) !== go(ref)) erros.push(`roleRef: Invalid value: ${go(ref)}: field is immutable`);
+        break;
+      }
+      // Um kind que não é Role nem ClusterRole o apiserver recusa antes, ao conferir a escalada (cluster.admitir).
+      if (!['Role', 'ClusterRole'].includes(ref.kind)) break;
+      const fora = (campoNome, v, aceitos) => `roleRef.${campoNome}: Unsupported value: ${JSON.stringify(v)}: supported values: ${aceitos.map((x) => JSON.stringify(x)).join(', ')}`;
+      if (ref.apiGroup && ref.apiGroup !== 'rbac.authorization.k8s.io') erros.push(fora('apiGroup', ref.apiGroup, ['rbac.authorization.k8s.io'])); // vazio vira o padrão
+      if (obj.kind === 'ClusterRoleBinding' && ref.kind !== 'ClusterRole') erros.push(fora('kind', ref.kind, ['ClusterRole']));
+      if (!ref.name) erros.push(obrigatorio('roleRef.name'));
+      break;
+    }
     case 'ConfigMap':
     case 'Secret':
       if (antigo?.immutable && JSON.stringify(antigo.data) !== JSON.stringify(obj.data)) {
@@ -1272,6 +1326,7 @@ export function aplicarPadroes(obj) {
     case 'RoleBinding':
     case 'ClusterRoleBinding':
       for (const sj of obj.subjects ?? []) if (sj.kind !== 'ServiceAccount') sj.apiGroup ??= 'rbac.authorization.k8s.io';
+      if (obj.roleRef && !obj.roleRef.apiGroup) obj.roleRef.apiGroup = 'rbac.authorization.k8s.io';
       break;
     case 'StorageClass':
       obj.reclaimPolicy ??= 'Delete';

@@ -1,0 +1,2 @@
+rolebinding.rbac.authorization.k8s.io/grupo-vazio created
+exit=0

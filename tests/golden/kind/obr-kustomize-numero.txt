@@ -1,0 +1,2 @@
+error: invalid Kustomization: json: cannot unmarshal number into Go struct field Kustomization.resources of type string
+exit=1
