@@ -5,10 +5,11 @@ import { GLOSSARIO } from '../conteudo/glossario.js';
 import { calcularJornada, sequenciaDeDias, hojeLocal } from '../jogo/gamificacao.js';
 import { somarDias, termosVistos } from '../jogo/revisao.js';
 import { atividadePorDia, calendario, cartoesParaHoje, numerosDosDias } from '../jogo/hoje.js';
-import { plantaoDoDia } from '../jogo/plantao.js';
+import { plantaoDoDia, NIVEL_DO_PLANTAO } from '../jogo/plantao.js';
 import { ler, CHAVES } from '../armazenamento.js';
 import { desenharNavio, CORES } from './navio.js';
 import { svgSelo, linkCompartilhar } from './selos.js';
+import { compartilharResultado, htmlCompartilhar, tempoEEntregas, textoDoPlantao } from './compartilhar.js';
 import { escapar, minutosESegundos } from './util.js';
 import { icone } from './icones.js';
 import { idioma, t } from '../i18n.js';
@@ -178,13 +179,13 @@ export function paginaTrilha() {
 
 // Os incidentes da seção Troubleshooting: o relato de cada morador e se você já resolveu.
 const SITUACAO_CHAMADO = () => ({ resolvido: ['chip-ok', 'certo', t('Resolvido')], tentado: ['chip-medio', 'relogio', t('Em andamento')] });
-const chamado = (i, status) => {
+const chamado = (i, status, extra = '') => {
   const situacao = SITUACAO_CHAMADO()[status];
   return `
     <li class="chamado">
       <p class="chamado-chips"><span class="chip chip-${i.dificuldade}">${icone('terminal')} ${DIFICULDADE()[i.dificuldade]}</span>${situacao ? ` <span class="chip ${situacao[0]}">${icone(situacao[1])} ${situacao[2]}</span>` : ''}</p>
       <h2><a href="#/ex/${i.id}">${escapar(i.titulo)}</a></h2>
-      <blockquote class="relato"><p>${i.relato}</p><footer>${escapar(i.morador)}</footer></blockquote>
+      <blockquote class="relato"><p>${i.relato}</p><footer>${escapar(i.morador)}</footer></blockquote>${extra}
     </li>`;
 };
 
@@ -216,25 +217,37 @@ export function paginaOficina() {
       </a></li>`).join('')}</ol>`;
 }
 
-// O Plantão do dia: o chamado de hoje e os dos últimos dias (quem perdeu um dia ainda pode atender).
+// O Plantão do dia: o chamado de hoje em destaque (com o resultado, se já foi atendido) e os dos últimos dias (quem
+// perdeu um dia ainda pode atender).
 export function paginaPlantao() {
   const progresso = ler(CHAVES.progresso, {});
+  const placares = ler(CHAVES.plantoes, {});
   const hoje = plantaoDoDia(hojeLocal());
   const anteriores = [1, 2, 3, 4, 5, 6, 7].map((n) => plantaoDoDia(somarDias(hojeLocal(), -n)));
   const atendidos = Object.keys(progresso).filter((id) => id.startsWith('plantao-') && resolvido(progresso, id)).length;
-  return `
-    <p class="sobretitulo">${t('Todo dia, um chamado novo')}</p>
-    <h1 class="pixel">${t('Plantão do dia')}</h1>
-    <p>${t('Um incidente novo por dia, o mesmo para todo mundo: a aplicação de um morador chega com dois defeitos. Uns 10 minutos de investigação no terminal. Não vale XP: vale o morador satisfeito.')}</p>
-    <p class="nota">${t(atendidos === 1 ? '1 plantão atendido até hoje' : '{n} plantões atendidos até hoje', { n: atendidos })}</p>
-    <ul class="chamados">${chamado(hoje, progresso[hoje.id]?.status)}</ul>
-    <h2>${t('Os dos últimos dias')}</h2>
-    <p class="nota">${t('Perdeu um dia? O chamado continua aberto.')}</p>
-    <ol class="oficina plantoes">${anteriores.map((i) => `
-      <li><a href="#/ex/${i.id}">
-        <span class="oficina-titulo"><span class="plantao-dia">${dataCurta(i.id.slice(8))}</span> ${escapar(i.titulo)}</span>
-        <span class="oficina-recorde">${resolvido(progresso, i.id) ? `${icone('certo')} ${t('Atendido')}` : t('Em aberto')}</span>
-      </a></li>`).join('')}</ol>`;
+  const cedo = !jornadaAtual().niveis.find((n) => n.numero === NIVEL_DO_PLANTAO)?.desbloqueado;
+  const deHoje = placares[hoje.id];
+  const acao = deHoje
+    ? `<p class="plantao-acoes"><span>${icone('relogio')} ${t('Atendido em {tempo}', { tempo: tempoEEntregas(deHoje) })}</span> ${htmlCompartilhar(textoDoPlantao(hoje, deHoje))}</p>`
+    : resolvido(progresso, hoje.id) ? '' : `<p class="plantao-acoes"><a class="botao botao-grande" href="#/ex/${hoje.id}">${icone('play')} ${t('Atender agora')}</a></p>`;
+  return (main) => {
+    main.innerHTML = `
+      <p class="sobretitulo">${t('Todo dia, um chamado novo')}</p>
+      <h1 class="pixel">${t('Plantão do dia')}</h1>
+      <p>${t('Um incidente novo por dia, o mesmo para todo mundo: a aplicação de um morador chega com dois defeitos. Uns 10 minutos de investigação no terminal. Não vale XP: vale o morador satisfeito.')}</p>
+      <p class="nota">${t(atendidos === 1 ? '1 plantão atendido até hoje' : '{n} plantões atendidos até hoje', { n: atendidos })}</p>
+      ${cedo ? `<p class="nota">${icone('trilha')} ${t('Recomendado a partir do Nível {n}: os defeitos passam por probes e limites (Nível 6) e por agendamento (Nível 7). Mas pode atender já: a aba Solução explica o que estava quebrado.', { n: NIVEL_DO_PLANTAO })}</p>` : ''}
+      <ul class="chamados plantao-hoje">${chamado(hoje, progresso[hoje.id]?.status, acao)}</ul>
+      <h2>${t('Os dos últimos dias')}</h2>
+      <p class="nota">${t('Perdeu um dia? O chamado continua aberto.')}</p>
+      <ol class="oficina plantoes">${anteriores.map((i) => `
+        <li><a href="#/ex/${i.id}">
+          <span class="oficina-titulo"><span class="plantao-dia">${dataCurta(i.id.slice(8))}</span> ${escapar(i.titulo)}</span>
+          <span class="oficina-recorde">${resolvido(progresso, i.id) ? `${icone('certo')} ${placares[i.id] ? t('Atendido em {tempo}', { tempo: minutosESegundos(placares[i.id].ms) }) : t('Atendido')}` : t('Em aberto')}</span>
+        </a></li>`).join('')}</ol>`;
+    main.querySelector('[data-acao=compartilhar]')?.addEventListener('click', (e) => compartilharResultado(e.currentTarget));
+    return {};
+  };
 }
 
 // O Diário de bordo: o caminho até aqui (os números, os dias de estudo e as últimas conquistas).

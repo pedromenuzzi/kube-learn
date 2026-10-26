@@ -550,6 +550,13 @@ ol.plantoes .oficina-titulo::before, ol.diario-recentes .oficina-titulo::before 
 .chamado h2 { margin: 0; font-size: 1.15rem; }
 .chamado-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0; }
 .chamado blockquote.relato { margin: 0; }
+/* o chamado de hoje no Plantão do dia: a largura toda, o relato maior, o botão de atender e o resultado para compartilhar */
+.plantao-hoje { grid-template-columns: minmax(0, 1fr); }
+.plantao-hoje .chamado { gap: 0.75rem; padding: 1.25rem 1.4rem; }
+.plantao-hoje blockquote.relato p { font-size: 1.12rem; line-height: 1.55; }
+.plantao-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin: 0; font-weight: 700; }
+.compartilhado:has(input) { flex-basis: 100%; }
+.compartilhado input { width: min(100%, 34rem); font-size: 0.85rem; font-weight: 400; }
 
 /* o relato do morador, nos incidentes */
 blockquote.relato { margin: 0 0 1rem; padding: 0.75rem 1rem; border-left: 4px solid var(--acento); border-radius: 0 var(--raio) var(--raio) 0; background: var(--acento-suave); }

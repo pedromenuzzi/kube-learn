@@ -19,6 +19,7 @@ import { htmlCluster, htmlRecursos, htmlEventos, htmlLegendaMapa } from './paine
 import { ativarAbas, htmlAbas, escapar, minutosESegundos } from './util.js';
 import { montarJanelas } from './janelas.js';
 import { icone } from './icones.js';
+import { compartilharResultado, htmlCompartilhar, tempoEEntregas, textoDoPlantao } from './compartilhar.js';
 
 const DIFICULDADE = { facil: 'Fácil', medio: 'Médio', dificil: 'Difícil' };
 const SUBCOMANDOS = ['annotate', 'api-resources', 'apply', 'cluster-info', 'config', 'create', 'delete', 'describe', 'edit', 'exec', 'explain', 'expose', 'get', 'help', 'label', 'logs', 'port-forward', 'rollout', 'run', 'scale', 'set', 'version', 'wait', 'autoscale', 'top'];
@@ -72,7 +73,9 @@ export function montarExercicio(raiz, item) {
   const caixasVistas = new Set();
 
   // A Oficina do kubectl corre contra o relógio (de verdade, não o do cluster): vale o recorde de cada exercício.
+  // O Plantão do dia também tem relógio, sem recorde nem meta: o tempo da primeira vez vai para o resultado do dia.
   const naOficina = item.secao === 'oficina';
+  const comRelogio = naOficina || item.secao === 'plantao';
   const recorde = naOficina ? ler(CHAVES.recordes, {})[item.id] : null;
   let comecou = anterior?.comecou ?? performance.now();
   let terminouEm = anterior?.terminouEm ?? null;
@@ -87,7 +90,7 @@ export function montarExercicio(raiz, item) {
         ${item.projeto ? `<span class="chip chip-projeto">${icone('arvore')} ${escapar(item.projeto.titulo)} · ${t('etapa {etapa} de {total}', item.projeto)}</span>` : ''}
         ${item.dificuldade ? `<span class="chip chip-${item.dificuldade}">${t(DIFICULDADE[item.dificuldade])}</span>` : ''}${xp ? `<span class="chip">${xp} XP</span>` : ''}
         ${ler(CHAVES.progresso, {})[item.id]?.status === 'resolvido' ? `<span class="chip chip-ok">${icone('certo')} ${t('Resolvida')}</span>` : ''}
-        ${naOficina ? `<span class="chip chip-cronometro" aria-hidden="true">${cronometro()}</span><span class="chip chip-recorde">${recorde ? `${icone('raio')} ${t('Recorde: {tempo}', { tempo: minutosESegundos(recorde) })}` : t('Primeira vez: o tempo de hoje vira o recorde')}</span>` : ''}
+        ${comRelogio ? `<span class="chip chip-cronometro" aria-hidden="true">${cronometro()}</span>` : ''}${naOficina ? `<span class="chip chip-recorde">${recorde ? `${icone('raio')} ${t('Recorde: {tempo}', { tempo: minutosESegundos(recorde) })}` : t('Primeira vez: o tempo de hoje vira o recorde')}</span>` : ''}
       </header>
       <div class="ex-acoes">
         ${temArquivos ? `<button type="button" class="botao" data-acao="aplicar" title="Ctrl+Enter">${icone('play')} ${t('Aplicar')}</button>` : `<button type="button" class="botao" data-acao="conferir" title="Ctrl+Enter">${icone('certo')} ${t('Conferir')}</button>`}
@@ -139,15 +142,17 @@ export function montarExercicio(raiz, item) {
   let tempoDoAviso = 0;
   /** O aviso flutua sobre a tela (não empurra as janelas) e some sozinho; o de missão cumprida fica, com o link da próxima. */
   // `ajuda`: { texto, aba, rotulo } — a ajuda do degrau (a dica, o Manual, a Solução), com o botão que abre a aba.
-  const avisar = (texto, { tipo = 'info', proximo, ajuda, refazer } = {}) => {
+  // `compartilhar`: o texto do botão "Compartilhar resultado" (o do Plantão do dia).
+  const avisar = (texto, { tipo = 'info', proximo, ajuda, refazer, compartilhar } = {}) => {
     clearTimeout(tempoDoAviso);
     aviso.className = `ex-aviso ${tipo}`;
     aviso.innerHTML = `${tipo === 'info' ? '' : icone(tipo === 'ok' ? 'certo' : 'fechar')}<div class="aviso-texto"><span>${escapar(texto)}</span>`
       + (proximo ? `<a href="#/ex/${proximo.id}">${t('Próxima: {titulo}', { titulo: escapar(proximo.titulo) })} ${icone('seguir')}</a>` : '')
       + (ajuda ? `<span class="aviso-ajuda">${icone('lampada')} ${escapar(ajuda.texto)}</span><button type="button" class="link-botao" data-acao="abrir-aba" data-aba="${ajuda.aba}">${escapar(ajuda.rotulo)}</button>` : '')
       + (refazer ? `<button type="button" class="link-botao" data-acao="refazer">${icone('reiniciar')} ${t('Tentar de novo')}</button>` : '')
+      + (compartilhar ? htmlCompartilhar(compartilhar) : '')
       + `</div><button type="button" class="aviso-fechar" data-acao="fechar-aviso" aria-label="${t('Fechar o aviso')}">${icone('fechar')}</button>`;
-    if (!proximo && !ajuda) tempoDoAviso = setTimeout(() => aviso.replaceChildren(), tipo === 'info' ? 4000 : 8000);
+    if (!proximo && !ajuda && !compartilhar) tempoDoAviso = setTimeout(() => aviso.replaceChildren(), tipo === 'info' ? 4000 : 8000);
   };
 
   // ---------- lado: missão, vida real, manual, solução, testes ----------
@@ -389,6 +394,18 @@ export function montarExercicio(raiz, item) {
   // A escada de ajuda: cada entrega errada abre um degrau (a dica, o Manual, a Solução), sem tirar XP.
   let falhas = anterior?.falhas ?? 0;
   let acertosAntes = anterior?.acertosAntes ?? null;
+  /** Para o relógio do Plantão e avisa. A primeira vez que resolve fica guardada: é o resultado do dia, o compartilhado. */
+  const avisarPlantao = () => {
+    terminouEm ??= performance.now() - comecou;
+    const agora = { ms: Math.round(terminouEm), entregas: falhas + 1 };
+    const plantoes = ler(CHAVES.plantoes, {});
+    const antes = plantoes[item.id];
+    if (!antes) gravar(CHAVES.plantoes, { ...plantoes, [item.id]: agora });
+    const texto = !antes || (antes.ms === agora.ms && antes.entregas === agora.entregas)
+      ? t('Incidente resolvido em {placar}. O morador agradece!', { placar: tempoEEntregas(agora) })
+      : t('Incidente resolvido em {placar}. Vale o resultado da primeira vez: {antes}.', { placar: tempoEEntregas(agora), antes: tempoEEntregas(antes) });
+    avisar(texto, { tipo: 'ok', compartilhar: textoDoPlantao(item, antes ?? agora) });
+  };
   const degrauDeAjuda = () => {
     const solucao = item.solucao || item.solucaoTerminal ? { texto: t('Travou? A aba Solução tem a referência, e ver não tira XP.'), aba: 'solucao', rotulo: t('Abrir a Solução') } : null;
     if (falhas === 2 && item.dica) {
@@ -438,6 +455,7 @@ export function montarExercicio(raiz, item) {
         const festa = registrarComFesta(item, resolvido);
         if (resolvido && !$('.ex-topo .chip-ok')) $('.ex-topo').insertAdjacentHTML('beforeend', `<span class="chip chip-ok">${icone('certo')} ${t('Resolvida')}</span>`);
         if (resolvido && naOficina) avisar(tempoDaOficina(), { tipo: 'ok', proximo: proximoDe(item), refazer: true });
+        else if (resolvido && item.secao === 'plantao') avisarPlantao();
         else if (resolvido) avisar(item.secao ? t('Incidente resolvido! O morador agradece.') : textoDaVitoria(festa), { tipo: 'ok', proximo: proximoDe(item) });
         else {
           falhas += 1;
@@ -476,6 +494,7 @@ export function montarExercicio(raiz, item) {
     }),
     'fechar-aviso': () => aviso.replaceChildren(),
     'abrir-aba': (botao) => abasLado.selecionar(botao.dataset.aba),
+    compartilhar: compartilharResultado,
     feedback: () => abrirFeedback(item, () => ({ testes: ultimoTeste, comandos: terminal.historico.slice(-10) })),
     // Oficina: de novo do zero, sem perguntar (o cluster, os arquivos e o relógio voltam ao começo).
     refazer: guardar(() => {
@@ -543,7 +562,7 @@ export function montarExercicio(raiz, item) {
   // Se o simulador tropeça num tique, o relógio para (e avisa uma vez só) até o cluster ser recriado.
   let relogioTravado = false;
   const relogio = setInterval(guardar(() => {
-    if (naOficina && terminouEm === null) $('.chip-cronometro').innerHTML = cronometro();
+    if (comRelogio) $('.chip-cronometro').innerHTML = cronometro(); // parado: o tempo final
     if (document.hidden || relogioTravado) return;
     relogioTravado = true;
     estado.cluster.avancar(1000);
