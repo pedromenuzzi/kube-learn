@@ -16,7 +16,8 @@
 //   { evento: { motivo, objeto, mensagem: 'regex' } }  aconteceu um evento com esse motivo (e essa mensagem)
 //   { env: { pods: 'app=x', nome, igual | regex } }    a variável de ambiente dentro do contêiner
 //   { comando: 'regex' }                               o aluno usou esse comando no terminal (a regex é testada na linha
-//                                                      crua e na normalizada: veja formasDoComando)
+//                                                      crua e na normalizada, e nas duas da linha expandida no shell do
+//                                                      aluno, com o k, os aliases e o $do: veja formasDoComando)
 //   { saida: 'regex' }                                 a saída de algum comando dos passos do teste combina
 //   { vigia: { maxFalhas: 0 } }                        com `vigiar: 'http://loja'` no teste: um cliente pediu a URL a
 //                                                      cada segundo dos passos, e no máximo tantas deram erro
@@ -35,7 +36,7 @@
 // Sem `passos`: kubectl apply -f . e 1 minuto de relógio.
 import { montarCluster } from './conteudo/clusters.js';
 import { seletorDeLabels } from './k8s/kubectl/index.js';
-import { rodarLinha } from './k8s/linha.js';
+import { linhaExpandida, rodarLinha } from './k8s/linha.js';
 import { palavras } from './k8s/kubectl/argv.js';
 import { acharRecurso, pluralQualificado } from './k8s/recursos.js';
 import { estaPronto, http, httpDeFora, resolver } from './k8s/rede.js';
@@ -241,7 +242,8 @@ const REGRAS = {
   },
   comando(r, ctx) {
     const re = new RegExp(r.comando);
-    return [ctx.historico.some((l) => formasDoComando(l).some((f) => re.test(f))), t('você usou um comando que combina com /{re}/', { re: r.comando }), t('nenhum comando parecido no histórico')];
+    const formas = (l) => [l, linhaExpandida(ctx.clusterDoAluno, l)].flatMap(formasDoComando);
+    return [ctx.historico.some((l) => formas(l).some((f) => re.test(f))), t('você usou um comando que combina com /{re}/', { re: r.comando }), t('nenhum comando parecido no histórico')];
   },
   resposta(r, ctx) {
     const dada = String(ctx.resposta ?? '').trim();
@@ -320,7 +322,7 @@ function amostrar(cluster, ctx) {
  * → { descricao, oculto, ok, regras: [{ ok, mensagem, detalhe }] }
  */
 export function rodarTeste(item, teste, indice, { arquivos = {}, historico = [], resposta, clusterDoAluno } = {}) {
-  const ctx = { resultados: [], historico, resposta, minimos: new Map(), versoes: new Map(), urlVigiada: teste.vigiar, vigia: { falhas: 0, total: 0 } };
+  const ctx = { resultados: [], historico, resposta, clusterDoAluno, minimos: new Map(), versoes: new Map(), urlVigiada: teste.vigiar, vigia: { falhas: 0, total: 0 } };
   if (teste.noClusterDoAluno) {
     ctx.cluster = clusterDoAluno;
   } else {
