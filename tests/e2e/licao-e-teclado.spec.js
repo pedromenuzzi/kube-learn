@@ -2,7 +2,7 @@
 // editor, o recuo das linhas quebradas e o placar do topo para o leitor de tela).
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { ITENS } from '../../src/conteudo/index.js';
+import { ITENS, NIVEIS } from '../../src/conteudo/index.js';
 
 const placar = (page, nome) => expect(page.locator('.placar-topo')).toHaveAccessibleName(nome);
 const alternativaCerta = (id) => ITENS.find((i) => i.id === id).alternativas.findIndex((a) => a.certa);
@@ -81,6 +81,74 @@ test('no celular, acertar o quiz leva o foco à próxima sem esconder o "Certo!"
     expect(retorno, id).toBeLessThan(altura);
     await expect(page.locator('.leitura-acoes .proxima')).toBeFocused();
   }
+});
+
+// Nível 0 com 9 de 14 itens (5 dos 8 quizzes, 62%, logo abaixo dos 70%). Abre o nível 1, com a faixa embaixo do
+// topo: acertar mais um quiz do nível 0 ou ler a primeira lição do nível 1 (a trilha abre o nível em que o aluno mexeu).
+const N0_QUASE = NIVEIS[0].itens.map((i) => i.id).filter((id) => id !== 'n0-quiz-partes').slice(0, 9);
+const medir = (page) => page.evaluate(() => {
+  const r = (s) => document.querySelector(s)?.getBoundingClientRect();
+  const nav = document.querySelector('.nav');
+  return { topo: r('.topo').bottom, faixa: r('.festa-faixa')?.bottom ?? 0, retorno: r('.quiz-retorno').top, proxima: r('.leitura-acoes .proxima').bottom, altura: innerHeight, nav: getComputedStyle(nav).position === 'fixed' ? nav.getBoundingClientRect().top : innerHeight };
+});
+
+/** Responde (ou marca a lição como lida) com o dedo (clique) ou só com o teclado. */
+const responder = async (page, alternativa, teclado) => {
+  const alvo = alternativa ? page.getByRole('radio', { name: alternativa }) : page.locator('.leitura-acoes').getByRole('link', { name: /^Lida · Próxima: / });
+  if (!teclado) {
+    await (alternativa ? alvo.check() : alvo.click());
+    if (alternativa) await page.getByRole('button', { name: 'Responder' }).click();
+    return;
+  }
+  await alvo.focus();
+  if (alternativa) {
+    await page.keyboard.press('Space');
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Responder' })).toBeFocused();
+  }
+  await page.keyboard.press('Enter');
+};
+
+// Com o dedo, não há anel de foco: o retorno fica inteiro abaixo da faixa. Pelo teclado, a próxima (com o foco) fica
+// acima da barra de abas, mesmo que o retorno tenha de subir um pouco.
+for (const teclado of [false, true]) {
+  for (const [id, alternativa] of [['n1-licao-condominio', null], ['n0-quiz-partes', 'ghcr.io']]) {
+    test(`390x664, ${teclado ? 'teclado' : 'dedo'}: ${id} abre o nível 1 e a faixa não cobre o retorno`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 664 });
+      await page.emulateMedia({ reducedMotion: 'reduce' }); // rolagem na hora: a posição medida já é a final
+      await page.addInitScript((ids) => {
+        if (sessionStorage.getItem('semeado')) return;
+        sessionStorage.setItem('semeado', '1');
+        localStorage.setItem('kube-learn:progresso', JSON.stringify(Object.fromEntries(ids.map((i) => [i, { status: 'resolvido', em: '2026-10-20' }]))));
+      }, N0_QUASE);
+      await page.goto(`#/ex/${id}`);
+      await responder(page, alternativa, teclado);
+      await expect(page.locator('.festa-faixa')).toContainText('Nível 1 desbloqueado');
+      await expect(page.locator('.leitura-acoes .proxima')).toBeFocused();
+      const m = await medir(page);
+      if (teclado) {
+        expect(m.proxima).toBeLessThanOrEqual(m.nav);
+        expect(m.retorno).toBeLessThan(m.nav);
+      } else {
+        expect(m.retorno).toBeGreaterThanOrEqual(m.faixa);
+        expect(m.retorno).toBeLessThan(m.altura);
+      }
+    });
+  }
+}
+
+test.describe('1280 px a 200%', () => {
+  test.use({ viewport: { width: 640, height: 400 }, deviceScaleFactor: 2 });
+  test('640x400: acertar o quiz pelo teclado deixa a próxima, com o foco, acima da barra de abas', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('#/ex/n0-quiz-vm');
+    await responder(page, ITENS.find((i) => i.id === 'n0-quiz-vm').alternativas[alternativaCerta('n0-quiz-vm')].texto, true);
+    await expect(page.locator('.quiz-retorno')).toContainText('Certo!');
+    await expect(page.locator('.leitura-acoes .proxima')).toBeFocused();
+    const m = await medir(page);
+    expect(m.proxima).toBeLessThanOrEqual(m.nav);
+    expect(m.retorno).toBeLessThan(m.nav);
+  });
 });
 
 test('a lição que abre um nível mostra a faixa inteira e não sai da página', async ({ page }) => {

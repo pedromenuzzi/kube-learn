@@ -6,6 +6,7 @@ import { montarSessao, responder, termosVistos, proximaRevisao } from '../jogo/r
 import { ler, gravar, CHAVES, registrarDia } from '../armazenamento.js';
 import { escapar } from './util.js';
 import { icone } from './icones.js';
+import { focarMostrando } from './leitura.js';
 import { idioma, t } from '../i18n.js';
 
 // 'AAAA-MM-DD' → 21/10/2026 (em inglês, Oct 21, 2026)
@@ -103,7 +104,9 @@ export function paginaRevisao(_parametro, opcoes = {}) {
         mostrarRetorno(retorno, sessao.resposta.certo);
         return;
       }
-      form.querySelector('input').focus();
+      // O foco no primeiro rádio, e o cartão (o "Cartão N de 10" e a pergunta) logo abaixo do topo: a página não volta
+      // ao começo entre um cartão e outro.
+      focarMostrando(form.querySelector('input'), main.querySelector('.cartao-revisao'));
       form.addEventListener('submit', (e) => {
         e.preventDefault();
         const escolhida = c.opcoes[Number(new FormData(form).get('escolha'))];
@@ -112,8 +115,10 @@ export function paginaRevisao(_parametro, opcoes = {}) {
         estado = responder(estado, c.id, escolhida.certa, hoje);
         gravar(CHAVES.revisao, estado);
         registrarDia(hoje);
+        dispatchEvent(new Event('kube-learn:progresso')); // o topo conta junto: a aba Revisão e o dia de estudo
         marcar(form, c, sessao.resposta);
-        mostrarRetorno(retorno, escolhida.certa).focus();
+        // O foco no Próximo, e as alternativas com o ✓ e o ✗ abaixo do topo (o foco sozinho centralizaria o botão).
+        focarMostrando(mostrarRetorno(retorno, escolhida.certa), form.querySelector('fieldset'));
       });
     };
     desenhar();

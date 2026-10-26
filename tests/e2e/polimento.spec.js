@@ -51,6 +51,32 @@ const descoberto = (page, seletor) => page.locator(seletor).first().evaluate((el
 
 const rolarAteOFim = (page, seletor) => page.locator(seletor).evaluate((el) => { el.scrollTop = el.scrollHeight; });
 
+/** O maior lado da caixa que mostra cada alça (o span em volta do botão): 1 px quando ela está fora da vista. */
+const caixaDaAlca = (alcas) => alcas.evaluateAll((l) => l.map((b) => {
+  const r = b.parentElement.getBoundingClientRect();
+  return Math.max(r.width, r.height);
+}));
+
+/** Tab (a partir do que tem o foco) até chegar em `alvo`. */
+const tabAte = async (page, alvo) => {
+  for (let i = 0; i < 80 && !(await alvo.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press('Tab');
+  await expect(alvo).toBeFocused();
+};
+
+/** O que tem o foco não fica embaixo do topo nem da barra de abas do celular. */
+const foraDasBarras = async (page, alvo, onde) => {
+  const { r, topo, nav } = await alvo.evaluate((el) => {
+    const barra = document.querySelector('.nav');
+    return {
+      r: el.getBoundingClientRect().toJSON(),
+      topo: document.querySelector('.topo').getBoundingClientRect().bottom,
+      nav: getComputedStyle(barra).position === 'fixed' ? barra.getBoundingClientRect().top : innerHeight,
+    };
+  });
+  expect(r.top, onde).toBeGreaterThanOrEqual(topo);
+  expect(r.bottom, onde).toBeLessThanOrEqual(nav);
+};
+
 for (const [rotulo, ids] of [['primeira visita', []], ['quem volta', MEIO]]) {
   test(`390x844, ${rotulo}: o texto e o botão principal vêm antes do navio, acima da barra de abas`, async ({ page }) => {
     await page.setViewportSize(CELULAR);
@@ -64,6 +90,49 @@ for (const [rotulo, ids] of [['primeira visita', []], ['quem volta', MEIO]]) {
     const texto = await page.locator('.heroi-texto').boundingBox();
     const navio = await page.locator('.heroi canvas.navio').boundingBox();
     expect(texto.y).toBeLessThan(navio.y);
+  });
+}
+
+// No desktop o painel fica sobre a cena do navio: com o lembrete aberto, a cena cresce junto (nada fica pendurado
+// fora dela). E o topo é opaco o bastante para o texto rolado embaixo dele não aparecer através da marca.
+test('desktop: o painel com o lembrete aberto fica dentro da cena, e o topo não deixa ler o que passa embaixo', async ({ page }) => {
+  await semear(page, { ids: NIVEIS.slice(0, 2).flatMap((n) => n.itens.map((i) => i.id)) });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('#/');
+  await page.locator('.lembrete summary').click();
+  await expect(page.locator('.lembrete form')).toBeVisible();
+  for (const tamanho of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(tamanho);
+    for (const tema of ['claro', 'escuro', 'contraste']) {
+      const m = await page.evaluate((t) => {
+        document.documentElement.dataset.tema = t;
+        const r = (s) => document.querySelector(s).getBoundingClientRect();
+        const fundo = getComputedStyle(document.querySelector('.topo')).backgroundColor;
+        return { texto: r('.heroi-texto').bottom, cena: r('.heroi canvas.navio').bottom, alfa: Number(fundo.match(/^rgba\(.*,\s*([\d.]+)\)$/)?.[1] ?? 1) };
+      }, tema);
+      expect(m.texto, `${tema} a ${tamanho.width}`).toBeLessThanOrEqual(m.cena);
+      expect(m.alfa, `${tema} a ${tamanho.width}`).toBeGreaterThanOrEqual(0.94);
+    }
+  }
+});
+
+// O que recebe o foco pelo Tab rola para fora do topo e da barra de abas (o scroll-padding do html).
+for (const [rotulo, viewport, deviceScaleFactor] of [['390x844', CELULAR, 1], ['640x400 (1280 px a 200%)', { width: 640, height: 400 }, 2]]) {
+  test.describe(rotulo, () => {
+    test.use({ viewport, deviceScaleFactor });
+    test(`${rotulo}: o Tab não deixa o foco embaixo da barra de abas`, async ({ page }) => {
+      await semear(page, { ids: MEIO, movimento: 'reduzido' });
+      await page.goto('#/ex/kubectl-escalar');
+      await page.locator('#conteudo').focus();
+      await tabAte(page, page.locator('input.term-entrada'));
+      await foraDasBarras(page, page.locator('input.term-entrada'), 'a linha do terminal');
+      await page.goto('#/');
+      const botao = page.locator('.heroi .acoes .botao');
+      await expect(botao).toBeVisible();
+      await page.locator('#conteudo').focus();
+      await tabAte(page, botao);
+      await foraDasBarras(page, botao, 'o botão principal do início');
+    });
   });
 }
 
@@ -154,13 +223,17 @@ test('390x844: o texto de sucesso fica legível enquanto o helicóptero pousa', 
   expect(cruza).toBe(false);
 });
 
-test('abaixo de 60rem: sem alça, setas ←/→ e Arrumação padrão; abas numa linha; o aviso vazio continua vivo', async ({ page }) => {
+test('abaixo de 60rem: a alça só no foco, sem setas ←/→ e Arrumação padrão; abas numa linha; o aviso vazio continua vivo', async ({ page }) => {
   await page.setViewportSize(CELULAR);
   await page.goto('#/ex/n3-ramal');
   await expect(page.locator('.cm-content')).toBeVisible();
-  for (const s of ['.alca', '[data-mover=esquerda]', '[data-mover=direita]', '[data-acao=arrumacao]']) {
+  for (const s of ['[data-mover=esquerda]', '[data-mover=direita]', '[data-acao=arrumacao]']) {
     for (const el of await page.locator(s).all()) await expect(el).toBeHidden();
   }
+  // A alça fica fora da vista até receber o foco: o teclado ainda move as janelas empilhadas.
+  const alcas = await caixaDaAlca(page.locator('.alca'));
+  expect(alcas).toHaveLength(3);
+  for (const lado of alcas) expect(lado).toBeLessThanOrEqual(1);
   await expect(page.locator('[data-mover=cima]').first()).toBeVisible();
   const linhas = await page.locator('.janela .abas[role=tablist]').evaluateAll((listas) => listas.map((l) => new Set([...l.querySelectorAll('[role=tab]')].map((a) => a.offsetTop)).size));
   expect(linhas.length).toBeGreaterThan(1);
@@ -176,6 +249,26 @@ test('abaixo de 60rem: sem alça, setas ←/→ e Arrumação padrão; abas numa
   const ultimo = await page.locator('.ex-acoes [data-acao=feedback]').boundingBox();
   expect(Math.abs((relogio.y + relogio.height / 2) - (ultimo.y + ultimo.height / 2))).toBeLessThan(4);
 });
+
+// Empilhadas, as janelas ainda mudam de ordem pelo teclado: a alça aparece quando recebe o foco (WCAG 2.1.1).
+for (const tamanho of [{ width: 640, height: 800 }, CELULAR]) {
+  test(`${tamanho.width}x${tamanho.height}: a alça aparece no Tab e as setas mudam a ordem das janelas`, async ({ page }) => {
+    await page.setViewportSize(tamanho);
+    await page.goto('#/ex/n3-ramal');
+    await expect(page.locator('input.term-entrada')).toBeVisible();
+    const alca = page.getByRole('button', { name: 'Mover a janela Arquivos' }); // antes do editor (lá o Tab recua)
+    expect((await caixaDaAlca(alca))[0]).toBeLessThanOrEqual(1);
+    await page.locator('#conteudo').focus();
+    await tabAte(page, alca);
+    expect((await caixaDaAlca(alca))[0]).toBeGreaterThan(1);
+    await expect(alca).toHaveCSS('outline-style', 'solid');
+    // A Missão está sozinha na coluna dela; os arquivos descem para baixo do terminal e a alça fica com o foco.
+    await page.keyboard.press('ArrowDown');
+    await expect.poll(() => page.locator('.janela').evaluateAll((l) => l.map((j) => j.dataset.janela))).toEqual(['missao', 'paineis', 'arquivos']);
+    await expect(alca).toBeFocused();
+    expect((await caixaDaAlca(alca))[0]).toBeGreaterThan(1);
+  });
+}
 
 test('390 px: o terminal e o editor em 16 px (o iOS não dá zoom)', async ({ page }) => {
   await page.setViewportSize(CELULAR);
@@ -203,6 +296,31 @@ test('detalhes: todas as letras na fonte pixel, topo limpo, rádios iguais', asy
   await page.goto('#/ex/n0-quiz-latest');
   const larguras = await page.locator('.alternativa input').evaluateAll((l) => l.map((i) => i.getBoundingClientRect().width));
   expect(new Set(larguras).size).toBe(1);
+});
+
+// O anel de foco dos rádios e campos: sólido, na cor de destaque (3:1 ou mais contra o fundo) nos três temas.
+test('o anel de foco dos rádios e da caixa de resposta é sólido nos três temas', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' }); // sem a transição do anel: o estilo lido já é o final
+  const anel = () => page.evaluate(() => {
+    const s = getComputedStyle(document.activeElement);
+    const opaca = (c) => !/rgba?\([^)]*,\s*0?\.\d+\)|\/\s*0?\.\d+/.test(c);
+    return s.outlineStyle === 'solid' ? { tipo: 'outline', largura: parseFloat(s.outlineWidth), opaca: opaca(s.outlineColor) }
+      : { tipo: 'sombra', largura: parseFloat(s.boxShadow.match(/(\d+(?:\.\d+)?)px\s*$/)?.[1] ?? '0'), opaca: opaca(s.boxShadow) };
+  });
+  for (const tema of ['claro', 'escuro', 'contraste']) {
+    await page.goto('#/ex/n0-quiz-latest');
+    await page.evaluate((t) => { document.documentElement.dataset.tema = t; }, tema);
+    await page.locator('.alternativa input').first().focus();
+    await page.keyboard.press('ArrowDown'); // o foco anda pelo teclado: :focus-visible
+    await expect(page.locator('.alternativa input').nth(1)).toBeFocused();
+    expect(await anel(), `rádio (${tema})`).toEqual({ tipo: 'outline', largura: tema === 'contraste' ? 4 : 3, opaca: true });
+    await page.goto('#/ex/n0-quiz-referencia');
+    await page.locator('#resposta').focus();
+    await page.keyboard.type('x');
+    const campo = await anel();
+    expect(campo.opaca, `campo (${tema})`).toBe(true);
+    expect(campo.largura, `campo (${tema})`).toBeGreaterThanOrEqual(2);
+  }
 });
 
 for (const tamanho of [{ width: 1280, height: 720 }, CELULAR]) {

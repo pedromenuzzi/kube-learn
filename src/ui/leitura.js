@@ -38,12 +38,24 @@ function acoes(item, proximo, jaFeito) {
   return proximo ? `<a class="${item.tipo === 'licao' ? 'botao' : 'botao-secundario'} proxima" href="#/ex/${proximo.id}">${proxima(proximo)} ${icone('seguir')}</a>` : '';
 }
 
-// O foco vai para a próxima sem rolar até ela (o navegador a centralizaria e, no celular, o "Certo! +5 XP" e a
-// explicação sumiam embaixo do topo fixo); quem rola é o retorno, até logo abaixo do topo.
-function focarMostrando(link, retorno) {
-  link.focus({ preventScroll: true });
-  retorno.style.scrollMarginTop = `${(document.querySelector('.topo')?.getBoundingClientRect().bottom ?? 0) + 12}px`;
-  retorno.scrollIntoView({ block: 'start' });
+/**
+ * Foca `foco` sem o navegador rolar até ele (ele o centralizaria e, no celular, o "Certo! +5 XP" sumia embaixo do topo)
+ * e rola o mínimo para `mostrar` começar abaixo do topo e da faixa do nível novo, e o foco ficar acima da barra de abas
+ * do celular. Quando não cabem os dois, quem usa o teclado (o anel de foco à vista, :focus-visible) fica com o foco à
+ * vista (WCAG 2.4.11); com o mouse ou o dedo, não há anel, e o começo de `mostrar` vem primeiro. A rolagem é calculada
+ * aqui (scrollBy): o scroll-padding do html, que vale para o scrollIntoView e o foco do navegador, não conta duas vezes.
+ */
+export function focarMostrando(foco, mostrar) {
+  foco.focus({ preventScroll: true });
+  // A faixa acabou de entrar e ainda desce (festa-descer): vale a caixa de layout dela, sem o transform da animação.
+  const faixas = [...document.querySelectorAll('.festa-faixa')].map((f) => f.offsetTop + f.offsetHeight);
+  const acima = Math.max(document.querySelector('.topo')?.getBoundingClientRect().bottom ?? 0, ...faixas) + 12;
+  const nav = document.querySelector('.nav');
+  const abaixo = (nav && getComputedStyle(nav).position === 'fixed' ? nav.getBoundingClientRect().top : innerHeight) - 12;
+  const folga = mostrar.getBoundingClientRect().top - acima; // < 0: o começo está escondido; > 0: dá para descer isso
+  const delta = Math.max(Math.min(0, folga), foco.getBoundingClientRect().bottom - abaixo);
+  const rolar = foco.matches(':focus-visible') ? delta : Math.min(delta, folga);
+  if (rolar) scrollBy({ top: rolar });
 }
 
 export function montarLeitura(raiz, item) {
