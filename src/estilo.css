@@ -629,29 +629,44 @@ blockquote.relato footer::before { content: '— '; }
   .ex-acoes .rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .ex-acoes button:not(.botao, .botao-forte) { padding-inline: 0.7rem; }
 }
-/* O aviso da tela do exercício. Com as janelas empilhadas, fica no fluxo, logo depois dos botões: não cobre a lista de
-   testes que ele manda ler. Vazio, perde a caixa mas continua no DOM (o aria-live tem de existir antes da mensagem). */
-.ex-aviso { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.55rem 0.55rem 1rem; border-radius: var(--raio-g); border: 1px solid var(--borda-forte); border-left: 4px solid var(--destaque); background: var(--superficie); color: var(--texto); box-shadow: var(--sombra-1); font-weight: 700; }
+/* O aviso da tela do exercício. Fica no fluxo, logo depois dos botões (janelas empilhadas, ou uma arrumação em que a
+   Missão divide a coluna ou fica no meio): não cobre nada. Vazio, perde a caixa mas continua no DOM (o aria-live tem de
+   existir antes da mensagem). */
+.ex-aviso { container-type: inline-size; display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding: 0.55rem 0.55rem 0.55rem 1rem; border-radius: var(--raio-g); border: 1px solid var(--borda-forte); border-left: 4px solid var(--destaque); background: var(--superficie); color: var(--texto); box-shadow: var(--sombra-1); font-weight: 700; }
 .ex-aviso:empty { padding: 0; border: 0; box-shadow: none; margin-top: -0.75rem; }
-/* Com as janelas lado a lado, flutua embaixo, sobre a janela Missão (40% da largura na arrumação padrão): aparece sem
-   empurrar as janelas e nunca cobre a linha do terminal. Se o aluno levou a Missão para a direita, o aviso vai junto. */
+/* Lado a lado, com a Missão sozinha na primeira ou na última coluna: o aviso flutua no pé da janela Missão, por dentro
+   dela (ancorado nela, na largura que o aluno deu à coluna), e aparece sem empurrar as janelas. Enquanto ele está à
+   vista, o painel da Missão ganha embaixo um espaço do tamanho do aviso (no máximo --aviso-max; mais alto, ele rola por
+   dentro): o último teste e a Dica aberta sobem acima dele. Em tela baixa, as janelas (34rem no mínimo) passam da dobra
+   em até --aviso-folga, e o aviso sobe isso, para ficar à vista. Sem anchor positioning, fica no fluxo. */
 @media (min-width: 60.01rem) {
-  .ex-aviso { position: fixed; left: max(2rem, calc((100vw - 100rem) / 2 + 2rem)); bottom: 1.25rem; z-index: 60; width: max-content; max-width: calc((min(100vw, 100rem) - 2.5rem) * 0.4 - 2rem); box-shadow: var(--sombra-2); transition: opacity var(--anim), transform var(--anim); }
-  .ex:has(.coluna:last-child > [data-janela=missao]):not(:has(.coluna:first-child > [data-janela=missao])) .ex-aviso { left: auto; right: max(2rem, calc((100vw - 100rem) / 2 + 2rem)); }
-  .ex-aviso:empty { margin: 0; opacity: 0; transform: translateY(0.75rem); pointer-events: none; }
+  @supports (anchor-name: --a) {
+    .ex:has(> .janelas > .coluna:is(:first-child, :last-child) > [data-janela=missao]:only-child) { --aviso-max: 12rem; --aviso-folga: max(0px, 49rem - 100vh); }
+    .ex:has(> .janelas > .coluna:is(:first-child, :last-child) > [data-janela=missao]:only-child) [data-janela=missao] { anchor-name: --janela-missao; }
+    .ex:has(> .janelas > .coluna:is(:first-child, :last-child) > [data-janela=missao]:only-child) > .ex-aviso { position: fixed; position-anchor: --janela-missao; left: calc(anchor(left) + 0.75rem); right: calc(anchor(right) + 0.75rem); bottom: calc(anchor(bottom) + 0.75rem + var(--aviso-folga)); z-index: 60; max-height: var(--aviso-max); overflow-y: auto; box-shadow: var(--sombra-2); transition: opacity var(--anim), transform var(--anim); }
+    .ex:has(> .janelas > .coluna:is(:first-child, :last-child) > [data-janela=missao]:only-child) > .ex-aviso:empty { margin: 0; opacity: 0; transform: translateY(0.75rem); pointer-events: none; }
+    .ex:has(> .ex-aviso:not(:empty)) > .janelas > .coluna:is(:first-child, :last-child) > [data-janela=missao]:only-child .painel { --espaco-do-aviso: calc(var(--aviso-max) + 1.5rem + var(--aviso-folga)); padding-bottom: var(--espaco-do-aviso); scroll-padding-bottom: var(--espaco-do-aviso); }
+  }
 }
 .ex-aviso.ok { border-left-color: var(--ok); }
 .ex-aviso.ok > .icone { color: var(--ok); }
 .ex-aviso.falha { border-left-color: var(--ruim); }
 .ex-aviso.falha > .icone { color: var(--ruim); }
 .ex-aviso > .icone { flex: none; width: 1.15rem; height: 1.15rem; }
-.ex-aviso .aviso-texto { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.85rem; min-width: 0; }
-.ex-aviso .aviso-ajuda { flex-basis: 100%; display: flex; gap: 0.4rem; align-items: baseline; font-weight: 400; color: var(--suave); }
-.ex-aviso .aviso-ajuda .icone { flex: none; width: 1rem; height: 1rem; color: var(--espera); align-self: center; }
+.ex-aviso .aviso-texto { flex: 1 1 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.85rem; min-width: 0; }
+/* A ajuda fica em 3 linhas no máximo: uma Dica longa continua inteira na aba Missão, a um clique (e o leitor de tela lê
+   tudo). */
+.ex-aviso .aviso-ajuda { flex-basis: 100%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; font-weight: 400; color: var(--suave); }
+.ex-aviso .aviso-ajuda .icone { width: 1rem; height: 1rem; color: var(--espera); }
 .ex-aviso a { display: inline-flex; align-items: center; gap: 0.3rem; }
 .ex-aviso .aviso-fechar { flex: none; display: inline-grid; place-items: center; width: 2rem; height: 2rem; min-height: 0; padding: 0; border: 0; border-radius: 999px; background: none; color: var(--suave); }
 .ex-aviso .aviso-fechar:hover { background: var(--superficie-2); color: var(--texto); }
 .ex-aviso .aviso-fechar .icone { width: 1rem; height: 1rem; }
+/* Estreito (a Missão perto dos 15%), o aviso empilha: o ícone e o fechar em cima, o texto embaixo, na largura toda. */
+@container (max-width: 16rem) {
+  .ex-aviso .aviso-texto { order: 1; flex-basis: 100%; }
+  .ex-aviso .aviso-fechar { margin-left: auto; }
+}
 
 /* janelas móveis e redimensionáveis */
 .janelas { display: flex; gap: 0; height: max(34rem, calc(100vh - 15rem)); }

@@ -10,11 +10,12 @@ const TODOS = NIVEIS.flatMap((n) => n.itens.map((i) => i.id));
 const MEIO = [...NIVEIS.slice(0, 4).flatMap((n) => n.itens.map((i) => i.id)), ...NIVEIS[4].itens.slice(0, 8).map((i) => i.id)];
 
 /** Começa com estas preferências e estes itens resolvidos (em dias passados, como quem volta). */
-const semear = (page, { tema = 'claro', movimento = 'normal', ids = [], nome = '' } = {}) => page.addInitScript(([t, mov, lista, nm]) => {
+const semear = (page, { tema = 'claro', movimento = 'normal', ids = [], nome = '', janelas = null } = {}) => page.addInitScript(([t, mov, lista, nm, jan]) => {
   if (sessionStorage.getItem('semeado')) return;
   sessionStorage.setItem('semeado', '1');
   localStorage.setItem('kube-learn:preferencias', JSON.stringify({ tema: t, texto: '100', movimento: mov }));
   if (nm) localStorage.setItem('kube-learn:nome', JSON.stringify(nm));
+  if (jan) localStorage.setItem('kube-learn:janelas', JSON.stringify(jan));
   if (!lista.length) return;
   const dia = (k) => {
     const x = new Date();
@@ -23,7 +24,7 @@ const semear = (page, { tema = 'claro', movimento = 'normal', ids = [], nome = '
   };
   localStorage.setItem('kube-learn:progresso', JSON.stringify(Object.fromEntries(lista.map((id) => [id, { status: 'resolvido', em: dia(3) }]))));
   localStorage.setItem('kube-learn:dias', JSON.stringify([dia(5), dia(4), dia(3)]));
-}, [tema, movimento, ids, nome]);
+}, [tema, movimento, ids, nome, janelas]);
 
 const semViolacoes = async (page, onde) => {
   await page.waitForFunction(() => document.getAnimations().every((x) => x.playState !== 'running'));
@@ -31,8 +32,8 @@ const semViolacoes = async (page, onde) => {
   expect(r.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`), onde).toEqual([]);
 };
 
-const entregarErrado = async (page, vezes) => {
-  await page.goto('#/ex/kubectl-escalar');
+const entregarErrado = async (page, vezes, missao = 'kubectl-escalar') => {
+  await page.goto(`#/ex/${missao}`);
   await expect(page.locator('input.term-entrada')).toBeVisible();
   // Cada entrega errada sobe um degrau da escada de ajuda: nada, a dica, o Manual.
   for (const degrau of ['.ex-aviso.falha', '.ex-aviso [data-aba=missao]', '.ex-aviso [data-aba=manual]'].slice(0, vezes)) {
@@ -41,11 +42,14 @@ const entregarErrado = async (page, vezes) => {
   }
 };
 
-/** O elemento no ponto central de `seletor` é ele mesmo (ou está dentro dele): nada o cobre. */
+/** Nos pontos da linha do meio de `seletor` (o começo, o centro e o fim), o elemento é ele mesmo (ou está dentro dele):
+ * nada o cobre. As pontas pegam o aviso que vaza só um pouco sobre a linha. */
 const descoberto = (page, seletor) => page.locator(seletor).first().evaluate((el) => {
   const r = el.getBoundingClientRect();
-  return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+  return [0.03, 0.5, 0.97].every((f) => el.contains(document.elementFromPoint(r.left + r.width * f, r.top + r.height / 2)));
 });
+
+const rolarAteOFim = (page, seletor) => page.locator(seletor).evaluate((el) => { el.scrollTop = el.scrollHeight; });
 
 for (const [rotulo, ids] of [['primeira visita', []], ['quem volta', MEIO]]) {
   test(`390x844, ${rotulo}: o texto e o botão principal vêm antes do navio, acima da barra de abas`, async ({ page }) => {
@@ -69,6 +73,59 @@ for (const tamanho of [{ width: 1280, height: 720 }, { width: 1366, height: 800 
     await entregarErrado(page, 2);
     expect(await descoberto(page, 'input.term-entrada')).toBe(true);
     await expect(page.locator('.ex-aviso')).toBeInViewport();
+  });
+}
+
+// Depois da 2ª e da 3ª falha o aviso traz ajuda e não fecha sozinho: o painel da Missão rola o que ele cobriria.
+for (const tamanho of [{ width: 1024, height: 768 }, { width: 1280, height: 720 }]) {
+  test(`${tamanho.width}x${tamanho.height}: com o aviso aberto, a Dica aberta e o último teste sobem acima dele`, async ({ page }) => {
+    await page.setViewportSize(tamanho);
+    await entregarErrado(page, 2, 'n3-ramal');
+    await page.locator('.ex-aviso [data-aba=missao]').click();
+    await rolarAteOFim(page, '#lado-missao');
+    expect(await descoberto(page, '#lado-missao details[open]')).toBe(true);
+    await page.getByRole('button', { name: 'Entregar' }).click();
+    await expect(page.locator('.ex-aviso [data-aba=manual]')).toBeVisible();
+    await rolarAteOFim(page, '#lado-testes');
+    expect(await descoberto(page, '#lado-testes .testes > li:last-child')).toBe(true);
+    await expect(page.locator('.ex-aviso')).not.toBeEmpty();
+  });
+}
+
+// O aviso só flutua com a Missão sozinha na primeira ou na última coluna, e por dentro dela; nas outras arrumações que o
+// aluno pode salvar, fica no fluxo. Em nenhuma ele cobre o prompt ou a linha do terminal.
+const coluna = (largura, ...ids) => ({ largura, janelas: ids.map((id) => ({ id, altura: 100 / ids.length })) });
+for (const [rotulo, missao, colunas, posicao] of [
+  ['a Missão e o terminal na mesma coluna', 'kubectl-escalar', [coluna(50, 'missao', 'paineis'), coluna(50, 'arquivos')], 'static'],
+  ['a Missão sozinha no meio', 'n3-ramal', [coluna(30, 'arquivos'), coluna(40, 'missao'), coluna(30, 'paineis')], 'static'],
+  ['a Missão estreita (15%)', 'n3-ramal', [coluna(15, 'missao'), coluna(85, 'arquivos', 'paineis')], 'fixed'],
+  ['a Missão sozinha à direita', 'n3-ramal', [coluna(60, 'arquivos', 'paineis'), coluna(40, 'missao')], 'fixed'],
+]) {
+  test(`1280x720, ${rotulo}: o aviso da 3ª falha não cobre o prompt nem a linha do terminal`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await semear(page, { janelas: { colunas } });
+    await entregarErrado(page, 3, missao);
+    await page.locator('input.term-entrada').scrollIntoViewIfNeeded();
+    expect(await descoberto(page, '.term-prompt')).toBe(true);
+    expect(await descoberto(page, 'input.term-entrada')).toBe(true);
+    // Nem sobre as outras janelas (o editor, o terminal).
+    const sobre = await page.evaluate(() => {
+      const a = document.querySelector('.ex-aviso').getBoundingClientRect();
+      return [...document.querySelectorAll('.janela:not([data-janela=missao])')].filter((j) => {
+        const r = j.getBoundingClientRect();
+        return a.left < r.right && r.left < a.right && a.top < r.bottom && r.top < a.bottom;
+      }).map((j) => j.dataset.janela);
+    });
+    expect(sobre).toEqual([]);
+    const aviso = page.locator('.ex-aviso');
+    await expect(aviso).toHaveCSS('position', posicao);
+    if (posicao === 'fixed') {
+      const a = await aviso.boundingBox();
+      const m = await page.locator('[data-janela=missao]').boundingBox();
+      expect(a.x).toBeGreaterThanOrEqual(m.x);
+      expect(a.x + a.width).toBeLessThanOrEqual(m.x + m.width);
+      expect(a.y + a.height).toBeLessThanOrEqual(m.y + m.height);
+    }
   });
 }
 
