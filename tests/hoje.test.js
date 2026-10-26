@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { atividadePorDia, calendario, cartoesParaHoje, numerosDosDias } from '../src/jogo/hoje.js';
+import { montarSessao, responder, somarDias } from '../src/jogo/revisao.js';
+import { GLOSSARIO } from '../src/conteudo/glossario.js';
 
 const termos = ['a', 'b', 'c', 'd'].map((id) => ({ id }));
 const HOJE = '2026-10-22';
@@ -11,10 +13,36 @@ describe('o hoje do aluno', () => {
     expect(cartoesParaHoje({ termos, estado, hoje: HOJE })).toBe(1 + 2); // a vencido; c e d novos
   });
 
-  it('depois de revisar hoje: os novos não voltam a cobrar, só um vencido', () => {
-    // a respondido hoje na caixa 2 (volta em 2 dias); b vencido de outro dia
+  it('parou no meio da sessão: o resto dela (os novos que ainda cabem nos 10 do dia)', () => {
+    // a respondido hoje na caixa 2 (volta em 2 dias); b vencido de outro dia; c e d novos
     const estado = { a: { caixa: 2, proxima: '2026-10-24' }, b: { caixa: 1, proxima: '2026-10-21' } };
-    expect(cartoesParaHoje({ termos, estado, hoje: HOJE })).toBe(1);
+    expect(cartoesParaHoje({ termos, estado, hoje: HOJE })).toBe(3);
+    expect(cartoesParaHoje({ termos, estado, hoje: HOJE, max: 2 })).toBe(2); // numa sessão de 2, cabe só mais 1 novo: b e c
+    estado.c = { caixa: 1, proxima: '2026-10-23' }; // c respondido hoje também: a sessão de 2 acabou, fica só o vencido b
+    expect(cartoesParaHoje({ termos, estado, hoje: HOJE, max: 2 })).toBe(1);
+  });
+
+  it('depois da sessão do dia: os novos não voltam a cobrar, só um vencido', () => {
+    const muitos = Array.from({ length: 30 }, (_, i) => ({ id: `t${i}` }));
+    const estado = Object.fromEntries(muitos.slice(0, 10).map((g) => [g.id, { caixa: 1, proxima: '2026-10-23' }])); // os 10 de hoje
+    expect(cartoesParaHoje({ termos: muitos, estado, hoje: HOJE })).toBe(0);
+    estado.t29 = { caixa: 3, proxima: '2026-10-22' }; // um vencido de outro dia
+    expect(cartoesParaHoje({ termos: muitos, estado, hoje: HOJE })).toBe(1);
+  });
+
+  it('o número da aba e do painel é o tamanho da sessão, antes, durante e depois de revisar', () => {
+    const vistos = GLOSSARIO.filter((g) => g.nivel <= 2);
+    const conferir = (estado, hoje) => expect(cartoesParaHoje({ termos: vistos, estado, hoje }))
+      .toBe(montarSessao({ termos: vistos, estado, hoje, todos: GLOSSARIO }).length);
+    let estado = {};
+    conferir(estado, HOJE);
+    const sessao = montarSessao({ termos: vistos, estado, hoje: HOJE, todos: GLOSSARIO });
+    sessao.forEach((c, k) => {
+      estado = responder(estado, c.id, k % 3 !== 0, HOJE);
+      conferir(estado, HOJE);
+    });
+    expect(cartoesParaHoje({ termos: vistos, estado, hoje: HOJE })).toBe(0); // revisou tudo: a aba e o painel dizem 0
+    for (let d = 1; d <= 20; d++) conferir(estado, somarDias(HOJE, d));
   });
 
   it('nunca passa da sessão do dia', () => {

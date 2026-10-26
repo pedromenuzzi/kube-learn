@@ -73,7 +73,7 @@
     "termo": "kubelet",
     "definicao": "The agent on each node that creates and watches over the containers of that node’s pods.",
     "vidaReal": "The building’s caretaker (Kleber): he looks after the apartments in his building.",
-    "limite": "If the kubelet stops, the node becomes NotReady; 5 minutes later, only pods with an owner (Deployment, StatefulSet) are reborn on other nodes.",
+    "limite": "If the kubelet stops, the node becomes NotReady and, about 5 minutes later, a Deployment’s pods are reborn on other nodes; a StatefulSet’s pods wait for the node to come back (or for the out-of-service taint), and a standalone pod doesn’t come back.",
     "exemplo": "kubectl describe node node-1"
   },
   "node": {
@@ -134,7 +134,7 @@
   },
   "sidecar": {
     "termo": "Sidecar",
-    "definicao": "A helper container in the same pod as the main one (logs, proxy, sync). Today the right way is the native one: in initContainers, with restartPolicy: Always (level 5).",
+    "definicao": "A helper container in the same pod as the main one (logs, proxy, sync). Today the right way is the native one: in initContainers, with restartPolicy: Always.",
     "vidaReal": "The roommate who helps out the main tenant.",
     "limite": "It’s born and dies with the pod: you can’t scale the assistant separately from the main tenant. Written as a regular container, it doesn’t know when to leave, and a Job with it never finishes.",
     "exemplo": "containers: [app, coletor-de-logs]"
@@ -479,7 +479,7 @@
     "termo": "Node NotReady",
     "definicao": "The node stopped reporting in (kubelet stopped, network or machine down). About 5 minutes later, its pods are evicted.",
     "vidaReal": "A power outage in the building.",
-    "limite": "The downed node’s pods stay “Terminating” until it comes back: only the ones with an owner (Deployment, StatefulSet) are reborn somewhere else.",
+    "limite": "The downed node’s pods stay “Terminating” until it comes back: a Deployment’s pods are reborn somewhere else; a StatefulSet’s pods wait for the node to come back or for the out-of-service taint; a standalone pod doesn’t come back.",
     "exemplo": "kubectl get nodes"
   },
   "rbac": {

@@ -14,10 +14,33 @@ export const somarDias = (dia, n) => {
   return d.toISOString().slice(0, 10);
 };
 
-/** Os termos dos níveis em que o aluno já resolveu alguma coisa. */
+/**
+ * Os termos que a trilha já ensinou: o termo entra quando a missão que o apresenta (`item`) está resolvida, quando alguma
+ * missão depois dela no mesmo nível está resolvida (quem pulou a lição não perde o termo) ou quando o nível passou dos 70%.
+ */
 export function termosVistos(glossario, jornada) {
-  const niveis = new Set(jornada.niveis.filter((n) => n.itens.some((i) => i.estado === 'concluido')).map((n) => n.numero));
-  return glossario.filter((g) => niveis.has(g.nivel));
+  const vistos = new Set();
+  for (const n of jornada.niveis) {
+    const ate = n.passou ? n.itens.length : n.itens.findLastIndex((i) => i.estado === 'concluido') + 1;
+    for (const i of n.itens.slice(0, ate)) vistos.add(i.id);
+  }
+  return glossario.filter((g) => vistos.has(g.item));
+}
+
+/** Quantos cartões o aluno já respondeu hoje (quem responde hoje fica com a próxima data = hoje + o intervalo da caixa). */
+const respondidosHoje = (estado, hoje) => Object.values(estado).filter((e) => e.proxima === somarDias(hoje, INTERVALOS[e.caixa - 1])).length;
+
+/**
+ * Os termos da revisão de hoje: primeiro os vencidos (das caixas mais baixas), depois os novos, até `max`. Os termos novos
+ * do dia cabem numa sessão só: quem já respondeu `max` cartões hoje não recebe termo novo, só os vencidos (quem parou no
+ * meio recebe o resto). É a mesma conta da sessão (montarSessao), do número da aba e do painel Hoje.
+ * `estado`: { [idDoTermo]: { caixa, proxima } }. O estado de um termo que não está em `termos` fica guardado, parado.
+ */
+export function termosDeHoje({ termos, estado = {}, hoje, max = POR_DIA }) {
+  const vencidos = termos.filter((g) => estado[g.id] && estado[g.id].proxima <= hoje)
+    .sort((a, b) => estado[a.id].caixa - estado[b.id].caixa || estado[a.id].proxima.localeCompare(estado[b.id].proxima));
+  const novos = termos.filter((g) => !estado[g.id]).slice(0, Math.max(0, max - respondidosHoje(estado, hoje)));
+  return [...vencidos, ...novos].slice(0, max);
 }
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -57,7 +80,8 @@ const distratores = (g, outros, rnd, aceita = () => true) => embaralhar(outros.f
   .sort((a, b) => Math.max(Math.abs(a.nivel - g.nivel), 1) - Math.max(Math.abs(b.nivel - g.nivel), 1))
   .slice(0, 3);
 
-const escolherTermo = (g, errados, rnd) => embaralhar([{ texto: g.termo, certa: true }, ...errados.map((o) => ({ texto: o.termo, certa: false }))], rnd);
+// Cada alternativa leva o id do termo (no verdadeiro ou falso, 'verdadeiro' e 'falso'): a resposta dada é guardada por ele.
+const escolherTermo = (g, errados, rnd) => embaralhar([{ id: g.id, texto: g.termo, certa: true }, ...errados.map((o) => ({ id: o.id, texto: o.termo, certa: false }))], rnd);
 
 /** Um cartão sobre o termo `g`, no `formato` pedido. `outros` dão as alternativas erradas. */
 function cartao(g, outros, rnd, formato) {
@@ -66,6 +90,7 @@ function cartao(g, outros, rnd, formato) {
     const texto = formato === 'definicao' ? g.definicao : g.exemplo;
     // Nenhuma alternativa errada citada no texto mostrado, nem com o mesmo exemplo: seria resposta certa também.
     const errados = distratores(g, outros, rnd, (o) => !cita(texto, o) && o.exemplo !== g.exemplo);
+    if (!errados.length) return cartao(g, outros, rnd, 'termo'); // sem alternativa errada, não há pergunta
     return formato === 'definicao'
       ? { id: g.id, formato, explicacao, pergunta: t('Qual termo tem esta definição? <q>{definicao}</q>', { definicao: esc(g.definicao) }), opcoes: escolherTermo(g, errados, rnd) }
       : { id: g.id, formato, explicacao, pergunta: t('Qual termo este exemplo mostra?'), codigo: g.exemplo, opcoes: escolherTermo(g, errados, rnd) };
@@ -82,7 +107,7 @@ function cartao(g, outros, rnd, formato) {
     return {
       id: g.id, formato, explicacao,
       pergunta: t('Qual comparação com a vida real combina com <b>{termo}</b>?', { termo: esc(g.termo) }),
-      opcoes: embaralhar([{ texto: g.vidaReal, certa: true }, ...errados.map((o) => ({ texto: o.vidaReal, certa: false }))], rnd),
+      opcoes: embaralhar([{ id: g.id, texto: g.vidaReal, certa: true }, ...errados.map((o) => ({ id: o.id, texto: o.vidaReal, certa: false }))], rnd),
     };
   }
   // Verdadeiro ou falso: este limite é o desta comparação? (metade das vezes, é o limite de outro termo)
@@ -91,21 +116,13 @@ function cartao(g, outros, rnd, formato) {
   return {
     id: g.id, formato, explicacao,
     pergunta: t('<b>{termo}</b> é como <q>{vidaReal}</q> Verdadeiro ou falso: um limite dessa comparação é <q>{limite}</q>', { termo: esc(g.termo), vidaReal: esc(g.vidaReal), limite: esc(limite) }),
-    opcoes: [{ texto: t('Verdadeiro'), certa: verdadeiro }, { texto: t('Falso'), certa: !verdadeiro }],
+    opcoes: [{ id: 'verdadeiro', texto: t('Verdadeiro'), certa: verdadeiro }, { id: 'falso', texto: t('Falso'), certa: !verdadeiro }],
   };
 }
 
-/**
- * Os cartões de hoje: primeiro os vencidos (das caixas mais baixas), depois os novos, até `max`.
- * `estado`: { [idDoTermo]: { caixa, proxima } }.
- */
-export function montarSessao({ termos, estado = {}, hoje, max = POR_DIA, todos = termos }) {
+/** O formato de cada cartão: [{ id, formato }]. */
+function planejar(escolhidos, hoje) {
   const rnd = criarAleatorio(`revisao:${hoje}`).proximo;
-  const vencidos = termos.filter((t) => estado[t.id] && estado[t.id].proxima <= hoje)
-    .sort((a, b) => estado[a.id].caixa - estado[b.id].caixa || estado[a.id].proxima.localeCompare(estado[b.id].proxima));
-  const novos = termos.filter((t) => !estado[t.id]);
-  const escolhidos = [...vencidos, ...novos].slice(0, max);
-  const pool = todos.length >= 4 ? todos : termos;
   // Os formatos saem de um baralho: numa sessão de 10, dois de cada (as comparações ficam com 3 de cada 5). A vez da
   // definição ou do exemplo vai para o que saiu menos hoje entre os que servem ao termo; se nenhum serve, comparação.
   const formatos = embaralhar(escolhidos.map((_, k) => FORMATOS[k % FORMATOS.length]), rnd);
@@ -117,7 +134,23 @@ export function montarSessao({ termos, estado = {}, hoje, max = POR_DIA, todos =
         .sort((a, b) => usados[a] - usados[b])[0] ?? 'termo';
       if (formato in usados) usados[formato]++;
     }
-    return cartao(g, pool, rnd, formato);
+    return { id: g.id, formato };
+  });
+}
+
+/**
+ * Os cartões de hoje (os termos de termosDeHoje). `todos` (o glossário) dá as alternativas erradas: só os termos já
+ * vistos e os do mesmo nível do cartão, nunca os de um nível que o aluno ainda não abriu. `plano` ([{ id, formato }],
+ * de uma sessão já começada) refaz os mesmos cartões, no idioma atual (a troca de idioma no meio da sessão).
+ */
+export function montarSessao({ termos, estado = {}, hoje, max = POR_DIA, todos = termos, plano }) {
+  const vistos = new Set(termos.map((g) => g.id));
+  const lista = [...termos, ...todos];
+  return (plano ?? planejar(termosDeHoje({ termos, estado, hoje, max }), hoje)).map(({ id, formato }) => {
+    const g = lista.find((x) => x.id === id);
+    const outros = todos.filter((o) => vistos.has(o.id) || o.nivel === g.nivel);
+    // cada cartão com o seu sorteio: refeito em outro idioma, não mexe no sorteio dos outros
+    return cartao(g, outros, criarAleatorio(`revisao:${hoje}:${id}`).proximo, formato in serve && !serve[formato](g) ? 'termo' : formato);
   });
 }
 
@@ -127,5 +160,6 @@ export function responder(estado, id, certo, hoje) {
   return { ...estado, [id]: { caixa, proxima: somarDias(hoje, INTERVALOS[caixa - 1]) } };
 }
 
-/** A próxima data com cartão vencido (para "volte em ..."). */
-export const proximaRevisao = (estado) => Object.values(estado).map((e) => e.proxima).sort()[0] ?? null;
+/** A próxima data com cartão vencido (para "volte em ..."), entre os `termos` vistos (sem eles, entre todos). */
+export const proximaRevisao = (estado, termos) => Object.entries(estado)
+  .filter(([id]) => !termos || termos.some((g) => g.id === id)).map(([, e]) => e.proxima).sort()[0] ?? null;
