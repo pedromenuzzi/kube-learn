@@ -236,7 +236,7 @@ export function paginaPlantao() {
       <h1 class="pixel">${t('Plantão do dia')}</h1>
       <p>${t('Um incidente novo por dia, o mesmo para todo mundo: a aplicação de um morador chega com dois defeitos. Uns 10 minutos de investigação no terminal. Não vale XP: vale o morador satisfeito.')}</p>
       <p class="nota">${t(atendidos === 1 ? '1 plantão atendido até hoje' : '{n} plantões atendidos até hoje', { n: atendidos })}</p>
-      ${cedo ? `<p class="nota">${icone('trilha')} ${t('Recomendado a partir do Nível {n}: os defeitos passam por probes, limites e agendamento, que a trilha ensina até lá. Mas pode atender já: a aba Solução explica o que estava quebrado.', { n: NIVEL_DO_PLANTAO })}</p>` : ''}
+      ${cedo ? `<p class="nota">${icone('trilha')} ${t('Recomendado a partir do Nível {n}: os defeitos passam por probes e limites (Nível 6) e por agendamento (Nível 7). Mas pode atender já: a aba Solução explica o que estava quebrado.', { n: NIVEL_DO_PLANTAO })}</p>` : ''}
       <ul class="chamados plantao-hoje">${chamado(hoje, progresso[hoje.id]?.status, acao)}</ul>
       <h2>${t('Os dos últimos dias')}</h2>
       <p class="nota">${t('Perdeu um dia? O chamado continua aberto.')}</p>

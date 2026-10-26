@@ -101,7 +101,7 @@ export default {
   'Resultado para copiar': 'Result to copy',
   'Atender agora': 'Answer now',
   'Atendido em {tempo}': 'Done in {tempo}',
-  'Recomendado a partir do Nível {n}: os defeitos passam por probes, limites e agendamento, que a trilha ensina até lá. Mas pode atender já: a aba Solução explica o que estava quebrado.': 'Recommended from Level {n} on: the faults involve probes, limits and scheduling, which the path teaches by then. But you can answer it now: the Solution tab explains what was broken.',
+  'Recomendado a partir do Nível {n}: os defeitos passam por probes e limites (Nível 6) e por agendamento (Nível 7). Mas pode atender já: a aba Solução explica o que estava quebrado.': 'Recommended from Level {n} on: the faults involve probes and limits (Level 6) and scheduling (Level 7). But you can answer it now: the Solution tab explains what was broken.',
   'O tempo e o número de entregas de cada Plantão do dia que você atendeu (a primeira vez).': 'The time and number of submissions of each Daily on-call you solved (the first time).',
   'Atendido': 'Done',
   'Em aberto': 'Open',

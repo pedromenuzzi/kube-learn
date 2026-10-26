@@ -9,14 +9,13 @@ import { NIVEL_DO_PLANTAO } from '../../src/jogo/plantao.js';
 const RESULTADO = /^kube-learn · Plantão \d\d\/\d\d 🚒 [^·]+ · resolvido em \d+:\d\d · 2 entregas · https:\/\/pedromenuzzi\.github\.io\/kube-learn\/#\/plantao$/;
 const guardado = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('kube-learn:plantoes')));
 
-/** O conserto da aba Solução, aplicado, com o cluster adiantado até as réplicas ficarem prontas; e a entrega. */
-async function consertarEEntregar(page) {
+/** O conserto da aba Solução, aplicado, com o cluster adiantado até as réplicas ficarem prontas (falta só entregar). */
+async function consertar(page) {
   await page.getByRole('tab', { name: 'Solução' }).click();
   await page.getByRole('button', { name: 'Ver a solução' }).click();
   await page.getByRole('button', { name: 'Copiar para o editor' }).click();
   await page.getByRole('button', { name: 'Aplicar' }).click();
   for (let i = 0; i < 3; i++) await page.getByRole('button', { name: '+30s' }).click();
-  await page.getByRole('button', { name: 'Entregar' }).click();
 }
 
 /** Abre o plantão de hoje pela página, erra uma entrega e conserta: 2 entregas. */
@@ -28,7 +27,8 @@ async function resolverComUmErro(page) {
   await expect(page.locator('.chip-cronometro')).toBeAttached();
   await page.getByRole('button', { name: 'Entregar' }).click();
   await expect(page.locator('.ex-aviso.falha')).toBeVisible();
-  await consertarEEntregar(page);
+  await consertar(page);
+  await page.getByRole('button', { name: 'Entregar' }).click();
   await expect(page.locator('.ex-aviso')).toContainText(/Incidente resolvido em \d+:\d\d · 2 entregas/);
 }
 
@@ -66,6 +66,34 @@ test('com o menu do sistema: o aviso mostra o tempo e as entregas, a primeira ve
   await page.evaluate(() => { window.compartilhado = undefined; });
   await destaque.getByRole('button', { name: 'Compartilhar resultado' }).click();
   expect((await page.evaluate(() => window.compartilhado)).text).toBe(text);
+});
+
+// Sair no meio do plantão (o Glossário, a troca de idioma) e voltar não zera o relógio nem as entregas: o tempo conta
+// da primeira abertura até a entrega certa.
+test('ir ao Glossário no meio do plantão e voltar: o tempo conta desde a primeira abertura e a entrega errada continua contando', async ({ page }) => {
+  page.on('dialog', (d) => d.accept());
+  await page.goto('#/plantao');
+  await page.locator('.plantao-hoje').getByRole('link', { name: 'Atender agora' }).click();
+  await expect(page.locator('input.term-entrada')).toBeVisible();
+  const abriu = Date.now(); // a tela já estava aberta: o relógio dela começou antes
+  await page.getByRole('button', { name: 'Entregar' }).click();
+  await expect(page.locator('.ex-aviso.falha')).toBeVisible();
+  const relogio = page.locator('.chip-cronometro');
+  await expect(relogio).toHaveText(/0:0[2-9]/);
+
+  await page.goto('#/glossario');
+  await expect(page.locator('h1')).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('.term-saida')).toContainText('Seu cluster continua como você deixou');
+  expect(await relogio.textContent()).toMatch(/0:0[2-9]|0:[1-5]\d/); // continuou, não voltou a 0:00
+
+  await consertar(page);
+  const entregou = Date.now(); // antes do clique: a entrega certa vem depois
+  await page.getByRole('button', { name: 'Entregar' }).click();
+  await expect(page.locator('.ex-aviso')).toContainText(/Incidente resolvido em \d+:\d\d · 2 entregas/);
+  const [[, resultado]] = Object.entries(await guardado(page));
+  expect(resultado.entregas).toBe(2);
+  expect(resultado.ms).toBeGreaterThanOrEqual(entregou - abriu);
 });
 
 test('sem o menu do sistema (celular estreito): o texto vai para a área de transferência e o aviso diz "Copiado"', async ({ page }) => {
