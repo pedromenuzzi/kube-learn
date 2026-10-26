@@ -96,10 +96,11 @@ export function conferirCotas(c, pod) {
 export function controladorDeCotas(c) {
   for (const q of c.listar('ResourceQuota')) {
     const uso = usoDaCota(c, q);
-    const status = {
+    // A cota sem hard fica com `status: {}` (os mapas vazios somem no JSON do Go).
+    const status = q.spec.hard && Object.keys(q.spec.hard).length ? {
       hard: { ...q.spec.hard },
-      used: Object.fromEntries(Object.keys(q.spec.hard ?? {}).map((r) => [r, texto(r, uso[r])])),
-    };
+      used: Object.fromEntries(Object.keys(q.spec.hard).map((r) => [r, texto(r, uso[r])])),
+    } : {};
     c.trocarStatus(q, status);
   }
 }

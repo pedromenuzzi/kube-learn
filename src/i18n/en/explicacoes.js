@@ -33,6 +33,10 @@ export const REGRAS = [
     t: (m) => ({ titulo: `“${m[2]}” already exists`, texto: '<code>create</code> only creates. To update an object that already exists, use <code>kubectl apply -f</code>: it compares and changes only what’s different.', vidaReal: 'Asking to build an apartment that’s already built.' }),
   },
   {
+    re: /": resource name may not be empty|metadata\.name: Required value: name or generateName is required/,
+    t: () => ({ titulo: 'The object has no name', texto: 'The YAML is missing <code>metadata.name</code>. The name is how the API Server stores and finds each object: <code>apply</code> looks up the previous version by it, and <code>delete</code> removes by it. Add a <code>name:</code> (lowercase letters, numbers and <code>-</code>) under <code>metadata:</code>.', vidaReal: 'A package with no recipient: the front desk has no way to know whose it is.' }),
+  },
+  {
     re: /(?:cannot be handled as a (\w+): )?strict decoding error: (unknown field .*)/,
     t: (m, { parecido } = {}) => {
       const campos = [...m[2].matchAll(/unknown field &quot;(.*?)&quot;/g)].map((x) => x[1]);
@@ -115,6 +119,10 @@ export const REGRAS = [
   {
     re: /is invalid: [\s\S]*?([\w.[\]]+): Required value/,
     t: (m) => ({ titulo: `A required field is missing: ${m[1]}`, texto: 'This field can’t be empty. The Manual tab (or <code>kubectl explain</code>) shows what goes in it.', vidaReal: 'A form with a required field left blank.' }),
+  },
+  {
+    re: /([\w.[\]]+)\.(httpGet|tcpSocket)\.port: Invalid value: 0: must be between 1 and 65535/,
+    t: (m) => ({ titulo: `The ${m[2]} is missing its port`, texto: `In <code>${m[1]}</code>, <code>${m[2]}</code> needs a <code>port</code>: without it, the API Server reads 0, which isn’t a port. Use the number the program listens on (<code>port: 8080</code>) or the name of a container port (<code>port: http</code>).`, vidaReal: 'Sending the inspector to check the apartment without telling them the door number.' }),
   },
   {
     re: /([\w.[\]]+): Unsupported value: "([^"]*)": supported values: (.+)/,
@@ -225,7 +233,7 @@ export const STATUS = [
   { re: /\d+ Insufficient (?:cpu|memory)/, titulo: 'The nodes are short on CPU or memory', texto: 'The sum of the <b>requests</b> would go over what the node has. Check “Allocated resources” in <code>kubectl describe node</code>: lower the requests or the replicas, or give priority (PriorityClass) to what matters most.', vidaReal: 'The power contracted by all the apartments has already used up the building’s supply.' },
   { re: /violate the pod's disruption budget/, titulo: 'The PDB held back the eviction', texto: 'The PodDisruptionBudget won’t let anyone else leave right now: drain tries again every 5 s, while the replacements come up on another node. With no slack ever (minAvailable equal to the replicas), it waits forever.', vidaReal: 'At least 2 elevators running: the third only stops once the spare is ready.' },
   { re: /^\S+\s+Ready,SchedulingDisabled\s/m, titulo: 'Node closed off (cordon)', texto: 'It doesn’t take new pods; the ones already there stay. <code>kubectl uncordon NODE</code> opens it back up.', vidaReal: 'Building closed to new residents.' },
-  { re: /^\S+\s+NotReady(?:,SchedulingDisabled)?\s/m, titulo: 'The node stopped reporting in', texto: 'The kubelet doesn’t respond (power, network, machine). About 5 minutes later, the pods there are evicted: the ones with an owner (Deployment, StatefulSet) are reborn on other nodes; the loose ones stay Terminating and don’t come back.', vidaReal: 'Power outage in the building.' },
+  { re: /^\S+\s+NotReady(?:,SchedulingDisabled)?\s/m, titulo: 'The node stopped reporting in', texto: 'The kubelet doesn’t respond (power, network, machine). About 5 minutes later, the pods there are evicted: a Deployment’s are reborn on other nodes; a StatefulSet’s wait for the node to come back (or for the out-of-service taint); the loose ones stay Terminating and don’t come back.', vidaReal: 'Power outage in the building.' },
   { re: /would violate PodSecurity/, titulo: 'Warning: the pods will be rejected', texto: 'The object was created, but its pods don’t pass the namespace’s fire code: the ReplicaSet will try and be rejected (READY 0/1). <code>kubectl describe rs -n NAMESPACE</code> shows the FailedCreate.', vidaReal: 'The contract was signed, but the fire marshals won’t let anyone in like that.' },
   { re: /container has runAsNonRoot and image will run as root/, titulo: 'The image runs as root', texto: 'The pod asks for <code>runAsNonRoot: true</code>, but the image runs as root (user 0). Set a regular user (<code>runAsUser: 1000</code>) or use an image built to run without root.', vidaReal: 'The rule is “no master key”, and the resident only has the master key.' },
   { re: /wget: bad address '[^']+'|Could not resolve host/, titulo: 'The name didn’t resolve', texto: 'Either the name is wrong (does the Service exist? in the same namespace?), or a NetworkPolicy closes the pod’s egress and forgot about DNS (port 53, UDP and TCP, to kube-dns).', vidaReal: 'The switchboard operator didn’t pick up: without the number, you can’t call.' },

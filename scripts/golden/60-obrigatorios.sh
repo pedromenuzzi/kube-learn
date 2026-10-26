@@ -575,3 +575,203 @@ cap obr-apply-crd-campo-vazio kc apply -f /tmp/kl-obr-crd-campo.yaml
 cap obr-apply-crd-sem-tipo kc apply -f /tmp/kl-obr-crd-sem-tipo.yaml
 cap obr-apply-sa-vazia kc apply -f /tmp/kl-obr-sa.yaml
 cap obr-describe-sa-vazia kc describe serviceaccount conta-vazia -n obrigatorios
+# O YAML pela metade que ainda derrubava o simulador ou vazava undefined: o hostPath sem caminho (no pod e no PV), o
+# init container (que passa pelas mesmas conferências de um contêiner: montagem, portas, env, nome repetido; e sonda
+# só se for sidecar), o PDB e a cota sem spec (objetos válidos, que não protegem nem limitam nada), a sonda e o gancho
+# sem porta, a chave do env sem key (ou sem name) e o objeto sem metadata.name.
+cat > /tmp/kl-obr-hostpath.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-vazio
+  namespace: obrigatorios
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.27
+  volumes:
+  - name: v
+    hostPath:
+      path:
+Y
+cat > /tmp/kl-obr-pv-hostpath.yaml <<'Y'
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: obr-pv-sem-caminho
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes: ["ReadWriteOnce"]
+  hostPath:
+    path:
+Y
+cat > /tmp/kl-obr-init-montagem.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: painel
+  namespace: obrigatorios
+spec:
+  initContainers:
+  - name: preparo
+    image: busybox:1.36
+    command: ["sh", "-c", "echo ok"]
+    volumeMounts:
+    - name: config
+      mountPath:
+  containers:
+  - name: painel
+    image: nginx:1.27
+  volumes:
+  - name: config
+    emptyDir: {}
+Y
+cat > /tmp/kl-obr-init-varios.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: init-varios
+  namespace: obrigatorios
+spec:
+  initContainers:
+  - name: nginx
+    image: busybox:1.36
+    ports:
+    - name: http
+    env:
+    - value: x
+    volumeMounts:
+    - name: nada
+      mountPath: /x
+    livenessProbe:
+      exec:
+        command: ["true"]
+    readinessProbe:
+      exec:
+        command: ["true"]
+  - name: lado
+    image: busybox:1.36
+    restartPolicy: Always
+    startupProbe:
+      httpGet:
+        path: /
+  containers:
+  - name: nginx
+    image: nginx:1.27
+Y
+cat > /tmp/kl-obr-pdb-sem-spec.yaml <<'Y'
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sem-regra
+  namespace: obrigatorios
+spec:
+Y
+cat > /tmp/kl-obr-quota-sem-spec.yaml <<'Y'
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: teto
+  namespace: obrigatorios
+Y
+cat > /tmp/kl-obr-sonda-sem-porta.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sonda-sem-porta
+  namespace: obrigatorios
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.27
+    livenessProbe:
+      httpGet:
+        path: /healthz
+Y
+cat > /tmp/kl-obr-tcp-sem-porta.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tcp-sem-porta
+  namespace: obrigatorios
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.27
+    readinessProbe:
+      tcpSocket: {}
+Y
+cat > /tmp/kl-obr-ganchos-sem-porta.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ganchos-sem-porta
+  namespace: obrigatorios
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.27
+    lifecycle:
+      postStart: {}
+      preStop:
+        httpGet:
+          path: /parar
+    startupProbe:
+      tcpSocket:
+        port:
+Y
+cat > /tmp/kl-obr-env-sem-chave.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: env-sem-chave
+  namespace: obrigatorios
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.27
+    env:
+    - name: SENHA
+      valueFrom:
+        secretKeyRef:
+          name: segredo
+    - name: COR
+      valueFrom:
+        configMapKeyRef:
+          name: cores
+    - name: TOKEN
+      valueFrom:
+        secretKeyRef:
+          key: token
+Y
+cat > /tmp/kl-obr-cm-sem-nome.yaml <<'Y'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: obrigatorios
+  labels:
+    a: b
+Y
+cap obr-apply-hostpath-vazio kc apply -f /tmp/kl-obr-hostpath.yaml
+cap obr-apply-pv-hostpath-vazio kc apply -f /tmp/kl-obr-pv-hostpath.yaml
+cap obr-apply-init-montagem-vazia kc apply -f /tmp/kl-obr-init-montagem.yaml
+cap obr-apply-init-varios kc apply -f /tmp/kl-obr-init-varios.yaml
+cap obr-apply-pdb-sem-spec kc apply -f /tmp/kl-obr-pdb-sem-spec.yaml
+cap obr-apply-quota-sem-spec kc apply -f /tmp/kl-obr-quota-sem-spec.yaml
+sleep 5
+cap obr-get-pdb-sem-spec kc get pdb -n obrigatorios
+cap obr-describe-pdb-sem-spec kc describe pdb sem-regra -n obrigatorios
+cap obr-pdb-sem-spec kc get pdb sem-regra -n obrigatorios -o jsonpath='{.spec}'
+cap obr-get-quota-sem-spec kc get quota -n obrigatorios
+cap obr-describe-quota-sem-spec kc describe quota teto -n obrigatorios
+cap obr-get-pdb-yaml kc get pdb sem-regra -n obrigatorios -o yaml
+cap obr-get-quota-yaml kc get quota teto -n obrigatorios -o yaml
+cap obr-run-com-cota-vazia kc run cota-livre -n obrigatorios --image=nginx:1.27
+cap obr-apply-sonda-sem-porta kc apply -f /tmp/kl-obr-sonda-sem-porta.yaml
+cap obr-apply-tcp-sem-porta kc apply -f /tmp/kl-obr-tcp-sem-porta.yaml
+cap obr-apply-ganchos-sem-porta kc apply -f /tmp/kl-obr-ganchos-sem-porta.yaml
+cap obr-apply-env-sem-chave kc apply -f /tmp/kl-obr-env-sem-chave.yaml
+cap obr-apply-cm-sem-nome kc apply -f /tmp/kl-obr-cm-sem-nome.yaml
+cap obr-create-cm-sem-nome kc create -f /tmp/kl-obr-cm-sem-nome.yaml
+cap obr-delete-cm-sem-nome kc delete -f /tmp/kl-obr-cm-sem-nome.yaml

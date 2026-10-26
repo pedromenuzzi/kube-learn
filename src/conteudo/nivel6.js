@@ -250,6 +250,8 @@ export const NIVEL6 = [
       { descricao: 'liveness tcpSocket na 8080', arquivos: { 'loja.yaml': travada('          livenessProbe:\n            tcpSocket:\n              port: 8080\n') } },
       { descricao: 'liveness num caminho que não existe (/saude)', arquivos: { 'loja.yaml': travada(sonda('livenessProbe', { caminho: '/saude' })) } },
       { descricao: 'liveness na porta 9090', arquivos: { 'loja.yaml': travada(sonda('livenessProbe').replace('8080', '9090')) } },
+      // sem a porta, o API Server recusa (port 0), como no kind
+      { descricao: 'liveness httpGet sem a porta', arquivos: { 'loja.yaml': travada(sonda('livenessProbe').replace(/ +port: 8080\n/, '')) } },
     ],
   }),
 

@@ -1,0 +1,2 @@
+The PersistentVolume "obr-pv-sem-caminho" is invalid: spec.hostPath.path: Required value
+exit=1

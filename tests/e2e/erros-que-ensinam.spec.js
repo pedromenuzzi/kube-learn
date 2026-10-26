@@ -39,6 +39,28 @@ test('um `-` ainda sem nada em containers: Required value no terminal e a caixa 
   await expect(page.locator('.term-saida')).not.toContainText('erro interno');
 });
 
+// Antes, o PDB guardado sem spec fazia todo tique do relógio lançar (o relógio parava até o Resetar), e o init container
+// com mountPath vazio era criado e derrubava o primeiro tique.
+test('PDB com `spec:` vazio e init container sem mountPath: o relógio segue e a caixa ensina, sem erro interno', async ({ page }) => {
+  const terminal = page.locator('input.term-entrada');
+  await page.goto('#/ex/n7-pdb');
+  await escrever(page, 'apiVersion: policy/v1\nkind: PodDisruptionBudget\nmetadata:\n  name: loja\nspec:\n');
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(page.locator('.term-saida')).toContainText('poddisruptionbudget.policy/loja created');
+  await page.waitForTimeout(2500); // uns tiques do relógio com o PDB guardado
+  await terminal.fill('kubectl get pdb loja');
+  await terminal.press('Enter');
+  await expect(page.locator('.term-saida')).toContainText(/loja\s+N\/A\s+N\/A\s+0/);
+  await expect(page.locator('.term-saida')).not.toContainText('erro interno');
+
+  await page.goto('#/ex/n5-vistoria');
+  await escrever(page, 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: painel\nspec:\n  initContainers:\n  - name: preparo\n    image: busybox:1.36\n    command: ["sh", "-c", "echo ok"]\n    volumeMounts:\n    - name: config\n      mountPath:\n  containers:\n  - name: painel\n    image: kubelearn/painel:1.0\n  volumes:\n  - name: config\n    emptyDir: {}\n');
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(page.locator('.term-erro').last()).toContainText('spec.initContainers[0].volumeMounts[0].mountPath: Required value');
+  await expect(page.locator('.term-caixa').last()).toContainText('Falta um campo obrigatório');
+  await expect(page.locator('.term-saida')).not.toContainText('erro interno');
+});
+
 test('LimitRange com `limits:` vazio: o Entregar mostra o resultado dos testes', async ({ page }) => {
   await page.goto('#/ex/n6-regras-padrao');
   await escrever(page, 'apiVersion: v1\nkind: LimitRange\nmetadata:\n  name: padrao\n  namespace: compras\nspec:\n  limits:\n');

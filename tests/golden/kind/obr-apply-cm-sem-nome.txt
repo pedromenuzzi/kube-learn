@@ -1,0 +1,5 @@
+error: error when retrieving current configuration of:
+Resource: "/v1, Resource=configmaps", GroupVersionKind: "/v1, Kind=ConfigMap"
+Name: "", Namespace: "obrigatorios"
+from server for: "/tmp/kl-obr-cm-sem-nome.yaml": resource name may not be empty
+exit=1

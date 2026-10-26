@@ -1,0 +1,2 @@
+The Pod "tcp-sem-porta" is invalid: spec.containers[0].readinessProbe.tcpSocket.port: Invalid value: 0: must be between 1 and 65535, inclusive
+exit=1

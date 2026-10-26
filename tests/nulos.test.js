@@ -267,6 +267,10 @@ spec:
 `,
 };
 
+// O PDB e a cota guardados com `spec:` em null (o fuzzer do QA achou: o controlador lia spec.minAvailable e spec.hard).
+MANIFESTOS.PodDisruptionBudget = 'apiVersion: policy/v1\nkind: PodDisruptionBudget\nmetadata:\n  name: web\nspec:\n  minAvailable: 1\n  selector:\n    matchLabels:\n      app: web\n    matchExpressions:\n    - key: app\n      operator: In\n      values:\n      - web\n';
+MANIFESTOS.ResourceQuota = 'apiVersion: v1\nkind: ResourceQuota\nmetadata:\n  name: teto\nspec:\n  hard:\n    pods: "10"\n    requests.cpu: "2"\n    limits.memory: 2Gi\n';
+
 const molde = parse(MANIFESTOS.Deployment).spec.template;
 MANIFESTOS.Pod = stringify({ apiVersion: 'v1', kind: 'Pod', metadata: { name: 'web', ...molde.metadata }, spec: molde.spec });
 
@@ -451,4 +455,36 @@ describe('o que a validação recusa e o que os controladores aguentam', () => {
     expect(kubectl(c, 'kubectl auth can-i list pods --as ana').saida).toBe('no\n');
     expect(kubectl(c, 'kubectl run x --image=nginx:1.27').saida).toBe('pod/x created\n');
   });
+});
+
+describe('o YAML pela metade que a sonda do QA achou (as mensagens são as do kind)', () => {
+  const pod = (resto, nome = 'p') => `apiVersion: v1\nkind: Pod\nmetadata:\n  name: ${nome}\nspec:\n  containers:\n  - name: web\n    image: nginx:1.27\n${resto}`;
+  const CASOS = {
+    // válidos: o PDB sem seletor não protege ninguém e a cota sem hard não limita nada
+    'PDB com `spec:` vazio': ['apiVersion: policy/v1\nkind: PodDisruptionBudget\nmetadata:\n  name: loja\nspec:\n', 'poddisruptionbudget.policy/loja created'],
+    'ResourceQuota só com metadata': ['apiVersion: v1\nkind: ResourceQuota\nmetadata:\n  name: teto\n', 'resourcequota/teto created'],
+    // recusados: antes, o pod era criado e o kubelet (ou o próprio apply) lançava
+    'hostPath com `path:` vazio': [pod('  volumes:\n  - name: v\n    hostPath:\n      path:\n'), 'The Pod "p" is invalid: spec.volumes[0].hostPath.path: Required value'],
+    'init container com `mountPath:` vazio': [`apiVersion: v1\nkind: Pod\nmetadata:\n  name: painel\nspec:\n  initContainers:\n  - name: preparo\n    image: busybox:1.36\n    command: ["sh", "-c", "echo ok"]\n    volumeMounts:\n    - name: config\n      mountPath:\n  containers:\n  - name: painel\n    image: kubelearn/painel:1.0\n  volumes:\n  - name: config\n    emptyDir: {}\n`, 'The Pod "painel" is invalid: spec.initContainers[0].volumeMounts[0].mountPath: Required value'],
+    // recusados: antes, vazavam undefined e null no describe e nos eventos
+    'httpGet sem port': [pod('    livenessProbe:\n      httpGet:\n        path: /healthz\n'), 'spec.containers[0].livenessProbe.httpGet.port: Invalid value: 0: must be between 1 and 65535, inclusive'],
+    'tcpSocket sem port': [pod('    readinessProbe:\n      tcpSocket: {}\n'), 'spec.containers[0].readinessProbe.tcpSocket.port: Invalid value: 0: must be between 1 and 65535, inclusive'],
+    'secretKeyRef sem key': [pod('    env:\n    - name: A\n      valueFrom:\n        secretKeyRef:\n          name: s\n'), 'spec.containers[0].env[0].valueFrom.secretKeyRef.key: Required value'],
+    'configMapKeyRef sem key': [pod('    env:\n    - name: A\n      valueFrom:\n        configMapKeyRef:\n          name: s\n'), 'spec.containers[0].env[0].valueFrom.configMapKeyRef.key: Required value'],
+  };
+  for (const [nome, [yaml, esperado]] of Object.entries(CASOS)) {
+    it(nome, () => {
+      const c = novoCluster();
+      const k = (linha) => kubectl(c, linha, { arquivos: { 'a.yaml': yaml } });
+      expect(k('kubectl apply -f a.yaml').saida).toContain(esperado);
+      expect(() => {
+        c.avancar('1m');
+        for (const l of ['kubectl get pods', 'kubectl get pdb', 'kubectl get quota', 'kubectl describe pdb', 'kubectl describe quota', 'kubectl describe pods', 'kubectl get events', 'kubectl run x --image=nginx:1.27']) {
+          expect(k(l).saida).not.toMatch(/undefined|:null\b/);
+        }
+        c.avancar('1m');
+      }).not.toThrow();
+      expect(k('kubectl get pods x').saida).toMatch(/^x\s+1\/1\s+Running/m);
+    });
+  }
 });
