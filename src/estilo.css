@@ -37,6 +37,10 @@
   --term-texto: #e6edf3;
   --term-erro: #ff7b72;
   --term-cmd: #7ee787;
+  --term-suave: #8b949e;
+  --term-caixa: #161f2e;
+  --term-borda: #1f2a3c;
+  --ouro: #f5c518;
   --sombra-1: 0 1px 2px rgb(15 27 45 / 6%), 0 1px 3px rgb(15 27 45 / 6%);
   --sombra-2: 0 2px 4px rgb(15 27 45 / 5%), 0 8px 24px rgb(15 27 45 / 9%);
   --sombra-3: 0 12px 40px rgb(15 27 45 / 18%);
@@ -47,6 +51,10 @@
   --fonte: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Menlo, monospace;
   --pixel: 'Press Start 2P', ui-monospace, monospace;
+  /* A fonte pixel só fica nítida em múltiplos de 8 px (cada letra é uma grade de 8×8). */
+  --pixel-1: 0.5rem;
+  --pixel-2: 1rem;
+  --pixel-3: 1.5rem;
   color-scheme: light;
 }
 
@@ -80,6 +88,7 @@
   --ceu-topo: #000000; --ceu-baixo: #1a1a1a; --janelas-navio: #ffd75e; --editor-fundo: #000000; --editor-linha: #1a1a1a;
   --sx-chave: #ffff00; --sx-texto: #00ffff; --sx-numero: #ff9de2; --sx-comentario: #cccccc;
   --term-fundo: #000000; --term-texto: #ffffff; --term-erro: #ff6b6b; --term-cmd: #00ff66;
+  --term-suave: #ffffff; --term-caixa: #000000; --term-borda: #ffffff; --ouro: #ffff00;
   --sombra-1: none; --sombra-2: none; --sombra-3: none;
   color-scheme: dark;
 }
@@ -116,13 +125,17 @@ pre { font-family: var(--mono); }
 .icone { width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.2em; }
 .visualmente-oculto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .pixel { font-family: var(--pixel); letter-spacing: 0; font-weight: 400; }
-h1.pixel { font-size: 1.3rem; line-height: 1.5; }
+/* Sem ligaduras: a Press Start 2P junta o "fi" (sairia "Ofcina"). */
+.pixel, .marca-nome, .placar dd, .hoje-numeros dd, .diario-numeros dd { font-variant-ligatures: none; }
+h1.pixel, h2.pixel { font-size: var(--pixel-3); line-height: 1.5; text-wrap: balance; }
+/* No celular, os títulos descem um degrau da grade: "Troubleshooting" inteiro numa linha. */
+@media (max-width: 29.99rem) { h1.pixel:not(.titulo-heroi) { font-size: var(--pixel-2); } }
 .nota { color: var(--suave); font-size: 0.92rem; }
 .vazio { color: var(--suave); }
 .obra { color: var(--obra); font-weight: 600; }
 
-.pular { position: absolute; left: 1rem; top: -3rem; background: var(--superficie); padding: 0.5rem 1rem; border-radius: var(--raio); z-index: 50; box-shadow: var(--sombra-2); }
-.pular:focus { top: 0.75rem; }
+.pular { position: absolute; left: 1rem; top: -3rem; background: var(--superficie); padding: 0.5rem 1rem; border-radius: var(--raio); z-index: 50; }
+.pular:focus { top: 0.75rem; box-shadow: var(--sombra-2); }
 
 /* ---------- topo ---------- */
 .topo {
@@ -139,7 +152,7 @@ h1.pixel { font-size: 1.3rem; line-height: 1.5; }
 .marca:hover { color: var(--texto); }
 .marca-navio { width: 2.1rem; height: auto; image-rendering: pixelated; transition: transform var(--anim); }
 .marca:hover .marca-navio { transform: translateY(-2px) rotate(-3deg); }
-.marca-nome { font-family: var(--pixel); font-size: 0.78rem; letter-spacing: 0.02em; }
+.marca-nome { font-family: var(--pixel); font-size: var(--pixel-2); }
 .nav { flex: 1; display: flex; justify-content: center; }
 .nav ul { display: flex; gap: 0.25rem; list-style: none; margin: 0; padding: 0.25rem; background: var(--superficie-2); border: 1px solid var(--borda); border-radius: 999px; }
 .nav a { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.42rem 0.95rem; border-radius: 999px; color: var(--suave); text-decoration: none; font-weight: 700; font-size: 0.95rem; transition: background var(--anim), color var(--anim), box-shadow var(--anim); }
@@ -150,7 +163,7 @@ h1.pixel { font-size: 1.3rem; line-height: 1.5; }
 .placar-topo:hover { color: var(--texto); border-color: var(--borda-forte); box-shadow: var(--sombra-1); }
 .placar-item { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.92rem; }
 .placar-item small { font-size: 0.72rem; color: var(--suave); font-weight: 700; margin-left: 0.1rem; }
-.placar-item.xp .icone { color: #d99400; fill: color-mix(in srgb, #f5c518 55%, transparent); }
+.placar-item.xp .icone { color: #d99400; fill: color-mix(in srgb, var(--ouro) 55%, transparent); }
 .placar-item.fogo .icone { color: var(--acento); fill: color-mix(in srgb, var(--acento) 25%, transparent); }
 .placar-item.fogo.apagado .icone { color: var(--suave); fill: none; }
 .botao-icone { display: inline-grid; place-items: center; width: 2.4rem; height: 2.4rem; padding: 0; border-radius: 999px; border: 1px solid var(--borda); background: var(--superficie-2); color: var(--texto); transition: background var(--anim), border-color var(--anim), transform var(--anim); }
@@ -273,14 +286,14 @@ details > summary::marker { color: var(--suave); }
 .placar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin: 0; }
 .placar div { display: flex; flex-direction: column-reverse; gap: 0.1rem; padding: 0.8rem 1rem; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); box-shadow: var(--sombra-1); }
 .placar dt { font-size: 0.82rem; color: var(--suave); font-weight: 700; }
-.placar dd { margin: 0; font-family: var(--pixel); font-size: 1.05rem; line-height: 1.4; }
+.placar dd { margin: 0; font-family: var(--pixel); font-size: var(--pixel-2); line-height: 1.5; }
 
 /* ---------- início ---------- */
 .heroi { position: relative; }
 .heroi canvas.navio { border: 0; border-radius: var(--raio-g); box-shadow: var(--sombra-2); }
 .heroi-texto { background: color-mix(in srgb, var(--superficie) 94%, transparent); border: 1px solid var(--borda); border-radius: var(--raio-g); padding: 1.6rem 1.75rem; margin-top: 1rem; box-shadow: var(--sombra-2); }
 .heroi-selo { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0 0 0.9rem; padding: 0.25rem 0.7rem; border-radius: 999px; font-size: 0.8rem; font-weight: 700; color: var(--acento); background: var(--acento-suave); border: 1px solid color-mix(in srgb, var(--acento) 25%, transparent); }
-.titulo-heroi { font-size: 1.45rem; line-height: 1.5; margin: 0 0 0.75rem; }
+.titulo-heroi { margin: 0 0 0.75rem; }
 .chamada { font-size: 1.08rem; color: var(--suave); margin: 0 0 1.25rem; }
 .chamada code { color: var(--texto); }
 .acoes { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: center; margin: 0; }
@@ -293,6 +306,14 @@ details > summary::marker { color: var(--suave); }
 .vantagens .icone { color: var(--ok); width: 1rem; height: 1rem; }
 @media (min-width: 64rem) {
   .heroi-texto { position: absolute; top: 1.75rem; left: 1.75rem; width: min(36rem, 46%); margin: 0; backdrop-filter: blur(6px); }
+}
+/* Abaixo de 64rem, o texto e o botão principal vêm antes do navio: no celular, o botão fica acima da barra de abas. */
+@media (max-width: 63.99rem) {
+  .heroi { display: flex; flex-direction: column; gap: 1rem; }
+  .heroi-texto { order: -1; margin: 0; }
+}
+@media (max-width: 29.99rem) {
+  .heroi-texto { padding: 1.25rem 1rem; }
 }
 .cartoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; margin-top: 2rem; }
 .cartoes article { background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio-g); padding: 1.35rem 1.4rem; box-shadow: var(--sombra-1); transition: transform var(--anim), box-shadow var(--anim), border-color var(--anim); }
@@ -322,7 +343,7 @@ canvas.navio { image-rendering: pixelated; width: 100%; height: auto; display: b
   .trilha-lateral { position: static; }
 }
 .niveis { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem; }
-.nivel { --cor-nivel: var(--borda-forte); background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio-g); box-shadow: var(--sombra-1); overflow: hidden; transition: box-shadow var(--anim), border-color var(--anim); }
+.nivel { --cor-nivel: var(--borda-forte); scroll-margin-top: 5rem; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio-g); box-shadow: var(--sombra-1); overflow: hidden; transition: box-shadow var(--anim), border-color var(--anim); }
 .nivel:hover { border-color: var(--borda-forte); }
 .nivel > details > summary { list-style: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "icone cabeca chip" "icone barra barra"; align-items: center; gap: 0.35rem 0.9rem; padding: 0.95rem 1.1rem; position: relative; }
 .nivel > details > summary::-webkit-details-marker { display: none; }
@@ -331,7 +352,7 @@ canvas.navio { image-rendering: pixelated; width: 100%; height: auto; display: b
 .nivel-cabeca { grid-area: cabeca; min-width: 0; }
 .nivel > details > summary > .selo-svg { grid-area: icone; justify-self: center; }
 .nivel h2 { font-size: 1.08rem; margin: 0; }
-.rotulo-nivel { font-family: var(--pixel); font-size: 0.6rem; display: block; color: var(--suave); margin-bottom: 0.3rem; }
+.rotulo-nivel { font-family: var(--fonte); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; display: block; color: var(--suave); margin-bottom: 0.15rem; }
 .nivel-situacao { grid-area: chip; display: inline-flex; align-items: center; gap: 0.5rem; }
 .nivel-situacao .icone.divisa { color: var(--suave); transition: transform var(--anim); }
 .nivel > details[open] .icone.divisa { transform: rotate(180deg); }
@@ -352,9 +373,9 @@ canvas.navio { image-rendering: pixelated; width: 100%; height: auto; display: b
   .salas .chip-texto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .salas .chip { padding: 0.2rem 0.35rem; }
   .nivel-status { white-space: normal; }
-  .placar { gap: 0.5rem; }
-  .placar dd { font-size: 0.78rem; }
-  .placar div { padding: 0.6rem; }
+  .placar { gap: 0.5rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .placar div { padding: 0.6rem 0.75rem; }
+  .placar div:last-child { grid-column: 1 / -1; }
 }
 .salas { list-style: none; padding: 0; margin: 0.25rem 0 0; display: grid; gap: 0.15rem; }
 .salas li > a, .salas li > span { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) auto auto; align-items: center; gap: 0.6rem; padding: 0.45rem 0.6rem; border-radius: var(--raio-p); color: var(--texto); text-decoration: none; transition: background var(--anim); }
@@ -423,17 +444,24 @@ canvas.navio { image-rendering: pixelated; width: 100%; height: auto; display: b
 .quiz fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 0.6rem; }
 .quiz legend { font-weight: 700; margin-bottom: 0.75rem; padding: 0; }
 .alternativa { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.8rem 1rem; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--superficie); cursor: pointer; box-shadow: var(--sombra-1); transition: border-color var(--anim), background var(--anim), transform var(--anim); }
-.alternativa input { margin-top: 0.2rem; }
+.alternativa input { flex: none; margin-top: 0.2rem; }
 .alternativa:hover { border-color: var(--borda-forte); transform: translateX(2px); }
 .alternativa:has(input:checked) { border-color: var(--destaque); background: var(--destaque-suave); }
 .alternativa:has(input:disabled) { cursor: default; transform: none; }
+/* Depois de responder (a Revisão do dia): a certa e a errada escolhida, com cor e com sinal (não só a cor). */
+label.alternativa.certa { border-color: var(--ok); background: var(--ok-suave); }
+label.alternativa.errada { border-color: var(--ruim); background: var(--ruim-suave); }
+label.alternativa.certa::after, label.alternativa.errada::after { margin-left: auto; padding-left: 0.5rem; font-weight: 700; }
+label.alternativa.certa::after { content: '✓' / ''; color: var(--ok); }
+label.alternativa.errada::after { content: '✗' / ''; color: var(--ruim); }
 .quiz input:not([type=radio]) { min-width: min(20rem, 100%); }
 .quiz .botao { margin-top: 0.5rem; }
 .quiz-retorno:not(:empty) { margin: 1rem 0; padding: 0.9rem 1.1rem; border-radius: var(--raio); border: 1px solid var(--borda); background: var(--superficie); animation: entrar 220ms ease; }
 .quiz-retorno.ok { border-color: color-mix(in srgb, var(--ok) 40%, transparent); background: var(--ok-suave); }
 .quiz-retorno.falha { border-color: color-mix(in srgb, var(--ruim) 40%, transparent); background: var(--ruim-suave); }
-.quiz-retorno.ok b:first-child { color: var(--ok); }
-.quiz-retorno.falha b:first-child { color: var(--ruim); }
+/* Só o veredito (o primeiro negrito) leva a cor: "Na vida real:" e "Onde quebra:" ficam na cor do texto. */
+.quiz-retorno.ok > b:first-child, .quiz-retorno.ok > :first-child > b:first-child { color: var(--ok); }
+.quiz-retorno.falha > b:first-child, .quiz-retorno.falha > :first-child > b:first-child { color: var(--ruim); }
 .quiz-retorno p { color: var(--texto); margin: 0.3rem 0; }
 .leitura-acoes { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between; margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--borda); }
 .leitura-acoes .proxima { margin-left: auto; }
@@ -457,7 +485,7 @@ dialog.edicao .edicao-editor .cm-editor { height: 100%; font-size: 0.9rem; }
 dialog.edicao .edicao-editor .cm-focused { outline: 0; box-shadow: inset 0 0 0 2px var(--destaque); }
 dialog.edicao .nota { margin: 0; }
 dialog.edicao .edicao-botoes { margin: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; }
-dialog.edicao kbd { font-family: var(--mono); font-size: 0.8em; opacity: 0.8; }
+dialog.edicao kbd { font-family: var(--mono); font-size: 0.8em; }
 dialog.feedback h2 { display: flex; align-items: center; gap: 0.5rem; }
 dialog.feedback fieldset.reacoes { display: flex; flex-wrap: wrap; gap: 0.45rem; }
 dialog.feedback fieldset.reacoes legend { width: 100%; }
@@ -470,7 +498,7 @@ dialog.feedback .fb-estado:empty { display: none; }
 /* o contêiner que chega de helicóptero: pixel art ampliada, embaixo, sem bloquear nada */
 .festa-embarque { position: fixed; left: 50%; bottom: 6rem; z-index: 70; transform: translateX(-50%); pointer-events: none; animation: festa-sumir 400ms ease 2000ms forwards; }
 .festa-embarque canvas { display: block; width: 216px; height: 132px; image-rendering: pixelated; border-radius: 14px; border: 3px solid var(--superficie); box-shadow: var(--sombra-3); }
-.festa-xp { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); font-size: 1rem; color: #f5c518; white-space: nowrap; opacity: 0; text-shadow: 2px 0 #1d3557, -2px 0 #1d3557, 0 2px #1d3557, 0 -2px #1d3557; animation: festa-xp 900ms cubic-bezier(0.2, 0.7, 0.3, 1) 1300ms forwards; }
+.festa-xp { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); font-size: var(--pixel-2); color: var(--ouro); white-space: nowrap; opacity: 0; text-shadow: 2px 0 #1d3557, -2px 0 #1d3557, 0 2px #1d3557, 0 -2px #1d3557; animation: festa-xp 900ms cubic-bezier(0.2, 0.7, 0.3, 1) 1300ms forwards; }
 @keyframes festa-xp { from { opacity: 0; transform: translate(-50%, 14px) scale(0.8); } 30% { opacity: 1; transform: translate(-50%, 0) scale(1.15); } to { opacity: 1; transform: translate(-50%, -6px) scale(1); } }
 @keyframes festa-sumir { to { opacity: 0; } }
 
@@ -485,17 +513,21 @@ dialog.feedback .fb-estado:empty { display: none; }
 /* o lacre carimbado e o navio carregado: um cartão no centro (não modal) */
 dialog.festa-cartao { position: fixed; inset: 0; z-index: 80; margin: auto; width: min(27rem, calc(100vw - 2rem)); height: max-content; max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.6rem 1.5rem 1.4rem; text-align: center; color: var(--texto); background: var(--superficie); border: 1px solid var(--borda-forte); border-radius: var(--raio-g); box-shadow: var(--sombra-3); animation: aparecer 220ms cubic-bezier(0.2, 0.7, 0.3, 1); }
 dialog.festa-cartao::backdrop { background: rgb(5 10 20 / 35%); }
-dialog.festa-cartao h2 { margin: 0.9rem 0 0.5rem; font-size: 1.25rem; }
+dialog.festa-cartao h2 { margin: 0.9rem 0 0.5rem; }
 dialog.festa-cartao p { margin: 0; color: var(--suave); }
 dialog.festa-cartao .acoes { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.6rem 1rem; margin-top: 1.25rem; }
 dialog.festa-cartao canvas.navio { width: auto; max-width: 100%; max-height: min(42dvh, 20rem); margin: 0 auto; border-radius: var(--raio); }
 .festa-selo { position: relative; display: inline-block; }
 .festa-selo svg { display: block; animation: festa-carimbo 560ms cubic-bezier(0.25, 0.9, 0.3, 1.25) 120ms both; }
-.festa-selo::after { content: ''; position: absolute; inset: 8%; border-radius: 12px; border: 3px solid #f5c518; opacity: 0; animation: festa-onda 700ms ease-out 520ms; pointer-events: none; }
+.festa-selo::after { content: ''; position: absolute; inset: 8%; border-radius: 12px; border: 3px solid var(--ouro); opacity: 0; animation: festa-onda 700ms ease-out 520ms; pointer-events: none; }
 @keyframes festa-carimbo { from { opacity: 0; transform: scale(2.3) rotate(-16deg); } 55% { opacity: 1; transform: scale(0.92) rotate(-2deg); } to { opacity: 1; transform: scale(1) rotate(-4deg); } }
 @keyframes festa-onda { from { opacity: 0.9; transform: scale(0.9); } to { opacity: 0; transform: scale(1.35); } }
+/* No celular, o helicóptero passa no topo, menor: o aviso de sucesso fica embaixo dos botões, sem nada por cima. */
 @media (max-width: 55.99rem) {
-  .festa-embarque { bottom: calc(10.5rem + env(safe-area-inset-bottom)); }
+  .festa-embarque { top: 3.75rem; bottom: auto; }
+  body:has(.festa-faixa) .festa-embarque { top: auto; bottom: calc(5rem + env(safe-area-inset-bottom)); } /* a faixa do nível novo é que fica no topo */
+  .festa-embarque canvas { width: 144px; height: 88px; border-radius: 10px; }
+  .festa-xp { top: 10px; }
   .festa-faixa { top: 3.9rem; border-radius: var(--raio-g); }
 }
 
@@ -503,7 +535,7 @@ dialog.festa-cartao canvas.navio { width: auto; max-width: 100%; max-height: min
 .hoje .hoje-numeros { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; margin: 0 0 1.1rem; }
 .hoje .hoje-numeros div { padding: 0.5rem 0.6rem; border-radius: var(--raio); background: var(--superficie-2); border: 1px solid var(--borda); }
 .hoje .hoje-numeros dt { font-size: 0.72rem; font-weight: 700; color: var(--suave); }
-.hoje .hoje-numeros dd { margin: 0; font-family: var(--pixel); font-size: 1rem; }
+.hoje .hoje-numeros dd { margin: 0; font-family: var(--pixel); font-size: var(--pixel-2); line-height: 1.5; }
 .hoje .hoje-revisao { margin: 0.9rem 0 0; display: flex; align-items: center; gap: 0.4rem; color: var(--suave); }
 .hoje .hoje-extra { margin-top: 0.4rem; }
 .hoje .hoje-depois { margin-top: 0.9rem; font-size: 0.92rem; }
@@ -523,10 +555,10 @@ ol.oficina .oficina-recorde { display: inline-flex; align-items: center; gap: 0.
 /* O Plantão do dia e o Diário de bordo */
 .plantao-dia { margin-right: 0.35rem; font-size: 0.85rem; font-weight: 400; color: var(--suave); }
 ol.plantoes .oficina-titulo::before, ol.diario-recentes .oficina-titulo::before { content: none; }
-.diario-numeros { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 0.5rem; margin: 1.2rem 0 0; }
+.diario-numeros { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: 0.5rem; margin: 1.2rem 0 0; }
 .diario-numeros div { padding: 0.6rem 0.75rem; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--superficie); box-shadow: var(--sombra-1); }
 .diario-numeros dt { font-size: 0.75rem; font-weight: 700; color: var(--suave); }
-.diario-numeros dd { margin: 0.25rem 0 0; font-family: var(--pixel); font-size: 0.95rem; }
+.diario-numeros dd { margin: 0.25rem 0 0; font-family: var(--pixel); font-size: var(--pixel-2); line-height: 1.5; }
 .diario-bloco { margin-top: 1.8rem; }
 .calendario { display: flex; gap: 3px; overflow-x: auto; padding-bottom: 0.3rem; }
 .cal-semana { display: grid; grid-template-rows: repeat(7, auto); gap: 3px; }
@@ -571,6 +603,7 @@ blockquote.relato footer::before { content: '— '; }
 .selo-vazio .icone { width: 1.6rem; height: 1.6rem; }
 .selo-svg { image-rendering: pixelated; }
 .certificado { border: 6px double var(--texto); border-radius: var(--raio); padding: 2.25rem 2rem; text-align: center; background: var(--superficie); max-width: 46rem; margin: 1rem 0; box-shadow: var(--sombra-2); }
+.cert-marca { font-size: var(--pixel-2); line-height: 1.5; }
 .cert-nome { font-size: 1.9rem; font-weight: 700; margin: 0.5rem 0; }
 .cert-niveis { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; justify-content: center; font-size: 0.9rem; }
 @media print {
@@ -591,13 +624,22 @@ blockquote.relato footer::before { content: '— '; }
 .relogio { margin-left: auto; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.75rem; border-radius: 999px; background: var(--superficie-2); border: 1px solid var(--borda); color: var(--suave); font-family: var(--mono); font-size: 0.88rem; font-variant-numeric: tabular-nums; }
 .relogio:empty { display: none; }
 @media (max-width: 40rem) {
-  .ex-acoes .botao, .ex-acoes .botao-forte { flex: 1; }
+  .ex-acoes .botao, .ex-acoes .botao-forte { flex: 1 1 40%; } /* os dois principais numa linha; as ferramentas e o relógio na outra */
   .ex-acoes .separador { display: none; }
   .ex-acoes .rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .ex-acoes button:not(.botao, .botao-forte) { padding-inline: 0.7rem; }
 }
-/* O aviso da tela do exercício flutua embaixo, no centro: aparece sem empurrar as janelas. */
-.ex-aviso { position: fixed; left: 50%; bottom: 1.25rem; z-index: 60; transform: translateX(-50%); display: flex; align-items: center; gap: 0.6rem; width: max-content; max-width: min(42rem, calc(100vw - 2rem)); padding: 0.55rem 0.55rem 0.55rem 1rem; border-radius: var(--raio-g); border: 1px solid var(--borda-forte); border-left: 4px solid var(--destaque); background: var(--superficie); color: var(--texto); box-shadow: var(--sombra-2); font-weight: 700; transition: opacity var(--anim), transform var(--anim); }
-.ex-aviso:empty { opacity: 0; transform: translate(-50%, 0.75rem); pointer-events: none; }
+/* O aviso da tela do exercício. Com as janelas empilhadas, fica no fluxo, logo depois dos botões: não cobre a lista de
+   testes que ele manda ler. Vazio, perde a caixa mas continua no DOM (o aria-live tem de existir antes da mensagem). */
+.ex-aviso { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.55rem 0.55rem 1rem; border-radius: var(--raio-g); border: 1px solid var(--borda-forte); border-left: 4px solid var(--destaque); background: var(--superficie); color: var(--texto); box-shadow: var(--sombra-1); font-weight: 700; }
+.ex-aviso:empty { padding: 0; border: 0; box-shadow: none; margin-top: -0.75rem; }
+/* Com as janelas lado a lado, flutua embaixo, sobre a janela Missão (40% da largura na arrumação padrão): aparece sem
+   empurrar as janelas e nunca cobre a linha do terminal. Se o aluno levou a Missão para a direita, o aviso vai junto. */
+@media (min-width: 60.01rem) {
+  .ex-aviso { position: fixed; left: max(2rem, calc((100vw - 100rem) / 2 + 2rem)); bottom: 1.25rem; z-index: 60; width: max-content; max-width: calc((min(100vw, 100rem) - 2.5rem) * 0.4 - 2rem); box-shadow: var(--sombra-2); transition: opacity var(--anim), transform var(--anim); }
+  .ex:has(.coluna:last-child > [data-janela=missao]):not(:has(.coluna:first-child > [data-janela=missao])) .ex-aviso { left: auto; right: max(2rem, calc((100vw - 100rem) / 2 + 2rem)); }
+  .ex-aviso:empty { margin: 0; opacity: 0; transform: translateY(0.75rem); pointer-events: none; }
+}
 .ex-aviso.ok { border-left-color: var(--ok); }
 .ex-aviso.ok > .icone { color: var(--ok); }
 .ex-aviso.falha { border-left-color: var(--ruim); }
@@ -610,9 +652,6 @@ blockquote.relato footer::before { content: '— '; }
 .ex-aviso .aviso-fechar { flex: none; display: inline-grid; place-items: center; width: 2rem; height: 2rem; min-height: 0; padding: 0; border: 0; border-radius: 999px; background: none; color: var(--suave); }
 .ex-aviso .aviso-fechar:hover { background: var(--superficie-2); color: var(--texto); }
 .ex-aviso .aviso-fechar .icone { width: 1rem; height: 1rem; }
-@media (max-width: 55.99rem) {
-  .ex-aviso { bottom: calc(4.9rem + env(safe-area-inset-bottom)); }
-}
 
 /* janelas móveis e redimensionáveis */
 .janelas { display: flex; gap: 0; height: max(34rem, calc(100vh - 15rem)); }
@@ -645,6 +684,8 @@ blockquote.relato footer::before { content: '— '; }
   .janela { flex-basis: auto !important; min-height: 24rem; margin-bottom: 0.75rem; }
   .divisor { display: none; }
   .janela-topo { touch-action: auto; } /* empilhadas, as janelas não se arrastam: o dedo rola a página */
+  /* Nem a alça, nem as setas para os lados, nem a arrumação padrão fazem algo com as janelas empilhadas. */
+  .alca, .janela-mover [data-mover=esquerda], .janela-mover [data-mover=direita], .ex-acoes [data-acao=arrumacao] { display: none; }
 }
 
 /* abas */
@@ -654,6 +695,13 @@ blockquote.relato footer::before { content: '— '; }
 .abas [role=tab]:hover { color: var(--texto); }
 .abas [role=tab][aria-selected=true] { color: var(--destaque); }
 .abas [role=tab][aria-selected=true]::after { background: var(--destaque); }
+/* Com as janelas empilhadas, as abas ficam numa linha só, rolando para o lado. */
+@media (max-width: 60rem) {
+  .abas { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+  .abas [role=tab] { flex: none; white-space: nowrap; }
+  .abas [role=tab]::after { bottom: 0; }
+  .ex-arquivos .abas { min-width: 0; }
+}
 .painel { padding: 1rem 1.1rem; background: var(--superficie); overflow: auto; }
 .painel h2 { font-size: 1rem; margin: 1.25rem 0 0.35rem; }
 .painel > :first-child, .enunciado > :first-child { margin-top: 0; }
@@ -701,19 +749,23 @@ pre.manual, .solucao pre { white-space: pre-wrap; font-size: 0.85rem; background
 .term-saida pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: inherit; }
 .term-comando { color: var(--term-cmd); }
 .term-erro { color: var(--term-erro); }
-.term-info { color: #8b949e; }
-.term-caixa { margin: 0.5rem 0; padding: 0.6rem 0.8rem; border-left: 3px solid #d29922; border-radius: 0 8px 8px 0; background: #161f2e; font-family: var(--fonte); font-size: 0.9rem; }
+.term-info { color: var(--term-suave); }
+.term-caixa { margin: 0.5rem 0; padding: 0.6rem 0.8rem; border-left: 3px solid var(--ouro); border-radius: 0 8px 8px 0; background: var(--term-caixa); font-family: var(--fonte); font-size: 0.9rem; }
 .term-caixa p { margin: 0.15rem 0; }
 .term-caixa-titulo { font-weight: 700; display: flex; align-items: center; gap: 0.4rem; }
-.term-caixa-titulo .icone { flex: none; width: 1.05rem; height: 1.05rem; color: var(--espera); }
-.term-caixa-vida { color: #9aa7b8; font-style: italic; }
+.term-caixa-titulo .icone { flex: none; width: 1.05rem; height: 1.05rem; color: var(--ouro); }
+.term-caixa-vida { color: var(--term-suave); font-style: italic; }
 .term-caixa code { color: var(--term-cmd); background: none; border: 0; }
-.term-linha { display: flex; gap: 0.5rem; padding: 0.55rem 0.9rem; border-top: 1px solid #1f2a3c; font-family: var(--mono); font-size: 0.86rem; background: color-mix(in srgb, var(--term-fundo) 85%, #000); }
+.term-linha { display: flex; gap: 0.5rem; padding: 0.55rem 0.9rem; border-top: 1px solid var(--term-borda); font-family: var(--mono); font-size: 0.86rem; background: color-mix(in srgb, var(--term-fundo) 85%, #000); }
 .term-prompt { color: var(--term-cmd); white-space: nowrap; }
 input.term-entrada { flex: 1; min-width: 0; min-height: 0; padding: 0; background: transparent; border: 0; border-radius: 0; color: var(--term-texto); font: inherit; caret-color: var(--term-cmd); }
 input.term-entrada:focus-visible { outline: none; box-shadow: none; border: 0; }
 .term-linha:focus-within { box-shadow: inset 0 2px 0 var(--term-cmd); }
-.term-ajuda { margin: 0; padding: 0 0.9rem 0.5rem; font-size: 0.75rem; color: #8b949e; background: color-mix(in srgb, var(--term-fundo) 85%, #000); }
+.term-ajuda { margin: 0; padding: 0 0.9rem 0.5rem; font-size: 0.75rem; color: var(--term-suave); background: color-mix(in srgb, var(--term-fundo) 85%, #000); }
+/* Abaixo de 56rem, a linha do terminal e os editores em 16 px: menos que isso, o iOS dá zoom ao focar. */
+@media (max-width: 55.99rem) {
+  .term-linha, .ex-editor .cm-editor, dialog.edicao .edicao-editor .cm-editor { font-size: 1rem; }
+}
 
 /* painéis do cluster */
 .mapa-legenda { font-size: 0.85rem; color: var(--suave); display: flex; flex-wrap: wrap; gap: 0.25rem 0.85rem; margin: 0 0 0.5rem; }

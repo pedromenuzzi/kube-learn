@@ -68,15 +68,20 @@ export const semMovimento = () => document.documentElement.dataset.movimento ===
  * fica parado. Devolve a função que para a animação.
  */
 export function desenharNavio(canvas, jornada) {
-  const W = canvas.clientWidth && canvas.clientWidth < 640 ? 170 : 400;
   const corDoNivel = Object.fromEntries(jornada.niveis.map((n) => [n.numero, CORES[n.numero % CORES.length]]));
   const lacrado = Object.fromEntries(jornada.niveis.map((n) => [n.numero, n.concluido]));
   const feitos = jornada.niveis.flatMap((n) => n.itens.filter((i) => i.estado === 'concluido'));
   const pilha = empilhar(jornada.proximo ? [...feitos, jornada.proximo] : feitos);
   const vindo = jornada.proximo ? pilha.pop() : null;
   const fileiras = Math.max(pilha.at(-1)?.fileira ?? -1, vindo?.fileira ?? -1) + 1;
+  // A fileira de cima é a mais torta: o navio recua para a esquerda o quanto ela passaria da borda (e, no quadro estreito,
+  // o quadro alarga), para nenhum contêiner sair cortado.
+  const torto = desvio(Math.max(0, fileiras - 1));
+  const pilhaAte = 30 + VAGAS * C + torto; // do começo do casco à ponta da fileira mais torta
+  const largo = !(canvas.clientWidth && canvas.clientWidth < 640);
+  const W = Math.max(largo ? 400 : 170, 14 + pilhaAte + 6);
 
-  const H = Math.max(W > 300 ? 190 : 170, 70 + fileiras * A + 60);
+  const H = Math.max(largo ? 190 : 170, 70 + fileiras * A + 60);
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext('2d');
@@ -91,7 +96,7 @@ export function desenharNavio(canvas, jornada) {
   const janelas = cor('--janelas-navio', '#2b3a55');
 
   const mar = H - 30;
-  const x0 = W > 300 ? W - 160 : W - COMPRIMENTO - 14;
+  const x0 = Math.min(largo ? W - 160 : W - COMPRIMENTO - 14, W - 6 - pilhaAte);
   const xc = x0 + 30;
   const posicao = (l) => [xc + l.vaga * C + desvio(l.fileira), mar - 10 - (l.fileira + 1) * A];
   const conteiner = (x, y, l) => pintarConteiner(r, x, y, l.largura, corDoNivel[l.item.nivel], lacrado[l.item.nivel]);
@@ -136,7 +141,8 @@ export function desenharNavio(canvas, jornada) {
     // Céu, nuvens (devagar) e gaivotas batendo as asas.
     ctx.fillStyle = ceu;
     ctx.fillRect(0, 0, W, H);
-    [[8, 16, 1.5], [W * 0.42, 34, 2.5], [W - 40, 8, 1], [W * 0.2, H * 0.45, 2]].forEach(([x, y, v]) => {
+    // (x - 18 é onde a nuvem está no instante 0: todas nascem inteiras dentro do quadro.)
+    [[26, 16, 1.5], [W * 0.42, 34, 2.5], [W - 40, 8, 1], [W * 0.2, H * 0.45, 2]].forEach(([x, y, v]) => {
       desenharSprite(ctx, NUVEM, Math.round(mod(x - t * v, W + 20) - 18), Math.round(y));
     });
     [[W * 0.3, 20], [W * 0.34, 26]].forEach(([x0g, y0g], k) => {
