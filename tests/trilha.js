@@ -14,17 +14,23 @@ import { GLOSSARIO } from '../src/conteudo/glossario.js';
 import { NIVEIS } from '../src/conteudo/niveis.js';
 import { conferirQuiz } from '../src/ui/leitura.js';
 
-/** Monta o que o aluno teria: arquivos e, nos exercícios de terminal, o cluster depois dos comandos. */
-export function aluno(item, { resolvido }) {
-  const arquivos = { ...(resolvido ? item.solucao : item.inicial) };
+/**
+ * Monta o que o aluno teria: arquivos e, nos exercícios de terminal, o cluster depois dos comandos. Uma armadilha
+ * (`desvio`) troca os arquivos, os comandos ou a resposta da solução.
+ */
+export function aluno(item, { resolvido }, desvio = {}) {
+  const arquivos = { ...(desvio.arquivos ?? desvio.mudar?.({ ...item.solucao }) ?? (resolvido ? item.solucao : item.inicial)) };
   const clusterDoAluno = montarCluster(item.cluster, item.id);
-  const historico = resolvido ? item.solucaoTerminal ?? [] : [];
+  const historico = desvio.historico ?? (resolvido ? item.solucaoTerminal ?? [] : []);
   for (const linha of historico) rodarLinha(clusterDoAluno, linha, arquivos);
   clusterDoAluno.avancar('1m');
   if (!resolvido) return { arquivos, clusterDoAluno, historico, resposta: '' };
   const certa = typeof item.respostaCerta === 'function' ? item.respostaCerta(clusterDoAluno) : item.respostaCerta;
-  return { arquivos, clusterDoAluno, historico, resposta: certa };
+  return { arquivos, clusterDoAluno, historico, resposta: desvio.resposta ?? certa };
 }
+
+/** As regras que reprovam (para a mensagem do expect mostrar o motivo). */
+const reprovadas = (r) => r.flatMap((t) => t.regras.filter((x) => !x.ok).map((x) => `${t.descricao}: ${x.mensagem} (${x.detalhe})`));
 
 // A trilha e os incidentes da seção Troubleshooting (fora dos níveis).
 const TODOS = [...ITENS, ...TROUBLESHOOTING, ...OFICINA];
@@ -48,13 +54,18 @@ export function testarTrilha(arquivo) {
       describe(item.id, () => {
         it('a solução passa em todos os testes', () => {
           const r = rodarTestes(item, aluno(item, { resolvido: true }), { todos: true });
-          const falhas = r.flatMap((t) => t.regras.filter((x) => !x.ok).map((x) => `${t.descricao}: ${x.mensagem} (${x.detalhe})`));
-          expect(falhas).toEqual([]);
+          expect(reprovadas(r)).toEqual([]);
         });
         it('o código inicial ainda não passa', () => {
           const r = rodarTestes(item, aluno(item, { resolvido: false }), { todos: true });
           expect(r.some((t) => !t.ok)).toBe(true);
         });
+        for (const armadilha of item.armadilhas ?? []) {
+          it(`a armadilha "${armadilha.descricao}" não passa`, () => {
+            const r = rodarTestes(item, aluno(item, { resolvido: true }, armadilha), { todos: true });
+            expect(reprovadas(r), 'a armadilha passou em todos os testes').not.toEqual([]);
+          });
+        }
       });
     }
   });

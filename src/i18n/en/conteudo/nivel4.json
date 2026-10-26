@@ -114,6 +114,12 @@
     "testes": [
       {
         "descricao": "the database starts"
+      },
+      {
+        "descricao": "the password comes from the Secret",
+        "msgs": {
+          "0": "POSTGRES_PASSWORD comes from a secretKeyRef"
+        }
       }
     ]
   },

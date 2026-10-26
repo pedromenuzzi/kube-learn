@@ -205,7 +205,7 @@ web    1/1     Running   0          2m</code></pre>
     respostaCerta: (c) => c.obter('Pod', 'default', 'misterio').spec.nodeName,
     solucaoTerminal: ['kubectl get pod misterio -o wide'],
     testes: noCluster('você achou o node', [
-      { comando: '-o\\s*=?\\s*wide|describe', msg: 'você olhou o node no kubectl (-o wide ou describe)' },
+      { comando: '-o\\s*=?\\s*(wide|jsonpath|custom-columns|yaml|json)|describe', msg: 'você olhou o node no kubectl (-o wide, describe ou jsonpath)' },
       { resposta: { de: 'pod/misterio', campo: 'spec.nodeName' } },
     ]),
   }),

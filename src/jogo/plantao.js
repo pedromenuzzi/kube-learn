@@ -31,7 +31,8 @@ const CERTO = { tag: '1.0', sonda: '/healthz', vida: 8080, memoria: '64Mi', rese
 
 /**
  * Os tipos de defeito (um por plantão, no máximo): cada variante muda a aplicação e diz o que estava errado.
- * O `diagnostico` aparece na aba Solução.
+ * O `diagnostico` aparece na aba Solução. `travas`: o que o conserto deste defeito não pode tirar (vai para o teste
+ * oculto, junto com as travas de toda aplicação, em montarPlantao).
  */
 export const DEFEITOS = {
   imagem: [
@@ -39,7 +40,11 @@ export const DEFEITOS = {
     { muda: { tag: '2.0-bugada' }, diagnostico: () => t('A versão <code>2.0-bugada</code> cai assim que liga (CrashLoopBackOff; o <code>kubectl logs --previous</code> mostra o panic): volte para a <code>1.0</code>.') },
   ],
   prontidao: [
-    { muda: { sonda: '/health' }, diagnostico: () => t('A readinessProbe pede <code>/health</code>, que responde 404: os pods nunca ficam prontos e o Service fica sem endpoints. O caminho certo é <code>/healthz</code>.') },
+    {
+      muda: { sonda: '/health' },
+      diagnostico: () => t('A readinessProbe pede <code>/health</code>, que responde 404: os pods nunca ficam prontos e o Service fica sem endpoints. O caminho certo é <code>/healthz</code>.'),
+      travas: (app) => [{ objeto: `deployment/${app}`, campo: 'spec.template.spec.containers[0].readinessProbe.httpGet.path', igual: '/healthz', msg: t('a readinessProbe continua perguntando em /healthz: tirar o detector de fumaça não apaga o fogo') }],
+    },
   ],
   vida: [
     { muda: { vida: 8081 }, diagnostico: () => t('A livenessProbe confere a porta <code>8081</code>, onde ninguém ouve: o kubelet mata o contêiner a cada meio minuto. A porta é a <code>8080</code>.') },
@@ -53,7 +58,11 @@ export const DEFEITOS = {
   ],
   agenda: [
     { muda: { nodeSelector: true }, diagnostico: () => t('O <code>nodeSelector</code> pede <code>disco: ssd</code>, e nenhum node tem essa label: os pods ficam Pending. Tire o nodeSelector (ou ponha a label num node).') },
-    { muda: { cpu: '4' }, diagnostico: () => t('Cada pod pede <code>4</code> CPUs inteiras (era para ser <code>400m</code>?), e os nodes têm 2: Pending, com <i>Insufficient cpu</i>.') },
+    {
+      muda: { cpu: '4' },
+      diagnostico: () => t('Cada pod pede <code>4</code> CPUs inteiras (era para ser <code>400m</code>?), e os nodes têm 2: Pending, com <i>Insufficient cpu</i>.'),
+      travas: (app) => [{ objeto: `deployment/${app}`, campo: 'spec.template.spec.containers[0].resources.requests.cpu', existe: true, msg: t('o pedido de CPU continua lá: rasgar a conta de luz não diminui o consumo') }],
+    },
   ],
   porta: [
     { muda: { alvo: 80 }, diagnostico: () => t('O Service entrega na porta <code>80</code> dos pods, mas a loja ouve na <code>8080</code>: a conexão é recusada. O <code>targetPort</code> certo é <code>8080</code>.') },
@@ -161,6 +170,14 @@ export function montarPlantao(id, cenario, defeitos) {
       regras: [
         { pods: `app=${app}`, prontos: 3, reinicios: { max: 0 } },
         { requisicao: { de: 'pod/zelador', url: `http://${app}`, status: 200, corpo: '"app":"loja"' } },
+      ],
+      // o que a aplicação certa tem, e o conserto não pode tirar: apagar a sonda, o limite ou o env também "conserta"
+      travas: [
+        { objeto: `deployment/${app}`, campo: 'spec.template.spec.containers[0].readinessProbe', existe: true, msg: t('a readinessProbe continua lá: tirar o detector de fumaça não apaga o fogo') },
+        { objeto: `deployment/${app}`, campo: 'spec.template.spec.containers[0].livenessProbe', existe: true, msg: t('a livenessProbe continua lá: desligar o alarme não conserta o que ele avisa') },
+        { objeto: `deployment/${app}`, campo: 'spec.template.spec.containers[0].resources.limits.memory', existe: true, msg: t('o limite de memória continua lá: tirar o disjuntor não conserta a fiação') },
+        { env: { pods: `app=${app}`, nome: 'COR', igual: 'azul' }, msg: t('a COR continua vindo do ConfigMap: apagar a variável não conserta a configuração') },
+        ...defeitos.flatMap((d) => d.travas?.(app) ?? []),
       ],
     }),
     secao: 'plantao',

@@ -278,11 +278,23 @@ spec:
     dica: 'O log diz "sh: exti: not found": o comando tem um erro de digitação.',
     inicial: { 'migracao.yaml': job({ nome: 'migracao', comando: 'echo migrando o banco; sleep 2; exti 0', especificacao: '    backoffLimit: 2\n' }) },
     solucao: { 'migracao.yaml': job({ nome: 'migracao', comando: 'echo migrando o banco; sleep 2; exit 0', especificacao: '    backoffLimit: 2\n' }) },
-    testes: [{
-      descricao: 'a migração termina',
-      passos: [{ comando: 'kubectl delete job migracao' }, { comando: 'kubectl apply -f .' }, { avancar: '30s' }],
-      regras: [terminou('migracao')],
-    }],
+    testes: [
+      {
+        descricao: 'a migração termina',
+        passos: [{ comando: 'kubectl delete job migracao' }, { comando: 'kubectl apply -f .' }, { avancar: '30s' }],
+        regras: [terminou('migracao')],
+      },
+      {
+        oculto: true,
+        descricao: 'as travas de segurança continuam lá',
+        passos: [{ comando: 'kubectl delete job migracao' }, { comando: 'kubectl apply -f .' }, { avancar: '30s' }, { comando: 'kubectl logs job/migracao' }],
+        regras: [{ saida: 'migrando o banco', msg: 'a migração continua no comando (o log diz "migrando o banco"): trocar o trabalho por exit 0 não migra nada' }],
+      },
+    ],
+    armadilhas: [
+      { descricao: 'trocar a migração por exit 0', arquivos: { 'migracao.yaml': job({ nome: 'migracao', comando: 'exit 0', especificacao: '    backoffLimit: 2\n' }) } },
+      { descricao: 'tirar o command (o busybox sai na hora, com 0)', mudar: (a) => ({ 'migracao.yaml': a['migracao.yaml'].replace(/\n\s+command:.*/, '') }) },
+    ],
   }),
 
   problema({
@@ -324,8 +336,8 @@ spec:
     dica: 'kubectl create job teste --from=cronjob/backup; depois kubectl logs job/teste.',
     respostaCerta: '128',
     solucaoTerminal: ['kubectl create job teste --from=cronjob/backup', 'kubectl wait --for=condition=complete job/teste', 'kubectl logs job/teste'],
+    // a anotação instantiate=manual só aparece no Job criado com --from=cronjob/...: ela já prova o comando, em qualquer ordem
     testes: noCluster('o backup rodou agora', [
-      { comando: 'create\\s+job\\s+teste\\s+--from=(cronjob|cj)/backup', msg: 'você criou o Job a partir do CronJob' },
       { objeto: 'job/teste', campo: 'metadata.annotations["cronjob.kubernetes.io/instantiate"]', igual: 'manual' },
       { resposta: '128' },
     ]),

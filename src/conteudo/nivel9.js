@@ -2,6 +2,7 @@
 // precisa funcionar no fim. A causa fica com o aluno (get, describe, logs, events); a dica só aparece depois de duas
 // entregas erradas. Cada sintoma aqui tem uma causa diferente da missão parecida dos níveis anteriores.
 import { licao, problema, yaml } from './util.js';
+import { t } from '../i18n.js';
 
 /** Um Deployment; `pod` entra no spec do pod (recuo de 6), `ct` no contêiner (recuo de 8). */
 const dep = (nome, { replicas = 1, imagem = 'nginx:1.27', ns, estrategia, pod = '', ct = '' } = {}) => `apiVersion: apps/v1
@@ -57,8 +58,10 @@ export const PARTIDA9 = {};
  * Um incidente: o relato do morador, o que precisa funcionar no fim (`tarefa`, sem dizer a causa), os manifestos como
  * estão aplicados (`arquivos`) e, se precisar, como ficam consertados (`correcao`). O cluster de partida aplica os
  * arquivos e os `extras` (o que não é para mexer) e fica em `partidas` (a seção Troubleshooting usa a dela).
+ * `travas`: as regras de um teste oculto que confere que o conserto não foi tirar a proteção (apagar a sonda...).
+ * As descrições dos testes passam pelo t(): o Plantão do dia monta o incidente na hora, já no idioma escolhido.
  */
-export function incidente({ id, morador, relato, tarefa, arquivos, correcao, extras = [], partida = {}, partidas = PARTIDA9, regras, ...resto }) {
+export function incidente({ id, morador, relato, tarefa, arquivos, correcao, extras = [], partida = {}, partidas = PARTIDA9, regras, travas, ...resto }) {
   const cluster = `incidente-${id.slice(3)}`;
   partidas[cluster] = { manifestos: juntar(...extras, ...Object.values(arquivos)), ...partida };
   return problema({
@@ -68,10 +71,16 @@ export function incidente({ id, morador, relato, tarefa, arquivos, correcao, ext
     enunciado: `<blockquote class="relato"><p>${relato}</p><footer>${morador}</footer></blockquote>${tarefa}`,
     inicial: arquivos,
     solucao: correcao ?? arquivos,
-    testes: [{ noClusterDoAluno: true, descricao: 'o incidente está resolvido', regras }],
+    testes: [
+      { noClusterDoAluno: true, descricao: t('o incidente está resolvido'), regras },
+      ...(travas ? [{ noClusterDoAluno: true, oculto: true, descricao: t('as travas de segurança continuam lá'), regras: travas }] : []),
+    ],
     ...resto,
   });
 }
+
+/** A trava da readinessProbe: o conserto é a pergunta certa, não tirar a pergunta. */
+export const PERGUNTA_CERTA = { objeto: 'deployment/loja', campo: 'spec.template.spec.containers[0].readinessProbe.httpGet.path', igual: '/healthz', msg: 'a readinessProbe continua perguntando em /healthz: tirar o detector de fumaça não apaga o fogo' };
 
 /** O critério de sucesso do incidente: o que precisa funcionar no fim, do jeito que dá para conferir. */
 const resolvido = (texto) => `<p><b>Resolvido quando:</b> ${texto}</p>`;
@@ -493,6 +502,8 @@ export const NIVEL9 = [
     correcao: { 'loja.yaml': juntar(lojaComSonda(2), svc('loja', { alvo: 8080 })) },
     solucaoTerminal: ['kubectl apply -f .'],
     regras: [{ pods: 'app=loja', prontos: 3 }, { endpoints: 'svc/loja', quantidade: 3 }],
+    travas: [PERGUNTA_CERTA],
+    armadilhas: [{ descricao: 'apagar a readinessProbe', arquivos: { 'loja.yaml': juntar(loja(3), svc('loja', { alvo: 8080 })) } }],
   }),
 
   incidente({
@@ -715,5 +726,10 @@ export const NIVEL9 = [
     correcao: { 'painel.yaml': painel('db') },
     solucaoTerminal: ['kubectl apply -f .'],
     regras: [{ pods: 'app=painel', prontos: 1 }],
+    travas: [{ objeto: 'deployment/painel', campo: 'spec.template.spec.initContainers[0].command', existe: true, msg: 'a equipe de pintura (o init container) continua esperando o banco: dispensar a espera não faz o banco chegar' }],
+    armadilhas: [
+      { descricao: 'apagar o init container', mudar: (a) => ({ 'painel.yaml': a['painel.yaml'].replace(/\n\s+initContainers:\n[\s\S]*?(?=\n\s+containers:)/, '') }) },
+      { descricao: 'tirar o command do init container', mudar: (a) => ({ 'painel.yaml': a['painel.yaml'].replace(/\n\s+command: \["sh", "-c", "until[^\n]*/, '') }) },
+    ],
   }),
 ];

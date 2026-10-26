@@ -41,7 +41,8 @@
       {
         "descricao": "the kubelet restarts the frozen loja",
         "msgs": {
-          "1": "the kubelet killed a container because of the liveness probe"
+          "1": "the kubelet killed a container because of the liveness probe",
+          "2": "the liveness probe failed loja when it froze (no answer), and not before"
         }
       }
     ]
@@ -71,6 +72,12 @@
     "testes": [
       {
         "descricao": "the phone extension rings again"
+      },
+      {
+        "descricao": "the safety locks are still there",
+        "msgs": {
+          "0": "the readinessProbe still asks at /healthz: removing the smoke detector doesn’t put out the fire"
+        }
       }
     ]
   },
@@ -84,6 +91,12 @@
     "testes": [
       {
         "descricao": "all 3 loja pods fit"
+      },
+      {
+        "descricao": "the safety locks are still there",
+        "msgs": {
+          "0": "the CPU request is still there: tearing up the power bill doesn’t lower the consumption"
+        }
       }
     ]
   },
@@ -96,7 +109,16 @@
     "comoSaber": "<code>kubectl get pods</code>: <code>1/1 Running</code> and the restarts stop.",
     "testes": [
       {
-        "descricao": "the report stays up"
+        "descricao": "the report stays up",
+        "msgs": {
+          "2": "the memory limit leaves headroom above the spreadsheet’s 300Mi"
+        }
+      },
+      {
+        "descricao": "the safety locks are still there",
+        "msgs": {
+          "0": "the memory limit is still there: removing the circuit breaker doesn’t fix the wiring"
+        }
       }
     ]
   },
@@ -169,6 +191,12 @@
     "testes": [
       {
         "descricao": "the vendas loja opens within the quota"
+      },
+      {
+        "descricao": "the safety locks are still there",
+        "msgs": {
+          "0": "the quota is still the way the management left it: tearing up the condo rules doesn’t create power"
+        }
       }
     ]
   },

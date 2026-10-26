@@ -292,7 +292,7 @@
     "enunciado": "<p><code>rota.yaml</code> sends everything from <code>loja.local</code> to v1. Send <b>about 10%</b> of the visitors to <code>loja-v2</code>, and the rest stays on <code>loja-v1</code>.</p>",
     "dica": "Each backendRef gets a weight, and the weights are relative (they don’t have to add up to 100): 9 and 1 is the same as 90 and 10. backendRefs: [{ name: loja-v1, port: 80, weight: 90 }, { name: loja-v2, port: 80, weight: 10 }]",
     "vidaReal": "The sign at the front gate sends 1 in every 10 visitors to the renovated apartment.",
-    "limite": "The weight is per connection, not per person: the same customer may land on one version now and the other later.",
+    "limite": "The weight is per request, not per person: the same customer may land on one version now and the other later.",
     "testes": [
       {
         "descricao": "about 10% reach version 1.1"
@@ -337,7 +337,8 @@
         "descricao": "the maintenance doesn’t take the store down",
         "msgs": {
           "0": "kubectl drain node-1 finishes",
-          "1": "a PodDisruptionBudget guarantees at least 4 ready"
+          "1": "a PodDisruptionBudget guarantees at least 4 ready",
+          "3": "the PodDisruptionBudget picks the v2 pods by their labels (matchLabels): an empty selector protects everything and nothing"
         }
       }
     ],
@@ -370,6 +371,12 @@
         "descricao": "the manager hired temps",
         "msgs": {
           "1": "the HPA asked for more than 2 replicas"
+        }
+      },
+      {
+        "descricao": "the safety locks are still there",
+        "msgs": {
+          "0": "the HPA still has a minimum of 2: hiring by hand doesn’t prove the manager can see the line"
         }
       }
     ],
@@ -492,7 +499,10 @@
         "descricao": "only the time-a client reaches the time-b API"
       },
       {
-        "descricao": "everything else stays as it was"
+        "descricao": "everything else stays as it was",
+        "msgs": {
+          "3": "an app: cliente pod from another floor (time-c) is still blocked: the turnstile checks the floor, not just the tag"
+        }
       }
     ],
     "projeto": "Multi-team"
@@ -506,6 +516,12 @@
     "testes": [
       {
         "descricao": "the safe runs as 1000"
+      },
+      {
+        "descricao": "the safety locks are still there",
+        "msgs": {
+          "0": "the runAsNonRoot lock is still there: removing the lock doesn’t take the master key away from the safe"
+        }
       }
     ],
     "projeto": "Hardening"
