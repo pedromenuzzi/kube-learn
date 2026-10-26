@@ -71,6 +71,9 @@ function lerDocs(texto) {
 
 class ErroKustomize extends Error {}
 
+// Os itens de uma lista do kustomization, sem os `- ` ainda vazios (null) de quem está escrevendo.
+const itens = (lista) => (lista ?? []).filter((x) => x !== null && x !== undefined);
+
 /** Constrói a pasta. → { objetos, avisos } ou { erro } (a mensagem do kubectl). */
 export function construir(arquivos, pasta) {
   try {
@@ -92,23 +95,34 @@ function montar(arquivos, pasta, avisos) {
 
   // Os recursos: arquivos e bases (outras pastas com kustomization, já com os ajustes delas).
   let objetos = [];
+  const torto = (k.resources ?? []).find((r) => r !== null && typeof r !== 'string'); // `- name: web` em vez do caminho
+  if (torto !== undefined) {
+    const tipo = Array.isArray(torto) ? 'array' : typeof torto === 'boolean' ? 'bool' : typeof torto;
+    throw new ErroKustomize(`error: invalid Kustomization: json: cannot unmarshal ${tipo} into Go struct field Kustomization.resources of type string`);
+  }
   for (const r of k.resources ?? []) {
+    if (!r) throw new ErroKustomize(`error: accumulating resources: accumulation err='accumulating resources from '': '${pasta}' must resolve to a file': new root cannot be empty`);
     const c = rel(r);
-    if (noArquivo(arquivos, c) !== undefined) objetos.push(...lerDocs(noArquivo(arquivos, c)).map((o) => ({ ...o, origem: o.metadata?.name })));
-    else if (ehPasta(arquivos, c)) objetos.push(...montar(arquivos, c, avisos));
+    if (noArquivo(arquivos, c) !== undefined) {
+      for (const o of lerDocs(noArquivo(arquivos, c))) {
+        // ponytail: o real mostra também as labels e as annotations do objeto; aqui, como num metadata vazio
+        if (!o.metadata?.name) throw new ErroKustomize(`error: accumulating resources: accumulation err='accumulating resources from '${r}': missing metadata.name in object {{${o.apiVersion ?? ''} ${o.kind ?? ''}} {{ } map[] map[]}}': must build at directory: '${c}': file is not directory`);
+        objetos.push({ ...o, origem: o.metadata.name });
+      }
+    } else if (ehPasta(arquivos, c)) objetos.push(...montar(arquivos, c, avisos));
     else throw new ErroKustomize(`error: accumulating resources: accumulation err='accumulating resources from '${r}': open ${c}: no such file or directory'`);
   }
 
   // Os geradores de ConfigMap e Secret (behavior: create, merge ou replace).
   const opcoes = k.generatorOptions ?? {};
   for (const [tipo, lista] of [['ConfigMap', k.configMapGenerator], ['Secret', k.secretGenerator]]) {
-    for (const g of lista ?? []) {
+    for (const g of itens(lista)) {
       const dados = {};
-      for (const l of g.literals ?? []) {
+      for (const l of itens(g.literals)) {
         const [chave, ...v] = l.split('=');
         dados[chave] = v.join('=').replace(/^"(.*)"$/, '$1');
       }
-      for (const f of g.files ?? []) {
+      for (const f of itens(g.files)) {
         const [chave, caminho] = f.includes('=') ? f.split('=') : [f.split('/').pop(), f];
         const texto = noArquivo(arquivos, rel(caminho));
         if (texto === undefined) throw new ErroKustomize(`error: loading KV pairs: file sources: [${f}]: evalsymlink failure on '${rel(caminho)}' : lstat ${rel(caminho)}: no such file or directory`);
@@ -129,19 +143,20 @@ function montar(arquivos, pasta, avisos) {
   }
 
   // Os ajustes (sobre os nomes originais, como o Kustomize: o patch fala "loja", mesmo com namePrefix).
-  for (const p of k.patches ?? []) aplicarPatch(objetos, p.patch ?? noArquivo(arquivos, rel(p.path ?? '')), p.target, p.path);
-  for (const p of k.patchesStrategicMerge ?? []) aplicarPatch(objetos, typeof p === 'string' && noArquivo(arquivos, rel(p)) !== undefined ? noArquivo(arquivos, rel(p)) : p, null, p);
-  for (const im of k.images ?? []) {
+  for (const p of itens(k.patches)) aplicarPatch(objetos, p.patch ?? noArquivo(arquivos, rel(p.path ?? '')), p.target, p.path);
+  for (const p of itens(k.patchesStrategicMerge)) aplicarPatch(objetos, typeof p === 'string' && noArquivo(arquivos, rel(p)) !== undefined ? noArquivo(arquivos, rel(p)) : p, null, p);
+  for (const im of itens(k.images)) {
     for (const o of objetos) {
       for (const ct of conteineres(o)) {
+        if (typeof ct.image !== 'string') continue;
         const [nome, tag] = separarImagem(ct.image);
         if (nome !== im.name) continue;
         ct.image = `${im.newName ?? nome}${im.digest ? `@${im.digest}` : im.newTag !== undefined ? `:${im.newTag}` : tag ? `:${tag}` : ''}`;
       }
     }
   }
-  for (const r of k.replicas ?? []) {
-    for (const o of objetos) if (o.origem === r.name && ['Deployment', 'StatefulSet', 'ReplicaSet'].includes(o.kind)) o.spec.replicas = r.count;
+  for (const r of itens(k.replicas)) {
+    for (const o of objetos) if (o.origem === r.name && ['Deployment', 'StatefulSet', 'ReplicaSet'].includes(o.kind)) (o.spec ??= {}).replicas = r.count;
   }
   if (k.namespace) {
     for (const o of objetos) if (recursoDoKind(o.kind)?.namespaced !== false) o.metadata.namespace = k.namespace;
@@ -153,7 +168,7 @@ function montar(arquivos, pasta, avisos) {
     avisos.push("# Warning: 'commonLabels' is deprecated. Please use 'labels' instead. Run 'kustomize edit fix' to update your Kustomization automatically.");
     rotular(objetos, { pairs: k.commonLabels, includeSelectors: true });
   }
-  for (const l of k.labels ?? []) rotular(objetos, l);
+  for (const l of itens(k.labels)) rotular(objetos, l);
   if (k.commonAnnotations) for (const o of objetos) o.metadata.annotations = { ...(o.metadata.annotations ?? {}), ...k.commonAnnotations };
   return objetos;
 }
@@ -176,17 +191,17 @@ function ordenarSaida(objetos) {
   const novo = (kind, nome) => renomeados.get(`${kind}/${nome}`) ?? nome;
   for (const o of objetos) {
     for (const spec of moldes(o)) {
-      for (const ct of [...(spec.containers ?? []), ...(spec.initContainers ?? [])]) {
-        for (const ef of ct.envFrom ?? []) {
+      for (const ct of [...itens(spec.containers), ...itens(spec.initContainers)]) {
+        for (const ef of itens(ct.envFrom)) {
           if (ef.configMapRef) ef.configMapRef.name = novo('ConfigMap', ef.configMapRef.name);
           if (ef.secretRef) ef.secretRef.name = novo('Secret', ef.secretRef.name);
         }
-        for (const ev of ct.env ?? []) {
+        for (const ev of itens(ct.env)) {
           if (ev.valueFrom?.configMapKeyRef) ev.valueFrom.configMapKeyRef.name = novo('ConfigMap', ev.valueFrom.configMapKeyRef.name);
           if (ev.valueFrom?.secretKeyRef) ev.valueFrom.secretKeyRef.name = novo('Secret', ev.valueFrom.secretKeyRef.name);
         }
       }
-      for (const v of spec.volumes ?? []) {
+      for (const v of itens(spec.volumes)) {
         if (v.configMap) v.configMap.name = novo('ConfigMap', v.configMap.name);
         if (v.secret) v.secret.secretName = novo('Secret', v.secret.secretName);
         if (v.persistentVolumeClaim) v.persistentVolumeClaim.claimName = novo('PersistentVolumeClaim', v.persistentVolumeClaim.claimName);
@@ -194,7 +209,7 @@ function ordenarSaida(objetos) {
       if (spec.serviceAccountName) spec.serviceAccountName = novo('ServiceAccount', spec.serviceAccountName);
     }
     if (o.kind === 'Ingress') {
-      for (const r of o.spec?.rules ?? []) for (const p of r.http?.paths ?? []) if (p.backend?.service) p.backend.service.name = novo('Service', p.backend.service.name);
+      for (const r of itens(o.spec?.rules)) for (const p of itens(r.http?.paths)) if (p.backend?.service) p.backend.service.name = novo('Service', p.backend.service.name);
     }
     if (o.kind === 'StatefulSet' && o.spec?.serviceName) o.spec.serviceName = novo('Service', o.spec.serviceName);
   }
@@ -217,7 +232,7 @@ const ORDEM = ['Namespace', 'ResourceQuota', 'StorageClass', 'CustomResourceDefi
   'ConfigMap', 'Secret', 'Endpoints', 'Service', 'LimitRange', 'PriorityClass', 'PersistentVolume', 'PersistentVolumeClaim', 'Deployment', 'StatefulSet', 'CronJob', 'PodDisruptionBudget'];
 
 const moldes = (o) => [o.spec?.template?.spec, o.spec?.jobTemplate?.spec?.template?.spec, o.kind === 'Pod' ? o.spec : null].filter(Boolean);
-const conteineres = (o) => moldes(o).flatMap((s) => [...(s.containers ?? []), ...(s.initContainers ?? [])]);
+const conteineres = (o) => moldes(o).flatMap((s) => [...itens(s.containers), ...itens(s.initContainers)]);
 const separarImagem = (img) => {
   const semDigest = img.split('@')[0];
   const m = semDigest.match(/^(.*?)(?::([^:/]+))?$/);
@@ -240,7 +255,7 @@ function aplicarPatch(objetos, texto, alvo, origem) {
   const docs = typeof texto === 'string' ? lerDocs(texto) : [texto];
   for (const p of docs) {
     if (Array.isArray(p)) {
-      for (const o of objetos.filter((x) => casaAlvo(x, alvo))) for (const op of p) json6902(o, op);
+      for (const o of objetos.filter((x) => casaAlvo(x, alvo))) for (const op of itens(p)) json6902(o, op);
       continue;
     }
     const alvos = objetos.filter((o) => (alvo ? casaAlvo(o, alvo) : o.kind === p.kind && o.origem === p.metadata?.name));
@@ -266,6 +281,7 @@ function mesclarEstrategico(destino, patch) {
 }
 
 function json6902(o, { op, path, value }) {
+  if (typeof path !== 'string') return; // a operação ainda sem caminho
   const partes = path.split('/').slice(1).map((p) => p.replaceAll('~1', '/').replaceAll('~0', '~'));
   const ultimo = partes.pop();
   const pai = partes.reduce((v, p) => v?.[p], o);

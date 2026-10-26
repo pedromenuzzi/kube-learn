@@ -1,0 +1,2 @@
+networkpolicy.networking.k8s.io/sem-spec created
+exit=0

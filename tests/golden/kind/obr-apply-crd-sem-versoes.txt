@@ -1,0 +1,4 @@
+The CustomResourceDefinition "fichas.obrigatorios.kube-learn.dev" is invalid: 
+* spec.versions: Invalid value: null: must have exactly one version marked as storage version
+* status.storedVersions: Invalid value: null: must have at least one stored version
+exit=1

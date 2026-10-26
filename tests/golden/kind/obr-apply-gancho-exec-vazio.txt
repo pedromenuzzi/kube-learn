@@ -1,0 +1,2 @@
+The Pod "gancho" is invalid: spec.containers[0].lifecycle.postStart.exec.command: Required value
+exit=1

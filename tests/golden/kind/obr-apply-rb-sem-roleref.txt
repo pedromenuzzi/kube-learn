@@ -1,0 +1,2 @@
+Error from server: error when creating "/tmp/kl-obr-rb.yaml": unsupported role reference kind: ""
+exit=1

@@ -1,0 +1,7 @@
+Name:                conta-vazia
+Namespace:           obrigatorios
+Labels:              <none>
+Annotations:         <none>
+Image pull secrets:  
+Events:              <none>
+exit=0

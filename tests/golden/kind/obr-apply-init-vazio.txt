@@ -1,0 +1,4 @@
+The Pod "preparo-vazio" is invalid: 
+* spec.initContainers[0].name: Required value
+* spec.initContainers[0].image: Required value
+exit=1

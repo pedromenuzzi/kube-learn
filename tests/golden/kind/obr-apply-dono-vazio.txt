@@ -1,0 +1,6 @@
+The ConfigMap "dono-vazio" is invalid: 
+* metadata.ownerReferences[0].apiVersion: Required value: must not be empty
+* metadata.ownerReferences[0].kind: Required value: must not be empty
+* metadata.ownerReferences[0].name: Required value: must not be empty
+* metadata.ownerReferences[0].uid: Required value: must not be empty
+exit=1

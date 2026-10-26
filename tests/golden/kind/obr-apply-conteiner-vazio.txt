@@ -1,0 +1,4 @@
+The Pod "vazio" is invalid: 
+* spec.containers[0].name: Required value
+* spec.containers[0].image: Required value
+exit=1

@@ -1,0 +1,2 @@
+The Deployment "sem-labels" is invalid: spec.template.metadata.labels: Invalid value: null: `selector` does not match template `labels`
+exit=1

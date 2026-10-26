@@ -10,7 +10,7 @@ const texto = (r, v) => (r === 'pods' || !/(cpu|memory|storage)$/.test(r) ? Stri
 
 /** LimitRanger: põe os requests e limits padrão em quem não disse nada e confere mínimos e máximos. Erro → mensagem. */
 export function aplicarLimites(c, pod) {
-  const regras = c.listar('LimitRange', pod.metadata.namespace).flatMap((lr) => lr.spec.limits.filter((l) => l.type === 'Container'));
+  const regras = c.listar('LimitRange', pod.metadata.namespace).flatMap((lr) => (lr.spec?.limits ?? []).filter((l) => l.type === 'Container'));
   if (!regras.length) return null;
   const notas = [];
   for (const ct of [...(pod.spec.initContainers ?? []), ...pod.spec.containers]) {

@@ -1,0 +1,2 @@
+The RoleBinding "troca" is invalid: roleRef: Invalid value: {"APIGroup":"rbac.authorization.k8s.io","Kind":"ClusterRole","Name":"edit"}: field is immutable
+exit=1

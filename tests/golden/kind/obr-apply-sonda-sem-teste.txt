@@ -1,0 +1,2 @@
+The Pod "sem-teste" is invalid: spec.containers[0].livenessProbe: Required value: must specify a handler type
+exit=1

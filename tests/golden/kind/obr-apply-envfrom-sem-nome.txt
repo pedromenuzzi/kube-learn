@@ -1,0 +1,2 @@
+The Pod "sem-nome" is invalid: spec.containers[0].envFrom[0].configMapRef.name: Required value
+exit=1

@@ -1,0 +1,4 @@
+The StatefulSet "molde-sem-nome" is invalid: 
+* spec.template.spec.volumes[0].persistentVolumeClaim.claimName: Required value
+* spec.template.spec.volumes[0].name: Required value
+exit=1
