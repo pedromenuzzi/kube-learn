@@ -21,6 +21,12 @@ export function ativarAbas(raiz, aoTrocar) {
       a.tabIndex = ativa ? 0 : -1;
       document.getElementById(a.getAttribute('aria-controls')).hidden = !ativa;
     }
+    // Na faixa que rola para o lado (no celular), a aba escolhida fica inteira à vista. Só a faixa rola: o
+    // scrollIntoView rolaria a página também.
+    const faixa = aba.parentElement.getBoundingClientRect();
+    const r = aba.getBoundingClientRect();
+    if (r.left < faixa.left) aba.parentElement.scrollLeft -= faixa.left - r.left;
+    else if (r.right > faixa.right) aba.parentElement.scrollLeft += r.right - faixa.right;
     if (focar) aba.focus();
     if (avisar) aoTrocar?.(aba.dataset.aba);
   };

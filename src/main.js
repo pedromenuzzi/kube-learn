@@ -140,6 +140,11 @@ topo.addEventListener('click', async (e) => {
 function iniciar() {
   montarMoldura();
   window.addEventListener('hashchange', () => desenhar());
+  // O "pular para o conteúdo" só leva o foco ao <main>: seguir o href (#conteudo) trocaria a rota pela página 404.
+  document.querySelector('.pular')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('conteudo').focus();
+  });
   (window.requestIdleCallback ?? setTimeout)(() => import('./ui/exercicio.js').catch(() => {})); // só adianta: se falhar, a missão tenta de novo
   window.addEventListener('kube-learn:progresso', () => atualizarTopo(resolverRota(location.hash)?.caminho));
   desenhar();

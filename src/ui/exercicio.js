@@ -140,6 +140,14 @@ export function montarExercicio(raiz, item) {
   const $ = (s) => raiz.querySelector(s);
   const aviso = $('.ex-aviso');
   let tempoDoAviso = 0;
+  let origemDoAviso = null; // o botão que pediu o aviso (Aplicar, Entregar, Conferir, +30s)
+  /** Fecha o aviso; se o foco estava nele, volta para o botão que o pediu (ou para o Entregar), não cai no <body>. */
+  const fecharAviso = () => {
+    clearTimeout(tempoDoAviso);
+    const tinhaFoco = aviso.contains(document.activeElement);
+    aviso.replaceChildren();
+    if (tinhaFoco) (origemDoAviso ?? $('[data-acao=entregar]') ?? $('[data-acao=aplicar]') ?? $('[data-acao=conferir]')).focus();
+  };
   /** O aviso flutua sobre a tela (não empurra as janelas) e some sozinho; o de missão cumprida fica, com o link da próxima. */
   // `ajuda`: { texto, aba, rotulo } — a ajuda do degrau (a dica, o Manual, a Solução), com o botão que abre a aba.
   // `compartilhar`: o texto do botão "Compartilhar resultado" (o do Plantão do dia).
@@ -152,7 +160,7 @@ export function montarExercicio(raiz, item) {
       + (refazer ? `<button type="button" class="link-botao" data-acao="refazer">${icone('reiniciar')} ${t('Tentar de novo')}</button>` : '')
       + (compartilhar ? htmlCompartilhar(compartilhar) : '')
       + `</div><button type="button" class="aviso-fechar" data-acao="fechar-aviso" aria-label="${t('Fechar o aviso')}">${icone('fechar')}</button>`;
-    if (!proximo && !ajuda && !compartilhar) tempoDoAviso = setTimeout(() => aviso.replaceChildren(), tipo === 'info' ? 4000 : 8000);
+    if (!proximo && !ajuda && !compartilhar) tempoDoAviso = setTimeout(fecharAviso, tipo === 'info' ? 4000 : 8000);
   };
 
   // ---------- lado: missão, vida real, manual, solução, testes ----------
@@ -492,7 +500,7 @@ export function montarExercicio(raiz, item) {
       atualizarPaineis();
       avisar(t('O relógio do cluster andou 30 segundos.'));
     }),
-    'fechar-aviso': () => aviso.replaceChildren(),
+    'fechar-aviso': fecharAviso,
     'abrir-aba': (botao) => abasLado.selecionar(botao.dataset.aba),
     compartilhar: compartilharResultado,
     feedback: () => abrirFeedback(item, () => ({ testes: ultimoTeste, comandos: terminal.historico.slice(-10) })),
@@ -548,13 +556,16 @@ export function montarExercicio(raiz, item) {
   const fim = new AbortController();
   raiz.addEventListener('click', (e) => {
     const alvo = e.target.closest('[data-acao]');
+    if (['aplicar', 'entregar', 'conferir', 'avancar'].includes(alvo?.dataset.acao)) origemDoAviso = alvo;
     if (acoes[alvo?.dataset.acao]) acoes[alvo.dataset.acao](alvo);
   }, { signal: fim.signal });
   const teclas = (e) => {
     if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey) || e.target.closest?.('dialog')) return;
     e.preventDefault();
-    if (e.shiftKey && item.testes?.length) acoes.entregar();
-    else if (!e.shiftKey) (temArquivos ? acoes.aplicar : acoes.conferir)();
+    const nome = e.shiftKey ? (item.testes?.length ? 'entregar' : null) : (temArquivos ? 'aplicar' : 'conferir');
+    if (!nome) return;
+    origemDoAviso = $(`[data-acao=${nome}]`);
+    acoes[nome]();
   };
   document.addEventListener('keydown', teclas, { signal: fim.signal });
 
