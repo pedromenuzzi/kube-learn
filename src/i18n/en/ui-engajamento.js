@@ -9,6 +9,11 @@ export default {
   'A aba Manual tem os campos certos, com a explicação de cada um.': 'The Manual tab has the right fields, each with its explanation.',
   'Abrir o Manual': 'Open the Manual',
   'antes eram {n}: quase lá!': 'it was {n} before: almost there!',
+  // a Revisão do dia (revisao.js): os termos que a trilha já ensinou, e a resposta certa marcada depois de responder
+  'Cartões com os termos que a trilha já te ensinou. Acertou, o cartão volta daqui a mais dias; errou, volta amanhã. É assim que a memória fixa: pouco por dia, no dia certo.': 'Cards with the terms the path has already taught you. Get one right and it comes back in a few more days; get it wrong and it comes back tomorrow. That’s how memory sticks: a little every day, on the right day.',
+  'Ainda não há cartões: cada lição da trilha traz para a revisão os termos que ela ensina.': 'No cards yet: each lesson on the path brings the terms it teaches into the review.',
+  'resposta certa': 'right answer',
+  'sua resposta': 'your answer',
   // a Oficina do kubectl (paginas.js e exercicio.js)
   'Oficina do kubectl': 'kubectl workshop',
   'Oficina': 'Workshop',
