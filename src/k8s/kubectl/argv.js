@@ -6,10 +6,17 @@ export function palavras(linha) {
   let atual = null;
   for (let i = 0; i < linha.length; i++) {
     const c = linha[i];
-    if (c === "'" || c === '"') {
+    if (c === "'") {
       const fim = linha.indexOf(c, i + 1);
       atual = (atual ?? '') + linha.slice(i + 1, fim === -1 ? undefined : fim);
       i = fim === -1 ? linha.length : fim;
+    } else if (c === '"') {
+      // Nas aspas duplas, como no bash, a barra só escapa " \ $ e a crase: {\"\n\"} vira {"\n"}.
+      atual ??= '';
+      for (i++; i < linha.length && linha[i] !== '"'; i++) {
+        if (linha[i] === '\\' && i + 1 < linha.length && '"\\$`'.includes(linha[i + 1])) i++;
+        atual += linha[i];
+      }
     } else if (c === '\\' && i + 1 < linha.length) {
       atual = (atual ?? '') + linha[++i];
     } else if (/\s/.test(c)) {

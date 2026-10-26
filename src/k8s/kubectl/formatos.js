@@ -58,10 +58,11 @@ function analisarTemplate(t) {
 export function avaliar(caminho, raiz, atual) {
   let valores = [caminho.startsWith('$') ? raiz : atual];
   const resto = caminho.replace(/^[$@]/, '');
-  const re = /\.\.|\.([\w-]+|\*)|\[([^\]]*)\]|\.?'([^']*)'/g;
+  const re = /\.\.|\.((?:[\w/-]|\\.)+|\*)|\[([^\]]*)\]|\.?'([^']*)'/g; // \. é um ponto do nome (kubernetes\.io/change-cause)
   let m;
   while ((m = re.exec(resto))) {
-    const [, campo, colchete, citado] = m;
+    const [, escapado, colchete, citado] = m;
+    const campo = escapado?.replace(/\\(.)/g, '$1');
     const proximos = [];
     for (const v of valores) {
       if (v === undefined || v === null) continue;

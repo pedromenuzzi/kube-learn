@@ -1,8 +1,10 @@
 // Uma linha do terminal do aluno: o kubectl (com redirecionamento para arquivo, `... > pod.yaml`, que grava a
 // saída no editor), o curl do computador do aluno (fora do cluster: port-forward, NodePort, LoadBalancer,
 // Ingress e Gateway), o helm, o git, o echo, o ls e o cat dos arquivos do editor. Por cima, o que o bash junta:
-// `a && b`, `a || b`, `a ; b` e os canos para os filtros de sempre (grep, head, tail, wc, sort, awk '{print $N}' e
-// base64, para ver o que um Secret guarda). Usado pela tela do exercício e pelo teste da trilha (as soluções de terminal).
+// `a && b`, `a || b`, `a ; b`, os canos para os filtros de sempre (grep, head, tail, wc, sort, awk '{print $N}' e
+// base64, para ver o que um Secret guarda), o `> /tmp/x.yaml 2>&1` e os reflexos de quem faz o exame: `export
+// do="--dry-run=client -o yaml"` (com o $do e o ${do} expandidos) e `alias k=kubectl`, guardados por cluster.
+// Usado pela tela do exercício e pelo teste da trilha (as soluções de terminal).
 import { kubectl } from './kubectl/index.js';
 import { helm } from './helm.js';
 import { git } from './gitops.js';
@@ -12,7 +14,87 @@ import { httpDeFora } from './rede.js';
 import { atobUtf8, btoaUtf8 } from './esquema.js';
 import { t } from '../i18n.js';
 
-const NOME = /^[\w.-]+\.(ya?ml|json|txt)$/;
+const EXTENSAO = /\.(ya?ml|json|txt)$/;
+
+/** O que o bash do aluno guarda de uma linha para outra (as variáveis e os aliases), por cluster: o Resetar, que cria outro cluster, zera tudo. */
+const SHELLS = new WeakMap();
+function shellDe(cluster) {
+  if (!SHELLS.has(cluster)) SHELLS.set(cluster, { vars: new Map(), aliases: new Map() });
+  return SHELLS.get(cluster);
+}
+
+/**
+ * $VAR e ${VAR} fora das aspas simples, como o bash. O valor entra escapado: sem aspas, só se quebra nos espaços (o
+ * "$do" vira várias palavras, e um | ou > de dentro dele não vale como operador); nas aspas duplas, fica uma palavra.
+ */
+function expandir(texto, vars) {
+  let saida = '';
+  let aspas = null;
+  for (let i = 0; i < texto.length; i++) {
+    const ch = texto[i];
+    if (aspas === "'") {
+      if (ch === "'") aspas = null;
+    } else if (ch === '\\') {
+      saida += ch + (texto[++i] ?? '');
+      continue;
+    } else if (ch === '"') aspas = aspas ? null : '"';
+    else if (ch === "'" && !aspas) aspas = "'";
+    else if (ch === '$') {
+      const m = texto.slice(i).match(/^\$(?:\{([A-Za-z_]\w*)\}|([A-Za-z_]\w*))/);
+      if (m) {
+        saida += (vars.get(m[1] ?? m[2]) ?? '').replace(aspas ? /["\\$`]/g : /[^\s\w=,.:/@%+-]/g, '\\$&');
+        i += m[0].length - 1;
+        continue;
+      }
+    }
+    saida += ch;
+  }
+  return saida;
+}
+
+const NOME_DE_VARIAVEL = /^[A-Za-z_]\w*$/;
+
+/** export A=1 B=2 (export sozinho lista, como o declare -x do bash). */
+function exportar(cluster, args) {
+  const { vars } = shellDe(cluster);
+  if (!args.length) return resultado(0, [...vars].sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => `declare -x ${k}="${v.replace(/["\\$`]/g, '\\$&')}"\n`).join(''), '');
+  let err = '';
+  for (const a of args) {
+    const i = a.indexOf('=');
+    const nome = i < 0 ? a : a.slice(0, i);
+    if (!NOME_DE_VARIAVEL.test(nome)) err += `bash: export: \`${a}': not a valid identifier\n`;
+    else if (i >= 0) vars.set(nome, a.slice(i + 1));
+  }
+  return resultado(err ? 1 : 0, '', err);
+}
+
+/** alias k=kubectl; alias k mostra um; alias sozinho lista todos. */
+function apelidar(cluster, args) {
+  const { aliases } = shellDe(cluster);
+  const mostrar = (k) => `alias ${k}='${aliases.get(k).replaceAll("'", "'\\''")}'\n`;
+  if (!args.length) return resultado(0, [...aliases.keys()].sort().map(mostrar).join(''), '');
+  let out = '';
+  let err = '';
+  for (const a of args) {
+    const i = a.indexOf('=');
+    if (i > 0) aliases.set(a.slice(0, i), a.slice(i + 1));
+    else if (aliases.has(a)) out += mostrar(a);
+    else err += `bash: alias: ${a}: not found\n`;
+  }
+  return resultado(err ? 1 : 0, out, err);
+}
+
+/** O alias na primeira palavra: o valor entra no lugar dela e é lido de novo (o mesmo alias não se expande duas vezes). */
+function semAlias(cluster, texto) {
+  const { aliases, vars } = shellDe(cluster);
+  const vistos = new Set();
+  for (;;) {
+    const m = texto.match(/^(\s*)([^\s'"\\|&;<>=$`]+)(?=\s|$)/);
+    if (!m || vistos.has(m[2]) || !aliases.has(m[2])) return texto;
+    vistos.add(m[2]);
+    texto = `${m[1]}${expandir(aliases.get(m[2]), vars)}${texto.slice(m[0].length)}`;
+  }
+}
 
 const resultado = (codigo, out, err) => {
   const partes = [...(out ? [{ fluxo: 'out', texto: out }] : []), ...(err ? [{ fluxo: 'err', texto: err }] : [])];
@@ -283,11 +365,16 @@ const PROGRAMAS = {
   sort,
   awk,
   base64: ({ args, anterior }) => (anterior ? base64(anterior, args) : resultado(2, '', `${t('{cmd}: aqui o {cmd} lê a saída de outro comando (depois de um |) ou um arquivo do editor.', { cmd: 'base64' })}\n`)),
+  export: ({ cluster, args }) => exportar(cluster, args),
+  alias: ({ cluster, args }) => apelidar(cluster, args),
 };
 PROGRAMAS.k = PROGRAMAS.kubectl;
 
 /** Os comandos que o terminal entende (a tela do exercício usa esta lista: o resto é "command not found"). */
 export const COMANDOS = Object.keys(PROGRAMAS);
+
+/** A primeira palavra da linha é algo que este terminal roda? Um comando, um alias que o aluno criou ou um VAR=valor. */
+export const conhece = (cluster, cmd) => COMANDOS.includes(cmd) || shellDe(cluster).aliases.has(cmd) || /^[A-Za-z_]\w*=/.test(cmd ?? '');
 const FILTROS = 'grep, head, tail, wc, sort, awk, cat, base64';
 
 /** A primeira posição fora das aspas (e sem \\ na frente) em que `achar(i)` vale, ou -1. */
@@ -315,11 +402,14 @@ function desvioDoErro(texto) {
 }
 
 function rodarComando(cluster, bruto, arquivos, anterior, cano) {
-  const [texto, desvio] = desvioDoErro(bruto);
+  const [texto, desvio] = desvioDoErro(semAlias(cluster, bruto));
   const ps = palavras(texto);
   const i = ps.findIndex((p) => !/^[A-Za-z_]\w*=/.test(p)); // pula o VAR=valor da frente (KUBE_EDITOR=...)
-  const [nome, ...args] = i < 0 ? [] : ps.slice(i);
-  if (!nome) return resultado(0, '', '');
+  if (i < 0) { // só VAR=valor: a variável fica no shell
+    for (const p of ps) shellDe(cluster).vars.set(p.slice(0, p.indexOf('=')), p.slice(p.indexOf('=') + 1));
+    return resultado(0, '', '');
+  }
+  const [nome, ...args] = ps.slice(i);
   const programa = PROGRAMAS[nome];
   let r;
   if (programa) r = programa({ cluster, texto, args, arquivos, entrada: anterior ? anterior.stdout : null, anterior, cano });
@@ -345,19 +435,23 @@ function cortar(linha, operadores) {
   return trechos;
 }
 
-/** O "> arquivo" do fim da linha, se estiver fora de aspas (o de dentro de um sh -c '...' é do contêiner; o 2> é do erro). */
+/**
+ * O "> arquivo" (ou ">>"), se estiver fora de aspas (o de dentro de um sh -c '...' é do contêiner; o 2> é do erro).
+ * O que vem depois do nome (o 2>&1 de "> x.txt 2>&1") volta para o comando. → [comando, operador, arquivo] ou null
+ */
 function redirecionamento(linha) {
   const i = foraDasAspas(linha, (k) => linha[k] === '>' && !/(^|\s)2$/.test(linha.slice(0, k)) && !linha.startsWith('>&', k));
   if (i < 0) return null;
-  const m = linha.slice(i).match(/^(>>?)\s*(\S+)\s*$/);
-  return m && linha.slice(0, i).trim() ? [null, linha.slice(0, i).trimEnd(), m[1], m[2]] : null;
+  const m = linha.slice(i).match(/^(>>?)\s*(\S+)/);
+  return m && linha.slice(0, i).trim() ? [linha.slice(0, i) + linha.slice(i + m[0].length), m[1], palavras(m[2]).join('')] : null;
 }
 
 /** Um cano (`a | b | c`), com o `> arquivo` do fim. → resultado (com `arquivoGravado` quando houve `>`) */
-function rodarCano(cluster, linha, arquivos) {
+function rodarCano(cluster, bruto, arquivos) {
+  const linha = expandir(bruto, shellDe(cluster).vars);
   const m = redirecionamento(linha);
-  if (m && m[3] !== '/dev/null' && !NOME.test(m[3])) return resultado(1, '', `bash: ${m[3]}: só dá para gravar arquivos .yaml, .json ou .txt aqui\n`);
-  const estagios = cortar(m ? m[1] : linha, ['|']).map(([x]) => x);
+  if (m && m[2] !== '/dev/null' && !EXTENSAO.test(m[2])) return resultado(1, '', `bash: ${m[2]}: só dá para gravar arquivos .yaml, .json ou .txt aqui\n`);
+  const estagios = cortar(m ? m[0] : linha, ['|']).map(([x]) => x);
   if (estagios.length > 1 && estagios.some((x) => !x.trim())) return resultado(2, '', "bash: syntax error near unexpected token `|'\n");
   const erros = [];
   let r = null;
@@ -367,7 +461,7 @@ function rodarCano(cluster, linha, arquivos) {
   });
   if (estagios.length > 1) r = juntar([...erros, ...r.partes], r.codigo);
   if (!m) return r;
-  const [, , operador, nome] = m;
+  const [, operador, nome] = m;
   const partes = r.partes.filter((p) => p.fluxo === 'err');
   if (nome === '/dev/null') return { ...r, saida: partes.map((p) => p.texto).join(''), stdout: '', partes };
   arquivos[nome] = (operador === '>>' ? arquivos[nome] ?? '' : '') + r.stdout;

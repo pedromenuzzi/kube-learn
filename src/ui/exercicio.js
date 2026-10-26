@@ -3,7 +3,7 @@
 import { montarCluster } from '../conteudo/clusters.js';
 import { proximoDe } from '../conteudo/index.js';
 import { XP } from '../conteudo/util.js';
-import { COMANDOS, rodarLinha } from '../k8s/linha.js';
+import { conhece, rodarLinha } from '../k8s/linha.js';
 import { explicar as explicarSaida } from '../k8s/explicacoes.js';
 import { explicar as explicarCampo } from '../k8s/esquema.js';
 import { todosOsRecursos, acharRecurso } from '../k8s/recursos.js';
@@ -238,7 +238,7 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
     if (cmd === 'clear') return { limpar: true };
     if (cmd === 'help') return { saida: ajuda() };
     if (cmd === 'history') return { saida: terminal.historico.map((l, i) => `  ${i + 1}  ${l}\n`).join('') };
-    if (!COMANDOS.includes(cmd)) {
+    if (!conhece(estado.cluster, cmd)) {
       const texto = `bash: ${cmd}: command not found\n`;
       return { saida: texto, codigo: 127, partes: [{ fluxo: 'err', texto }], caixas: [{ titulo: t('Aqui o terminal só fala kubectl'), texto: t('Use <code>kubectl ...</code>, ou <code>help</code> para ver os outros comandos.') }] };
     }
