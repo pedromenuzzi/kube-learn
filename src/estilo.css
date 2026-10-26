@@ -731,7 +731,7 @@ blockquote.relato footer::before { content: '— '; }
   .divisor { display: none; }
   .janela-topo { touch-action: auto; } /* empilhadas, as janelas não se arrastam: o dedo rola a página */
   /* Nem a alça, nem as setas para os lados, nem a arrumação padrão fazem algo com as janelas empilhadas. */
-  .alca, .janela-mover [data-mover=esquerda], .janela-mover [data-mover=direita], .ex-acoes [data-acao=arrumacao] { display: none; }
+  .janela-mover:has(> .alca), .janela-mover [data-mover=esquerda], .janela-mover [data-mover=direita], .ex-acoes [data-acao=arrumacao] { display: none; }
 }
 
 /* abas */
