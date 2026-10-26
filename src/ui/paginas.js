@@ -142,15 +142,17 @@ export function paginaInicio() {
     const comecou = Object.keys(ler(CHAVES.progresso, {})).length > 0;
     // De volta é quem estudou num dia antes de hoje. No primeiro dia, o herói de boas-vindas fica, com o próximo passo.
     const voltou = comecou && ler(CHAVES.dias, []).some((d) => d < hoje);
-    const dia = comecou && diaDeHoje(j, hoje);
+    const dia = comecou ? diaDeHoje(j, hoje) : null;
+    // Dia cumprido com missão pela frente: sem "mais uma" (nem o "Continue de onde parou:" que a anunciava); o ritual fecha.
+    const fechou = dia?.cumprido && j.proximo;
     main.innerHTML = `
       <section class="heroi">
         <canvas class="navio" aria-hidden="true"></canvas>
         ${voltou ? painelHoje(j, dia) : `<div class="heroi-texto">
           <p class="heroi-selo">${icone('frasco')} ${t('Um cluster de verdade, simulado no navegador')}</p>
           <h1 class="pixel titulo-heroi">${t('Aprenda Kubernetes contêiner por contêiner')}</h1>
-          <p class="chamada">${comecou ? t('Continue de onde parou:') : t('Você escreve YAML, usa o <code>kubectl</code> e vê os pods nascerem, quebrarem e voltarem. Cada missão resolvida embarca um contêiner no seu navio.')}</p>
-          <p class="acoes">${dia.cumprido && j.proximo ? '' : continuar(j, 'botao-grande')} <a class="link-seta" href="#/trilha">${t('Ver a trilha')} ${icone('seguir')}</a></p>
+          ${fechou ? '' : `<p class="chamada">${comecou ? t('Continue de onde parou:') : t('Você escreve YAML, usa o <code>kubectl</code> e vê os pods nascerem, quebrarem e voltarem. Cada missão resolvida embarca um contêiner no seu navio.')}</p>`}
+          <p class="acoes">${fechou ? '' : continuar(j, 'botao-grande')} <a class="link-seta" href="#/trilha">${t('Ver a trilha')} ${icone('seguir')}</a></p>
           ${comecou ? ritual(dia) + lembrete() : `<ul class="vantagens"><li>${icone('certo')} ${t('Sem conta')}</li><li>${icone('certo')} ${t('Sem custo')}</li><li>${icone('certo')} ${t('Tudo fica no seu navegador')}</li></ul>`}
         </div>`}
       </section>

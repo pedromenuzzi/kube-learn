@@ -12,9 +12,10 @@ const TUDO = NIVEIS.flatMap((n) => n.itens.map((i) => i.id));
 
 /**
  * Semeia o localStorage com as datas do navegador: `ontem` (resolvidos de ontem), `hoje` (resolvidos hoje), `tentados`,
- * `plantao` (o de hoje atendido) e `revisao` (todos os cartões respondidos hoje). O dia de ontem conta como dia de estudo.
+ * `plantao` (o de hoje atendido) e `revisao` (todos os cartões respondidos hoje). O dia de ontem conta como dia de estudo,
+ * menos com `primeiroDia` (hoje é o único dia de estudo).
  */
-const semear = (page, perfil) => page.addInitScript(({ ontem = [], hoje = [], tentados = [], plantao = false, revisao = [], idioma = 'pt' }) => {
+const semear = (page, perfil) => page.addInitScript(({ ontem = [], hoje = [], tentados = [], plantao = false, revisao = [], primeiroDia = false, idioma = 'pt' }) => {
   if (sessionStorage.getItem('semeado')) return;
   sessionStorage.setItem('semeado', '1');
   const dia = (n) => {
@@ -28,7 +29,7 @@ const semear = (page, perfil) => page.addInitScript(({ ontem = [], hoje = [], te
   for (const id of hoje) progresso[id] = { status: 'resolvido', em: dia(0) };
   if (plantao) progresso[`plantao-${dia(0)}`] = { status: 'resolvido', em: dia(0) };
   localStorage.setItem('kube-learn:progresso', JSON.stringify(progresso));
-  localStorage.setItem('kube-learn:dias', JSON.stringify([dia(-1), ...(hoje.length ? [dia(0)] : [])]));
+  localStorage.setItem('kube-learn:dias', JSON.stringify([...(primeiroDia ? [] : [dia(-1)]), ...(hoje.length ? [dia(0)] : [])]));
   localStorage.setItem('kube-learn:revisao', JSON.stringify(Object.fromEntries(revisao.map((id) => [id, { caixa: 1, proxima: dia(1) }]))));
   localStorage.setItem('kube-learn:preferencias', JSON.stringify({ tema: 'claro', texto: '100', movimento: 'reduzido', idioma }));
 }, perfil);
@@ -55,6 +56,17 @@ test('primeiro dia: depois do primeiro pod, as boas-vindas continuam, com o pró
   await expect(ritual.locator('li', { hasText: 'Uma missão da trilha' })).toContainText('Feito');
   await expect(ritual.getByRole('link', { name: /Revisão do dia: \d+ cartões/ })).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Dia cumprido' })).toHaveCount(0);
+});
+
+test('primeiro dia cumprido (uma missão e a revisão): as boas-vindas fecham o dia, sem "Continue de onde parou"', async ({ page }) => {
+  await semear(page, { hoje: ['n0-primeiro-pod'], revisao: GLOSSARIO.map((g) => g.id), primeiroDia: true });
+  await page.goto('#/');
+  await expect(page.getByRole('heading', { name: 'Aprenda Kubernetes contêiner por contêiner' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Bom te ver de volta' })).toHaveCount(0);
+  await expect(heroi(page)).not.toContainText('Continue de onde parou');
+  await expect(heroi(page).getByRole('link', { name: /Próxima missão/ })).toHaveCount(0);
+  await expect(heroi(page).getByRole('link', { name: /Ver a trilha/ })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Dia cumprido. Bom descanso, amanhã tem mais.' })).toBeVisible();
 });
 
 test('quem estudou ontem vê o painel Hoje; o Plantão avisa quando abre e a Oficina espera o Nível 2', async ({ page }) => {
