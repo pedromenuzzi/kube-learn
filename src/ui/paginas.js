@@ -6,9 +6,10 @@ import { calcularJornada, sequenciaDeDias, hojeLocal } from '../jogo/gamificacao
 import { somarDias, termosVistos } from '../jogo/revisao.js';
 import { atividadePorDia, calendario, cartoesParaHoje, numerosDosDias } from '../jogo/hoje.js';
 import { plantaoDoDia, NIVEL_DO_PLANTAO } from '../jogo/plantao.js';
+import { marcasDoDia, diaCumprido, lembreteIcs } from '../jogo/ritual.js';
 import { ler, CHAVES } from '../armazenamento.js';
 import { desenharNavio, CORES } from './navio.js';
-import { svgSelo, linkCompartilhar } from './selos.js';
+import { svgSelo, linkCompartilhar, SITE } from './selos.js';
 import { compartilharResultado, htmlCompartilhar, tempoEEntregas, textoDoPlantao } from './compartilhar.js';
 import { escapar, minutosESegundos } from './util.js';
 import { icone } from './icones.js';
@@ -35,16 +36,80 @@ function placar(j) {
 
 const continuar = (j, classe = '') => (j.proximo
   ? `<a class="botao ${classe}" href="#/ex/${j.proximo.id}">${icone('play')}<span>${j.proximo.estado === 'tentado' ? t('Continuar') : t('Próxima missão')}: ${escapar(j.proximo.titulo)}</span></a>`
-  : `<p>${t('Tudo embarcado por aqui. Novos níveis chegam em breve!')}</p>`);
+  : j.navioCheio
+    ? `<a class="botao ${classe}" href="#/certificado">${icone('lacre')}<span>${t('Pegar o seu certificado')}</span></a>`
+    : `<p>${t('Tudo embarcado por aqui. Novos níveis chegam em breve!')}</p>`);
 
-/** O painel de quem volta: a sequência, o próximo passo, a revisão de hoje e o que ficou para depois. */
-function painelHoje(j) {
-  const hoje = hojeLocal();
+// O Plantão do dia traz dois defeitos dos níveis 3 a 7: no painel, ele vira link quando o Nível NIVEL_DO_PLANTAO
+// (jogo/plantao.js) abre. A Oficina usa Deployment: abre com o Nível 2.
+const NIVEL_DA_OFICINA = 2;
+
+/** O dia de hoje: as marcas do ritual, se ele está cumprido, os cartões da revisão e o plantão (null antes do Nível 6). */
+function diaDeHoje(j, hoje) {
+  const progresso = ler(CHAVES.progresso, {});
+  const vistos = termosVistos(GLOSSARIO, j);
+  const cartoes = cartoesParaHoje({ termos: vistos, estado: ler(CHAVES.revisao, {}), hoje });
+  const plantao = j.niveis[NIVEL_DO_PLANTAO].desbloqueado ? plantaoDoDia(hoje) : null;
+  const marcas = marcasDoDia({ jornada: j, progresso, hoje, termos: vistos.length, cartoes, plantao: plantao?.id });
+  return { hoje, marcas, cumprido: diaCumprido(marcas), termos: vistos.length, cartoes, plantao };
+}
+
+/** O ritual do dia: cada marca diz em texto se está feita e, com tudo feito, o dia ganha um fecho (sem "só mais uma"). */
+function ritual(dia) {
+  if (!dia.marcas.length) return '';
+  const rotulo = {
+    missao: () => t('Uma missão da trilha'),
+    revisao: (feito) => (feito ? t('Revisão do dia em dia.')
+      : `<a class="link-seta" href="#/revisao">${t(dia.cartoes === 1 ? 'Revisão do dia: 1 cartão, uns 2 minutos' : 'Revisão do dia: {n} cartões, uns 2 minutos', { n: dia.cartoes })} ${icone('seguir')}</a>`),
+    plantao: (feito) => (feito ? t('Plantão do dia atendido. O morador agradece!')
+      : `<a class="link-seta" href="#/ex/${dia.plantao.id}">${t('Plantão do dia: {titulo}', { titulo: escapar(dia.plantao.titulo) })} ${icone('seguir')}</a>`),
+  };
+  return `
+      <section class="ritual" aria-labelledby="ritual-titulo">
+        <h2 id="ritual-titulo">${t('Ritual do dia')} <span>${t('{n} de {total}', { n: dia.marcas.filter((m) => m.feito).length, total: dia.marcas.length })}</span></h2>
+        <ul>${dia.marcas.map((m) => `
+          <li class="${m.feito ? 'ritual-feito' : 'ritual-falta'}${m.id === 'revisao' ? ' hoje-cartoes' : ''}"><span class="ritual-marca">${m.feito ? `${icone('certo')}${t('Feito')}` : t('A fazer')}</span> <span>${rotulo[m.id](m.feito)}</span></li>`).join('')}
+        </ul>
+        ${dia.cumprido ? `<p class="ritual-fecho" role="status">${icone('certo')} ${t('Dia cumprido. Bom descanso, amanhã tem mais.')}</p>` : ''}
+      </section>`;
+}
+
+/** O lembrete diário: o aluno escolhe a hora e baixa um .ics para a própria agenda (feito aqui; nada sai do navegador). */
+const lembrete = () => `
+      <details class="lembrete">
+        <summary>${icone('relogio')} ${t('Lembrete diário')}</summary>
+        <p class="nota">${t('Escolha a hora e abra o arquivo na sua agenda (Google Agenda, Outlook, celular): ela avisa todo dia. O arquivo é feito aqui mesmo, e nada sai do navegador.')}</p>
+        <form>
+          <label for="lembrete-hora">${t('Horário')}</label>
+          <input id="lembrete-hora" name="hora" type="time" value="19:00" required>
+          <button type="submit">${icone('baixar')} ${t('Baixar o lembrete (.ics)')}</button>
+        </form>
+        <p class="nota lembrete-aviso" role="status"></p>
+      </details>`;
+
+function baixarLembrete(e) {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const hora = form.elements.hora.value;
+  const ics = lembreteIcs({
+    hora, hoje: hojeLocal(), agora: new Date(), url: SITE,
+    titulo: t('kube-learn: hora da sua missão'),
+    descricao: t('Uma missão e a revisão do dia, uns 15 minutos. Pulou um dia? Tudo bem: amanhã tem mais.'),
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
+  a.download = 'kube-learn-lembrete.ics';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000); // depois que o download começou
+  form.nextElementSibling.textContent = t('Lembrete baixado: todo dia às {hora}. Abra o arquivo kube-learn-lembrete.ics para pô-lo na sua agenda.', { hora });
+}
+
+/** O painel de quem volta: a sequência, o próximo passo, o ritual do dia e o que ficou para depois. */
+function painelHoje(j, dia) {
+  const { hoje } = dia;
   const dias = ler(CHAVES.dias, []);
   const n = numerosDosDias(dias, hoje, sequenciaDeDias(dias, hoje));
-  const cartoes = cartoesParaHoje({ termos: termosVistos(GLOSSARIO, j), estado: ler(CHAVES.revisao, {}), hoje });
   const depois = j.niveis.flatMap((x) => x.itens).filter((i) => i.estado === 'tentado' && i.id !== j.proximo?.id).slice(0, 3);
-  const plantao = plantaoDoDia(hoje);
   // Sem cobrança: a sequência quebrada vira convite, e a melhor e o total de dias ficam (o esforço não some).
   const selo = n.atual > 1 ? t('{n} dias seguidos. Bora manter?', { n: n.atual })
     : n.atual === 1 ? t('Primeiro dia da sequência. Amanhã tem mais.')
@@ -59,32 +124,36 @@ function painelHoje(j) {
         <div><dt>${t('Dias de estudo')}</dt><dd>${n.total}</dd></div>
         <div><dt>XP</dt><dd>${j.xp}</dd></div>
       </dl>
-      <p class="acoes">${continuar(j, 'botao-grande')}</p>
-      <p class="hoje-revisao hoje-cartoes">${cartoes
-    ? `<a class="link-seta" href="#/revisao">${icone('cartas')} ${t(cartoes === 1 ? 'Revisão do dia: 1 cartão, uns 2 minutos' : 'Revisão do dia: {n} cartões, uns 2 minutos', { n: cartoes })} ${icone('seguir')}</a>`
-    : `${icone('certo')} ${t('Revisão do dia em dia.')}`}</p>
-      <p class="hoje-revisao hoje-extra">${resolvido(ler(CHAVES.progresso, {}), plantao.id)
-    ? `${icone('certo')} ${t('Plantão do dia atendido. O morador agradece!')}`
-    : `<a class="link-seta" href="#/ex/${plantao.id}">${icone('alerta')} ${t('Plantão do dia: {titulo}', { titulo: escapar(plantao.titulo) })} ${icone('seguir')}</a>`}</p>
-      <p class="hoje-revisao hoje-extra"><a class="link-seta" href="#/oficina">${icone('raio')} ${t('Oficina do kubectl: bata um recorde')} ${icone('seguir')}</a></p>
+      ${dia.cumprido && j.proximo ? '' : `<p class="acoes">${continuar(j, 'botao-grande')}</p>`}
+      ${ritual(dia)}
+      ${dia.termos ? '' : `<p class="hoje-revisao hoje-extra">${icone('cartas')} ${t('A revisão começa quando você resolver uma missão.')}</p>`}
+      ${dia.plantao ? '' : `<p class="hoje-revisao hoje-extra">${icone('cadeado')} ${t('Plantão do dia: abre no Nível {n}', { n: NIVEL_DO_PLANTAO })}</p>`}
+      ${j.niveis[NIVEL_DA_OFICINA].desbloqueado ? `<p class="hoje-revisao hoje-extra"><a class="link-seta" href="#/oficina">${icone('raio')} ${t('Oficina do kubectl: bata um recorde')} ${icone('seguir')}</a></p>` : ''}
       <p class="hoje-revisao hoje-extra"><a class="link-seta" href="#/diario">${icone('livro')} ${t('Seu diário de bordo')} ${icone('seguir')}</a></p>
       ${depois.length ? `<div class="hoje-depois"><p>${t('Ficaram para depois:')}</p><ul>${depois.map((i) => `<li><a href="#/ex/${i.id}">${escapar(i.titulo)}</a></li>`).join('')}</ul></div>` : ''}
+      ${lembrete()}
     </div>`;
 }
 
 export function paginaInicio() {
   return (main) => {
     const j = jornadaAtual();
-    const voltou = Object.keys(ler(CHAVES.progresso, {})).length > 0;
+    const hoje = hojeLocal();
+    const comecou = Object.keys(ler(CHAVES.progresso, {})).length > 0;
+    // De volta é quem estudou num dia antes de hoje. No primeiro dia, o herói de boas-vindas fica, com o próximo passo.
+    const voltou = comecou && ler(CHAVES.dias, []).some((d) => d < hoje);
+    const dia = comecou ? diaDeHoje(j, hoje) : null;
+    // Dia cumprido com missão pela frente: sem "mais uma" (nem o "Continue de onde parou:" que a anunciava); o ritual fecha.
+    const fechou = dia?.cumprido && j.proximo;
     main.innerHTML = `
       <section class="heroi">
         <canvas class="navio" aria-hidden="true"></canvas>
-        ${voltou ? painelHoje(j) : `<div class="heroi-texto">
+        ${voltou ? painelHoje(j, dia) : `<div class="heroi-texto">
           <p class="heroi-selo">${icone('frasco')} ${t('Um cluster de verdade, simulado no navegador')}</p>
           <h1 class="pixel titulo-heroi">${t('Aprenda Kubernetes contêiner por contêiner')}</h1>
-          <p class="chamada">${t('Você escreve YAML, usa o <code>kubectl</code> e vê os pods nascerem, quebrarem e voltarem. Cada missão resolvida embarca um contêiner no seu navio.')}</p>
-          <p class="acoes">${continuar(j, 'botao-grande')} <a class="link-seta" href="#/trilha">${t('Ver a trilha')} ${icone('seguir')}</a></p>
-          <ul class="vantagens"><li>${icone('certo')} ${t('Sem conta')}</li><li>${icone('certo')} ${t('Sem custo')}</li><li>${icone('certo')} ${t('Tudo fica no seu navegador')}</li></ul>
+          ${fechou ? '' : `<p class="chamada">${comecou ? t('Continue de onde parou:') : t('Você escreve YAML, usa o <code>kubectl</code> e vê os pods nascerem, quebrarem e voltarem. Cada missão resolvida embarca um contêiner no seu navio.')}</p>`}
+          <p class="acoes">${fechou ? '' : continuar(j, 'botao-grande')} <a class="link-seta" href="#/trilha">${t('Ver a trilha')} ${icone('seguir')}</a></p>
+          ${comecou ? ritual(dia) + lembrete() : `<ul class="vantagens"><li>${icone('certo')} ${t('Sem conta')}</li><li>${icone('certo')} ${t('Sem custo')}</li><li>${icone('certo')} ${t('Tudo fica no seu navegador')}</li></ul>`}
         </div>`}
       </section>
       ${voltou ? '' : `<section class="cartoes" aria-label="${t('Como funciona')}">
@@ -92,6 +161,7 @@ export function paginaInicio() {
         <article><span class="cartao-icone">${icone('casa')}</span><h2>${t('Vida real em tudo')}</h2><p>${t('Pod é apartamento, Service é ramal, limite de memória é disjuntor. E cada comparação diz onde deixa de valer. <a href="#/glossario">Veja o glossário</a>.')}</p></article>
         <article><span class="cartao-icone">${icone('trilha')}</span><h2>${t('Seu navio enche')}</h2><p>${t('Cada missão embarca um contêiner com a cor do nível; com 70% de um nível, o próximo abre. Até onde a pilha aguenta?')}</p></article>
       </section>`}`;
+    main.querySelector('.lembrete form')?.addEventListener('submit', baixarLembrete);
     return { destruir: desenharNavio(main.querySelector('canvas'), j) };
   };
 }
