@@ -4,8 +4,8 @@ export default {
   'erro interno do simulador: {erro}': 'internal simulator error: {erro}',
   'O simulador tropeçou': 'The simulator tripped',
   'Isso é um defeito nosso, não seu. Se puder, conte pelo botão <b>Feedback</b>: ele já leva os últimos comandos.': 'That’s our bug, not yours. If you can, tell us with the <b>Feedback</b> button: it already includes your last commands.',
-  'Idioma trocado. O cluster continua como estava (↑ traz os comandos de antes).': 'Language switched. The cluster is just as you left it (↑ brings back your earlier commands).',
-  'Cluster pronto (1 control plane + 2 workers). Digite help para ajuda.': 'Cluster ready (1 control plane + 2 workers). Type help for help.',
+  'Seu cluster continua como você deixou (Resetar cluster recomeça).': 'Your cluster is just as you left it (Reset cluster starts over).',
+  'Cluster pronto. Digite help para ajuda.': 'Cluster ready. Type help for help.',
   'Nesta missão, use o terminal.': 'In this mission, use the terminal.',
 
   // exercicio.js: o help do terminal
@@ -82,6 +82,9 @@ export default {
   '{ok} de {total} passaram (só os visíveis)': '{ok} of {total} passed (visible only)',
   'Incidente resolvido! O morador agradece.': 'Incident solved! The resident thanks you.',
   'Missão cumprida! +{xp} XP. Mais um contêiner embarcado no seu navio.': 'Mission accomplished! +{xp} XP. One more container loaded aboard your ship.',
+  'Lição concluída! +{xp} XP. Mais um contêiner embarcado no seu navio.': 'Lesson complete! +{xp} XP. One more container loaded aboard your ship.',
+  'Resolvida de novo: bom treino!': 'Solved again: good practice!',
+  'Aplicado! Agora siga os passos da missão.': 'Applied! Now follow the mission’s steps.',
   'Veja o que faltou na aba Testes.': 'See what’s missing on the Tests tab.',
   'Testes visíveis: {ok} de {total} passaram. Agora é só entregar.': 'Visible tests: {ok} of {total} passed. Now just submit.',
   'Testes visíveis: {ok} de {total} passaram. Veja a aba Testes.': 'Visible tests: {ok} of {total} passed. See the Tests tab.',
