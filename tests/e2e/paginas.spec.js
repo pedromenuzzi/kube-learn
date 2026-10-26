@@ -112,3 +112,31 @@ test('preferências: tema e tamanho do texto ficam salvos', async ({ page }) => 
   await expect(page.locator('html')).toHaveAttribute('data-tema', 'contraste');
   await expect(page.locator('html')).toHaveAttribute('data-texto', '125');
 });
+
+// O "pular para o conteúdo" leva o foco ao <main> e a página fica (seguir o href #conteudo abria a 404).
+for (const ingles of [false, true]) {
+  for (const [largura, altura] of [[1280, 800], [390, 844]]) {
+    test(`pular para o conteúdo: o foco vai ao <main> sem trocar a página (${largura}px${ingles ? ', em inglês' : ''})`, async ({ page }) => {
+      await page.setViewportSize({ width: largura, height: altura });
+      if (ingles) await page.addInitScript(() => localStorage.setItem('kube-learn:preferencias', JSON.stringify({ idioma: 'en' })));
+      for (const rota of ['#/trilha', '#/ex/n0-primeiro-pod', '#/glossario']) {
+        await page.goto(rota);
+        await page.reload(); // página recém-aberta: o primeiro Tab cai no link
+        await page.waitForSelector('main#conteudo > *');
+        const titulo = await page.title();
+        await page.keyboard.press('Tab');
+        await expect(page.locator('.pular')).toBeFocused();
+        await expect(page.locator('.pular')).toHaveText(ingles ? 'Skip to content' : 'Pular para o conteúdo');
+        await page.keyboard.press('Enter');
+        await expect(page.locator('main#conteudo')).toBeFocused();
+        expect(await page.evaluate(() => location.hash)).toBe(rota);
+        await expect(page).toHaveTitle(titulo);
+        await expect(page.locator('main')).not.toContainText(/Página não encontrada|Page not found/);
+        if (rota.startsWith('#/ex/')) {
+          await page.keyboard.press('Tab');
+          await expect(page.locator('a.voltar')).toBeFocused();
+        }
+      }
+    });
+  }
+}
