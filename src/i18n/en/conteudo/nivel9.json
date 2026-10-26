@@ -114,6 +114,12 @@
     "testes": [
       {
         "descricao": "the incident is resolved"
+      },
+      {
+        "descricao": "the safety locks are still there",
+        "msgs": {
+          "0": "the readinessProbe still asks at /healthz: removing the smoke detector doesn’t put out the fire"
+        }
       }
     ]
   },
@@ -279,6 +285,12 @@
     "testes": [
       {
         "descricao": "the incident is resolved"
+      },
+      {
+        "descricao": "the safety locks are still there",
+        "msgs": {
+          "0": "the painting crew (the init container) is still waiting for the database: dismissing the wait doesn’t make the database arrive"
+        }
       }
     ]
   }

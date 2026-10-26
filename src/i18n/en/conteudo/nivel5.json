@@ -74,6 +74,12 @@
         "msgs": {
           "0": "the Job migracao finished successfully"
         }
+      },
+      {
+        "descricao": "the safety locks are still there",
+        "msgs": {
+          "0": "the migration is still in the command (the log says “migrando o banco”): swapping the work for exit 0 migrates nothing"
+        }
       }
     ]
   },
@@ -108,10 +114,7 @@
     "rotuloResposta": "How many files?",
     "testes": [
       {
-        "descricao": "the backup ran now",
-        "msgs": {
-          "0": "you created the Job from the CronJob"
-        }
+        "descricao": "the backup ran now"
       }
     ]
   },

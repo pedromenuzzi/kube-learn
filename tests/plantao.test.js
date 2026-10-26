@@ -5,8 +5,16 @@ import { CENARIOS, DEFEITOS, DUPLAS, montarPlantao, plantaoDoDia } from '../src/
 import { acharItem, proximoDe } from '../src/conteudo/index.js';
 import { rodarTestes } from '../src/verificacoes.js';
 import { aluno } from './trilha.js';
+import { definirIdioma } from '../src/i18n.js';
 
 const tipos = Object.keys(DEFEITOS);
+// Os atalhos que parecem conserto: tirar a sonda, o limite ou a variável faz o pod subir, mas deixa a trava de fora.
+const ATALHOS = {
+  'apagar a readinessProbe': (y) => y.replace(/ +readinessProbe:\n +httpGet:\n +path: .*\n +port: .*\n/, ''),
+  'apagar a livenessProbe': (y) => y.replace(/ +livenessProbe:\n +tcpSocket:\n +port: .*\n/, ''),
+  'apagar o limits.memory': (y) => y.replace(/ +limits:\n +memory: .*\n/, ''),
+  'apagar o env': (y) => y.replace(/ +env:\n(?: +.*\n)*? +key: .*\n/, ''),
+};
 const duplas = tipos.flatMap((a, i) => tipos.slice(i + 1).flatMap((b) => DEFEITOS[a].flatMap((da, x) => DEFEITOS[b].map((db, y) => [`${a}${x} + ${b}${y}`, da, db]))));
 
 describe('o Plantão do dia', () => {
@@ -35,12 +43,33 @@ describe('o Plantão do dia', () => {
   });
 
   duplas.forEach(([nome, a, b], i) => {
-    it(`${nome}: o conserto passa e o começo falha`, () => {
+    it(`${nome}: o conserto passa, o começo falha e tirar a trava não conserta`, () => {
       const item = montarPlantao(`plantao-teste-${i}`, CENARIOS[i % CENARIOS.length], [a, b]);
       const certo = rodarTestes(item, aluno(item, { resolvido: true }), { todos: true });
       expect(certo.flatMap((t) => t.regras.filter((x) => !x.ok).map((x) => `${x.mensagem} (${x.detalhe})`))).toEqual([]);
       const quebrado = rodarTestes(item, aluno(item, { resolvido: false }), { todos: true });
       expect(quebrado.some((t) => !t.ok)).toBe(true);
+      const passam = Object.entries(ATALHOS).filter(([, tirar]) => {
+        const mudar = (arqs) => ({ ...arqs, 'deployment.yaml': tirar(arqs['deployment.yaml']) });
+        return rodarTestes(item, aluno(item, { resolvido: true }, { mudar }), { todos: true }).every((t) => t.ok);
+      });
+      expect(passam.map(([atalho]) => atalho)).toEqual([]);
     });
+  });
+
+  it('os atalhos tiram mesmo o pedaço (senão o teste acima não prova nada)', () => {
+    const certo = montarPlantao('plantao-atalhos', CENARIOS[0], []).solucao['deployment.yaml'];
+    for (const [atalho, tirar] of Object.entries(ATALHOS)) expect(tirar(certo), atalho).not.toBe(certo);
+  });
+
+  it('em inglês, as descrições dos testes saem em inglês', async () => {
+    await definirIdioma('en', { salvar: false });
+    try {
+      const item = plantaoDoDia('2026-10-22');
+      expect(item.testes.map((t) => t.descricao)).toEqual(['the incident is resolved', 'the safety locks are still there']);
+      expect(item.testes[1].regras.some((r) => /detector/.test(r.msg ?? ''))).toBe(true);
+    } finally {
+      await definirIdioma('pt', { salvar: false });
+    }
   });
 });

@@ -179,6 +179,12 @@
     "testes": [
       {
         "descricao": "the guard got into the safe"
+      },
+      {
+        "descricao": "the safety locks are still there",
+        "msgs": {
+          "0": "the cofre namespace still has the restricted standard: tearing up the fire code doesn’t make the guard any safer"
+        }
       }
     ]
   }

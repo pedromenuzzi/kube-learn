@@ -120,7 +120,7 @@ export const OFICINA = [
     limite: 'A planta gerada vem com o básico: probes, recursos e o resto você ainda acrescenta no arquivo.',
     solucaoTerminal: ['kubectl create deployment api --image=kubelearn/loja:1.0 --replicas=3 --dry-run=client -o yaml > api.yaml', 'kubectl apply -f api.yaml'],
     testes: noCluster('a api foi gerada, gravada e aplicada', [
-      { comando: '--dry-run=client\\s+-o\\s+yaml\\s*>\\s*api\\.yaml', msg: 'você gerou o YAML com --dry-run=client -o yaml > api.yaml' },
+      { comando: '^kubectl\\s+create(?=.*\\s--dry-run=client\\b)(?=.*\\s-o\\s+yaml\\b)(?=.*>\\s*api\\.yaml\\b)', msg: 'você gerou o YAML com --dry-run=client -o yaml > api.yaml' },
       { objeto: 'deployment/api', campo: 'spec.replicas', igual: 3 },
       { objeto: 'deployment/api', campo: 'spec.template.spec.containers[0].image', igual: 'kubelearn/loja:1.0' },
     ]),
@@ -184,8 +184,8 @@ export const OFICINA = [
     limite: 'A label vai nos pods de agora: um pod novo do Deployment nasce sem ela (para durar, a label vai no template).',
     solucaoTerminal: ['kubectl label pods -l app=vitrine tier=frontend', 'kubectl get pods -l tier=frontend'],
     testes: noCluster('os pods da vitrine estão etiquetados', [
-      { comando: '^kubectl\\s+label\\s+pods?\\s+(.*\\s)?-l\\s*app=vitrine', msg: 'você etiquetou pelo seletor (-l app=vitrine)' },
-      { comando: '^kubectl\\s+get\\s+pods?\\s+(.*\\s)?-l\\s*tier=frontend', msg: 'você listou com -l tier=frontend' },
+      { comando: '^kubectl\\s+label(?=.*\\s(po|pods?)\\s)(?=.*\\s-l\\s*app=vitrine(\\s|$))(?=.*\\stier=frontend(\\s|$))', msg: 'você etiquetou pelo seletor (-l app=vitrine)' },
+      { comando: '^kubectl\\s+get(?=.*\\s(po|pods?)(\\s|$))(?=.*\\s-l\\s*tier=frontend(\\s|$))', msg: 'você listou com -l tier=frontend' },
       { pods: 'tier=frontend', quantidade: 2 },
     ]),
   }),

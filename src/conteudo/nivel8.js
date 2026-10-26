@@ -789,6 +789,15 @@ spec:
     manual: ['pod.spec.securityContext', 'pod.spec.containers.securityContext'],
     inicial: { 'guarda.yaml': guarda(false) },
     solucao: { 'guarda.yaml': guarda(true) },
-    testes: [depois('o guarda entrou no cofre', [{ semErros: true }, { pods: 'app=guarda', ns: 'cofre', prontos: 1 }])],
+    testes: [
+      depois('o guarda entrou no cofre', [{ semErros: true }, { pods: 'app=guarda', ns: 'cofre', prontos: 1 }]),
+      depois('as travas de segurança continuam lá', [
+        { objeto: 'namespace/cofre', campo: 'metadata.labels["pod-security.kubernetes.io/enforce"]', igual: 'restricted', msg: 'o namespace cofre continua com a norma restricted: rasgar a norma não deixa o guarda mais seguro' },
+      ], { oculto: true }),
+    ],
+    armadilhas: [{
+      descricao: 'afrouxar o namespace para privileged, sem mexer no guarda',
+      arquivos: { 'cofre.yaml': 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: cofre\n  labels:\n    pod-security.kubernetes.io/enforce: privileged\n', 'guarda.yaml': guarda(false) },
+    }],
   }),
 ];
