@@ -1,5 +1,7 @@
 // O que faz voltar: o painel Hoje de quem volta, o número de cartões na aba Revisão e a escada de ajuda depois de errar.
 import { test, expect } from '@playwright/test';
+import { NIVEIS } from '../../src/conteudo/index.js';
+import { GLOSSARIO } from '../../src/conteudo/glossario.js';
 
 const QUIZZES = ['n0-quiz-imagem-conteiner', 'n0-quiz-quantos', 'n0-quiz-referencia'];
 const comProgresso = (page, ids, dias = []) => page.addInitScript(([lista, d]) => {
@@ -39,4 +41,36 @@ test('a segunda entrega errada mostra a dica; a terceira, o caminho para a solu�
   await expect(page.locator('.ex-aviso .aviso-ajuda')).toContainText(/Manual|Solução/);
   await page.locator('.ex-aviso').getByRole('button', { name: /Abrir/ }).click();
   await expect(page.getByRole('tab', { selected: true }).first()).toHaveText(/Manual|Solução/);
+});
+
+test('mais vencidos que a revisão do dia: a sessão e a aba dizem o mesmo, e feitos os 10 não vem uma segunda sessão', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-26T12:00:00'));
+  // os níveis 0 a 2 feitos (24 termos vistos), 15 deles vencidos desde o dia 20
+  await page.addInitScript(([ids, vencidos]) => {
+    if (sessionStorage.getItem('semeado')) return;
+    sessionStorage.setItem('semeado', '1');
+    localStorage.setItem('kube-learn:progresso', JSON.stringify(Object.fromEntries(ids.map((i) => [i, { status: 'resolvido', em: '2026-10-20' }]))));
+    localStorage.setItem('kube-learn:revisao', JSON.stringify(Object.fromEntries(vencidos.map((id) => [id, { caixa: 2, proxima: '2026-10-20' }]))));
+  }, [NIVEIS.slice(0, 3).flatMap((n) => n.itens.map((i) => i.id)), GLOSSARIO.filter((g) => g.nivel <= 2).slice(0, 15).map((g) => g.id)]);
+  const responder = async (n) => {
+    for (let k = 0; k < n; k++) {
+      await page.locator('.cartao-revisao input[type=radio]').first().check();
+      await page.locator('.cartao-revisao button[type=submit]').click();
+      await page.locator('[data-proximo]').click();
+    }
+  };
+  const contagem = page.locator('.nav .contagem');
+  await page.goto('#/revisao');
+  await expect(page.getByText('Cartão 1 de 10')).toBeVisible();
+  await expect(contagem).toContainText('10');
+  await responder(3);
+  await page.reload(); // parou no meio: o resto da mesma sessão, e a aba conta o mesmo
+  await expect(page.getByText('Cartão 1 de 7')).toBeVisible();
+  await expect(contagem).toContainText('7');
+  await responder(7);
+  await expect(page.getByText(/Revisão feita: \d+ de 7 certos\./)).toBeVisible();
+  await page.goto('#/');
+  await page.goto('#/revisao'); // os 5 vencidos que sobraram esperam amanhã
+  await expect(page.getByText('Tudo revisado por hoje.')).toBeVisible();
+  await expect(contagem).toBeHidden();
 });

@@ -18,8 +18,8 @@ describe('o hoje do aluno', () => {
     const estado = { a: { caixa: 2, proxima: '2026-10-24' }, b: { caixa: 1, proxima: '2026-10-21' } };
     expect(cartoesParaHoje({ termos, estado, hoje: HOJE })).toBe(3);
     expect(cartoesParaHoje({ termos, estado, hoje: HOJE, max: 2 })).toBe(1); // a sessão de 2 era b e a: falta só o vencido b
-    estado.c = { caixa: 1, proxima: '2026-10-23' }; // c respondido hoje também: nenhum novo cabe, fica só o vencido b
-    expect(cartoesParaHoje({ termos, estado, hoje: HOJE, max: 2 })).toBe(1);
+    estado.c = { caixa: 1, proxima: '2026-10-23' }; // c respondido hoje também: a revisão de 2 do dia acabou, b espera amanhã
+    expect(cartoesParaHoje({ termos, estado, hoje: HOJE, max: 2 })).toBe(0);
   });
 
   it('parou no meio de uma sessão com vencidos: os vencidos que faltam ocupam lugar, nenhum novo a mais entra', () => {
@@ -33,12 +33,28 @@ describe('o hoje do aluno', () => {
     expect(cartoesParaHoje({ termos: muitos, estado: depois, hoje: HOJE })).toBe(7);
   });
 
-  it('depois da sessão do dia: os novos não voltam a cobrar, só um vencido', () => {
+  it('depois da sessão do dia: nada volta a cobrar, nem um vencido (ele espera até amanhã)', () => {
     const muitos = Array.from({ length: 30 }, (_, i) => ({ id: `t${i}` }));
     const estado = Object.fromEntries(muitos.slice(0, 10).map((g) => [g.id, { caixa: 1, proxima: '2026-10-23' }])); // os 10 de hoje
     expect(cartoesParaHoje({ termos: muitos, estado, hoje: HOJE })).toBe(0);
     estado.t29 = { caixa: 3, proxima: '2026-10-22' }; // um vencido de outro dia
-    expect(cartoesParaHoje({ termos: muitos, estado, hoje: HOJE })).toBe(1);
+    expect(cartoesParaHoje({ termos: muitos, estado, hoje: HOJE })).toBe(0);
+  });
+
+  it('mais vencidos que a sessão do dia: a sessão e a aba dizem o mesmo a cada resposta, e os que sobram esperam amanhã', () => {
+    const muitos = Array.from({ length: 35 }, (_, i) => ({ id: `t${i}` }));
+    const estado = Object.fromEntries(muitos.slice(0, 15).map((g) => [g.id, { caixa: 2, proxima: '2026-10-20' }])); // 15 vencidos
+    const sessao = termosDeHoje({ termos: muitos, estado, hoje: HOJE });
+    expect(sessao.map((g) => g.id)).toEqual(muitos.slice(0, 10).map((g) => g.id)); // só vencidos, 10 deles
+    expect(cartoesParaHoje({ termos: muitos, estado, hoje: HOJE })).toBe(10);
+    let depois = estado;
+    sessao.forEach((g, k) => {
+      depois = responder(depois, g.id, k % 3 !== 0, HOJE);
+      expect(cartoesParaHoje({ termos: muitos, estado: depois, hoje: HOJE })).toBe(sessao.length - k - 1);
+    });
+    expect(termosDeHoje({ termos: muitos, estado: depois, hoje: HOJE })).toEqual([]); // reabrir não traz uma segunda sessão
+    expect(termosDeHoje({ termos: muitos, estado: depois, hoje: somarDias(HOJE, 1) }).map((g) => g.id)) // amanhã: os 5 que sobraram vêm
+      .toEqual(expect.arrayContaining(muitos.slice(10, 15).map((g) => g.id)));
   });
 
   it('o número da aba e do painel é o tamanho da sessão, antes, durante e depois de revisar', () => {

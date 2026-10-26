@@ -31,17 +31,17 @@ export function termosVistos(glossario, jornada) {
 const respondidosHoje = (estado, hoje) => Object.values(estado).filter((e) => e.proxima === somarDias(hoje, INTERVALOS[e.caixa - 1])).length;
 
 /**
- * Os termos da revisão de hoje: primeiro os vencidos (das caixas mais baixas), depois os novos, até `max`. Os termos novos
- * do dia cabem numa sessão só: quem já respondeu `max` cartões hoje não recebe termo novo, só os vencidos (quem parou no
- * meio recebe o resto). É a mesma conta da sessão (montarSessao), do número da aba e do painel Hoje.
- * `estado`: { [idDoTermo]: { caixa, proxima } }. O estado de um termo que não está em `termos` fica guardado, parado.
+ * Os termos da revisão de hoje: primeiro os vencidos (das caixas mais baixas), depois os novos. `max` é a revisão do dia
+ * inteira, vencidos incluídos: quem já respondeu `max` cartões hoje não recebe mais nenhum (quem parou no meio recebe o
+ * resto), e os vencidos que não couberam esperam até amanhã. É a mesma conta da sessão (montarSessao), do número da aba e
+ * do painel Hoje. `estado`: { [idDoTermo]: { caixa, proxima } }. O estado de um termo que não está em `termos` fica
+ * guardado, parado.
  */
 export function termosDeHoje({ termos, estado = {}, hoje, max = POR_DIA }) {
   const vencidos = termos.filter((g) => estado[g.id] && estado[g.id].proxima <= hoje)
     .sort((a, b) => estado[a.id].caixa - estado[b.id].caixa || estado[a.id].proxima.localeCompare(estado[b.id].proxima));
-  // os novos ocupam só o que sobra da sessão do dia: o já respondido e os vencidos que ainda faltam também contam
-  const novos = termos.filter((g) => !estado[g.id]).slice(0, Math.max(0, max - respondidosHoje(estado, hoje) - vencidos.length));
-  return [...vencidos, ...novos].slice(0, max);
+  const novos = termos.filter((g) => !estado[g.id]);
+  return [...vencidos, ...novos].slice(0, Math.max(0, max - respondidosHoje(estado, hoje)));
 }
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);

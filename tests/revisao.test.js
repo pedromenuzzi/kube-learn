@@ -193,18 +193,18 @@ describe('a revisão de hoje', () => {
   const HOJE = '2026-10-20';
   const nivel01 = GLOSSARIO.filter((g) => g.nivel <= 1);
 
-  it('depois de responder os 10 cartões, reabrir não traz termo novo; só um vencido de outro dia', () => {
+  it('depois de responder os 10 cartões, reabrir não traz nada: nem termo novo, nem um vencido de outro dia', () => {
     const sessao = montarSessao({ termos: nivel01, hoje: HOJE, todos: GLOSSARIO });
     expect(sessao).toHaveLength(10);
     let estado = {};
     for (const c of sessao) estado = responder(estado, c.id, true, HOJE);
     expect(montarSessao({ termos: nivel01, estado, hoje: HOJE, todos: GLOSSARIO })).toEqual([]);
     expect(termosDeHoje({ termos: nivel01, estado, hoje: HOJE })).toEqual([]);
-    // um cartão de outro dia que vence hoje ainda vem (só ele)
+    // um cartão de outro dia que vence hoje espera até amanhã: os 10 são a revisão do dia inteira
     const fora = nivel01.find((g) => !estado[g.id]);
     estado = { ...estado, [fora.id]: { caixa: 2, proxima: HOJE } };
-    expect(montarSessao({ termos: nivel01, estado, hoje: HOJE, todos: GLOSSARIO }).map((c) => c.id)).toEqual([fora.id]);
-    // amanhã, os novos voltam
+    expect(montarSessao({ termos: nivel01, estado, hoje: HOJE, todos: GLOSSARIO })).toEqual([]);
+    // amanhã, a revisão volta, com 10 cartões
     expect(montarSessao({ termos: nivel01, estado, hoje: somarDias(HOJE, 1), todos: GLOSSARIO }).length).toBe(10);
   });
 
