@@ -39,7 +39,8 @@ const respondidosHoje = (estado, hoje) => Object.values(estado).filter((e) => e.
 export function termosDeHoje({ termos, estado = {}, hoje, max = POR_DIA }) {
   const vencidos = termos.filter((g) => estado[g.id] && estado[g.id].proxima <= hoje)
     .sort((a, b) => estado[a.id].caixa - estado[b.id].caixa || estado[a.id].proxima.localeCompare(estado[b.id].proxima));
-  const novos = termos.filter((g) => !estado[g.id]).slice(0, Math.max(0, max - respondidosHoje(estado, hoje)));
+  // os novos ocupam só o que sobra da sessão do dia: o já respondido e os vencidos que ainda faltam também contam
+  const novos = termos.filter((g) => !estado[g.id]).slice(0, Math.max(0, max - respondidosHoje(estado, hoje) - vencidos.length));
   return [...vencidos, ...novos].slice(0, max);
 }
 

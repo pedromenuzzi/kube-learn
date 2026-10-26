@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { atividadePorDia, calendario, cartoesParaHoje, numerosDosDias } from '../src/jogo/hoje.js';
-import { montarSessao, responder, somarDias } from '../src/jogo/revisao.js';
+import { montarSessao, responder, somarDias, termosDeHoje } from '../src/jogo/revisao.js';
 import { GLOSSARIO } from '../src/conteudo/glossario.js';
 
 const termos = ['a', 'b', 'c', 'd'].map((id) => ({ id }));
@@ -17,9 +17,20 @@ describe('o hoje do aluno', () => {
     // a respondido hoje na caixa 2 (volta em 2 dias); b vencido de outro dia; c e d novos
     const estado = { a: { caixa: 2, proxima: '2026-10-24' }, b: { caixa: 1, proxima: '2026-10-21' } };
     expect(cartoesParaHoje({ termos, estado, hoje: HOJE })).toBe(3);
-    expect(cartoesParaHoje({ termos, estado, hoje: HOJE, max: 2 })).toBe(2); // numa sessão de 2, cabe só mais 1 novo: b e c
-    estado.c = { caixa: 1, proxima: '2026-10-23' }; // c respondido hoje também: a sessão de 2 acabou, fica só o vencido b
+    expect(cartoesParaHoje({ termos, estado, hoje: HOJE, max: 2 })).toBe(1); // a sessão de 2 era b e a: falta só o vencido b
+    estado.c = { caixa: 1, proxima: '2026-10-23' }; // c respondido hoje também: nenhum novo cabe, fica só o vencido b
     expect(cartoesParaHoje({ termos, estado, hoje: HOJE, max: 2 })).toBe(1);
+  });
+
+  it('parou no meio de uma sessão com vencidos: os vencidos que faltam ocupam lugar, nenhum novo a mais entra', () => {
+    const muitos = Array.from({ length: 20 }, (_, i) => ({ id: `t${i}` }));
+    const estado = Object.fromEntries(muitos.slice(0, 5).map((g) => [g.id, { caixa: 1, proxima: '2026-10-20' }])); // 5 vencidos
+    const sessao = termosDeHoje({ termos: muitos, estado, hoje: HOJE }); // os termos que a sessão monta
+    expect(sessao.map((g) => g.id)).toEqual(muitos.slice(0, 10).map((g) => g.id)); // 5 vencidos + 5 novos
+    let depois = estado;
+    for (const g of sessao.slice(0, 3)) depois = responder(depois, g.id, true, HOJE); // respondeu 3 vencidos e recarregou
+    expect(termosDeHoje({ termos: muitos, estado: depois, hoje: HOJE }).map((g) => g.id)).toEqual(muitos.slice(3, 10).map((g) => g.id));
+    expect(cartoesParaHoje({ termos: muitos, estado: depois, hoje: HOJE })).toBe(7);
   });
 
   it('depois da sessão do dia: os novos não voltam a cobrar, só um vencido', () => {
