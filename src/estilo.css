@@ -510,6 +510,28 @@ dialog.festa-cartao canvas.navio { width: auto; max-width: 100%; max-height: min
 .hoje .hoje-depois p { margin: 0 0 0.3rem; color: var(--suave); font-weight: 700; }
 .hoje .hoje-depois ul { margin: 0; padding-left: 1.2rem; }
 @media (max-width: 40rem) { .hoje .hoje-numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* o ritual do dia e o lembrete diário (o painel Hoje e o primeiro dia) */
+.ritual { margin: 1rem 0 0; padding: 0.75rem 0.9rem; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--superficie-2); }
+.ritual h2 { display: flex; justify-content: space-between; gap: 0.5rem; margin: 0 0 0.5rem; font-size: 0.95rem; }
+.ritual h2 span { color: var(--suave); font-size: 0.85rem; }
+.ritual ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; }
+.ritual li { display: flex; align-items: center; gap: 0.55rem; }
+.ritual-marca { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 0.2rem; min-width: 5.4rem; padding: 0.05rem 0.5rem; border-radius: 999px; border: 1px dashed var(--borda-forte); font-size: 0.75rem; font-weight: 700; color: var(--suave); }
+.ritual-marca .icone { width: 0.95rem; height: 0.95rem; }
+.ritual-feito .ritual-marca { border-style: solid; color: var(--ok); background: var(--ok-suave); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
+.ritual-fecho { display: flex; align-items: center; gap: 0.4rem; margin: 0.65rem 0 0; font-weight: 700; color: var(--ok); }
+.lembrete { margin-top: 0.9rem; font-size: 0.92rem; }
+.lembrete summary { font-weight: 700; color: var(--suave); }
+.lembrete summary .icone { width: 1.05rem; height: 1.05rem; vertical-align: -0.2em; }
+.lembrete .nota { margin: 0.5rem 0; }
+.lembrete form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.lembrete input[type=time] { font: inherit; color: var(--texto); background: var(--superficie); border: 1px solid var(--borda-forte); border-radius: var(--raio); padding: 0.4rem 0.6rem; min-height: 2.5rem; }
+/* No desktop o painel fica sobre o navio; mais alto que ele (o lembrete aberto), o herói cresce junto e não cobre o rodapé. */
+@media (min-width: 64rem) {
+  .heroi { display: grid; align-items: start; }
+  .heroi > * { grid-area: 1 / 1; }
+  .heroi > .heroi-texto { position: relative; top: auto; left: auto; margin: 1.75rem; }
+}
 
 /* a Oficina do kubectl: a lista de exercícios com o recorde de cada um */
 ol.oficina { list-style: none; padding: 0; margin: 1rem 0 0; display: grid; gap: 0.5rem; counter-reset: exercicio; }
