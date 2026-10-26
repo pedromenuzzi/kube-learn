@@ -527,6 +527,8 @@ ol.plantoes .oficina-titulo::before, ol.diario-recentes .oficina-titulo::before 
 .diario-numeros div { padding: 0.6rem 0.75rem; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--superficie); box-shadow: var(--sombra-1); }
 .diario-numeros dt { font-size: 0.75rem; font-weight: 700; color: var(--suave); }
 .diario-numeros dd { margin: 0.25rem 0 0; font-family: var(--pixel); font-size: 0.95rem; }
+/* O valor fica no pé do cartão: alinhado com os vizinhos mesmo quando o rótulo quebra em duas linhas. */
+.hoje .hoje-numeros div, .diario-numeros div { display: flex; flex-direction: column; justify-content: space-between; }
 .diario-bloco { margin-top: 1.8rem; }
 .calendario { display: flex; gap: 3px; overflow-x: auto; padding-bottom: 0.3rem; }
 .cal-semana { display: grid; grid-template-rows: repeat(7, auto); gap: 3px; }
