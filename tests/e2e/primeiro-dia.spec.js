@@ -44,6 +44,13 @@ test('primeiro dia: depois do primeiro pod e da primeira lição, as boas-vindas
   for (let i = 0; i < 2; i++) await page.getByRole('button', { name: '+30s' }).click();
   await page.getByRole('button', { name: 'Entregar' }).click();
   await expect.poll(() => status('n0-primeiro-pod')).toBe('resolvido');
+  // só o primeiro pod: nenhum cartão ainda, e o dia não fecha (a revisão diz de onde vêm os primeiros cartões)
+  await page.goto('#/');
+  const ritual = page.getByRole('region', { name: /Ritual do dia/ });
+  await expect(ritual.getByRole('heading')).toContainText('1 de 2');
+  await expect(heroi(page).getByRole('link', { name: /Próxima missão/ })).toBeVisible();
+  await expect(ritual).toContainText('Revisão do dia: os primeiros cartões chegam com «Imagem e contêiner»');
+  await expect(page.getByRole('status').filter({ hasText: 'Dia cumprido' })).toHaveCount(0);
   // a revisão só cobra o que a trilha ensinou (revisao-justa): a lição de imagem e contêiner traz os primeiros termos
   await page.goto('#/ex/n0-imagem-e-conteiner');
   await page.locator('.leitura-acoes').getByRole('link', { name: /^Lida · Próxima: / }).click();
@@ -57,14 +64,13 @@ test('primeiro dia: depois do primeiro pod e da primeira lição, as boas-vindas
   await expect(heroi(page).getByRole('link', { name: /Plantão/ })).toHaveCount(0);
   await expect(heroi(page).getByRole('link', { name: /Oficina/ })).toHaveCount(0);
   // o ritual: a missão de hoje feita; a revisão (os termos da lição) esperando
-  const ritual = page.getByRole('region', { name: /Ritual do dia/ });
   await expect(ritual.locator('li', { hasText: 'Uma missão da trilha' })).toContainText('Feito');
   await expect(ritual.getByRole('link', { name: /Revisão do dia: \d+ cartões/ })).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Dia cumprido' })).toHaveCount(0);
 });
 
 test('primeiro dia cumprido (uma missão e a revisão): as boas-vindas fecham o dia, sem "Continue de onde parou"', async ({ page }) => {
-  await semear(page, { hoje: ['n0-primeiro-pod'], revisao: GLOSSARIO.map((g) => g.id), primeiroDia: true });
+  await semear(page, { hoje: NIVEIS[0].itens.slice(0, 4).map((i) => i.id), revisao: GLOSSARIO.map((g) => g.id), primeiroDia: true });
   await page.goto('#/');
   await expect(page.getByRole('heading', { name: 'Aprenda Kubernetes contêiner por contêiner' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Bom te ver de volta' })).toHaveCount(0);
@@ -72,6 +78,8 @@ test('primeiro dia cumprido (uma missão e a revisão): as boas-vindas fecham o 
   await expect(heroi(page).getByRole('link', { name: /Próxima missão/ })).toHaveCount(0);
   await expect(heroi(page).getByRole('link', { name: /Ver a trilha/ })).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Dia cumprido. Bom descanso, amanhã tem mais.' })).toBeVisible();
+  // o fecho do primeiro dia já abre o lembrete: é a hora de marcar o de amanhã
+  await expect(page.getByLabel('Horário')).toBeVisible();
 });
 
 test('quem estudou ontem vê o painel Hoje; o Plantão avisa quando abre e a Oficina espera o Nível 2', async ({ page }) => {
@@ -106,12 +114,19 @@ test('o lembrete diário: só com o teclado, a hora escolhida vira um .ics que s
   await expect(page.locator('.lembrete-aviso')).toContainText('todo dia às 07:30');
 });
 
-test('sem termos vistos, a revisão espera a primeira missão (e não diz que está em dia)', async ({ page }) => {
+test('sem termos vistos, a revisão diz de onde vêm os primeiros cartões (e não diz que está em dia)', async ({ page }) => {
   await semear(page, { tentados: ['n0-quiz-imagem-conteiner'] });
   await page.goto('#/');
   await expect(page.getByRole('heading', { name: 'Bom te ver de volta' })).toBeVisible();
-  await expect(heroi(page)).toContainText('A revisão começa quando você resolver uma missão.');
+  const ritual = page.getByRole('region', { name: /Ritual do dia/ });
+  await expect(ritual.locator('li', { hasText: 'Revisão do dia: os primeiros cartões chegam com «Imagem e contêiner»' })).toContainText('A fazer');
   await expect(heroi(page)).not.toContainText('Revisão do dia em dia');
+});
+
+test('em inglês, sem termos vistos: a revisão diz de onde vêm os primeiros cartões', async ({ page }) => {
+  await semear(page, { tentados: ['n0-quiz-imagem-conteiner'], idioma: 'en' });
+  await page.goto('#/');
+  await expect(page.getByRole('region', { name: /Today’s ritual/ })).toContainText('Daily review: your first cards arrive with “Image and container”');
 });
 
 test('no Nível 6: o Plantão entra no ritual e a Oficina aparece', async ({ page }) => {

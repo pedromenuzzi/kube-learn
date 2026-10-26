@@ -3,14 +3,15 @@
 
 /**
  * As marcas de hoje → [{ id: 'missao' | 'revisao' | 'plantao', feito }]. Só entra o que já faz sentido: a missão enquanto a
- * trilha tiver o que fazer (ou se uma saiu hoje), a revisão quando há termos vistos e o plantão quando está liberado
- * (`plantao`: o id do plantão de hoje, ou null).
+ * trilha tiver o que fazer (ou se uma saiu hoje) e o plantão quando está liberado (`plantao`: o id do plantão de hoje, ou
+ * null). A revisão entra sempre: feita com termos vistos e nenhum cartão para hoje; sem termos, fica a fazer até a lição
+ * que traz os primeiros cartões (senão a primeira missão, sozinha, já fecharia o primeiro dia).
  */
 export function marcasDoDia({ jornada, progresso, hoje, termos, cartoes, plantao }) {
   const missao = jornada.niveis.some((n) => n.itens.some((i) => progresso[i.id]?.status === 'resolvido' && progresso[i.id].em === hoje));
   return [
     (missao || jornada.proximo) && { id: 'missao', feito: missao },
-    termos > 0 && { id: 'revisao', feito: cartoes === 0 },
+    { id: 'revisao', feito: termos > 0 && cartoes === 0 },
     plantao && { id: 'plantao', feito: progresso[plantao]?.status === 'resolvido' },
   ].filter(Boolean);
 }

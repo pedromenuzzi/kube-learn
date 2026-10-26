@@ -9,15 +9,15 @@ const marcas = (extra = {}) => marcasDoDia({ jornada, progresso: {}, hoje: HOJE,
 
 describe('o ritual do dia', () => {
   it('a missão de hoje: só vale resolvida hoje, na trilha', () => {
-    expect(marcas()).toEqual([{ id: 'missao', feito: false }]);
+    expect(marcas()[0]).toEqual({ id: 'missao', feito: false });
     expect(marcas({ progresso: { a: { status: 'resolvido', em: '2026-10-25' } } })[0].feito).toBe(false); // ontem
     expect(marcas({ progresso: { a: { status: 'tentado', em: HOJE } } })[0].feito).toBe(false);
     expect(marcas({ progresso: { 'plantao-2026-10-26': { status: 'resolvido', em: HOJE } } })[0].feito).toBe(false); // fora da trilha
     expect(marcas({ progresso: { a: { status: 'resolvido', em: HOJE } } })[0].feito).toBe(true);
   });
 
-  it('a revisão só entra com termos vistos; em dia é sem cartão para hoje', () => {
-    expect(marcas({ termos: 0, cartoes: 0 }).map((m) => m.id)).toEqual(['missao']);
+  it('a revisão entra sempre; em dia é com termos vistos e sem cartão para hoje', () => {
+    expect(marcas({ termos: 0, cartoes: 0 }).map((m) => m.id)).toEqual(['missao', 'revisao']);
     expect(marcas({ termos: 5, cartoes: 3 })[1]).toEqual({ id: 'revisao', feito: false });
     expect(marcas({ termos: 5, cartoes: 0 })[1]).toEqual({ id: 'revisao', feito: true });
   });
@@ -39,6 +39,13 @@ describe('o ritual do dia', () => {
     expect(diaCumprido(marcas({ progresso, termos: 5, cartoes: 0, plantao: `plantao-${HOJE}` }))).toBe(true);
     expect(diaCumprido(marcas({ progresso, termos: 5, cartoes: 1, plantao: `plantao-${HOJE}` }))).toBe(false);
     expect(diaCumprido([])).toBe(false);
+  });
+
+  // Senão o primeiro pod, sozinho (nenhuma das primeiras missões traz termo), já fechava o primeiro dia.
+  it('sem termos vistos, a missão de hoje não fecha o dia: a revisão fica a fazer', () => {
+    const m = marcas({ progresso: { a: { status: 'resolvido', em: HOJE } }, termos: 0, cartoes: 0 });
+    expect(m).toEqual([{ id: 'missao', feito: true }, { id: 'revisao', feito: false }]);
+    expect(diaCumprido(m)).toBe(false);
   });
 });
 
