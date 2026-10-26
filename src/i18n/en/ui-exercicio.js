@@ -127,9 +127,12 @@ export default {
   'Mover {janela} para baixo': 'Move {janela} down',
   'Mover {janela} para a esquerda': 'Move {janela} left',
   'Mover {janela} para a direita': 'Move {janela} right',
-  'Arraste para mudar de lugar': 'Drag to move it',
+  'Mover a janela {janela}': 'Move the {janela} window',
+  'Arraste para mudar de lugar, ou use as setas do teclado': 'Drag to move it, or use the arrow keys',
   'Largura entre as colunas {a} e {b}': 'Width between columns {a} and {b}',
   'Altura entre {a} e {b}': 'Height between {a} and {b}',
+  // editor.js
+  'Tab recua · Esc e depois Tab sai do editor': 'Tab indents · Esc then Tab leaves the editor',
 
   // feedback.js: o diálogo e o relato (o corpo da issue)
   'Gostei': 'Liked it',

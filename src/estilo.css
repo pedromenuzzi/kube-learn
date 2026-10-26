@@ -708,9 +708,9 @@ blockquote.relato footer::before { content: '— '; }
 .janela-topo { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem 0.35rem 0.75rem; background: var(--superficie-2); border-bottom: 1px solid var(--borda); cursor: grab; user-select: none; touch-action: none; }
 .janela-topo:active { cursor: grabbing; }
 .janela-topo h2 { margin: 0; font-size: 0.8rem; flex: 1; text-transform: uppercase; letter-spacing: 0.06em; color: var(--suave); }
-.alca { color: var(--suave); opacity: 0.7; }
+.alca > span { opacity: 0.7; } /* só o ⠿ fica mais claro: o anel de foco da alça fica inteiro */
 .janela-mover { display: flex; gap: 0.15rem; opacity: 0.55; transition: opacity var(--anim); }
-.janela:hover .janela-mover, .janela-mover:focus-within { opacity: 1; }
+.janela:hover .janela-mover, .janela-mover:focus-within, .janela-mover:has(> .alca) { opacity: 1; }
 .janela-mover button { min-height: 1.6rem !important; min-width: 1.6rem; padding: 0 0.3rem !important; font-size: 0.75rem !important; line-height: 1.4; box-shadow: none !important; background: transparent !important; border-color: transparent !important; color: var(--suave) !important; }
 .janela-mover button:hover { background: var(--superficie) !important; border-color: var(--borda) !important; color: var(--texto) !important; }
 .janela-corpo { flex: 1; min-height: 0; display: flex; flex-direction: column; }

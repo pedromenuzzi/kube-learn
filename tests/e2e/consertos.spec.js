@@ -12,10 +12,11 @@ test('depois de visitar duas missões, um clique abre um diálogo só (os ouvint
 });
 
 test('o link de dentro da página leva o foco para o conteúdo novo (o leitor de tela anuncia a página)', async ({ page }) => {
-  await page.goto('#/ex/n3-licao-service');
+  // (uma lição de nível aberto: a de um nível fechado o abre, e a página fica para a faixa aparecer inteira)
+  await page.goto('#/ex/n0-funciona-na-minha-maquina');
   await page.locator('a.proxima').focus();
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/#\/ex\/n3-licao-de-fora/);
+  await expect(page).toHaveURL(/#\/ex\/n0-quiz-vm/);
   await expect(page.locator('main#conteudo')).toBeFocused();
 });
 
