@@ -63,6 +63,26 @@ test('nível 0 só com o teclado: lição → quiz → lição, com o XP no topo
   expect(r.violations).toEqual([]);
 });
 
+test('no celular, acertar o quiz leva o foco à próxima sem esconder o "Certo!" embaixo do topo', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 664 });
+  await page.emulateMedia({ reducedMotion: 'reduce' }); // rolagem na hora: a posição medida já é a final
+  for (const id of ['n0-quiz-vm', 'n3-quiz-sorteio', 'n4-quiz-aviso-mudou']) {
+    await page.goto(`#/ex/${id}`);
+    await page.locator('.alternativa input').nth(alternativaCerta(id)).check();
+    await page.getByRole('button', { name: 'Responder' }).click();
+    await expect(page.locator('.quiz-retorno')).toContainText('Certo!');
+    // O retorno começa abaixo do topo fixo e dentro da tela.
+    const { topo, retorno, altura } = await page.evaluate(() => ({
+      topo: document.querySelector('.topo').getBoundingClientRect().bottom,
+      retorno: document.querySelector('.quiz-retorno').getBoundingClientRect().top,
+      altura: innerHeight,
+    }));
+    expect(retorno, id).toBeGreaterThanOrEqual(topo);
+    expect(retorno, id).toBeLessThan(altura);
+    await expect(page.locator('.leitura-acoes .proxima')).toBeFocused();
+  }
+});
+
 test('a lição que abre um nível mostra a faixa inteira e não sai da página', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('kube-learn:preferencias', JSON.stringify({ tema: 'claro', texto: '100', movimento: 'reduzido' })));
   // Nível 1 ainda fechado: ler uma lição dele o abre (a trilha abre o nível em que o aluno já mexeu).
@@ -98,10 +118,14 @@ test('missão pelo teclado: o editor logo no começo do Tab, a alça move a jane
 
   // A alça: uma parada por janela, e as setas mudam a janela de lugar.
   const alca = page.getByRole('button', { name: 'Mover a janela Missão' });
+  // A alça não herda o esmaecido dos botões ↑ ↓ ← → (o ⠿ e o anel de foco ficam com o contraste inteiro).
+  expect(await alca.evaluate((b) => [getComputedStyle(b.parentElement).opacity, getComputedStyle(b).opacity])).toEqual(['1', '1']);
   await alca.focus();
   await page.keyboard.press('ArrowRight');
   await expect.poll(() => ordem(page)).toEqual([['missao', 'arquivos', 'paineis']]);
   await expect(alca).toBeFocused();
+  await page.keyboard.press('Control+ArrowLeft'); // com modificador, a tecla é do navegador
+  await expect.poll(() => ordem(page)).toEqual([['missao', 'arquivos', 'paineis']]);
   await page.keyboard.press('ArrowLeft');
   await expect.poll(() => ordem(page)).toEqual([['missao'], ['arquivos', 'paineis']]);
 

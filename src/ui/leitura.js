@@ -38,6 +38,14 @@ function acoes(item, proximo, jaFeito) {
   return proximo ? `<a class="${item.tipo === 'licao' ? 'botao' : 'botao-secundario'} proxima" href="#/ex/${proximo.id}">${proxima(proximo)} ${icone('seguir')}</a>` : '';
 }
 
+// O foco vai para a próxima sem rolar até ela (o navegador a centralizaria e, no celular, o "Certo! +5 XP" e a
+// explicação sumiam embaixo do topo fixo); quem rola é o retorno, até logo abaixo do topo.
+function focarMostrando(link, retorno) {
+  link.focus({ preventScroll: true });
+  retorno.style.scrollMarginTop = `${(document.querySelector('.topo')?.getBoundingClientRect().bottom ?? 0) + 12}px`;
+  retorno.scrollIntoView({ block: 'start' });
+}
+
 export function montarLeitura(raiz, item) {
   const proximo = proximoDe(item);
   const nivel = NIVEIS[item.nivel];
@@ -85,7 +93,7 @@ export function montarLeitura(raiz, item) {
     // Acertou: o próximo passo é a próxima (o lacre que aparecer depois devolve o foco a ela).
     const link = raiz.querySelector('.proxima');
     link?.classList.replace('botao-secundario', 'botao');
-    link?.focus();
+    if (link) focarMostrando(link, retorno);
   });
   let resposta = null; // para o feedback
   raiz.querySelector('[data-acao=feedback]').addEventListener('click', () => abrirFeedback(item, () => ({ testes: resposta })));
@@ -105,7 +113,7 @@ export function montarLeitura(raiz, item) {
       // Abriu um nível ou fechou um lacre: a festa aparece inteira aqui, e a próxima fica a um Enter.
       e.preventDefault();
       lida.innerHTML = `${proxima(proximo)} ${icone('seguir')}`;
-      lida.focus();
+      focarMostrando(lida, retorno);
     } else if (primeira) {
       // Segue para a próxima: quem usa leitor de tela também fica sabendo do XP (a região fica no index.html).
       const anuncio = document.getElementById('festa-anuncio');

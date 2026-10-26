@@ -282,6 +282,7 @@ export function montarJanelas(raiz, janelas, { aoMudar } = {}) {
     quadros[id].querySelector(`[data-mover="${b.dataset.mover}"]`).focus();
   });
   raiz.addEventListener('keydown', (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return; // Alt+← → é voltar/avançar do navegador
     const direcao = e.target.closest?.('.alca') && TECLAS[e.key];
     if (!direcao) return;
     e.preventDefault();
