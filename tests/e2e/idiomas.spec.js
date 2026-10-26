@@ -25,7 +25,7 @@ test('no meio da missão, a troca mantém o cluster e o histórico do terminal',
   await terminal.press('Enter');
   await expect(page.locator('.term-saida')).toContainText('pod/fica created');
   await page.getByRole('button', { name: 'EN' }).click();
-  await expect(page.locator('.term-saida')).toContainText('Language switched');
+  await expect(page.locator('.term-saida')).toContainText('Your cluster is just as you left it');
   await page.locator('input.term-entrada').press('ArrowUp');
   await expect(page.locator('input.term-entrada')).toHaveValue('kubectl run fica --image=nginx:1.27');
   await page.locator('input.term-entrada').fill('kubectl get pod fica');
