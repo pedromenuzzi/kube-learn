@@ -23,7 +23,7 @@
   --espera: #9a5b00;
   --espera-suave: #fff6e0;
   --texto-botao: #ffffff;
-  --topo-fundo: rgb(255 255 255 / 82%);
+  --topo-fundo: #ffffff; /* opaco: o texto rolado embaixo do topo não aparece através da marca */
   --ceu-topo: #5b8fd6;
   --ceu-baixo: #cfe6fb;
   --janelas-navio: #2b3a55;
@@ -63,7 +63,7 @@
     --fundo: #0b1220; --superficie: #121b2b; --superficie-2: #0f1726; --texto: #e7edf5; --suave: #a2afc2;
     --borda: #243146; --borda-forte: #34445e; --destaque: #7aa7ff; --destaque-forte: #a3c2ff; --destaque-suave: #16264a;
     --acento: #fb923c; --acento-suave: #3a2213; --obra: #f2c14e; --ok: #4ade80; --ok-suave: #10301d; --ruim: #f87171;
-    --ruim-suave: #3a1416; --espera: #fbbf24; --espera-suave: #33260b; --texto-botao: #0b1220; --topo-fundo: rgb(11 18 32 / 80%);
+    --ruim-suave: #3a1416; --espera: #fbbf24; --espera-suave: #33260b; --texto-botao: #0b1220; --topo-fundo: #0b1220;
     --ceu-topo: #0b1a3a; --ceu-baixo: #3b5b8f; --janelas-navio: #ffd75e; --editor-fundo: #0b1220; --editor-linha: #121b2b;
     --sx-chave: #79c0ff; --sx-texto: #a5d6ff; --sx-numero: #ffa657; --sx-comentario: #8b949e;
     --sombra-1: 0 1px 2px rgb(0 0 0 / 30%); --sombra-2: 0 8px 24px rgb(0 0 0 / 35%); --sombra-3: 0 16px 48px rgb(0 0 0 / 55%);
@@ -74,7 +74,7 @@
   --fundo: #0b1220; --superficie: #121b2b; --superficie-2: #0f1726; --texto: #e7edf5; --suave: #a2afc2;
   --borda: #243146; --borda-forte: #34445e; --destaque: #7aa7ff; --destaque-forte: #a3c2ff; --destaque-suave: #16264a;
   --acento: #fb923c; --acento-suave: #3a2213; --obra: #f2c14e; --ok: #4ade80; --ok-suave: #10301d; --ruim: #f87171;
-  --ruim-suave: #3a1416; --espera: #fbbf24; --espera-suave: #33260b; --texto-botao: #0b1220; --topo-fundo: rgb(11 18 32 / 80%);
+  --ruim-suave: #3a1416; --espera: #fbbf24; --espera-suave: #33260b; --texto-botao: #0b1220; --topo-fundo: #0b1220;
   --ceu-topo: #0b1a3a; --ceu-baixo: #3b5b8f; --janelas-navio: #ffd75e; --editor-fundo: #0b1220; --editor-linha: #121b2b;
   --sx-chave: #79c0ff; --sx-texto: #a5d6ff; --sx-numero: #ffa657; --sx-comentario: #8b949e;
   --sombra-1: 0 1px 2px rgb(0 0 0 / 30%); --sombra-2: 0 8px 24px rgb(0 0 0 / 35%); --sombra-3: 0 16px 48px rgb(0 0 0 / 55%);
@@ -102,7 +102,9 @@
 /* ---------- base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html { overflow-x: clip; scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+/* O foco do navegador (Tab) e o scrollIntoView param abaixo do topo fixo (e, no celular, acima da barra de abas): o
+   que tem o foco nunca fica escondido embaixo deles (WCAG 2.4.11). Um pouco mais que a altura do topo, de folga. */
+html { overflow-x: clip; scroll-behavior: smooth; -webkit-text-size-adjust: 100%; scroll-padding-top: 4.5rem; }
 body {
   margin: 0;
   background: var(--fundo);
@@ -143,8 +145,6 @@ h1.pixel, h2.pixel { font-size: var(--pixel-3); line-height: 1.5; text-wrap: bal
   top: 0;
   z-index: 30;
   background: var(--topo-fundo);
-  backdrop-filter: saturate(1.6) blur(12px);
-  -webkit-backdrop-filter: saturate(1.6) blur(12px);
   border-bottom: 1px solid var(--borda);
 }
 .topo-dentro { display: flex; align-items: center; gap: 1rem; max-width: 100rem; margin: 0 auto; padding: 0.55rem 1.25rem; min-height: 3.75rem; }
@@ -205,6 +205,7 @@ h1.pixel, h2.pixel { font-size: var(--pixel-3); line-height: 1.5; text-wrap: bal
   .nav a[aria-current="page"] { box-shadow: none; background: var(--destaque-suave); }
   .topo-direita { margin-left: auto; }
   body { padding-bottom: calc(4.2rem + env(safe-area-inset-bottom)); }
+  html { scroll-padding: 3.75rem 0 calc(4.2rem + env(safe-area-inset-bottom)); }
 }
 
 /* ---------- conteúdo e rodapé ---------- */
@@ -256,7 +257,9 @@ input[type=search], input[type=text], input:not([type]), select, textarea {
   font: inherit; color: var(--texto); background: var(--superficie); border: 1px solid var(--borda-forte); border-radius: var(--raio);
   padding: 0.5rem 0.75rem; min-height: 2.5rem; transition: border-color var(--anim), box-shadow var(--anim);
 }
-input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; border-color: var(--destaque); box-shadow: 0 0 0 3px color-mix(in srgb, var(--destaque) 30%, transparent); }
+/* O anel do campo é sólido, na cor de destaque (3:1 ou mais contra o fundo em todos os temas). Rádio e checkbox ficam com
+   o contorno de :focus-visible (3 px; 4 px no alto contraste). */
+input:not([type=radio], [type=checkbox]):focus-visible, select:focus-visible, textarea:focus-visible { outline: none; border-color: var(--destaque); box-shadow: 0 0 0 2px var(--destaque); }
 input[type=radio], input[type=checkbox] { accent-color: var(--destaque); width: 1.1rem; height: 1.1rem; }
 
 /* ---------- chips e selos ---------- */
@@ -343,7 +346,7 @@ canvas.navio { image-rendering: pixelated; width: 100%; height: auto; display: b
   .trilha-lateral { position: static; }
 }
 .niveis { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem; }
-.nivel { --cor-nivel: var(--borda-forte); scroll-margin-top: 5rem; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio-g); box-shadow: var(--sombra-1); overflow: hidden; transition: box-shadow var(--anim), border-color var(--anim); }
+.nivel { --cor-nivel: var(--borda-forte); scroll-margin-top: 0.75rem; /* mais o scroll-padding do html (o topo) */ background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio-g); box-shadow: var(--sombra-1); overflow: hidden; transition: box-shadow var(--anim), border-color var(--anim); }
 .nivel:hover { border-color: var(--borda-forte); }
 .nivel > details > summary { list-style: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "icone cabeca chip" "icone barra barra"; align-items: center; gap: 0.35rem 0.9rem; padding: 0.95rem 1.1rem; position: relative; }
 .nivel > details > summary::-webkit-details-marker { display: none; }
@@ -448,12 +451,15 @@ canvas.navio { image-rendering: pixelated; width: 100%; height: auto; display: b
 .alternativa:hover { border-color: var(--borda-forte); transform: translateX(2px); }
 .alternativa:has(input:checked) { border-color: var(--destaque); background: var(--destaque-suave); }
 .alternativa:has(input:disabled) { cursor: default; transform: none; }
-/* Depois de responder (a Revisão do dia): a certa e a errada escolhida, com cor e com sinal (não só a cor). */
+/* Depois de responder (a Revisão do dia): a certa e a errada escolhida, com cor e com o sinal escrito (não só a cor),
+   numa linha embaixo do texto: ao lado, o "✓ resposta certa" espremia o texto numa coluna estreita no celular. */
 label.alternativa.certa { border-color: var(--ok); background: var(--ok-suave); }
 label.alternativa.errada { border-color: var(--ruim); background: var(--ruim-suave); }
-label.alternativa.certa::after, label.alternativa.errada::after { margin-left: auto; padding-left: 0.5rem; font-weight: 700; }
-label.alternativa.certa::after { content: '✓' / ''; color: var(--ok); }
-label.alternativa.errada::after { content: '✗' / ''; color: var(--ruim); }
+label.alternativa:is(.certa, .errada) { flex-wrap: wrap; row-gap: 0.15rem; }
+label.alternativa:is(.certa, .errada) > span:not(.resultado-alternativa) { flex: 1 1 0; }
+.resultado-alternativa { flex-basis: 100%; padding-left: 2.35rem; /* embaixo do texto: o rádio, a margem dele e o gap */ font-size: 0.88rem; font-weight: 700; }
+.certa .resultado-alternativa { color: var(--ok); }
+.errada .resultado-alternativa { color: var(--ruim); }
 .quiz input:not([type=radio]) { min-width: min(20rem, 100%); }
 .quiz .botao { margin-top: 0.5rem; }
 .quiz-retorno:not(:empty) { margin: 1rem 0; padding: 0.9rem 1.1rem; border-radius: var(--raio); border: 1px solid var(--borda); background: var(--superficie); animation: entrar 220ms ease; }
@@ -563,6 +569,9 @@ dialog.festa-cartao canvas.navio { width: auto; max-width: 100%; max-height: min
   .heroi { display: grid; align-items: start; }
   .heroi > * { grid-area: 1 / 1; }
   .heroi > .heroi-texto { position: relative; top: auto; left: auto; margin: 1.75rem; }
+  /* Mais alto que o navio, o herói estica a cena junto: o céu e o mar da esquerda (atrás do painel) são cortados, e o
+     navio continua inteiro à direita. Nada fica pendurado fora da cena. */
+  .heroi > canvas.navio { height: 100%; object-fit: cover; object-position: right bottom; }
 }
 
 /* a Oficina do kubectl: a lista de exercícios com o recorde de cada um */
@@ -730,8 +739,10 @@ blockquote.relato footer::before { content: '— '; }
   .janela { flex-basis: auto !important; min-height: 24rem; margin-bottom: 0.75rem; }
   .divisor { display: none; }
   .janela-topo { touch-action: auto; } /* empilhadas, as janelas não se arrastam: o dedo rola a página */
-  /* Nem a alça, nem as setas para os lados, nem a arrumação padrão fazem algo com as janelas empilhadas. */
-  .janela-mover:has(> .alca), .janela-mover [data-mover=esquerda], .janela-mover [data-mover=direita], .ex-acoes [data-acao=arrumacao] { display: none; }
+  /* Nem as setas para os lados nem a arrumação padrão fazem algo com as janelas empilhadas. A alça fica fora da vista
+     até receber o foco: com ela, as setas ↑ ↓ do teclado ainda mudam a ordem das janelas (WCAG 2.1.1). */
+  .janela-mover [data-mover=esquerda], .janela-mover [data-mover=direita], .ex-acoes [data-acao=arrumacao] { display: none; }
+  .janela-mover:has(> .alca):not(:focus-within) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 
 /* abas */
