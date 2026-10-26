@@ -1184,6 +1184,8 @@ function scale(cluster, a, s) {
 
 const revisao = (rs) => Number(rs.metadata.annotations?.['deployment.kubernetes.io/revision'] ?? 0);
 const rssDo = (cluster, d) => cluster.listar('ReplicaSet', d.metadata.namespace).filter((rs) => rs.metadata.ownerReferences?.some((o) => o.uid === d.metadata.uid));
+/** As anotações que o rollback não traz do ReplicaSet (o annotationsToSkip do kubectl): ficam as do Deployment. */
+const ANOTACOES_DO_ROLLBACK = ['kubectl.kubernetes.io/last-applied-configuration', 'deployment.kubernetes.io/revision', 'deployment.kubernetes.io/revision-history', 'deployment.kubernetes.io/desired-replicas', 'deployment.kubernetes.io/max-replicas', 'deprecated.deployment.rollback.to'];
 
 function statusRollout(d) {
   const st = d.status ?? {};
@@ -1265,18 +1267,27 @@ function rollout(cluster, a, s) {
       if (!alvoRev) return s.falha(`error: no rollout history found for deployment "${d.metadata.name}"`);
       const rs = rss.find((x) => revisao(x) === alvoRev);
       if (!rs) return s.falha(`error: unable to find specified revision ${alvoRev} in history`);
-      const t = structuredClone(rs.spec.template);
-      delete t.metadata.labels['pod-template-hash'];
-      if (canonico(t) === canonico(d.spec.template)) return s.out(`${id} skipped rollback (current template already matches revision ${alvoRev})\n`);
       if (d.metadata.annotations?.['kubectl.kubernetes.io/last-applied-configuration']) {
         s.err(`Warning: resource deployments/${d.metadata.name} was previously managed with 'kubectl apply'. Rolling back will not update the kubectl.kubernetes.io/last-applied-configuration annotation, which may cause unexpected behavior on future 'kubectl apply' operations. Consider using 'kubectl apply' with your previous configuration file instead.\n`);
       }
+      if (d.spec.paused) return s.falha("error: you cannot rollback a paused deployment; resume it first with 'kubectl rollout resume' and try again");
+      const t = structuredClone(rs.spec.template);
+      delete t.metadata.labels['pod-template-hash'];
+      if (canonico(t) === canonico(d.spec.template)) return s.out(`${id} skipped rollback (current template already matches revision ${alvoRev})\n`);
+      // As anotações, como o DeploymentRollbacker: ficam as do Deployment que ele pula; as outras vêm do ReplicaSet alvo
+      // (o change-cause da revisão escolhida, e não o da atual).
+      const pula = (k) => ANOTACOES_DO_ROLLBACK.includes(k);
+      d.metadata.annotations = {
+        ...Object.fromEntries(Object.entries(d.metadata.annotations ?? {}).filter(([k]) => pula(k))),
+        ...Object.fromEntries(Object.entries(rs.metadata.annotations ?? {}).filter(([k]) => !pula(k))),
+      };
       d.spec.template = t;
       cluster.salvar(d, { spec: true });
       s.out(`${id} rolled back\n`);
       return cluster.reconciliar();
     }
     case 'restart':
+      if (d.spec.paused) return s.falha(`error: ${pluralQualificado(r)} "${d.metadata.name}" can't restart paused deployment (run rollout resume first)`);
       d.spec.template.metadata.annotations = { ...(d.spec.template.metadata.annotations ?? {}), 'kubectl.kubernetes.io/restartedAt': iso(cluster.agora).replace('Z', '+00:00') };
       cluster.salvar(d, { spec: true });
       s.out(`${id} restarted\n`);
@@ -2002,6 +2013,12 @@ export function kubectl(cluster, linha, { arquivos = {} } = {}) {
     }
     const sugestoes = COMANDOS_REAIS.filter((c) => distancia(nome, c) <= 2);
     s.falha(`error: unknown command "${nome}" for "kubectl"${sugestoes.length ? `\n\nDid you mean this?\n${sugestoes.map((x) => `\t${x}`).join('\n')}\n` : "\nRun 'kubectl --help' for usage."}`);
+    return s.resultado();
+  }
+  // O create secret docker-registry/tls não é imitado: diz isso antes de tropeçar nas flags dele (--docker-server, --cert).
+  const tipoSecret = nome === 'create' && resto.filter((x) => !x.startsWith('-')).find((x, i, ps) => ps[i - 1] === 'secret' && ['docker-registry', 'tls'].includes(x));
+  if (tipoSecret) {
+    s.falha(naoSimulado(`create secret ${tipoSecret}`));
     return s.resultado();
   }
   let lidos;

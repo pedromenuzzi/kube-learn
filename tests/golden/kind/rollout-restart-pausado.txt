@@ -1,0 +1,2 @@
+error: deployments.apps "loja" can't restart paused deployment (run rollout resume first)
+exit=1

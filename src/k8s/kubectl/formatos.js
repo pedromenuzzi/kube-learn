@@ -58,16 +58,17 @@ function analisarTemplate(t) {
 export function avaliar(caminho, raiz, atual) {
   let valores = [caminho.startsWith('$') ? raiz : atual];
   const resto = caminho.replace(/^[$@]/, '');
-  const re = /\.\.|\.((?:[\w/-]|\\\.)+|\*)|\[([^\]]*)\]|\.?'([^']*)'/g; // kubectl\.kubernetes\.io/nome: o ponto escapado é do nome
+  const re = /\.\.|\.((?:[\w/-]|\\.)+|\*)|\[([^\]]*)\]|\.?'([^']*)'/g; // \. é um ponto do nome (kubectl\.kubernetes\.io/..., kubernetes\.io/change-cause)
   let m;
   while ((m = re.exec(resto))) {
-    const [, campo, colchete, citado] = m;
+    const [, escapado, colchete, citado] = m;
+    const campo = escapado?.replace(/\\(.)/g, '$1');
     const proximos = [];
     for (const v of valores) {
       if (v === undefined || v === null) continue;
       if (campo === '*' || colchete === '*') proximos.push(...(Array.isArray(v) ? v : Object.values(v)));
       else if (campo !== undefined || citado !== undefined) {
-        const k = campo?.replaceAll('\\.', '.') ?? citado;
+        const k = campo ?? citado;
         if (Array.isArray(v)) proximos.push(...v.map((x) => x?.[k]).filter((x) => x !== undefined));
         else if (v[k] !== undefined) proximos.push(v[k]);
       } else if (colchete !== undefined) {

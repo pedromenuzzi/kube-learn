@@ -1,0 +1,17 @@
+deployment.apps/loja with revision #4
+Pod Template:
+  Labels:	app=loja
+	pod-template-hash=77bcbb65d4
+  Annotations:	kubernetes.io/change-cause: versao 1.0: abertura
+  Containers:
+   nginx:
+    Image:	nginx:1.27
+    Port:	<none>
+    Host Port:	<none>
+    Environment:	<none>
+    Mounts:	<none>
+  Volumes:	<none>
+  Node-Selectors:	<none>
+  Tolerations:	<none>
+
+exit=0

@@ -1,0 +1,7 @@
+deployment.apps/loja 
+REVISION  CHANGE-CAUSE
+2         versao 1.1: carrinho
+3         versao 2.0: reclamou
+4         versao 1.0: abertura
+
+exit=0
