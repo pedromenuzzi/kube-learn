@@ -1,0 +1,2 @@
+The Pod "host-vazio" is invalid: spec.volumes[0].hostPath.path: Required value
+exit=1

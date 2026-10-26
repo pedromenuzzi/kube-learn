@@ -36,6 +36,10 @@ export const REGRAS = [
     t: (m) => ({ titulo: `"${m[2]}" já existe`, texto: 'O <code>create</code> só cria. Para atualizar um objeto que já existe, use <code>kubectl apply -f</code>: ele compara e muda só o que for diferente.', vidaReal: 'Pedir para construir um apartamento que já está construído.' }),
   },
   {
+    re: /": resource name may not be empty|metadata\.name: Required value: name or generateName is required/,
+    t: () => ({ titulo: 'O objeto não tem nome', texto: 'Falta o <code>metadata.name</code> no YAML. É pelo nome que o API Server guarda e acha cada objeto: o <code>apply</code> procura a versão anterior por ele, e o <code>delete</code> apaga por ele. Ponha um <code>name:</code> (letras minúsculas, números e <code>-</code>) dentro do <code>metadata:</code>.', vidaReal: 'Uma encomenda sem destinatário: a portaria não tem como saber de quem é.' }),
+  },
+  {
     re: /(?:cannot be handled as a (\w+): )?strict decoding error: (unknown field .*)/,
     t: (m, { parecido } = {}) => {
       const campos = [...m[2].matchAll(/unknown field &quot;(.*?)&quot;/g)].map((x) => x[1]);
@@ -118,6 +122,10 @@ export const REGRAS = [
   {
     re: /is invalid: [\s\S]*?([\w.[\]]+): Required value/, // a primeira linha que falta (o kind lista uma por linha)
     t: (m) => ({ titulo: `Falta um campo obrigatório: ${m[1]}`, texto: 'Esse campo não pode ficar vazio. A aba Manual (ou <code>kubectl explain</code>) mostra o que vai nele.', vidaReal: 'Um formulário sem um campo obrigatório preenchido.' }),
+  },
+  {
+    re: /([\w.[\]]+)\.(httpGet|tcpSocket)\.port: Invalid value: 0: must be between 1 and 65535/,
+    t: (m) => ({ titulo: `Falta a porta do ${m[2]}`, texto: `Em <code>${m[1]}</code>, o <code>${m[2]}</code> precisa de <code>port</code>: sem ele, o API Server lê 0, que não é porta. Use o número em que o programa escuta (<code>port: 8080</code>) ou o nome de uma porta do contêiner (<code>port: http</code>).`, vidaReal: 'Mandar o fiscal conferir o apartamento sem dizer o número da porta.' }),
   },
   {
     re: /([\w.[\]]+): Unsupported value: "([^"]*)": supported values: (.+)/,
@@ -228,7 +236,7 @@ export const STATUS = [
   { re: /\d+ Insufficient (?:cpu|memory)/, titulo: 'Falta CPU ou memória nos nodes', texto: 'A soma dos <b>requests</b> passaria do que o node tem. Veja o "Allocated resources" do <code>kubectl describe node</code>: diminua os requests, as réplicas, ou dê prioridade (PriorityClass) a quem importa mais.', vidaReal: 'A potência contratada de todos os apartamentos já usou a do prédio.' },
   { re: /violate the pod's disruption budget/, titulo: 'O PDB segurou o despejo', texto: 'O PodDisruptionBudget não deixa sair mais ninguém agora: o drain tenta de novo a cada 5 s, enquanto os substitutos sobem em outro node. Sem folga nunca (minAvailable igual às réplicas), ele espera para sempre.', vidaReal: 'Pelo menos 2 elevadores funcionando: o terceiro só para quando o reserva estiver pronto.' },
   { re: /^\S+\s+Ready,SchedulingDisabled\s/m, titulo: 'Node interditado (cordon)', texto: 'Não recebe pods novos; quem está lá continua. <code>kubectl uncordon NODE</code> libera.', vidaReal: 'Prédio interditado para novos moradores.' },
-  { re: /^\S+\s+NotReady(?:,SchedulingDisabled)?\s/m, titulo: 'O node parou de dar notícias', texto: 'O kubelet não responde (luz, rede, máquina). Uns 5 minutos depois, os pods de lá são despejados: os que têm dono (Deployment, StatefulSet) renascem em outros nodes; os soltos ficam Terminating e não voltam.', vidaReal: 'Queda de energia no prédio.' },
+  { re: /^\S+\s+NotReady(?:,SchedulingDisabled)?\s/m, titulo: 'O node parou de dar notícias', texto: 'O kubelet não responde (luz, rede, máquina). Uns 5 minutos depois, os pods de lá são despejados: os de um Deployment renascem em outros nodes; os de um StatefulSet esperam o node voltar (ou o taint out-of-service); os soltos ficam Terminating e não voltam.', vidaReal: 'Queda de energia no prédio.' },
   { re: /would violate PodSecurity/, titulo: 'Aviso: os pods vão ser recusados', texto: 'O objeto foi criado, mas os pods dele não passam nas normas do namespace: o ReplicaSet vai tentar e ser recusado (READY 0/1). <code>kubectl describe rs -n NAMESPACE</code> mostra o FailedCreate.', vidaReal: 'O contrato foi assinado, mas os bombeiros não vão deixar ninguém entrar assim.' },
   { re: /container has runAsNonRoot and image will run as root/, titulo: 'A imagem roda como root', texto: 'O pod pede <code>runAsNonRoot: true</code>, mas a imagem roda como root (usuário 0). Diga um usuário comum (<code>runAsUser: 1000</code>) ou use uma imagem feita para rodar sem root.', vidaReal: 'A regra é "sem chave mestra", e o morador só tem a chave mestra.' },
   { re: /wget: bad address '[^']+'|Could not resolve host/, titulo: 'O nome não resolveu', texto: 'Ou o nome está errado (o Service existe? no mesmo namespace?), ou uma NetworkPolicy fecha a saída do pod e esqueceu do DNS (porta 53, UDP e TCP, para o kube-dns).', vidaReal: 'A telefonista não atendeu: sem o número, não dá para ligar.' },

@@ -1,7 +1,7 @@
 // A gêmea de scripts/golden/60-obrigatorios.sh no simulador (namespace obrigatorios): o null do YAML pela metade é
 // campo não definido, e os obrigatórios do alvo do HPA, do roleRef, da sonda e do envFrom; o kustomize com uma entrada
 // que não é texto.
-export default ({ k, cap }) => {
+export default ({ c, k, cap }) => {
   k('kubectl create namespace obrigatorios');
   cap('obr-apply-conteiner-vazio', 'kubectl apply -f /tmp/kl-obr-conteiner.yaml');
   cap('obr-apply-init-vazio', 'kubectl apply -f /tmp/kl-obr-init.yaml');
@@ -54,4 +54,30 @@ export default ({ k, cap }) => {
   cap('obr-apply-crd-sem-tipo', 'kubectl apply -f /tmp/kl-obr-crd-sem-tipo.yaml');
   cap('obr-apply-sa-vazia', 'kubectl apply -f /tmp/kl-obr-sa.yaml');
   cap('obr-describe-sa-vazia', 'kubectl describe serviceaccount conta-vazia -n obrigatorios');
+
+  // O YAML pela metade que ainda derrubava o simulador ou vazava undefined: hostPath sem caminho, o init container com
+  // as conferências de um contêiner, o PDB e a cota sem spec, a sonda e o gancho sem porta, a chave do env sem key e o
+  // objeto sem metadata.name.
+  cap('obr-apply-hostpath-vazio', 'kubectl apply -f /tmp/kl-obr-hostpath.yaml');
+  cap('obr-apply-pv-hostpath-vazio', 'kubectl apply -f /tmp/kl-obr-pv-hostpath.yaml');
+  cap('obr-apply-init-montagem-vazia', 'kubectl apply -f /tmp/kl-obr-init-montagem.yaml');
+  cap('obr-apply-init-varios', 'kubectl apply -f /tmp/kl-obr-init-varios.yaml');
+  cap('obr-apply-pdb-sem-spec', 'kubectl apply -f /tmp/kl-obr-pdb-sem-spec.yaml');
+  cap('obr-apply-quota-sem-spec', 'kubectl apply -f /tmp/kl-obr-quota-sem-spec.yaml');
+  c.avancar('5s');
+  cap('obr-get-pdb-sem-spec', 'kubectl get pdb -n obrigatorios');
+  cap('obr-describe-pdb-sem-spec', 'kubectl describe pdb sem-regra -n obrigatorios');
+  cap('obr-pdb-sem-spec', "kubectl get pdb sem-regra -n obrigatorios -o jsonpath='{.spec}'");
+  cap('obr-get-quota-sem-spec', 'kubectl get quota -n obrigatorios');
+  cap('obr-describe-quota-sem-spec', 'kubectl describe quota teto -n obrigatorios');
+  cap('obr-get-pdb-yaml', 'kubectl get pdb sem-regra -n obrigatorios -o yaml');
+  cap('obr-get-quota-yaml', 'kubectl get quota teto -n obrigatorios -o yaml');
+  cap('obr-run-com-cota-vazia', 'kubectl run cota-livre -n obrigatorios --image=nginx:1.27');
+  cap('obr-apply-sonda-sem-porta', 'kubectl apply -f /tmp/kl-obr-sonda-sem-porta.yaml');
+  cap('obr-apply-tcp-sem-porta', 'kubectl apply -f /tmp/kl-obr-tcp-sem-porta.yaml');
+  cap('obr-apply-ganchos-sem-porta', 'kubectl apply -f /tmp/kl-obr-ganchos-sem-porta.yaml');
+  cap('obr-apply-env-sem-chave', 'kubectl apply -f /tmp/kl-obr-env-sem-chave.yaml');
+  cap('obr-apply-cm-sem-nome', 'kubectl apply -f /tmp/kl-obr-cm-sem-nome.yaml');
+  cap('obr-create-cm-sem-nome', 'kubectl create -f /tmp/kl-obr-cm-sem-nome.yaml');
+  cap('obr-delete-cm-sem-nome', 'kubectl delete -f /tmp/kl-obr-cm-sem-nome.yaml');
 };

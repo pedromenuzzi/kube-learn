@@ -1,0 +1,2 @@
+The Pod "painel" is invalid: spec.initContainers[0].volumeMounts[0].mountPath: Required value
+exit=1

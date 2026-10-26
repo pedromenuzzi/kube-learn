@@ -1,0 +1,2 @@
+resourcequota/teto created
+exit=0

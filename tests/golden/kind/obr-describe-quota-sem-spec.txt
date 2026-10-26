@@ -1,0 +1,5 @@
+Name:       teto
+Namespace:  obrigatorios
+Resource    Used  Hard
+--------    ----  ----
+exit=0

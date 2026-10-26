@@ -386,7 +386,10 @@ function prepararDoc(cluster, { arquivo, doc }, flags, acao) {
     ns = doArquivo ?? namespaceDe(cluster, flags);
   }
   if (!nome && !(acao === 'create' && doc.metadata?.generateName)) {
-    return `error: error when retrieving current configuration of:\nResource: "${r.grupo ? `${r.grupo}/${r.versao}` : r.versao}, Resource=${r.plural}", GroupVersionKind: "${doc.apiVersion}, Kind=${doc.kind}"\nName: "", Namespace: "${ns ?? ''}"\nfrom server for: "${arquivo}": resource name may not be empty`;
+    if (acao === 'create') return `The ${doc.kind} "" is invalid: metadata.name: Required value: name or generateName is required`;
+    if (acao === 'delete') return `error: error when deleting "${arquivo}": resource name may not be empty`;
+    const gv = `${r.grupo}/${r.versao}`; // o GroupVersion do Go: o grupo core (vazio) deixa a barra na frente, "/v1"
+    return `error: error when retrieving current configuration of:\nResource: "${gv}, Resource=${r.plural}", GroupVersionKind: "${gv}, Kind=${doc.kind}"\nName: "", Namespace: "${ns ?? ''}"\nfrom server for: "${arquivo}": resource name may not be empty`;
   }
   return { recurso: r, ns, doc };
 }

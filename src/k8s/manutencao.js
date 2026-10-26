@@ -23,9 +23,10 @@ const comoNumero = (v, total, paraCima) => {
 /** Os pods que o PDB protege (mesmo namespace, seletor do PDB). */
 export const podsDoPdb = (c, pdb) => c.listar('Pod', pdb.metadata.namespace).filter((p) => casaLabelSelector(pdb.spec.selector, p.metadata.labels));
 
-/** Quantos pods se espera: com minAvailable inteiro, os que existem; senão, a soma das réplicas dos donos. */
+/** Quantos pods se espera: com minAvailable inteiro, os que existem; senão, a soma das réplicas dos donos (sem número nenhum, zero). */
 function esperados(c, pdb, pods) {
   if (typeof pdb.spec.minAvailable === 'number') return pods.length;
+  if (pdb.spec.minAvailable === undefined && pdb.spec.maxUnavailable === undefined) return 0;
   const donos = new Map();
   const donoDe = (o) => c.porUid.get(o?.metadata.ownerReferences?.find((x) => x.controller)?.uid);
   for (const p of pods) {
@@ -41,12 +42,13 @@ export function controladorDePdbs(c) {
     const total = esperados(c, pdb, pods);
     const desejados = pdb.spec.maxUnavailable !== undefined
       ? Math.max(0, total - comoNumero(pdb.spec.maxUnavailable, total, true))
-      : comoNumero(pdb.spec.minAvailable ?? 1, total, true);
+      : comoNumero(pdb.spec.minAvailable ?? 0, total, true);
     const saudaveis = pods.filter((p) => !p.metadata.deletionTimestamp && estaPronto(p)).length;
     // Despejos que já foram autorizados mas o pod ainda não sumiu contam como "fora" (2 min no máximo).
     const emCurso = Object.fromEntries(Object.entries(pdb.status?.disruptedPods ?? {})
       .filter(([nome, quando]) => c.agora - Date.parse(quando) < 120_000 && pods.some((p) => p.metadata.name === nome && !p.metadata.deletionTimestamp)));
-    const permitidos = Math.max(0, saudaveis - desejados - Object.keys(emCurso).length);
+    // Sem pod esperado (o PDB sem número), o controlador não autoriza despejo nenhum.
+    const permitidos = total > 0 ? Math.max(0, saudaveis - desejados - Object.keys(emCurso).length) : 0;
     const anterior = pdb.status?.conditions?.[0];
     const status = permitidos > 0 ? 'True' : 'False';
     const novo = {
@@ -65,7 +67,8 @@ export function controladorDePdbs(c) {
       expectedPods: total,
       observedGeneration: pdb.metadata.generation,
     };
-    c.trocarStatus(pdb, novo);
+    // ponytail: o real avisa a cada sincronia sem pods; aqui, a cada mudança do status (a contagem fica menor).
+    if (c.trocarStatus(pdb, novo) && !pods.length) c.evento(pdb, 'Normal', 'NoPods', 'No matching pods found', { componente: 'controllermanager' });
   }
 }
 

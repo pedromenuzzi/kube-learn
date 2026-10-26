@@ -937,6 +937,17 @@ function validarNome(obj, erros) {
   else if (!RE_SUBDOMINIO.test(nome) || nome.length > 253) erros.push(invalido('metadata.name', nome, MSG_SUBDOMINIO));
 }
 
+/** Uma sonda ou um gancho do lifecycle: um tipo de ação, com o que cada tipo exige (o validateHandler do apiserver). */
+function validarAcao(h, cam, erros) {
+  if (h.exec && !h.exec.command?.length) erros.push(obrigatorio(`${cam}.exec.command`));
+  for (const tipo of ['httpGet', 'tcpSocket']) {
+    const porta = h[tipo]?.port;
+    // ponytail: a porta com nome não é conferida (o IsValidPortName); confira quando um exercício precisar.
+    if (h[tipo] && typeof porta !== 'string' && !(porta >= 1 && porta <= 65535)) erros.push(invalido(`${cam}.${tipo}.port`, porta ?? 0, 'must be between 1 and 65535, inclusive'));
+  }
+  if (!h.exec && !h.httpGet && !h.tcpSocket && !h.grpc && !h.sleep) erros.push(`${cam}: Required value: must specify a handler type`);
+}
+
 /** `volumesExtras`: nomes que valem como volume sem estar em spec.volumes (os volumeClaimTemplates do StatefulSet). */
 function validarPodSpec(spec, base, erros, volumesExtras = []) {
   if (!spec?.containers?.length) {
@@ -951,48 +962,52 @@ function validarPodSpec(spec, base, erros, volumesExtras = []) {
     else if (volumes.has(v.name)) erros.push(`${cam}.name: Duplicate value: ${JSON.stringify(v.name)}`);
     volumes.add(v.name);
     if (v.persistentVolumeClaim && !v.persistentVolumeClaim.claimName) erros.push(obrigatorio(`${cam}.persistentVolumeClaim.claimName`));
+    if (v.hostPath && !v.hostPath.path) erros.push(obrigatorio(`${cam}.hostPath.path`));
   });
+  // Os contêineres e depois os init containers (como o apiserver), com as mesmas conferências; o nome não repete entre eles.
   const nomes = new Set();
-  spec.containers.forEach((c, i) => {
-    const cam = `${base}.containers[${i}]`;
-    if (!c.name) erros.push(obrigatorio(`${cam}.name`));
-    else if (!RE_LABEL.test(c.name)) erros.push(invalido(`${cam}.name`, c.name, MSG_LABEL));
-    else if (nomes.has(c.name)) erros.push(`${cam}.name: Duplicate value: ${JSON.stringify(c.name)}`);
-    nomes.add(c.name);
-    if (!c.image) erros.push(obrigatorio(`${cam}.image`));
-    (c.ports ?? []).forEach((p, j) => {
-      if (p.containerPort === undefined) erros.push(obrigatorio(`${cam}.ports[${j}].containerPort`));
-      else if (p.containerPort < 1 || p.containerPort > 65535) erros.push(invalido(`${cam}.ports[${j}].containerPort`, p.containerPort, 'must be between 1 and 65535, inclusive'));
+  for (const [campo, lista] of [['containers', spec.containers], ['initContainers', spec.initContainers ?? []]]) {
+    lista.forEach((c, i) => {
+      const cam = `${base}.${campo}[${i}]`;
+      if (!c.name) erros.push(obrigatorio(`${cam}.name`));
+      else if (!RE_LABEL.test(c.name)) erros.push(invalido(`${cam}.name`, c.name, MSG_LABEL));
+      if (!c.image) erros.push(obrigatorio(`${cam}.image`));
+      (c.ports ?? []).forEach((p, j) => {
+        if (p.containerPort === undefined) erros.push(obrigatorio(`${cam}.ports[${j}].containerPort`));
+        else if (p.containerPort < 1 || p.containerPort > 65535) erros.push(invalido(`${cam}.ports[${j}].containerPort`, p.containerPort, 'must be between 1 and 65535, inclusive'));
+      });
+      (c.env ?? []).forEach((e, j) => {
+        if (!e.name) erros.push(obrigatorio(`${cam}.env[${j}].name`));
+        for (const ref of ['configMapKeyRef', 'secretKeyRef']) {
+          const r = e.valueFrom?.[ref];
+          if (!r) continue;
+          if (!RE_SUBDOMINIO.test(r.name ?? '')) erros.push(invalido(`${cam}.env[${j}].valueFrom.${ref}.name`, r.name ?? '', MSG_SUBDOMINIO));
+          if (!r.key) erros.push(obrigatorio(`${cam}.env[${j}].valueFrom.${ref}.key`));
+        }
+      });
+      (c.envFrom ?? []).forEach((ef, j) => {
+        if (!ef.configMapRef && !ef.secretRef) erros.push(invalido(`${cam}.envFrom`, '', 'must specify one of: `configMapRef` or `secretRef`'));
+        for (const ref of ['configMapRef', 'secretRef']) if (ef[ref] && !ef[ref].name) erros.push(obrigatorio(`${cam}.envFrom[${j}].${ref}.name`));
+      });
+      (c.volumeMounts ?? []).forEach((m, j) => {
+        const cm = `${cam}.volumeMounts[${j}]`;
+        if (!m.name) erros.push(obrigatorio(`${cm}.name`));
+        else if (!volumes.has(m.name)) erros.push(`${cm}.name: Not found: ${JSON.stringify(m.name)}`);
+        if (!m.mountPath) erros.push(obrigatorio(`${cm}.mountPath`));
+      });
+      if (c.imagePullPolicy !== undefined && !['Always', 'IfNotPresent', 'Never'].includes(c.imagePullPolicy)) {
+        erros.push(`${cam}.imagePullPolicy: Unsupported value: ${JSON.stringify(c.imagePullPolicy)}: supported values: "Always", "IfNotPresent", "Never"`);
+      }
+      validarRecursos(c.resources, `${cam}.resources`, erros, base === 'spec'); // só o Pod tem o PodSpec em spec (os moldes, em .template.spec)
+      if (c.name && nomes.has(c.name)) erros.push(`${cam}.name: Duplicate value: ${JSON.stringify(c.name)}`);
+      nomes.add(c.name);
+      const ganchos = [['lifecycle.postStart', c.lifecycle?.postStart], ['lifecycle.preStop', c.lifecycle?.preStop], ...['livenessProbe', 'readinessProbe', 'startupProbe'].map((q) => [q, c[q]])];
+      // Init container comum (sem restartPolicy: Always, o sidecar) roda até o fim: não tem gancho nem sonda.
+      if (campo === 'initContainers' && c.restartPolicy !== 'Always') {
+        for (const k of ['lifecycle', 'livenessProbe', 'readinessProbe', 'startupProbe']) if (c[k]) erros.push(`${cam}.${k}: Forbidden: may not be set for init containers without restartPolicy=Always`);
+      } else for (const [onde, h] of ganchos) if (h) validarAcao(h, `${cam}.${onde}`, erros);
     });
-    (c.env ?? []).forEach((e, j) => {
-      if (!e.name) erros.push(obrigatorio(`${cam}.env[${j}].name`));
-    });
-    (c.envFrom ?? []).forEach((ef, j) => {
-      if (!ef.configMapRef && !ef.secretRef) erros.push(invalido(`${cam}.envFrom`, '', 'must specify one of: `configMapRef` or `secretRef`'));
-      for (const ref of ['configMapRef', 'secretRef']) if (ef[ref] && !ef[ref].name) erros.push(obrigatorio(`${cam}.envFrom[${j}].${ref}.name`));
-    });
-    for (const qual of ['livenessProbe', 'readinessProbe', 'startupProbe']) {
-      const p = c[qual];
-      if (p && !p.exec && !p.httpGet && !p.tcpSocket && !p.grpc) erros.push(`${cam}.${qual}: Required value: must specify a handler type`);
-    }
-    for (const [onde, h] of [['lifecycle.postStart', c.lifecycle?.postStart], ['lifecycle.preStop', c.lifecycle?.preStop], ...['livenessProbe', 'readinessProbe', 'startupProbe'].map((q) => [q, c[q]])]) {
-      if (h?.exec && !h.exec.command?.length) erros.push(obrigatorio(`${cam}.${onde}.exec.command`));
-    }
-    (c.volumeMounts ?? []).forEach((m, j) => {
-      const cm = `${cam}.volumeMounts[${j}]`;
-      if (!m.name) erros.push(obrigatorio(`${cm}.name`));
-      else if (!volumes.has(m.name)) erros.push(`${cm}.name: Not found: ${JSON.stringify(m.name)}`);
-      if (!m.mountPath) erros.push(obrigatorio(`${cm}.mountPath`));
-    });
-    if (c.imagePullPolicy !== undefined && !['Always', 'IfNotPresent', 'Never'].includes(c.imagePullPolicy)) {
-      erros.push(`${cam}.imagePullPolicy: Unsupported value: ${JSON.stringify(c.imagePullPolicy)}: supported values: "Always", "IfNotPresent", "Never"`);
-    }
-    validarRecursos(c.resources, `${cam}.resources`, erros, base === 'spec'); // só o Pod tem o PodSpec em spec (os moldes, em .template.spec)
-  });
-  (spec.initContainers ?? []).forEach((c, i) => { // depois dos contêineres, como o apiserver
-    if (!c.name) erros.push(obrigatorio(`${base}.initContainers[${i}].name`));
-    if (!c.image) erros.push(obrigatorio(`${base}.initContainers[${i}].image`));
-  });
+  }
   const politica = spec.restartPolicy;
   if (politica && !['Always', 'OnFailure', 'Never'].includes(politica)) {
     erros.push(`${base}.restartPolicy: Unsupported value: ${JSON.stringify(politica)}: supported values: "Always", "OnFailure", "Never"`);
@@ -1213,6 +1228,7 @@ export function validar(obj, antigo) {
       if (!s?.accessModes?.length) erros.push('spec.accessModes: Required value');
       if (!s?.capacity?.storage) erros.push('spec.capacity: Required value');
       if (!s?.hostPath && !s?.local && !s?.nfs && !s?.csi) erros.push('spec: Required value: must specify a volume type');
+      if (s?.hostPath && !s.hostPath.path) erros.push(obrigatorio('spec.hostPath.path'));
       break;
     case 'StorageClass':
       if (!obj.provisioner) erros.push(obrigatorio('provisioner'));
@@ -1423,6 +1439,10 @@ export function aplicarPadroes(obj) {
       break;
     case 'PriorityClass':
       obj.preemptionPolicy ??= 'PreemptLowerPriority';
+      break;
+    case 'PodDisruptionBudget': // `spec:` sem nada é válido (no Go, a struct nunca é nil): o PDB sem seletor não protege ninguém
+    case 'ResourceQuota': // e a cota sem hard não limita nada
+      obj.spec ??= {};
       break;
     case 'NetworkPolicy': {
       const np = (obj.spec ??= {}); // `spec:` sem nada: o podSelector vazio escolhe todos, e a entrada fecha

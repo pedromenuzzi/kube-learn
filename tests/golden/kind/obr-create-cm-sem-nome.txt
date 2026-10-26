@@ -1,0 +1,2 @@
+The ConfigMap "" is invalid: metadata.name: Required value: name or generateName is required
+exit=1

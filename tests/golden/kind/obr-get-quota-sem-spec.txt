@@ -1,0 +1,3 @@
+NAME   REQUEST   LIMIT   AGE
+teto                     9s
+exit=0

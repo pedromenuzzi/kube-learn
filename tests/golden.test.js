@@ -62,6 +62,8 @@ const ESPECIAIS = {
   'term-run-rm': { anexo: true },
   'term-run-rm-falha': { anexo: true },
   'term-run-sem-rm': { anexo: true },
+  // O NoPods do PDB sem pods: o real avisa a cada sincronia (x2 em segundos), o simulador a cada mudança do status.
+  'obr-describe-pdb-sem-spec': { ate: 'Events:', eventos: true },
 };
 
 const linhas = (t) => t.split('\n');

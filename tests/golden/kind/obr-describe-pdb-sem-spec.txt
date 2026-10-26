@@ -1,0 +1,13 @@
+Name:       sem-regra
+Namespace:  obrigatorios
+Selector:   <unset>
+Status:
+    Allowed disruptions:  0
+    Current:              0
+    Desired:              0
+    Total:                0
+Events:
+  Type    Reason  Age              From               Message
+  ----    ------  ----             ----               -------
+  Normal  NoPods  9s (x2 over 9s)  controllermanager  No matching pods found
+exit=0

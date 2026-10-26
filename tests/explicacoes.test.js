@@ -85,6 +85,20 @@ describe('o erro que ensina: campo inexistente, objeto que não existe e o aviso
     expect(caixa(ler('obr-apply-rb-troca')).titulo).toBe('O roleRef não muda depois de criado');
   });
 
+  it('o objeto sem metadata.name (apply, create e delete) e a sonda sem porta: caixas próprias (a saída do kind)', () => {
+    for (const f of ['obr-apply-cm-sem-nome', 'obr-create-cm-sem-nome', 'obr-delete-cm-sem-nome']) expect(caixa(ler(f)).titulo, f).toBe('O objeto não tem nome');
+    expect(caixa(ler('obr-apply-sonda-sem-porta')).titulo).toBe('Falta a porta do httpGet');
+    expect(caixa(ler('obr-apply-tcp-sem-porta')).texto).toContain('<code>spec.containers[0].readinessProbe</code>');
+    // o `kubectl get pod ""` (sem YAML) não fala de metadata.name
+    expect(explicar('error: resource name may not be empty', { falhou: true }).map((c) => c.titulo)).not.toContain('O objeto não tem nome');
+  });
+
+  it('o node NotReady: o pod de StatefulSet espera o node voltar, não renasce em outro', () => {
+    const [c] = explicar('NAME     STATUS     ROLES    AGE   VERSION\nnode-2   NotReady   <none>   1h    v1.37.0\n', { falhou: false });
+    expect(c.texto).toContain('os de um StatefulSet esperam o node voltar (ou o taint out-of-service)');
+    expect(c.texto).not.toMatch(/StatefulSet\) renascem/);
+  });
+
   it('em inglês: a mesma sugestão e as mesmas caixas', async () => {
     await definirIdioma('en', { salvar: false });
     try {
@@ -95,6 +109,9 @@ describe('o erro que ensina: campo inexistente, objeto que não existe e o aviso
       expect(caixa(decodificacao('Deployment', ['spec.replica'])).texto).toContain('Did you mean <code>replicas</code>?');
       expect(caixa(ler('get-pod-nao-existe')).titulo).toBe('Nothing in pods is named “nao-existe”');
       expect(explicar(ler('get-ep'), { falhou: false }).map((x) => x.titulo)).toContain('Warning: Endpoints is on its way out');
+      expect(caixa(ler('obr-apply-cm-sem-nome')).titulo).toBe('The object has no name');
+      expect(caixa(ler('obr-apply-sonda-sem-porta')).titulo).toBe('The httpGet is missing its port');
+      expect(explicar('node-2   NotReady   <none>   1h    v1.37.0\n', { falhou: false })[0].texto).toContain('a StatefulSet’s wait for the node to come back');
     } finally {
       await definirIdioma('pt', { salvar: false });
     }
