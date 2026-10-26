@@ -1,6 +1,7 @@
 // As janelas da tela do exercício (missão, arquivos, terminal, cluster): o aluno arrasta para mudar de lugar
-// e arrasta os divisores para mudar o tamanho. Também dá pelo teclado: botões ↑ ↓ ← → em cada janela e
-// setas nos divisores. A arrumação fica salva no navegador. No celular, as janelas ficam empilhadas.
+// e arrasta os divisores para mudar o tamanho. Também dá pelo teclado: a alça de cada janela (uma parada só do Tab)
+// responde às setas, e os divisores também. Os botões ↑ ↓ ← → ficam para o mouse, fora do Tab (senão eram quatro
+// paradas por janela antes do editor). A arrumação fica salva no navegador. No celular, as janelas ficam empilhadas.
 import { ler, gravar, CHAVES } from '../armazenamento.js';
 import { escapar } from './util.js';
 import { t } from '../i18n.js';
@@ -152,6 +153,7 @@ export function redimensionarJanelas(arrumacao, c, j, delta) {
 // ---------- DOM ----------
 const CHAVE = CHAVES.janelas;
 const SETAS = { cima: '↑', baixo: '↓', esquerda: '←', direita: '→' };
+const TECLAS = { ArrowUp: 'cima', ArrowDown: 'baixo', ArrowLeft: 'esquerda', ArrowRight: 'direita' };
 const NOMES = {
   cima: (janela) => t('Mover {janela} para cima', { janela }),
   baixo: (janela) => t('Mover {janela} para baixo', { janela }),
@@ -174,9 +176,9 @@ export function montarJanelas(raiz, janelas, { aoMudar } = {}) {
     q.setAttribute('aria-labelledby', `janela-${id}`);
     q.innerHTML = `
       <header class="janela-topo">
-        <span class="alca" aria-hidden="true" title="${t('Arraste para mudar de lugar')}">⠿</span>
+        <span class="janela-mover"><button type="button" class="mini alca" aria-label="${t('Mover a janela {janela}', { janela: escapar(janelas[id].titulo) })}" title="${t('Arraste para mudar de lugar, ou use as setas do teclado')}"><span aria-hidden="true">⠿</span></button></span>
         <h2 id="janela-${id}">${escapar(janelas[id].titulo)}</h2>
-        <span class="janela-mover">${Object.entries(SETAS).map(([d, s]) => `<button type="button" class="mini" data-mover="${d}" aria-label="${NOMES[d](escapar(janelas[id].titulo))}">${s}</button>`).join('')}</span>
+        <span class="janela-mover">${Object.entries(SETAS).map(([d, s]) => `<button type="button" class="mini" tabindex="-1" data-mover="${d}" aria-label="${NOMES[d](escapar(janelas[id].titulo))}">${s}</button>`).join('')}</span>
       </header>`;
     const corpo = document.createElement('div');
     corpo.className = 'janela-corpo';
@@ -271,13 +273,21 @@ export function montarJanelas(raiz, janelas, { aoMudar } = {}) {
     return 0;
   };
 
-  // Botões de mover (teclado e mouse).
+  // Botões de mover (mouse) e a alça com as setas (teclado).
   raiz.addEventListener('click', (e) => {
     const b = e.target.closest('[data-mover]');
     if (!b) return;
     const id = b.closest('.janela').dataset.janela;
     mudar(mover(arrumacao, id, b.dataset.mover, ids));
     quadros[id].querySelector(`[data-mover="${b.dataset.mover}"]`).focus();
+  });
+  raiz.addEventListener('keydown', (e) => {
+    const direcao = e.target.closest?.('.alca') && TECLAS[e.key];
+    if (!direcao) return;
+    e.preventDefault();
+    const id = e.target.closest('.janela').dataset.janela;
+    mudar(mover(arrumacao, id, direcao, ids));
+    quadros[id].querySelector('.alca').focus();
   });
 
   // Arrastar a janela pelo topo: solta antes/depois de outra janela, ou numa coluna nova ao lado.
@@ -287,7 +297,7 @@ export function montarJanelas(raiz, janelas, { aoMudar } = {}) {
   document.body.append(marca);
   raiz.addEventListener('pointerdown', (e) => {
     const topo = e.target.closest('.janela-topo');
-    if (!topo || e.target.closest('button') || e.button !== 0) return;
+    if (!topo || e.target.closest('button:not(.alca)') || e.button !== 0) return; // a alça também se arrasta
     if (matchMedia('(max-width: 60rem)').matches) return; // empilhadas (celular): nada de arrastar
     const id = topo.closest('.janela').dataset.janela;
     let alvo = null;

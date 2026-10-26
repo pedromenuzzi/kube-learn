@@ -31,8 +31,8 @@ test('nível 0: lição lida e quiz certo contam na trilha', async ({ page }) =>
   await page.goto('#/trilha');
   await expect(page.locator('#nivel-2')).toContainText('Bloqueado');
   await page.locator('#nivel-0').getByRole('link', { name: /Funciona na minha máquina/ }).click();
-  await page.getByRole('button', { name: 'Marquei como lida' }).click();
-  await expect(page.getByRole('status')).toContainText('+5 XP');
+  await page.getByRole('link', { name: /^Lida · Próxima: / }).click(); // marca a lição como lida e abre a próxima
+  await expect(page.locator('.placar-topo')).toHaveAccessibleName(/^5 XP, /);
   await page.goto('#/ex/n0-quiz-latest');
   await page.getByLabel(/a versão mais nova publicada/).check();
   await page.getByRole('button', { name: 'Responder' }).click();
