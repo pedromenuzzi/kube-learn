@@ -16,6 +16,7 @@ export default {
   '{cmd}: aqui o {cmd} lê a saída de outro comando (depois de um |) ou um arquivo do editor.': '{cmd}: here {cmd} reads the output of another command (after a |) or a file from the editor.',
   "awk: aqui o awk só entende programas como '{print $1}', '{print $1, $3}', '{print $NF}' e 'NR>1 {print $1}'.": "awk: here awk only understands programs like '{print $1}', '{print $1, $3}', '{print $NF}' and 'NR>1 {print $1}'.",
   'bash: {cmd}: este terminal não tem esse comando. Depois de um | ele entende: {lista}.': 'bash: {cmd}: this terminal doesn’t have that command. After a | it understands: {lista}.',
+  'bash: {arquivo}: só dá para gravar arquivos .yaml, .json ou .txt aqui': 'bash: {arquivo}: only .yaml, .json or .txt files can be written here',
   // kubectl/index.js: o rollout status que não termina em 20 minutos
   '(o kubectl de verdade continuaria esperando até alguém apertar Ctrl+C; o simulador parou depois de 20 minutos sem o rollout terminar)': '(the real kubectl would keep waiting until someone pressed Ctrl+C; the simulator stopped after 20 minutes without the rollout finishing)',
   // exercicio.js: o topo, os botões, as janelas e as abas

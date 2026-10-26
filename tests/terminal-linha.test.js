@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { criarCluster } from '../src/k8s/cluster.js';
 import { rodarLinha, COMANDOS, conhece } from '../src/k8s/linha.js';
 import { montarCluster } from '../src/conteudo/clusters.js';
+import { definirIdioma } from '../src/i18n.js';
 
 function cluster() {
   const c = criarCluster();
@@ -147,6 +148,50 @@ describe('os reflexos do exame: alias, export, > /tmp/x e 2>&1', () => {
     // O -f . lê só a pasta atual: o /tmp/ns.yaml fica de fora.
     expect(rodar('kubectl apply -f .').stdout).toBe('namespace/do-editor created\n');
     expect(rodar('kubectl apply -f /tmp/ns.yaml').codigo).toBe(0);
+  });
+
+  it('2> arquivo leva só o erro, 1> é o >, &> leva os dois; o $? é o código do último comando', async () => {
+    const c = cluster();
+    const arquivos = {};
+    const rodar = (linha) => rodarLinha(c, linha, arquivos);
+    const nada = 'Error from server (NotFound): pods "nope" not found\n';
+    expect(rodar('kubectl get po nope 2> erro.txt')).toMatchObject({ saida: '', codigo: 1, arquivoGravado: 'erro.txt' });
+    expect(arquivos['erro.txt']).toBe(nada);
+    expect(rodar('kubectl get po nope 2>> erro.txt').saida).toBe('');
+    expect(arquivos['erro.txt']).toBe(nada + nada);
+    expect(rodar('kubectl get deploy loja -o name 2> erro.txt')).toMatchObject({ stdout: 'deployment.apps/loja\n', codigo: 0 });
+    expect(arquivos['erro.txt']).toBe('');
+    expect(rodar('kubectl get ns default -o name 1> um.txt')).toMatchObject({ saida: '', codigo: 0, arquivoGravado: 'um.txt' });
+    expect(arquivos['um.txt']).toBe('namespace/default\n');
+    expect(rodar('kubectl get po nope &> tudo.txt')).toMatchObject({ saida: '', codigo: 1, arquivoGravado: 'tudo.txt' });
+    expect(rodar('kubectl get ns default -o name &>> tudo.txt').saida).toBe('');
+    expect(arquivos['tudo.txt']).toBe(`${nada}namespace/default\n`);
+    // o erro do comando antes do | vai para a tela; o 2> de um estágio grava o dele
+    expect(rodar('kubectl get po nope 2> e.txt | wc -l')).toMatchObject({ saida: '0\n', arquivoGravado: 'e.txt' });
+    expect(rodar('kubectl get po nope > /dev/null 2>&1; echo $?').stdout).toBe('1\n');
+    expect(rodar('kubectl get ns > /dev/null; echo "${?}" $?')).toMatchObject({ stdout: '0 0\n', codigo: 0 });
+    expect(rodar('echo $?').stdout).toBe('0\n');
+    expect(rodar('kubectl nada; echo $?').stdout).toBe('1\n');
+    expect(rodar("echo '$?'").stdout).toBe('$?\n');
+    // a mesma regra de extensão em todo destino, e em inglês no inglês
+    expect(rodar('kubectl get po 2> erro.exe')).toMatchObject({ codigo: 1, stderr: 'bash: erro.exe: só dá para gravar arquivos .yaml, .json ou .txt aqui\n' });
+    expect(rodar('kubectl get po &> tudo.exe').codigo).toBe(1);
+    expect(Object.keys(arquivos)).toEqual(['erro.txt', 'um.txt', 'tudo.txt', 'e.txt']);
+    await definirIdioma('en', { salvar: false });
+    try {
+      expect(rodar('kubectl get ns > foo.exe').stderr).toBe('bash: foo.exe: only .yaml, .json or .txt files can be written here\n');
+    } finally {
+      await definirIdioma('pt', { salvar: false });
+    }
+  });
+
+  it('o -f . -R lê só a pasta do editor e as subpastas: o /tmp/... gravado pelo terminal fica de fora', () => {
+    const c = cluster();
+    const arquivos = { 'sub/ns.yaml': 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: da-subpasta\n' };
+    expect(rodarLinha(c, 'kubectl create cm x --from-literal=a=b --dry-run=client -o yaml > /tmp/cm.yaml', arquivos).codigo).toBe(0);
+    expect(rodarLinha(c, 'kubectl apply -f . -R', arquivos).stdout).toBe('namespace/da-subpasta created\n');
+    expect(rodarLinha(c, 'kubectl get cm x', arquivos).codigo).toBe(1);
+    expect(rodarLinha(c, 'kubectl apply -f /tmp -R', arquivos).stdout).toBe('configmap/x created\n');
   });
 
   it('a barra nas aspas duplas escapa " \\ $ e a crase: o jsonpath com {\\"\\n\\"} imprime só a imagem', () => {

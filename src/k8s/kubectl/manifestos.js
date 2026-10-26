@@ -17,7 +17,8 @@ export function lerCaminhos(arquivos, caminhos, recursivo) {
       continue;
     }
     const pasta = c === '.' || c === '' ? '' : `${c}/`;
-    const dentro = Object.keys(arquivos).filter((k) => k.startsWith(pasta) && EXTENSOES.test(k) && (recursivo || !k.slice(pasta.length).includes('/'))).sort();
+    // A pasta atual ('.', mesmo com -R) é a do editor: o /tmp/... e o /opt/course/... gravados pelo terminal ficam fora.
+    const dentro = Object.keys(arquivos).filter((k) => k.startsWith(pasta) && (pasta || !k.startsWith('/')) && EXTENSOES.test(k) && (recursivo || !k.slice(pasta.length).includes('/'))).sort();
     if (!dentro.length && !Object.keys(arquivos).some((k) => k.startsWith(pasta))) return { erro: `error: the path "${bruto}" does not exist` };
     for (const k of dentro) saida.push({ arquivo: k, texto: arquivos[k] });
   }

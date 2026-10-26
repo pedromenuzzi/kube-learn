@@ -1,9 +1,12 @@
 // @vitest-environment node
 // A regra `comando` aceita o kubectl válido escrito de outro jeito (aspas, -n antes do verbo, -oyaml, flags em outra
-// ordem) e continua recusando o comando errado de verdade (verbo errado, flag faltando). O contrário das armadilhas.
+// ordem, e os reflexos do exame: o k, um alias do aluno e o $do) e continua recusando o comando errado de verdade (verbo
+// errado, flag faltando). O contrário das armadilhas.
 import { describe, expect, it } from 'vitest';
 import { ITENS, OFICINA } from '../src/conteudo/index.js';
 import { formasDoComando, rodarTestes } from '../src/verificacoes.js';
+import { criarCluster } from '../src/k8s/cluster.js';
+import { linhaExpandida, rodarLinha } from '../src/k8s/linha.js';
 import { aluno } from './trilha.js';
 
 const item = (id) => [...ITENS, ...OFICINA].find((i) => i.id === id);
@@ -17,8 +20,12 @@ const CASOS = {
       gerar('-o yaml --dry-run=client > api.yaml'),
       gerar('--dry-run=client --output=yaml > api.yaml'),
       gerar('--dry-run=client -o=yaml >api.yaml'),
+      ['export do="--dry-run=client -o yaml"', ...gerar('$do > api.yaml')],
+      ['export do="--dry-run=client -o yaml"', ...gerar('${do} > api.yaml')],
+      ['alias kc=kubectl', 'export do="--dry-run=client -o yaml"', 'kc create deploy api --image=kubelearn/loja:1.0 --replicas=3 $do > api.yaml', 'k apply -f api.yaml'],
     ],
     recusadas: [
+      ['export do="-o yaml"', ...gerar('$do > api.yaml')], // o $do sem o --dry-run
       gerar('-o yaml > api.yaml'), // sem o --dry-run: criou de verdade, e o arquivo só veio junto
       ['kubectl create deployment api --image=kubelearn/loja:1.0 --replicas=3'], // sem gerar o arquivo
     ],
@@ -28,8 +35,12 @@ const CASOS = {
     recusadas: [['kubectl get pods --show-labels']],
   },
   'kubectl-escalar': {
-    aceitas: [['kubectl -n default scale deployment loja --replicas=5'], ['kubectl --namespace=default scale deploy/loja --replicas 5']],
-    recusadas: [['kubectl patch deployment loja -p \'{"spec":{"replicas":5}}\'']],
+    aceitas: [
+      ['kubectl -n default scale deployment loja --replicas=5'], ['kubectl --namespace=default scale deploy/loja --replicas 5'],
+      ['k scale deployment loja --replicas=5'], ['alias kc=kubectl', 'kc scale deployment loja --replicas=5'],
+      ["alias kd='kubectl -n default'", 'kd scale deploy loja --replicas=5'], ['k get deploy && k scale deploy loja --replicas=5'],
+    ],
+    recusadas: [['kubectl patch deployment loja -p \'{"spec":{"replicas":5}}\''], ['k patch deployment loja -p \'{"spec":{"replicas":5}}\'']],
   },
   'n5-coleta-agora': {
     aceitas: [['kubectl create job --from=cronjob/backup teste'], ['kubectl create job teste --from cronjob/backup'], ['kubectl create job teste --from=cj/backup']],
@@ -68,5 +79,13 @@ describe('a regra comando', () => {
     expect(formasDoComando("kubectl -n loja get pods -l 'app=x' -oyaml | grep nome")).toContain('kubectl get pods -l app=x -o yaml -n loja | grep nome');
     expect(formasDoComando('kubectl -n loja exec -it pod -- ls -la')).toContain('kubectl exec -it pod -n loja -- ls -la');
     expect(formasDoComando('kubectl apply -f a.yaml && kubectl -n x scale deploy/a --replicas=2')).toContain('kubectl scale deploy/a --replicas=2 -n x');
+  });
+
+  it('a linha expandida troca o k, os aliases e as variáveis em cada comando, e o k de dentro das aspas fica', () => {
+    const c = criarCluster();
+    rodarLinha(c, "alias kc=kubectl && alias kgp='kubectl get pods' && export do='--dry-run=client -o yaml'", {});
+    expect(linhaExpandida(c, 'kc run x --image=nginx $do > x.yaml && k get po | grep k; kgp -o name')).toBe('kubectl run x --image=nginx --dry-run=client -o yaml > x.yaml && kubectl get po | grep k; kubectl get pods -o name');
+    expect(linhaExpandida(c, "kubectl exec x -- sh -c 'k get po'")).toBe("kubectl exec x -- sh -c 'k get po'");
+    expect(linhaExpandida(criarCluster(), 'kc get po $do')).toBe('kc get po ');
   });
 });

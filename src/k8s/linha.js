@@ -16,18 +16,22 @@ import { t } from '../i18n.js';
 
 const EXTENSAO = /\.(ya?ml|json|txt)$/;
 
-/** O que o bash do aluno guarda de uma linha para outra (as variáveis e os aliases), por cluster: o Resetar, que cria outro cluster, zera tudo. */
+/**
+ * O que o bash do aluno guarda de uma linha para outra (as variáveis, os aliases e o código de saída do último comando,
+ * o $?), por cluster: o Resetar, que cria outro cluster, zera tudo.
+ */
 const SHELLS = new WeakMap();
+const shellNovo = () => ({ vars: new Map(), aliases: new Map(), codigo: 0 });
 function shellDe(cluster) {
-  if (!SHELLS.has(cluster)) SHELLS.set(cluster, { vars: new Map(), aliases: new Map() });
+  if (!SHELLS.has(cluster)) SHELLS.set(cluster, shellNovo());
   return SHELLS.get(cluster);
 }
 
 /**
- * $VAR e ${VAR} fora das aspas simples, como o bash. O valor entra escapado: sem aspas, só se quebra nos espaços (o
+ * $VAR, ${VAR} e $? fora das aspas simples, como o bash. O valor entra escapado: sem aspas, só se quebra nos espaços (o
  * "$do" vira várias palavras, e um | ou > de dentro dele não vale como operador); nas aspas duplas, fica uma palavra.
  */
-function expandir(texto, vars) {
+function expandir(texto, shell) {
   let saida = '';
   let aspas = null;
   for (let i = 0; i < texto.length; i++) {
@@ -40,9 +44,10 @@ function expandir(texto, vars) {
     } else if (ch === '"') aspas = aspas ? null : '"';
     else if (ch === "'" && !aspas) aspas = "'";
     else if (ch === '$') {
-      const m = texto.slice(i).match(/^\$(?:\{([A-Za-z_]\w*)\}|([A-Za-z_]\w*))/);
+      const m = texto.slice(i).match(/^\$(?:\{([A-Za-z_]\w*|\?)\}|([A-Za-z_]\w*|\?))/);
       if (m) {
-        saida += (vars.get(m[1] ?? m[2]) ?? '').replace(aspas ? /["\\$`]/g : /[^\s\w=,.:/@%+-]/g, '\\$&');
+        const nome = m[1] ?? m[2];
+        saida += (nome === '?' ? String(shell.codigo) : shell.vars.get(nome) ?? '').replace(aspas ? /["\\$`]/g : /[^\s\w=,.:/@%+-]/g, '\\$&');
         i += m[0].length - 1;
         continue;
       }
@@ -85,14 +90,14 @@ function apelidar(cluster, args) {
 }
 
 /** O alias na primeira palavra: o valor entra no lugar dela e é lido de novo (o mesmo alias não se expande duas vezes). */
-function semAlias(cluster, texto) {
-  const { aliases, vars } = shellDe(cluster);
+function semAlias(shell, texto) {
+  const { aliases } = shell;
   const vistos = new Set();
   for (;;) {
     const m = texto.match(/^(\s*)([^\s'"\\|&;<>=$`]+)(?=\s|$)/);
     if (!m || vistos.has(m[2]) || !aliases.has(m[2])) return texto;
     vistos.add(m[2]);
-    texto = `${m[1]}${expandir(aliases.get(m[2]), vars)}${texto.slice(m[0].length)}`;
+    texto = `${m[1]}${expandir(aliases.get(m[2]), shell)}${texto.slice(m[0].length)}`;
   }
 }
 
@@ -392,17 +397,26 @@ function foraDasAspas(texto, achar) {
   return -1;
 }
 
-/** O 2>&1 (o erro vai junto com a saída) e o 2>/dev/null (o erro some) de um comando. → [texto sem eles, desvio] */
+/** Dá para gravar ali? Os arquivos do editor são .yaml, .json ou .txt, e o /dev/null joga fora. → o erro do bash, ou null */
+const naoGrava = (nome) => (nome === '/dev/null' || EXTENSAO.test(nome) ? null : resultado(1, '', `${t('bash: {arquivo}: só dá para gravar arquivos .yaml, .json ou .txt aqui', { arquivo: nome })}\n`));
+
+/**
+ * Para onde vai o erro de um comando: 2>&1 (junto com a saída), 2>/dev/null (some) ou 2> arquivo (2>> soma no fim).
+ * → [texto sem eles, desvio: { para: '&1' | '/dev/null' | arquivo, somar } ou null]
+ */
 function desvioDoErro(texto) {
-  const i = foraDasAspas(texto, (k) => /(^|\s)$/.test(texto.slice(0, k)) && /^2>(&1|\/dev\/null)(\s|$)/.test(texto.slice(k)));
+  const i = foraDasAspas(texto, (k) => /(^|\s)$/.test(texto.slice(0, k)) && /^2>>?\s*\S/.test(texto.slice(k)));
   if (i < 0) return [texto, null];
-  const m = texto.slice(i).match(/^2>(&1|\/dev\/null)/);
+  const m = texto.slice(i).match(/^2(>>?)\s*(\S+)/);
   const [resto, outro] = desvioDoErro(texto.slice(0, i) + texto.slice(i + m[0].length));
-  return [resto, outro ?? m[1]];
+  return [resto, outro ?? { para: m[2] === '&1' ? m[2] : palavras(m[2]).join(''), somar: m[1] === '>>' }];
 }
 
 function rodarComando(cluster, bruto, arquivos, anterior, cano) {
-  const [texto, desvio] = desvioDoErro(semAlias(cluster, bruto));
+  const [texto, desvio] = desvioDoErro(semAlias(shellDe(cluster), bruto));
+  const arquivo = desvio && desvio.para !== '&1' && desvio.para !== '/dev/null' ? desvio.para : null;
+  const recusa = arquivo && naoGrava(arquivo);
+  if (recusa) return recusa;
   const ps = palavras(texto);
   const i = ps.findIndex((p) => !/^[A-Za-z_]\w*=/.test(p)); // pula o VAR=valor da frente (KUBE_EDITOR=...)
   if (i < 0) { // só VAR=valor: a variável fica no shell
@@ -416,8 +430,9 @@ function rodarComando(cluster, bruto, arquivos, anterior, cano) {
   else if (!anterior) r = resultado(127, '', `bash: ${nome}: command not found\n`);
   else r = resultado(127, '', `${t('bash: {cmd}: este terminal não tem esse comando. Depois de um | ele entende: {lista}.', { cmd: nome, lista: FILTROS })}\n`);
   if (!desvio) return r;
-  const partes = desvio === '&1' ? r.partes.map((p) => ({ ...p, fluxo: 'out' })) : r.partes.filter((p) => p.fluxo === 'out');
-  return juntar(partes, r.codigo, extras(r));
+  const partes = desvio.para === '&1' ? r.partes.map((p) => ({ ...p, fluxo: 'out' })) : r.partes.filter((p) => p.fluxo === 'out');
+  if (arquivo) arquivos[arquivo] = (desvio.somar ? arquivos[arquivo] ?? '' : '') + r.stderr;
+  return juntar(partes, r.codigo, { ...extras(r), ...(arquivo ? { arquivoGravado: arquivo } : {}) });
 }
 
 /** Corta a linha nos operadores que estão fora das aspas (o `&&` de dentro de um sh -c '...' é do contêiner). → [[trecho, operador depois dele (ou null)]] */
@@ -436,42 +451,73 @@ function cortar(linha, operadores) {
 }
 
 /**
- * O "> arquivo" (ou ">>"), se estiver fora de aspas (o de dentro de um sh -c '...' é do contêiner; o 2> é do erro).
- * O que vem depois do nome (o 2>&1 de "> x.txt 2>&1") volta para o comando. → [comando, operador, arquivo] ou null
+ * O "> arquivo" (">>" soma no fim, "1>" é o mesmo, "&>" e "&>>" levam o erro junto), se estiver fora de aspas (o de
+ * dentro de um sh -c '...' é do contêiner; o 2> é do erro e fica com o comando). O que vem depois do nome (o 2>&1 de
+ * "> x.txt 2>&1") volta para o comando. → [comando, operador, arquivo] ou null
  */
 function redirecionamento(linha) {
-  const i = foraDasAspas(linha, (k) => linha[k] === '>' && !/(^|\s)2$/.test(linha.slice(0, k)) && !linha.startsWith('>&', k));
+  const i = foraDasAspas(linha, (k) => linha[k] === '>' && !/(^|\s)2>?$/.test(linha.slice(0, k)) && !linha.startsWith('>&', k));
   if (i < 0) return null;
+  const antes = linha.slice(0, i);
+  const prefixo = /(^|\s)[1&]$/.test(antes) ? antes.at(-1) : '';
+  const comando = antes.slice(0, antes.length - prefixo.length);
   const m = linha.slice(i).match(/^(>>?)\s*(\S+)/);
-  return m && linha.slice(0, i).trim() ? [linha.slice(0, i) + linha.slice(i + m[0].length), m[1], palavras(m[2]).join('')] : null;
+  return m && comando.trim() ? [comando + linha.slice(i + m[0].length), (prefixo === '&' ? '&' : '') + m[1], palavras(m[2]).join('')] : null;
 }
 
-/** Um cano (`a | b | c`), com o `> arquivo` do fim. → resultado (com `arquivoGravado` quando houve `>`) */
+/** Um cano (`a | b | c`), com o `> arquivo` do fim. → resultado (com `arquivoGravado` quando gravou um arquivo) */
 function rodarCano(cluster, bruto, arquivos) {
-  const linha = expandir(bruto, shellDe(cluster).vars);
+  const linha = expandir(bruto, shellDe(cluster));
   const m = redirecionamento(linha);
-  if (m && m[2] !== '/dev/null' && !EXTENSAO.test(m[2])) return resultado(1, '', `bash: ${m[2]}: só dá para gravar arquivos .yaml, .json ou .txt aqui\n`);
+  const recusa = m && naoGrava(m[2]);
+  if (recusa) return recusa;
   const estagios = cortar(m ? m[0] : linha, ['|']).map(([x]) => x);
   if (estagios.length > 1 && estagios.some((x) => !x.trim())) return resultado(2, '', "bash: syntax error near unexpected token `|'\n");
-  const erros = [];
+  const erros = []; // o erro dos estágios antes do último vai para a tela
   let r = null;
+  let gravado; // o 2> arquivo de algum estágio
   estagios.forEach((estagio, i) => {
     if (r) erros.push(...r.partes.filter((p) => p.fluxo === 'err'));
     r = rodarComando(cluster, estagio, arquivos, r, i < estagios.length - 1);
+    gravado = r.arquivoGravado ?? gravado;
   });
-  if (estagios.length > 1) r = juntar([...erros, ...r.partes], r.codigo);
-  if (!m) return r;
-  const [, operador, nome] = m;
-  const partes = r.partes.filter((p) => p.fluxo === 'err');
-  if (nome === '/dev/null') return { ...r, saida: partes.map((p) => p.texto).join(''), stdout: '', partes };
-  arquivos[nome] = (operador === '>>' ? arquivos[nome] ?? '' : '') + r.stdout;
-  return { ...r, saida: partes.map((p) => p.texto).join(''), partes, arquivoGravado: nome };
+  if (!m && estagios.length === 1) return r;
+  let partes = r.partes;
+  if (m) {
+    const [, operador, nome] = m;
+    const vai = operador.startsWith('&') ? partes : partes.filter((p) => p.fluxo === 'out');
+    partes = partes.filter((p) => !vai.includes(p));
+    if (nome !== '/dev/null') {
+      arquivos[nome] = (operador.endsWith('>>') ? arquivos[nome] ?? '' : '') + vai.map((p) => p.texto).join('');
+      gravado = nome;
+    }
+  }
+  return juntar([...erros, ...partes], r.codigo, { ...(estagios.length > 1 ? {} : extras(r)), ...(gravado ? { arquivoGravado: gravado } : {}) });
 }
 
-/** → o resultado do último comando que rodou (com as partes de todos), ou o erro de sintaxe do bash. */
+/**
+ * A linha como o terminal a entende, sem rodar nada: com as variáveis ($do, ${do}), os aliases do aluno e o k trocados
+ * em cada comando (dos &&, || e ; e dos |). A regra `comando` dos testes usa para reconhecer o `k scale ...` e o `$do`.
+ * Vale o shell de agora: depois do Resetar (outro cluster), um alias de antes já não se expande.
+ */
+export function linhaExpandida(cluster, linha) {
+  const shell = SHELLS.get(cluster) ?? shellNovo();
+  return cortar(linha, ['&&', '||', ';'])
+    .map(([trecho, op]) => cortar(expandir(trecho, shell), ['|'])
+      .map(([cmd, cano]) => semAlias(shell, cmd).replace(/^(\s*)k(?=\s|$)/, '$1kubectl') + (cano ?? '')).join('') + (op ?? ''))
+    .join('');
+}
+
+/** → o resultado do último comando que rodou (com as partes de todos), ou o erro de sintaxe do bash. O código fica para o $?. */
 export function rodarLinha(cluster, linha, arquivos) {
+  const shell = shellDe(cluster);
+  const cano = (texto) => {
+    const r = rodarCano(cluster, texto, arquivos);
+    shell.codigo = r.codigo;
+    return r;
+  };
   const trechos = cortar(linha, ['&&', '||', ';']);
-  if (trechos.length === 1) return rodarCano(cluster, linha, arquivos);
+  if (trechos.length === 1) return cano(linha);
   const partes = [];
   let codigo = 0;
   let gravado;
@@ -480,10 +526,11 @@ export function rodarLinha(cluster, linha, arquivos) {
   for (const [trecho, depois] of trechos) {
     if (!trecho.trim()) {
       if (depois === null && antes === ';') break; // "a ;" vale
+      shell.codigo = 2;
       return resultado(2, '', `bash: syntax error near unexpected token \`${depois ?? antes}'\n`);
     }
     if (!(antes === '&&' && codigo !== 0) && !(antes === '||' && codigo === 0)) {
-      ultimo = rodarCano(cluster, trecho, arquivos);
+      ultimo = cano(trecho);
       partes.push(...ultimo.partes);
       codigo = ultimo.codigo;
       gravado = ultimo.arquivoGravado ?? gravado;
