@@ -416,6 +416,7 @@ export class Kubelet {
     const chaves = [];
     const faltam = [];
     for (const { name } of pod.spec.imagePullSecrets ?? []) {
+      if (!name) continue; // o `- ` sem nada: o kubelet ignora (a API só avisa)
       const s = this.c.obter('Secret', pod.metadata.namespace, name);
       if (!s) {
         faltam.push(name);

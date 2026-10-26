@@ -354,3 +354,224 @@ cap obr-apply-sts-molde-sem-nome kc apply -f /tmp/kl-obr-sts.yaml
 cap obr-apply-ns-labels-vazio kc apply -f /tmp/kl-obr-ns.yaml
 cap obr-kustomize-objeto kc kustomize /tmp/kl-obr-k-objeto
 cap obr-kustomize-numero kc kustomize /tmp/kl-obr-k-numero
+# O `- ` sem nada (ou o campo vazio) nos campos que o simulador lia sem conferir: o exec sem comando (sonda e gancho),
+# o dono, o par e o ipBlock da catraca, a porta sem número, a catraca sem spec, o sujeito do binding, os nomes, as
+# versões e o esquema do CRD, e a conta com listas de nada.
+cat > /tmp/kl-obr-sonda-exec.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sonda-exec
+  namespace: obrigatorios
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.27
+    livenessProbe:
+      exec:
+        command:
+Y
+cat > /tmp/kl-obr-gancho.yaml <<'Y'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gancho
+  namespace: obrigatorios
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.27
+    lifecycle:
+      postStart:
+        exec:
+          command:
+Y
+cat > /tmp/kl-obr-dono.yaml <<'Y'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dono-vazio
+  namespace: obrigatorios
+  ownerReferences:
+  -
+Y
+cat > /tmp/kl-obr-np-par.yaml <<'Y'
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: par-vazio
+  namespace: obrigatorios
+spec:
+  podSelector: {}
+  ingress:
+  - from:
+    -
+Y
+cat > /tmp/kl-obr-np-cidr.yaml <<'Y'
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sem-cidr
+  namespace: obrigatorios
+spec:
+  podSelector: {}
+  egress:
+  - to:
+    - ipBlock:
+        cidr:
+        except:
+        - 10.1.0.0/16
+Y
+cat > /tmp/kl-obr-np-porta.yaml <<'Y'
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: porta-vazia
+  namespace: obrigatorios
+spec:
+  podSelector: {}
+  ingress:
+  - ports:
+    -
+Y
+cat > /tmp/kl-obr-np-spec.yaml <<'Y'
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sem-spec
+  namespace: obrigatorios
+spec:
+Y
+cat > /tmp/kl-obr-crb-sujeito.yaml <<'Y'
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: obr-sujeito-vazio
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+-
+Y
+cat > /tmp/kl-obr-crd-nomes.yaml <<'Y'
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: fichas.obrigatorios.kube-learn.dev
+spec:
+  group: obrigatorios.kube-learn.dev
+  names:
+  scope: Namespaced
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+Y
+cat > /tmp/kl-obr-crd-versao.yaml <<'Y'
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: fichas.obrigatorios.kube-learn.dev
+spec:
+  group: obrigatorios.kube-learn.dev
+  names:
+    kind: Ficha
+    plural: fichas
+  scope: Namespaced
+  versions:
+  -
+Y
+cat > /tmp/kl-obr-crd-sem-versoes.yaml <<'Y'
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: fichas.obrigatorios.kube-learn.dev
+spec:
+  group: obrigatorios.kube-learn.dev
+  names:
+    kind: Ficha
+    plural: fichas
+  scope: Namespaced
+  versions:
+Y
+cat > /tmp/kl-obr-crd-campo.yaml <<'Y'
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: fichas.obrigatorios.kube-learn.dev
+spec:
+  group: obrigatorios.kube-learn.dev
+  names:
+    kind: Ficha
+    plural: fichas
+  scope: Namespaced
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+Y
+cat > /tmp/kl-obr-crd-sem-tipo.yaml <<'Y'
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: fichas.obrigatorios.kube-learn.dev
+spec:
+  group: obrigatorios.kube-learn.dev
+  names:
+    kind: Ficha
+    plural: fichas
+  scope: Namespaced
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        properties:
+          spec:
+            type: object
+            properties:
+              dono:
+                description: Quem preencheu.
+              tags:
+                type: array
+                items:
+                  description: Uma etiqueta.
+Y
+cat > /tmp/kl-obr-sa.yaml <<'Y'
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: conta-vazia
+  namespace: obrigatorios
+imagePullSecrets:
+-
+secrets:
+-
+Y
+cap obr-apply-sonda-exec-vazia kc apply -f /tmp/kl-obr-sonda-exec.yaml
+cap obr-apply-gancho-exec-vazio kc apply -f /tmp/kl-obr-gancho.yaml
+cap obr-apply-dono-vazio kc apply -f /tmp/kl-obr-dono.yaml
+cap obr-apply-np-par-vazio kc apply -f /tmp/kl-obr-np-par.yaml
+cap obr-apply-np-sem-cidr kc apply -f /tmp/kl-obr-np-cidr.yaml
+cap obr-apply-np-porta-vazia kc apply -f /tmp/kl-obr-np-porta.yaml
+cap obr-describe-np-porta-vazia kc describe networkpolicy porta-vazia -n obrigatorios
+cap obr-apply-np-sem-spec kc apply -f /tmp/kl-obr-np-spec.yaml
+cap obr-np-sem-spec kc get networkpolicy sem-spec -n obrigatorios -o jsonpath='{.spec}'
+cap obr-apply-crb-sujeito-vazio kc apply -f /tmp/kl-obr-crb-sujeito.yaml
+cap obr-apply-crd-sem-nomes kc apply -f /tmp/kl-obr-crd-nomes.yaml
+cap obr-apply-crd-versao-vazia kc apply -f /tmp/kl-obr-crd-versao.yaml
+cap obr-apply-crd-sem-versoes kc apply -f /tmp/kl-obr-crd-sem-versoes.yaml
+cap obr-apply-crd-campo-vazio kc apply -f /tmp/kl-obr-crd-campo.yaml
+cap obr-apply-crd-sem-tipo kc apply -f /tmp/kl-obr-crd-sem-tipo.yaml
+cap obr-apply-sa-vazia kc apply -f /tmp/kl-obr-sa.yaml
+cap obr-describe-sa-vazia kc describe serviceaccount conta-vazia -n obrigatorios

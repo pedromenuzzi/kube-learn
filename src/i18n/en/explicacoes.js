@@ -113,7 +113,7 @@ export const REGRAS = [
     t: () => ({ titulo: 'The folder doesn’t exist in the container', texto: 'The image doesn’t have this folder. Mount a volume there (<code>volumeMounts</code>) or write to a folder that exists, like <code>/tmp</code>.', vidaReal: 'Storing the box in a storage unit nobody rented.' }),
   },
   {
-    re: /is invalid: .*?([\w.[\]]+): Required value/,
+    re: /is invalid: [\s\S]*?([\w.[\]]+): Required value/,
     t: (m) => ({ titulo: `A required field is missing: ${m[1]}`, texto: 'This field can’t be empty. The Manual tab (or <code>kubectl explain</code>) shows what goes in it.', vidaReal: 'A form with a required field left blank.' }),
   },
   {

@@ -494,7 +494,7 @@ const DESCRITORES = {
     w.w(0, `Namespace:\t${sa.metadata.namespace}\n`);
     labels(w, 'Labels', sa.metadata.labels);
     anotacoes(w, 'Annotations', sa.metadata.annotations);
-    w.w(0, `Image pull secrets:\t${(sa.imagePullSecrets ?? []).map((x) => x.name).join(', ') || '<none>'}\n`);
+    w.w(0, `Image pull secrets:\t${sa.imagePullSecrets?.length ? sa.imagePullSecrets.map((x) => x.name ?? '').join(', ') : '<none>'}\n`);
     escreverEventos(w, ctx.eventos, ctx.agora);
   },
 
@@ -527,7 +527,7 @@ const DESCRITORES = {
       }
       regras.forEach((r, i) => {
         if (!r.ports?.length) w.w(2, 'To Port: <any> (traffic allowed to all ports)\n');
-        for (const p of r.ports ?? []) w.w(2, `To Port: ${p.port ?? '<any>'}/${p.protocol ?? 'TCP'}\n`);
+        for (const p of r.ports ?? []) w.w(2, `To Port: ${p.port ?? '<nil>'}/${p.protocol ?? 'TCP'}\n`);
         if (!r[campo]?.length) w.w(2, `${rotulo}: <any> (traffic not restricted by ${ninguem})\n`);
         for (const par of r[campo] ?? []) {
           w.w(2, `${rotulo}:\n`);

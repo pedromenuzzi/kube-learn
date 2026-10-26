@@ -116,7 +116,7 @@ export const REGRAS = [
     t: () => ({ titulo: 'A pasta não existe no contêiner', texto: 'A imagem não tem essa pasta. Monte um volume ali (<code>volumeMounts</code>) ou grave numa pasta que exista, como <code>/tmp</code>.', vidaReal: 'Guardar a caixa num box que ninguém alugou.' }),
   },
   {
-    re: /is invalid: .*?([\w.[\]]+): Required value/,
+    re: /is invalid: [\s\S]*?([\w.[\]]+): Required value/, // a primeira linha que falta (o kind lista uma por linha)
     t: (m) => ({ titulo: `Falta um campo obrigatório: ${m[1]}`, texto: 'Esse campo não pode ficar vazio. A aba Manual (ou <code>kubectl explain</code>) mostra o que vai nele.', vidaReal: 'Um formulário sem um campo obrigatório preenchido.' }),
   },
   {

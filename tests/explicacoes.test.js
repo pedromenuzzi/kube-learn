@@ -73,6 +73,12 @@ describe('o erro que ensina: campo inexistente, objeto que não existe e o aviso
     expect(c.texto).toContain('kubectl describe svc NOME');
   });
 
+  it('o obrigatório numa lista de erros (uma linha por campo): a caixa diz o primeiro que falta', () => {
+    expect(caixa(ler('obr-apply-conteiner-vazio')).titulo).toBe('Falta um campo obrigatório: spec.containers[0].name');
+    expect(caixa(ler('obr-apply-crd-sem-nomes')).titulo).toBe('Falta um campo obrigatório: spec.names.plural');
+    expect(caixa(ler('obr-apply-dono-vazio')).titulo).toBe('Falta um campo obrigatório: metadata.ownerReferences[0].apiVersion');
+  });
+
   it('o roleRef que falta ou não muda: caixas próprias (a saída do kind)', () => {
     expect(caixa(ler('obr-apply-rb-sem-roleref')).titulo).toBe('Falta dizer qual crachá entregar');
     expect(caixa(ler('obr-apply-rb-tipo-errado')).titulo).toBe('"Rol" não é um tipo de crachá');

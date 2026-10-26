@@ -1,0 +1,1 @@
+{"podSelector":{},"policyTypes":["Ingress"]}exit=0

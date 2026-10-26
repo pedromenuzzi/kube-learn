@@ -1,0 +1,2 @@
+The NetworkPolicy "sem-cidr" is invalid: spec.egress[0].to[0].ipBlock.cidr: Required value
+exit=1

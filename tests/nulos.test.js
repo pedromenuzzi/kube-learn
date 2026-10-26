@@ -2,19 +2,28 @@
 // YAML pela metade nunca derruba o simulador: o aluno clica em Aplicar com um `labels:` ou um `- ` ainda sem nada (null
 // no YAML). Cada manifesto abaixo é aplicado com cada mapa e cada lista em null (e cada item de lista em null), primeiro
 // num cluster limpo (create) e depois por cima do manifesto certo (o merge do apply); o relógio anda e get, describe,
-// run e auth can-i continuam respondendo.
+// run, auth can-i e o tráfego entre pods continuam respondendo.
 import { describe, expect, it } from 'vitest';
 import { parse, stringify } from 'yaml';
 import { criarCluster } from '../src/k8s/cluster.js';
 import { kubectl } from '../src/k8s/kubectl/index.js';
+import { uidDaConta } from '../src/k8s/seguranca.js';
 
+// O dono é a ServiceAccount default (o uid dela é fixo): o Pod não some no coletor de lixo e o kubelet roda ele.
 const MOLDE_DE_POD = `
     metadata:
       labels:
         app: web
       annotations:
         nota: um
+      ownerReferences:
+      - apiVersion: v1
+        kind: ServiceAccount
+        name: default
+        uid: ${uidDaConta('default', 'default')}
     spec:
+      imagePullSecrets:
+      - name: registro
       nodeSelector:
         kubernetes.io/os: linux
       tolerations:
@@ -74,6 +83,9 @@ const MOLDE_DE_POD = `
         readinessProbe:
           tcpSocket:
             port: 80
+        startupProbe:
+          exec:
+            command: ["sh", "-c", "true"]
         securityContext:
           capabilities:
             drop: ["ALL"]`;
@@ -140,6 +152,100 @@ roleRef:
   kind: ClusterRole
   name: view
 `,
+  ClusterRoleBinding: `apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ana-ve
+subjects:
+- kind: User
+  name: ana
+  apiGroup: rbac.authorization.k8s.io
+- kind: ServiceAccount
+  name: robo
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+`,
+  ServiceAccount: `apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: robo
+secrets:
+- name: robo-token
+imagePullSecrets:
+- name: registro
+`,
+  NetworkPolicy: `apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: catraca
+spec:
+  podSelector:
+    matchExpressions:
+    - key: run
+      operator: Exists
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchExpressions:
+        - key: run
+          operator: In
+          values: ["y"]
+      namespaceSelector:
+        matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values: ["default"]
+    ports:
+    - protocol: TCP
+      port: 80
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 10.0.0.0/8
+        except:
+        - 10.96.0.0/12
+    - namespaceSelector: {}
+    ports:
+    - protocol: UDP
+      port: 53
+    - port: 80
+`,
+  CustomResourceDefinition: `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: backups.exemplo.com
+spec:
+  group: exemplo.com
+  names:
+    kind: Backup
+    plural: backups
+    shortNames:
+    - bk
+  scope: Namespaced
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              horario:
+                type: string
+    additionalPrinterColumns:
+    - name: Horario
+      type: string
+      jsonPath: .spec.horario
+`,
   HorizontalPodAutoscaler: `apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -164,13 +270,17 @@ spec:
 const molde = parse(MANIFESTOS.Deployment).spec.template;
 MANIFESTOS.Pod = stringify({ apiVersion: 'v1', kind: 'Pod', metadata: { name: 'web', ...molde.metadata }, spec: molde.spec });
 
-/** Cada mapa e cada lista (e cada item que é objeto, o `- ` sem nada): o objeto com aquele ponto trocado por null. */
+/** Cada mapa e cada lista (e cada item de lista, o `- ` sem nada): o objeto com aquele ponto trocado por null. */
 function* variantes(obj) {
   const caminhos = [];
   const andar = (v, cam) => {
     if (!v || typeof v !== 'object') return;
     if (cam.length) caminhos.push(cam);
-    for (const [k, filho] of Object.entries(v)) andar(filho, [...cam, Array.isArray(v) ? Number(k) : k]);
+    for (const [k, filho] of Object.entries(v)) {
+      const c = [...cam, Array.isArray(v) ? Number(k) : k];
+      if (Array.isArray(v) && typeof filho !== 'object') caminhos.push(c); // o item de uma lista de textos (except, args...)
+      else andar(filho, c);
+    }
   };
   andar(obj, []);
   for (const c of caminhos) {
@@ -185,10 +295,18 @@ function* variantes(obj) {
 // Uns segundos sozinho; com a suíte inteira em paralelo, a máquina cheia multiplica isso (o Deployment chegou a 45 s).
 const LONGO = 120_000;
 
+// Com o ConfigMap que o molde monta: sem ele, o pod para no FailedMount e o kubelet nunca chega ao pull nem às sondas.
 const novoCluster = () => {
   const c = criarCluster({ metricas: true });
+  kubectl(c, 'kubectl create configmap cfg --from-literal=a=um');
   c.avancar('1m');
   return c;
+};
+
+// O que cada kind ainda precisa para o defeito aparecer: a catraca só é conferida num tráfego entre pods.
+const DEPOIS = {
+  NetworkPolicy: ['kubectl run x --image=nginx:1.27', 'kubectl expose pod x --port=80', 'kubectl run y --image=busybox:1.36 --rm -it --restart=Never -- wget -qO- -T 2 x'],
+  CustomResourceDefinition: ['kubectl api-resources', 'kubectl get backups -A', 'kubectl explain backup.spec'],
 };
 
 /** Os comandos que a tela da missão roda depois (e o relógio andando): nada pode lançar. */
@@ -200,6 +318,10 @@ function usar(c, kind, nome) {
   k('kubectl get pods -A');
   k('kubectl run solto --image=nginx:1.27');
   c.avancar('10s');
+  for (const linha of DEPOIS[kind] ?? []) {
+    k(linha);
+    c.avancar('10s');
+  }
   k('kubectl describe pods');
   k('kubectl auth can-i list pods --as ana');
   k('kubectl auth can-i --list --as ana');
@@ -210,6 +332,7 @@ describe('YAML pela metade nunca derruba o simulador', () => {
     it(`${kind}: cada mapa e cada lista em null, criando e por cima do certo`, { timeout: LONGO }, () => {
       const certo = parse(texto);
       const nome = certo.metadata.name;
+      expect(kubectl(novoCluster(), 'kubectl apply -f certo.yaml', { arquivos: { 'certo.yaml': texto } }).stderr, 'o certo é aceito').toBe('');
       for (const [onde, variante] of variantes(certo)) {
         const arquivos = { 'a.yaml': stringify(variante), 'certo.yaml': texto };
         expect(() => {

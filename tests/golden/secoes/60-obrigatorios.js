@@ -35,4 +35,23 @@ export default ({ k, cap }) => {
   cap('obr-apply-ns-labels-vazio', 'kubectl apply -f /tmp/kl-obr-ns.yaml');
   cap('obr-kustomize-objeto', 'kubectl kustomize /tmp/kl-obr-k-objeto');
   cap('obr-kustomize-numero', 'kubectl kustomize /tmp/kl-obr-k-numero');
+
+  // O `- ` sem nada (ou o campo vazio) nos campos que o simulador lia sem conferir.
+  cap('obr-apply-sonda-exec-vazia', 'kubectl apply -f /tmp/kl-obr-sonda-exec.yaml');
+  cap('obr-apply-gancho-exec-vazio', 'kubectl apply -f /tmp/kl-obr-gancho.yaml');
+  cap('obr-apply-dono-vazio', 'kubectl apply -f /tmp/kl-obr-dono.yaml');
+  cap('obr-apply-np-par-vazio', 'kubectl apply -f /tmp/kl-obr-np-par.yaml');
+  cap('obr-apply-np-sem-cidr', 'kubectl apply -f /tmp/kl-obr-np-cidr.yaml');
+  cap('obr-apply-np-porta-vazia', 'kubectl apply -f /tmp/kl-obr-np-porta.yaml');
+  cap('obr-describe-np-porta-vazia', 'kubectl describe networkpolicy porta-vazia -n obrigatorios');
+  cap('obr-apply-np-sem-spec', 'kubectl apply -f /tmp/kl-obr-np-spec.yaml');
+  cap('obr-np-sem-spec', "kubectl get networkpolicy sem-spec -n obrigatorios -o jsonpath='{.spec}'");
+  cap('obr-apply-crb-sujeito-vazio', 'kubectl apply -f /tmp/kl-obr-crb-sujeito.yaml');
+  cap('obr-apply-crd-sem-nomes', 'kubectl apply -f /tmp/kl-obr-crd-nomes.yaml');
+  cap('obr-apply-crd-versao-vazia', 'kubectl apply -f /tmp/kl-obr-crd-versao.yaml');
+  cap('obr-apply-crd-sem-versoes', 'kubectl apply -f /tmp/kl-obr-crd-sem-versoes.yaml');
+  cap('obr-apply-crd-campo-vazio', 'kubectl apply -f /tmp/kl-obr-crd-campo.yaml');
+  cap('obr-apply-crd-sem-tipo', 'kubectl apply -f /tmp/kl-obr-crd-sem-tipo.yaml');
+  cap('obr-apply-sa-vazia', 'kubectl apply -f /tmp/kl-obr-sa.yaml');
+  cap('obr-describe-sa-vazia', 'kubectl describe serviceaccount conta-vazia -n obrigatorios');
 };

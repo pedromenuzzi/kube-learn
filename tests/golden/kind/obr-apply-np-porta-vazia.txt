@@ -1,0 +1,2 @@
+networkpolicy.networking.k8s.io/porta-vazia created
+exit=0

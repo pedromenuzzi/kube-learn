@@ -29,12 +29,13 @@ test('campo com nome errado: a caixa diz qual é o certo, em português e em ing
   await expect(page.locator('.term-caixa').last()).toContainText('Did you mean containers?');
 });
 
-test('um `-` ainda sem nada em containers: Required value no terminal, sem erro interno', async ({ page }) => {
+test('um `-` ainda sem nada em containers: Required value no terminal e a caixa do campo que falta, sem erro interno', async ({ page }) => {
   await page.goto('#/ex/n1-primeiro-pod');
   await escrever(page, POD('  containers:\n  -\n'));
   await page.getByRole('button', { name: 'Aplicar' }).click();
   await expect(page.locator('.term-erro').last()).toContainText('spec.containers[0].name: Required value');
   await expect(page.locator('.term-erro').last()).toContainText('spec.containers[0].image: Required value');
+  await expect(page.locator('.term-caixa').last()).toContainText('Falta um campo obrigatório: spec.containers[0].name');
   await expect(page.locator('.term-saida')).not.toContainText('erro interno');
 });
 

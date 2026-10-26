@@ -1,0 +1,6 @@
+The CustomResourceDefinition "fichas.obrigatorios.kube-learn.dev" is invalid: 
+* spec.versions[0].schema.openAPIV3Schema: Required value
+* spec.versions[0].name: Invalid value: "": a DNS-1035 label must consist of lower case alphanumeric characters or '-', start with an alphabetic character, and end with an alphanumeric character (e.g. 'my-name',  or 'abc-123', regex used for validation is '[a-z]([-a-z0-9]*[a-z0-9])?')
+* spec.versions: Invalid value: [{"Name":"","Served":false,"Storage":false,"Deprecated":false,"DeprecationWarning":null,"Schema":null,"Subresources":null,"AdditionalPrinterColumns":null,"SelectableFields":null}]: must have exactly one version marked as storage version
+* status.storedVersions: Invalid value: null: must have at least one stored version
+exit=1

@@ -1,0 +1,2 @@
+The Pod "sonda-exec" is invalid: spec.containers[0].livenessProbe.exec.command: Required value
+exit=1
