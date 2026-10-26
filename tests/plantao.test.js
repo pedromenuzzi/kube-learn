@@ -57,6 +57,16 @@ describe('o Plantão do dia', () => {
     });
   });
 
+  // Todo app roda a imagem kubelearn/loja, mas o morador é a padaria: nem o teste nem o diagnóstico falam da "loja".
+  it('o incidente de outro app não fala da loja: o teste confere a resposta de um pod do app', () => {
+    const item = montarPlantao('plantao-sem-loja', CENARIOS[0], [DEFEITOS.memoria[0], DEFEITOS.porta[0]]);
+    expect(JSON.stringify(item.testes)).not.toMatch(/loja/);
+    expect(JSON.stringify(item.testes)).toContain('"pod\\":\\"padaria-');
+    expect(item.diagnostico).not.toMatch(/loja/);
+    const resto = Object.values(DEFEITOS).flat().map((d) => d.diagnostico(CENARIOS[0]).replace('kubelearn/loja:', 'a imagem '));
+    expect(resto.filter((d) => /loja/.test(d))).toEqual([]);
+  });
+
   it('os atalhos tiram mesmo o pedaço (senão o teste acima não prova nada)', () => {
     const certo = montarPlantao('plantao-atalhos', CENARIOS[0], []).solucao['deployment.yaml'];
     for (const [atalho, tirar] of Object.entries(ATALHOS)) expect(tirar(certo), atalho).not.toBe(certo);

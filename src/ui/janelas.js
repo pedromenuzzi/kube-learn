@@ -154,6 +154,9 @@ export function redimensionarJanelas(arrumacao, c, j, delta) {
 const CHAVE = CHAVES.janelas;
 const SETAS = { cima: '↑', baixo: '↓', esquerda: '←', direita: '→' };
 const TECLAS = { ArrowUp: 'cima', ArrowDown: 'baixo', ArrowLeft: 'esquerda', ArrowRight: 'direita' };
+const OPOSTA = { cima: 'baixo', baixo: 'cima', esquerda: 'direita', direita: 'esquerda' };
+/** O lugar de cada janela (sem os tamanhos): uma seta que não o muda não faz nada. */
+const lugares = (a) => JSON.stringify(a.colunas.map((c) => c.janelas.map((j) => j.id)));
 const NOMES = {
   cima: (janela) => t('Mover {janela} para cima', { janela }),
   baixo: (janela) => t('Mover {janela} para baixo', { janela }),
@@ -202,6 +205,11 @@ export function montarJanelas(raiz, janelas, { aoMudar } = {}) {
       });
       raiz.append(coluna);
     });
+    // Seta sem efeito (↑ na primeira janela da coluna, ↓ na última, ← e → sem coluna para ir) fica desabilitada.
+    const agora = lugares(arrumacao);
+    for (const id of ids) {
+      for (const b of quadros[id].querySelectorAll('[data-mover]')) b.disabled = lugares(mover(arrumacao, id, b.dataset.mover, ids)) === agora;
+    }
   }
 
   function mudar(nova, { salvar = true } = {}) {
@@ -279,7 +287,9 @@ export function montarJanelas(raiz, janelas, { aoMudar } = {}) {
     if (!b) return;
     const id = b.closest('.janela').dataset.janela;
     mudar(mover(arrumacao, id, b.dataset.mover, ids));
-    quadros[id].querySelector(`[data-mover="${b.dataset.mover}"]`).focus();
+    // Na ponta, a mesma seta desabilita: o foco fica na de volta (senão cai no body).
+    const mesma = quadros[id].querySelector(`[data-mover="${b.dataset.mover}"]`);
+    (mesma.disabled ? quadros[id].querySelector(`[data-mover="${OPOSTA[b.dataset.mover]}"]`) : mesma).focus();
   });
   raiz.addEventListener('keydown', (e) => {
     if (e.altKey || e.ctrlKey || e.metaKey) return; // Alt+← → é voltar/avançar do navegador

@@ -51,7 +51,9 @@ function diaDeHoje(j, hoje) {
   const cartoes = cartoesParaHoje({ termos: vistos, estado: ler(CHAVES.revisao, {}), hoje });
   const plantao = j.niveis[NIVEL_DO_PLANTAO].desbloqueado ? plantaoDoDia(hoje) : null;
   const marcas = marcasDoDia({ jornada: j, progresso, hoje, termos: vistos.length, cartoes, plantao: plantao?.id });
-  return { hoje, marcas, cumprido: diaCumprido(marcas), termos: vistos.length, cartoes, plantao };
+  // Sem termos vistos, a revisão espera a primeira missão da trilha que traz cartões (hoje, a lição de imagem e contêiner).
+  const primeirosCartoes = vistos.length ? null : j.niveis.flatMap((n) => n.itens).find((i) => i.estado !== 'concluido' && GLOSSARIO.some((g) => g.item === i.id));
+  return { hoje, marcas, cumprido: diaCumprido(marcas), termos: vistos.length, cartoes, plantao, primeirosCartoes };
 }
 
 /** O ritual do dia: cada marca diz em texto se está feita e, com tudo feito, o dia ganha um fecho (sem "só mais uma"). */
@@ -60,6 +62,7 @@ function ritual(dia) {
   const rotulo = {
     missao: () => t('Uma missão da trilha'),
     revisao: (feito) => (feito ? t('Revisão do dia em dia.')
+      : dia.primeirosCartoes ? t('Revisão do dia: os primeiros cartões chegam com «{titulo}»', { titulo: escapar(dia.primeirosCartoes.titulo) })
       : `<a class="link-seta" href="#/revisao">${t(dia.cartoes === 1 ? 'Revisão do dia: 1 cartão, uns 2 minutos' : 'Revisão do dia: {n} cartões, uns 2 minutos', { n: dia.cartoes })} ${icone('seguir')}</a>`),
     plantao: (feito) => (feito ? t('Plantão do dia atendido. O morador agradece!')
       : `<a class="link-seta" href="#/ex/${dia.plantao.id}">${t('Plantão do dia: {titulo}', { titulo: escapar(dia.plantao.titulo) })} ${icone('seguir')}</a>`),
@@ -74,9 +77,12 @@ function ritual(dia) {
       </section>`;
 }
 
-/** O lembrete diário: o aluno escolhe a hora e baixa um .ics para a própria agenda (feito aqui; nada sai do navegador). */
-const lembrete = () => `
-      <details class="lembrete">
+/**
+ * O lembrete diário: o aluno escolhe a hora e baixa um .ics para a própria agenda (feito aqui; nada sai do navegador).
+ * `aberto`: o primeiro dia que fecha já mostra o lembrete (é a hora de marcar o de amanhã).
+ */
+const lembrete = (aberto = false) => `
+      <details class="lembrete"${aberto ? ' open' : ''}>
         <summary>${icone('relogio')} ${t('Lembrete diário')}</summary>
         <p class="nota">${t('Escolha a hora e abra o arquivo na sua agenda (Google Agenda, Outlook, celular): ela avisa todo dia. O arquivo é feito aqui mesmo, e nada sai do navegador.')}</p>
         <form>
@@ -126,7 +132,6 @@ function painelHoje(j, dia) {
       </dl>
       ${dia.cumprido && j.proximo ? '' : `<p class="acoes">${continuar(j, 'botao-grande')}</p>`}
       ${ritual(dia)}
-      ${dia.termos ? '' : `<p class="hoje-revisao hoje-extra">${icone('cartas')} ${t('A revisão começa quando você resolver uma missão.')}</p>`}
       ${dia.plantao ? '' : `<p class="hoje-revisao hoje-extra">${icone('cadeado')} ${t('Plantão do dia: abre no Nível {n}', { n: NIVEL_DO_PLANTAO })}</p>`}
       ${j.niveis[NIVEL_DA_OFICINA].desbloqueado ? `<p class="hoje-revisao hoje-extra"><a class="link-seta" href="#/oficina">${icone('raio')} ${t('Oficina do kubectl: bata um recorde')} ${icone('seguir')}</a></p>` : ''}
       <p class="hoje-revisao hoje-extra"><a class="link-seta" href="#/diario">${icone('livro')} ${t('Seu diário de bordo')} ${icone('seguir')}</a></p>
@@ -153,7 +158,7 @@ export function paginaInicio() {
           <h1 class="pixel titulo-heroi">${t('Aprenda Kubernetes contêiner por contêiner')}</h1>
           ${fechou ? '' : `<p class="chamada">${comecou ? t('Continue de onde parou:') : t('Você escreve YAML, usa o <code>kubectl</code> e vê os pods nascerem, quebrarem e voltarem. Cada missão resolvida embarca um contêiner no seu navio.')}</p>`}
           <p class="acoes">${fechou ? '' : continuar(j, 'botao-grande')} <a class="link-seta" href="#/trilha">${t('Ver a trilha')} ${icone('seguir')}</a></p>
-          ${comecou ? ritual(dia) + lembrete() : `<ul class="vantagens"><li>${icone('certo')} ${t('Sem conta')}</li><li>${icone('certo')} ${t('Sem custo')}</li><li>${icone('certo')} ${t('Tudo fica no seu navegador')}</li></ul>`}
+          ${comecou ? ritual(dia) + lembrete(fechou) : `<ul class="vantagens"><li>${icone('certo')} ${t('Sem conta')}</li><li>${icone('certo')} ${t('Sem custo')}</li><li>${icone('certo')} ${t('Tudo fica no seu navegador')}</li></ul>`}
         </div>`}
       </section>
       ${voltou ? '' : `<section class="cartoes" aria-label="${t('Como funciona')}">

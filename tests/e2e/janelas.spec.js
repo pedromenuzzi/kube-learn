@@ -51,3 +51,28 @@ test('mover, arrastar, redimensionar e lembrar a arrumação', async ({ page }) 
   await page.getByRole('button', { name: 'Arrumação padrão' }).click();
   await expect.poll(() => ordem(page)).toEqual([['missao'], ['arquivos', 'paineis']]);
 });
+
+// Nenhuma seta visível sem efeito: na ponta da coluna (e sem coluna para ir), ela fica desabilitada.
+test('as setas na ponta ficam desabilitadas, no celular e na tela larga', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('#/ex/n0-primeiro-pod');
+  await expect.poll(() => ordem(page)).toEqual([['missao'], ['arquivos', 'paineis']]);
+  const seta = (nome) => page.getByRole('button', { name: nome });
+  await expect(seta('Mover Missão para cima')).toBeDisabled();
+  await expect(seta('Mover Missão para baixo')).toBeDisabled();
+  await expect(seta('Mover Arquivos para cima')).toBeDisabled();
+  await expect(seta('Mover Terminal e cluster para baixo')).toBeDisabled();
+  await expect(seta('Mover Arquivos para baixo')).toBeEnabled();
+  await seta('Mover Arquivos para baixo').click();
+  await expect.poll(() => ordem(page)).toEqual([['missao'], ['paineis', 'arquivos']]);
+  await expect(seta('Mover Arquivos para baixo')).toBeDisabled();
+  await expect(seta('Mover Arquivos para cima')).toBeEnabled();
+  await expect(seta('Mover Arquivos para cima')).toBeFocused(); // a de volta: o foco não cai no body
+
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.getByRole('button', { name: 'Arrumação padrão' }).click();
+  await expect.poll(() => ordem(page)).toEqual([['missao'], ['arquivos', 'paineis']]);
+  await expect(seta('Mover Missão para a esquerda')).toBeDisabled(); // sozinha na primeira coluna
+  await expect(seta('Mover Missão para a direita')).toBeEnabled();
+  await expect(seta('Mover Arquivos para a direita')).toBeEnabled(); // vira a terceira coluna
+});

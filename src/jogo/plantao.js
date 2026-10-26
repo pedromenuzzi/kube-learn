@@ -51,7 +51,7 @@ export const DEFEITOS = {
   ],
   memoria: [
     // O request desce junto: request maior que o limit o API Server nem aceita (o pod nem chegaria a ser OOMKilled).
-    { muda: { memoria: '8Mi', reserva: '8Mi' }, diagnostico: () => t('O limite de memória é <code>8Mi</code>, menos do que a loja usa: OOMKilled (código 137). Com <code>64Mi</code>, sobra.') },
+    { muda: { memoria: '8Mi', reserva: '8Mi' }, diagnostico: () => t('O limite de memória é <code>8Mi</code>, menos do que o app usa: OOMKilled (código 137). Com <code>64Mi</code>, sobra.') },
   ],
   config: [
     { muda: { chave: 'cores' }, diagnostico: () => t('O <code>env</code> pede a chave <code>cores</code> do ConfigMap, que só tem <code>cor</code>: CreateContainerConfigError.') },
@@ -65,7 +65,7 @@ export const DEFEITOS = {
     },
   ],
   porta: [
-    { muda: { alvo: 80 }, diagnostico: () => t('O Service entrega na porta <code>80</code> dos pods, mas a loja ouve na <code>8080</code>: a conexão é recusada. O <code>targetPort</code> certo é <code>8080</code>.') },
+    { muda: { alvo: 80 }, diagnostico: () => t('O Service entrega na porta <code>80</code> dos pods, mas o app ouve na <code>8080</code>: a conexão é recusada. O <code>targetPort</code> certo é <code>8080</code>.') },
   ],
   seletor: [
     { muda: { sufixo: '-web' }, diagnostico: ({ app }) => t('O seletor do Service procura <code>app: {app}-web</code>, e os pods têm <code>app: {app}</code>: o Service fica sem endpoints.', { app }) },
@@ -169,7 +169,7 @@ export function montarPlantao(id, cenario, defeitos) {
       solucaoTerminal: ['kubectl apply -f .'],
       regras: [
         { pods: `app=${app}`, prontos: 3, reinicios: { max: 0 } },
-        { requisicao: { de: 'pod/zelador', url: `http://${app}`, status: 200, corpo: '"app":"loja"' } },
+        { requisicao: { de: 'pod/zelador', url: `http://${app}`, status: 200, corpo: `"pod":"${app}-` } },
       ],
       // o que a aplicação certa tem, e o conserto não pode tirar: apagar a sonda, o limite ou o env também "conserta"
       travas: [
