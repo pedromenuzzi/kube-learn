@@ -36,13 +36,18 @@ const semear = (page, perfil) => page.addInitScript(({ ontem = [], hoje = [], te
 
 const heroi = (page) => page.locator('.heroi');
 
-test('primeiro dia: depois do primeiro pod, as boas-vindas continuam, com o próximo passo e o ritual', async ({ page }) => {
+test('primeiro dia: depois do primeiro pod e da primeira lição, as boas-vindas continuam, com o próximo passo e o ritual', async ({ page }) => {
   page.on('dialog', (d) => d.accept());
+  const status = (id) => page.evaluate((i) => JSON.parse(localStorage.getItem('kube-learn:progresso') ?? '{}')[i]?.status, id);
   await page.goto('#/ex/n0-primeiro-pod');
   await page.getByRole('button', { name: 'Aplicar' }).click();
   for (let i = 0; i < 2; i++) await page.getByRole('button', { name: '+30s' }).click();
   await page.getByRole('button', { name: 'Entregar' }).click();
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('kube-learn:progresso') ?? '{}')['n0-primeiro-pod']?.status)).toBe('resolvido');
+  await expect.poll(() => status('n0-primeiro-pod')).toBe('resolvido');
+  // a revisão só cobra o que a trilha ensinou (revisao-justa): a lição de imagem e contêiner traz os primeiros termos
+  await page.goto('#/ex/n0-imagem-e-conteiner');
+  await page.locator('.leitura-acoes').getByRole('link', { name: /^Lida · Próxima: / }).click();
+  await expect.poll(() => status('n0-imagem-e-conteiner')).toBe('resolvido');
 
   await page.goto('#/');
   await expect(page.getByRole('heading', { name: 'Aprenda Kubernetes contêiner por contêiner' })).toBeVisible();
@@ -51,7 +56,7 @@ test('primeiro dia: depois do primeiro pod, as boas-vindas continuam, com o pró
   await expect(heroi(page).getByRole('link', { name: /Próxima missão/ })).toBeVisible();
   await expect(heroi(page).getByRole('link', { name: /Plantão/ })).toHaveCount(0);
   await expect(heroi(page).getByRole('link', { name: /Oficina/ })).toHaveCount(0);
-  // o ritual: a missão de hoje feita; a revisão (os termos do nível 0) esperando
+  // o ritual: a missão de hoje feita; a revisão (os termos da lição) esperando
   const ritual = page.getByRole('region', { name: /Ritual do dia/ });
   await expect(ritual.locator('li', { hasText: 'Uma missão da trilha' })).toContainText('Feito');
   await expect(ritual.getByRole('link', { name: /Revisão do dia: \d+ cartões/ })).toBeVisible();

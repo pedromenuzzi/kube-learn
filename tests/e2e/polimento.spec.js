@@ -254,7 +254,8 @@ for (const tema of ['claro', 'escuro', 'contraste']) {
       await page.goto('#/');
       await page.goto('#/livre');
       await page.getByRole('button', { name: 'Aplicar' }).click();
-      await expect(page.locator('.term-saida')).toContainText('deployment.apps/nginx created');
+      // na segunda volta, o cluster do aluno continua o mesmo (missao-confiavel): o apply diz unchanged
+      await expect(page.locator('.term-saida')).toContainText(/deployment\.apps\/nginx (created|unchanged)/);
       await page.locator('input.term-entrada').fill('kubectl edit deployment nginx');
       await page.locator('input.term-entrada').press('Enter');
       await expect(page.locator('dialog.edicao .cm-content')).toBeFocused();
