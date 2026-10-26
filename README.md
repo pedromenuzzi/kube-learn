@@ -12,14 +12,16 @@ click EN at the top).
 
 **Versão 1.0:** a trilha completa, com os níveis 0 a 11 (contêineres; cluster, kubectl e Pods; Deployments;
 Services, Ingress e Gateway API; configuração e armazenamento; Jobs, CronJobs e DaemonSets; saúde e recursos;
-scheduling e manutenção; segurança; troubleshooting; Helm, Kustomize, CRDs e GitOps; e os projetos), com 32 lições,
-8 quizzes e 172 missões (64 no terminal), um glossário de 84 termos, a revisão do dia, os lacres de cada nível e o
+scheduling e manutenção; segurança; troubleshooting; Helm, Kustomize, CRDs e GitOps; e os projetos), com 33 lições,
+37 quizzes e 172 missões práticas (65 no terminal), um glossário de 87 termos, a revisão do dia, os lacres de cada nível e o
 navio em pixel art na página inicial. O nível 11 tem 8 projetos de 5 etapas encadeadas (a loja completa, o blog
 com banco, deploy sem downtime, canário, Black Friday, multi-equipe, hardening e dev e prod) e termina com o
 caminho para um cluster de verdade (Killercoda, kind e minikube). Fora da trilha, a seção **Troubleshooting** traz
-clusters quebrados com mais de um defeito encadeado, abertos desde o primeiro dia. O simulador tem Helm 4, Kustomize,
+clusters quebrados com mais de um defeito encadeado, abertos desde o primeiro dia; a **Oficina do kubectl** tem
+exercícios cronometrados com o seu recorde; o **Plantão do dia** sorteia um incidente novo por dia, o mesmo para
+todo mundo; e o **Diário de bordo** mostra o seu progresso num calendário. O simulador tem Helm 4, Kustomize,
 CRDs com um operador e um fiscal de GitOps, além de scheduling, RBAC, NetworkPolicy e Pod Security, conferidos
-contra 352 saídas de um kind de verdade. O plano completo está em [`PLANO.md`](PLANO.md).
+contra 655 saídas de um kind de verdade. O plano completo está em [`PLANO.md`](PLANO.md).
 
 ## Desenvolvimento
 
@@ -29,8 +31,9 @@ Precisa de Node 22.12 ou mais novo.
 npm install
 npm run dev     # servidor local com recarga
 npm run lint    # ESLint
-npm test        # Vitest
-npm run build   # gera dist/
+npm test        # Vitest (no máximo 4 processos fora do CI)
+npm run test:leve  # Vitest sem a trilha inteira (tests/trilha-*): o ciclo rápido de edição
+npm run build   # gera dist/ e falha se a entrada passar de 165 kB com gzip (ORCAMENTO_KB troca o teto)
 ```
 
 ## O simulador

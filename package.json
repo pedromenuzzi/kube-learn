@@ -13,6 +13,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:leve": "vitest run --exclude 'tests/trilha-*.test.js'",
     "lint": "eslint .",
     "test:e2e": "playwright test"
   },
