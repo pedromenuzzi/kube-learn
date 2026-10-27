@@ -1,5 +1,5 @@
 // Fase 5: revisão do dia, lacres, certificado, privacidade e o mapa do cluster.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 
 const QUIZZES_N0 = ['n0-quiz-imagem-conteiner', 'n0-quiz-quantos', 'n0-quiz-referencia', 'n0-quiz-partes', 'n0-quiz-latest', 'n0-quiz-dockerfile', 'n0-quiz-vm', 'n0-quiz-papel-k8s'];

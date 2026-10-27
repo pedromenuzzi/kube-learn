@@ -1,5 +1,5 @@
 // Os defeitos que a revisão achou, para não voltarem.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 
 test('depois de visitar duas missões, um clique abre um diálogo só (os ouvintes saem junto com a missão)', async ({ page }) => {
   page.on('dialog', (d) => d.accept());

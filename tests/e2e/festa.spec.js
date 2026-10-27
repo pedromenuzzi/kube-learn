@@ -1,5 +1,5 @@
 // As comemorações (o lacre, o nível que abre) e o feedback, com o axe nos diálogos abertos.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 
 // Os quizzes do nível 0 (as lições não contam na porcentagem); o primeiro tem a alternativa certa na posição 0.

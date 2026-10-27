@@ -1,6 +1,6 @@
 // Lição e quiz com um próximo passo só, e a tela da missão usável só com o teclado (a alça das janelas, a dica do
 // editor, o recuo das linhas quebradas e o placar do topo para o leitor de tela).
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 import { ITENS, NIVEIS } from '../../src/conteudo/index.js';
 

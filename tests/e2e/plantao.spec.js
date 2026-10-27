@@ -1,5 +1,5 @@
 // O Plantão do dia e o Diário de bordo: o chamado de hoje se resolve, a página marca como atendido, e o diário conta.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 
 test('o plantão de hoje: abrir, consertar com a solução, entregar, e o diário conta o atendimento', async ({ page }) => {
   await page.goto('#/plantao');

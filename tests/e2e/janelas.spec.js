@@ -1,5 +1,5 @@
 // Janelas: mudar de lugar (botões e arrastando), mudar de tamanho (arrastando e teclado) e lembrar.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 
 const ordem = (page) => page.locator('.ex-janelas > .coluna').evaluateAll((cols) => cols.map((c) => [...c.querySelectorAll(':scope > .janela')].map((j) => j.dataset.janela)));
 

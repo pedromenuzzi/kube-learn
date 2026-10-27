@@ -1,5 +1,5 @@
 // A Oficina do kubectl: o exercício contra o relógio guarda o recorde e mostra na lista.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 
 test('resolver um exercício da oficina vira recorde, e a lista mostra o tempo', async ({ page }) => {
   await page.goto('#/oficina');

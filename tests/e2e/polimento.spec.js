@@ -1,6 +1,6 @@
 // O acabamento: nada cobre o que o aluno precisa ler, o botão principal cabe no celular, a fonte pixel na grade de
 // 8 px, o navio cheio dentro do quadro e o axe também a 390 px e no diálogo do kubectl edit.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 import { NIVEIS } from '../../src/conteudo/index.js';
 import { CORES } from '../../src/ui/navio.js';

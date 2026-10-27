@@ -1,6 +1,6 @@
 // A tela da missão confiável: comemora o XP certo (e não comemora duas vezes), o Aplicar não esconde os passos, voltar
 // de outra página (ou trocar o idioma) não perde o cluster nem o cronômetro, e o shell do exec -it não vaza.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 
 test.beforeEach(async ({ page }) => {
   page.on('dialog', (d) => d.accept());
