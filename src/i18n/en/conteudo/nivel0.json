@@ -23,15 +23,15 @@
     "limite": "A container’s isolation is weaker than a virtual machine’s: a serious kernel bug affects all of them.",
     "alternativas": [
       {
-        "texto": "Because the container uses the kernel of the machine it runs on, instead of booting an entire operating system.",
+        "texto": "Because it uses the host machine’s kernel instead of booting another operating system.",
         "explicacao": "Right: there’s no system “boot”. The container is an isolated process."
       },
       {
-        "texto": "Because the container has no files.",
-        "explicacao": "It does: the image’s files. What it doesn’t have is its own kernel."
+        "texto": "Because the container has no files: it uses the machine’s disk directly.",
+        "explicacao": "It does: the image’s files, separate from the machine’s. What it doesn’t have is its own kernel."
       },
       {
-        "texto": "Because the container only runs small programs.",
+        "texto": "Because the container only runs small programs, and the virtual machine, whole systems.",
         "explicacao": "It runs programs of any size (databases included)."
       }
     ]
@@ -49,11 +49,11 @@
     "limite": "Several containers come from the same image at the same time.",
     "alternativas": [
       {
-        "texto": "The container is the image running: it has a live process and uses memory.",
+        "texto": "The container is the image running, with a live process.",
         "explicacao": "Right. The image is the package at rest; the container is the image in execution."
       },
       {
-        "texto": "The image is the container after it stops.",
+        "texto": "The image is what’s left of the container after it stops.",
         "explicacao": "No: the image exists before (it’s where the container comes from) and stays the same after."
       },
       {
@@ -73,7 +73,7 @@
     "limite": "At the factory, each module costs material; containers from the same image share the layers on disk.",
     "alternativas": [
       {
-        "texto": "One: for another, you have to download it again.",
+        "texto": "One: to run another, you have to download the image again.",
         "explicacao": "No need to download it again: the image is already on disk and gets reused."
       },
       {
@@ -81,7 +81,7 @@
         "explicacao": "Right. The limit is the machine’s memory and CPU, not the image."
       },
       {
-        "texto": "Two: a main one and a spare.",
+        "texto": "Two: a main one and a spare, which takes over if the first one fails.",
         "explicacao": "There’s no such limit. A spare is your decision (replicas), not the image’s."
       }
     ]
@@ -151,15 +151,15 @@
     "limite": "Some companies set up the registry with immutable tags; then latest doesn’t change. But don’t count on it.",
     "alternativas": [
       {
-        "texto": "It’s always the newest published version.",
-        "explicacao": "That’s the classic mistake: it points wherever the owner wants, and it can be stuck on an old version."
+        "texto": "It’s always the newest published version: the registry updates it on its own.",
+        "explicacao": "That’s the classic mistake: the registry doesn’t touch it on its own. It points wherever the owner wants, and it can be stuck on an old version."
       },
       {
-        "texto": "It’s an ordinary tag, which can start pointing at another version at any moment.",
-        "explicacao": "Right. That’s why, in production, you use fixed tags, like <code>nginx:1.27</code>."
+        "texto": "It’s an ordinary tag: it can start pointing at another version.",
+        "explicacao": "Right: the owner moves it whenever they want. That’s why, in production, you use fixed tags, like <code>nginx:1.27</code>."
       },
       {
-        "texto": "Kubernetes doesn’t accept images with latest.",
+        "texto": "Kubernetes doesn’t accept images with latest: it rejects the pod.",
         "explicacao": "It does (and it even downloads them again every time). It’s just not a good idea."
       }
     ]
