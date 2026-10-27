@@ -32,8 +32,31 @@ export function palavras(linha) {
 
 export class ErroFlag extends Error {}
 
+const UNIDADES_GO = { ns: 1e-6, us: 1e-3, 'µs': 1e-3, 'μs': 1e-3, ms: 1, s: 1000, m: 60_000, h: 3_600_000 };
+
+/** time.ParseDuration do Go: '1m30s' → 90000 (ms); '30' → erro "missing unit", como a flag Duration do pflag. */
+export function lerDuracaoGo(texto) {
+  const invalida = () => { throw new Error(`time: invalid duration "${texto}"`); };
+  const sinal = /^[-+]/.test(texto) ? texto[0] : '';
+  let resto = texto.slice(sinal.length);
+  if (resto === '0') return 0;
+  if (!resto) invalida();
+  let total = 0;
+  while (resto) {
+    const n = resto.match(/^(\d+\.?\d*|\.\d+)/)?.[0];
+    if (!n) invalida();
+    const u = resto.slice(n.length).match(/^[^\d.]*/)[0];
+    if (!u) throw new Error(`time: missing unit in duration "${texto}"`);
+    if (!(u in UNIDADES_GO)) throw new Error(`time: unknown unit "${u}" in duration "${texto}"`);
+    total += Number(n) * UNIDADES_GO[u];
+    resto = resto.slice(n.length + u.length);
+  }
+  return sinal === '-' ? -total : total;
+}
+
 /**
- * Lê as flags. `definicoes`: { nome: { curto, tipo: 'bool'|'string'|'int'|'lista', padrao } }.
+ * Lê as flags. `definicoes`: { nome: { curto, tipo: 'bool'|'string'|'int'|'duracao'|'lista', padrao }
+ * ('duracao' guarda milissegundos) }.
  * Devolve { flags, posicionais, depois } — `depois` é o que vem após `--`.
  */
 export function lerFlags(args, definicoes) {
@@ -48,6 +71,12 @@ export function lerFlags(args, definicoes) {
     if (d.tipo === 'int') {
       if (!/^-?\d+$/.test(valor)) throw new ErroFlag(`invalid argument "${valor}" for "${rotulo}" flag: strconv.ParseInt: parsing "${valor}": invalid syntax`);
       flags[nome] = Number(valor);
+    } else if (d.tipo === 'duracao') {
+      try {
+        flags[nome] = lerDuracaoGo(valor);
+      } catch (e) {
+        throw new ErroFlag(`invalid argument "${valor}" for "${rotulo}" flag: ${e.message}`);
+      }
     } else if (d.tipo === 'lista') {
       flags[nome] = [...(flags[nome] === d.padrao ? [] : flags[nome] ?? []), valor];
     } else if (d.tipo === 'bool') {

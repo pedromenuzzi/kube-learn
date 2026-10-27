@@ -1,0 +1,2 @@
+error: you must specify only one resource
+exit=1

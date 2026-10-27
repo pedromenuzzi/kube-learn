@@ -1330,13 +1330,17 @@ function padroesMolde(t) {
   return t;
 }
 
+// Como o SetDefaults_Probe/SetDefaults_HTTPGetAction do apiserver: 0 (ou ausente) e path "" também ganham o padrão.
 function padroesSonda(p) {
   if (!p) return;
-  p.timeoutSeconds ??= 1;
-  p.periodSeconds ??= 10;
-  p.successThreshold ??= 1;
-  p.failureThreshold ??= 3;
-  if (p.httpGet) p.httpGet.scheme ??= 'HTTP';
+  p.timeoutSeconds ||= 1;
+  p.periodSeconds ||= 10;
+  p.successThreshold ||= 1;
+  p.failureThreshold ||= 3;
+  if (p.httpGet) {
+    p.httpGet.path ||= '/';
+    p.httpGet.scheme ||= 'HTTP';
+  }
 }
 
 function padroesPodSpec(spec) {

@@ -282,3 +282,48 @@ describe('peças pequenas', () => {
     expect(nos[0].argv[1]).toBe('a;b');
   });
 });
+
+describe('sondas com zeros e caminho vazio ganham o padrão do apiserver (SetDefaults_Probe)', () => {
+  const pod = (sondas) => `apiVersion: v1
+kind: Pod
+metadata:
+  name: p
+spec:
+  containers:
+  - name: c
+    image: nginx
+${sondas}`;
+
+  it('failureThreshold/periodSeconds/... = 0 e path "" viram 3/10/1/1 e "/": o pod saudável fica Ready e não reinicia', () => {
+    const c = criarCluster();
+    const zeros = '{httpGet: {port: 80, path: ""}, failureThreshold: 0, periodSeconds: 0, timeoutSeconds: 0, successThreshold: 0}';
+    expect(kubectl(c, 'kubectl apply -f p.yaml', { arquivos: { 'p.yaml': pod(`    readinessProbe: ${zeros}\n    livenessProbe: ${zeros}\n`) } }).codigo).toBe(0);
+    c.avancar('2m');
+    expect(kubectl(c, 'kubectl get pod p --no-headers').stdout).toMatch(/^p\s+1\/1\s+Running\s+0\s/);
+    expect(JSON.parse(kubectl(c, 'kubectl get pod p -o jsonpath={.spec.containers[0].livenessProbe}').stdout))
+      .toEqual({ failureThreshold: 3, httpGet: { path: '/', port: 80, scheme: 'HTTP' }, periodSeconds: 10, successThreshold: 1, timeoutSeconds: 1 });
+  });
+});
+
+describe('--timeout e --since são durações do Go', () => {
+  const c = criarCluster();
+  kubectl(c, 'kubectl create deploy web --image=nginx');
+  c.avancar('30s');
+
+  it.each([
+    ['kubectl wait --for=condition=Available deploy/web --timeout=30', 'wait', '--timeout', 'missing unit in duration "30"'],
+    ['kubectl rollout status deploy/web --timeout=5', 'rollout status', '--timeout', 'missing unit in duration "5"'],
+    ['kubectl drain node-1 --ignore-daemonsets --timeout=30', 'drain', '--timeout', 'missing unit in duration "30"'],
+    ['kubectl logs deploy/web --since=1d', 'logs', '--since', 'unknown unit "d" in duration "1d"'],
+    ['kubectl wait --for=delete pod/x --timeout=abc', 'wait', '--timeout', 'invalid duration "abc"'],
+  ])('%s: o erro da flag, sem exceção', (linha, comando, flag, motivo) => {
+    const r = kubectl(c, linha);
+    expect(r.codigo).toBe(1);
+    expect(r.stderr).toBe(`error: invalid argument "${linha.match(/=(\w+)$/)[1]}" for "${flag}" flag: time: ${motivo}\nSee 'kubectl ${comando} --help' for usage.\n`);
+  });
+
+  it('com unidade (e combinações como 1m30s), segue funcionando', () => {
+    expect(kubectl(c, 'kubectl wait --for=condition=Available deploy/web --timeout=1m30s').stdout).toBe('deployment.apps/web condition met\n');
+    expect(kubectl(c, 'kubectl rollout status deploy/web --timeout=0').codigo).toBe(0);
+  });
+});

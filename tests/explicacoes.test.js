@@ -13,6 +13,15 @@ describe('explicações do terminal', () => {
     expect(`${caixa.titulo}${caixa.texto}`).not.toContain('<img');
   });
 
+  it('Pending: a caixa do scheduler só quando o pod não tem node (o describe de quem já foi agendado diz Status: Pending)', () => {
+    const titulos = (saida) => explicar(saida, { falhou: false }).map((c) => c.titulo);
+    const pending = 'Pending: o pod ainda não tem lugar';
+    const agendado = 'Name:             vitrine\nNode:             node-2/172.18.0.3\nStatus:           Pending\n      Reason:       ImagePullBackOff\n';
+    expect(titulos(agendado)).toEqual(['A imagem não foi baixada']);
+    expect(titulos('Name:             vitrine\nNode:             <none>\nStatus:           Pending\n')).toEqual([pending]);
+    expect(titulos('NAME      READY   STATUS    RESTARTS   AGE\nvitrine   0/1     Pending   0          5s\n')).toEqual([pending]);
+  });
+
   it('o nome que aparece no título também chega escapado', () => {
     const [caixa] = explicar('Error from server (AlreadyExists): pods "<b>x</b>" already exists', { falhou: true });
     expect(caixa.titulo).toContain('&lt;b&gt;x&lt;/b&gt;');

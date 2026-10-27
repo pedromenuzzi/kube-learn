@@ -1,0 +1,3 @@
+error: invalid argument "1d" for "--timeout" flag: time: unknown unit "d" in duration "1d"
+See 'kubectl rollout status --help' for usage.
+exit=1

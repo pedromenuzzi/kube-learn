@@ -230,6 +230,11 @@
     "motivo": "sem path, a sonda pergunta em / (o padrão), e a imagem da loja responde em / exatamente quando responde em /healthz: dá no mesmo"
   },
   {
+    "id": "n11-loja-5",
+    "linha": "vitrine.yaml: path: /",
+    "motivo": "path: / é o padrão do httpGet (o apiserver preenche quando falta ou vem vazio): dá no mesmo"
+  },
+  {
     "id": "n11-blog-2",
     "linha": "banco.yaml: targetPort: 5432",
     "motivo": "sem targetPort, o Service usa o mesmo número do port (5432), que é a porta do postgres: dá no mesmo"
