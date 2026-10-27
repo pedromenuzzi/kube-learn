@@ -1,6 +1,6 @@
 // kubectl cordon, uncordon, taint e drain: interditar o prédio, pôr e tirar placas de restrição e esvaziar o prédio
 // para a reforma (despejando os pods pela API de eviction, que respeita os PodDisruptionBudgets).
-import { iso, parseDuracao } from '../unidades.js';
+import { iso } from '../unidades.js';
 import { despejar } from '../manutencao.js';
 import { seletorDeLabels } from './index.js';
 
@@ -135,7 +135,7 @@ export function drain(cluster, a, s) {
   if (avisos.length) s.err(`Warning: ${avisos.join('; ')}\n`);
 
   // Despeja todos de uma vez; quem o PDB barrar tenta de novo a cada 5 s. Cada despejado é esperado até sumir.
-  const limite = a.flags.timeout && parseDuracao(a.flags.timeout) > 0 ? parseDuracao(a.flags.timeout) : null;
+  const limite = a.flags.timeout > 0 ? a.flags.timeout : null;
   const inicio = cluster.agora;
   const fila = decisoes.filter((d) => d.sai).map(({ pod }) => ({ pod, proxima: cluster.agora, despejado: false, pronto: false }));
   while (fila.some((x) => !x.pronto)) {
