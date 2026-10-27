@@ -102,6 +102,9 @@
     "testes": [
       {
         "descricao": "vitrine gets through, curioso doesn’t"
+      },
+      {
+        "descricao": "the turnstile is still tied to one port"
       }
     ]
   },
@@ -117,6 +120,12 @@
         "descricao": "vitrine finds api by name",
         "msgs": {
           "2": "the rest of the exit stays closed (kube-dns port 9153 times out)"
+        }
+      },
+      {
+        "descricao": "the egress still has the least privilege",
+        "msgs": {
+          "0": "the egress allows only what is needed: every egress rule says to whom (to) and on which port (ports, each with a port); without that, it applies to everything. DNS only needs 53/UDP and 53/TCP, to the k8s-app=kube-dns pods in kube-system"
         }
       }
     ]

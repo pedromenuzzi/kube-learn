@@ -3,6 +3,7 @@
 // Cada etapa pede algo novo para pensar (um conceito, um defeito diferente para achar, uma decisão), e a última de cada
 // projeto é um ticket: só o pedido e os critérios de aceite, sem o passo a passo.
 import { licao, projeto, yaml } from './util.js';
+import { saidaMinima } from './nivel8.js';
 
 const depois = (descricao, regras, { oculto = false, esperar = '1m', mais = [], vigiar } = {}) => ({ oculto, descricao, vigiar, passos: [{ comando: 'kubectl apply -f .' }, { avancar: esperar }, ...mais], regras });
 const pede = (url, extra) => ({ requisicao: { de: 'pod/cliente', url, ...extra } });
@@ -712,7 +713,12 @@ export const NIVEL11 = [
         dica: 'kubectl logs db-0: falta a POSTGRES_PASSWORD. env com valueFrom.secretKeyRef (name: banco, key: senha) e um Service com clusterIP: None.',
         novos: { 'banco.yaml': banco() },
         solucao: { 'segredo.yaml': segredo(true), 'banco.yaml': banco({ senha: true, servico: true }) },
-        testes: [depois('o banco está de pé', [{ semErros: true }, { pods: 'app=db', prontos: 1 }, { objeto: 'svc/db', campo: 'spec.clusterIP', igual: 'None' }])],
+        testes: [depois('o banco está de pé', [
+          { semErros: true },
+          { pods: 'app=db', prontos: 1 },
+          { objeto: 'svc/db', campo: 'spec.clusterIP', igual: 'None' },
+          { endpoints: 'svc/db', quantidade: 1, msg: 'o Service db escolhe o pod do banco: é por ele que o db-0.db existe' },
+        ])],
       },
       {
         titulo: 'O disco do banco',
@@ -909,7 +915,12 @@ export const NIVEL11 = [
         dica: 'selector: { app: loja, versao: v1 }',
         novos: { 'v1.yaml': versaoDaLoja('v1', { replicas: 3, comSvc: false }) },
         solucao: { 'v1.yaml': versaoDaLoja('v1', { replicas: 3 }) },
-        testes: [depois('a v1 atende pelo ramal dela', [{ semErros: true }, { endpoints: 'svc/loja-v1', quantidade: 3 }])],
+        testes: [depois('a v1 atende pelo ramal dela', [
+          { semErros: true },
+          { endpoints: 'svc/loja-v1', quantidade: 3 },
+          { objeto: 'svc/loja-v1', campo: 'spec.selector.versao', igual: 'v1', msg: 'o ramal loja-v1 escolhe pela versão (versao: v1): só app: loja pegaria a v2 também' },
+          { requisicao: { url: 'http://loja-v1', corpo: '"versao":"1.0"' } },
+        ])],
       },
       {
         titulo: 'O ramal que mistura',
@@ -1010,8 +1021,8 @@ export const NIVEL11 = [
         testes: [depois('o gerente enxerga a CPU', [
           { semErros: true },
           { pods: 'app=loja', prontos: 2 },
-          { objeto: 'deployment/loja', campo: 'spec.template.spec.containers[0].resources.requests.cpu', igual: '100m' },
-          { objeto: 'deployment/loja', campo: 'spec.template.spec.containers[0].resources.limits.memory', igual: '128Mi' },
+          { objeto: 'deployment/loja', campo: 'spec.template.spec.containers[0].resources.requests', igual: { cpu: '100m', memory: '64Mi' } },
+          { objeto: 'deployment/loja', campo: 'spec.template.spec.containers[0].resources.limits', igual: { cpu: '500m', memory: '128Mi' } },
           { objeto: 'hpa/loja', campo: 'status.currentMetrics[0].resource.current.averageUtilization', existe: true, msg: 'o HPA mede a CPU (nada de <unknown>)' },
         ])],
       },
@@ -1081,9 +1092,10 @@ export const NIVEL11 = [
         solucao: { ...BF_ATE_A_COTA, 'relatorio.yaml': relatorio('512Mi'), 'cota.yaml': `${padrao}---\n${teto}`, 'tarefa.yaml': tarefa },
         testes: [
           depois('a tarefa ganhou o padrão e entrou', [
+            { semErros: true },
             { pods: 'app=tarefa', prontos: 1 },
-            { objeto: 'pod/tarefa', campo: 'spec.containers[0].resources.requests.cpu', igual: '50m' },
-            { objeto: 'pod/tarefa', campo: 'spec.containers[0].resources.limits.memory', igual: '64Mi' },
+            { objeto: 'pod/tarefa', campo: 'spec.containers[0].resources.requests', igual: { cpu: '50m', memory: '32Mi' } },
+            { objeto: 'pod/tarefa', campo: 'spec.containers[0].resources.limits', igual: { cpu: '100m', memory: '64Mi' } },
           ]),
           depois('um contêiner grande demais é recusado', [{ erro: 'maximum memory usage per Container is 512Mi', msg: 'um pod com 1Gi de limit de memória é recusado' }], {
             oculto: true, mais: [{ comando: `kubectl run grande --image=busybox:1.36 --overrides='${GRANDE}'` }],
@@ -1117,6 +1129,7 @@ export const NIVEL11 = [
           { pods: 'app=api', ns: 'time-a', prontos: 1 },
           { pods: 'app=api', ns: 'time-b', prontos: 1 },
           { pods: 'app=api', quantidade: 0, msg: 'nada da equipe B sobrou no default' },
+          { objeto: 'svc/api', ns: 'time-b', existe: true },
         ])],
       },
       {
@@ -1314,7 +1327,9 @@ export const NIVEL11 = [
             { saida: 'uid=1000 ', msg: 'o cofre roda como 1000' },
             { saida: 'Read-only file system', msg: 'escrever em / é recusado' },
           ], { oculto: true, mais: [noCofre('id'), noCofre('touch /x')] }),
+          depois('a saída do cofre é a menor possível', [saidaMinima('isola', 'cofre')], { oculto: true, esperar: '10s' }),
         ],
+        armadilhas: [{ descricao: 'liberar o kube-dns em todas as portas (a regra do DNS sem ports)', mudar: (a) => ({ ...a, 'isola.yaml': isola.replace(/\n +ports:[^]*$/, '\n') }) }],
       },
     ],
   }),
