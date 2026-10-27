@@ -4,6 +4,8 @@ import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 import { writeFileSync } from 'node:fs';
 
+test.use({ errosPermitidos: [/defeito de propósito/] }); // a exceção forçada que abre a página 'Algo quebrou aqui'
+
 const ROTAS = ['#/', '#/trilha', '#/glossario', '#/revisao', '#/certificado', '#/troubleshooting', '#/oficina', '#/plantao', '#/diario', '#/livre', '#/ex/n0-quiz-latest', '#/ex/n1-diario', '#/privacidade'];
 
 /** Grava os valores (texto cru, como estão no localStorage) só na primeira carga: recarregar não semeia de novo. */
