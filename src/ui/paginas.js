@@ -204,7 +204,7 @@ function contagem(itens) {
 // Cada nível é um cartão que abre e fecha; abertos ficam só os que estão em andamento (o resto é um resumo).
 function nivel(n) {
   const cor = n.desbloqueado && !n.concluido ? ` style="--cor-nivel: ${CORES[n.numero % CORES.length]}"` : '';
-  // Lacrado com missões que chegaram depois: o lacre fica, e as novas aparecem abertas, como convite.
+  // Lacrado com missões que chegaram depois: o lacre fica (barra cheia), e as novas aparecem abertas, como convite.
   const aberto = n.desbloqueado && (!n.concluido || n.novas > 0);
   const novas = n.novas === 1 ? t('1 missão nova') : t('{n} missões novas', { n: n.novas });
   const status = n.emObra ? t('Em breve') : `${SITUACAO()[n.situacao]} · ${n.novas ? novas : t('{n} de {total} missões ({pct}%)', { n: n.resolvidos, total: n.total, pct: n.pct })}`;
@@ -215,7 +215,7 @@ function nivel(n) {
           ${n.concluido ? svgSelo(n, { tamanho: 36 }) : `<span class="nivel-icone" aria-hidden="true">${n.icone}</span>`}
           <span class="nivel-cabeca"><span class="pixel rotulo-nivel">${t('Nível {n}', { n: n.numero })}</span><h2>${escapar(n.titulo)}</h2></span>
           <span class="nivel-situacao">${n.concluido ? `<span class="chip chip-ok">${t('Lacrado')}</span>` : n.emObra ? `<span class="chip">${t('Em breve')}</span>` : !n.desbloqueado ? `<span class="chip">${icone('cadeado')} ${t('Bloqueado')}</span>` : ''}${icone('divisa', 'icone divisa')}</span>
-          <span class="nivel-barra"><span class="nivel-status">${status}</span>${n.emObra ? '' : `<span class="barra" aria-hidden="true"><span style="width: ${n.pct}%"></span></span>`}</span>
+          <span class="nivel-barra"><span class="nivel-status">${status}</span>${n.emObra ? '' : `<span class="barra" aria-hidden="true"><span style="width: ${n.concluido ? 100 : n.pct}%"></span></span>`}</span>
         </summary>
         <div class="nivel-corpo">
           <p class="nota">${escapar(n.descricao)}</p>
