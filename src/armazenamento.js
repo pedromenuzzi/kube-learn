@@ -125,7 +125,8 @@ function formaDa(chave) {
  * para o t(), ou null se dá para restaurar.
  */
 export function conferirDados(dados) {
-  if (!dados || typeof dados !== 'object' || Array.isArray(dados)) return { texto: 'Este arquivo não tem os dados do kube-learn.' };
+  // Vazio ({}) também não: restaurar apagaria tudo sem perguntar (sem progresso aqui, não há confirmação).
+  if (!dados || typeof dados !== 'object' || Array.isArray(dados) || !Object.keys(dados).length) return { texto: 'Este arquivo não tem os dados do kube-learn.' };
   for (const [chave, valor] of Object.entries(dados)) {
     const forma = formaDa(chave);
     if (forma === undefined) return { texto: 'O arquivo tem uma chave que o kube-learn não conhece: {chave}.', valores: { chave } };

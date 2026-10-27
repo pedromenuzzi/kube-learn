@@ -77,6 +77,7 @@ describe('restaurar', () => {
   it.each([
     ['não é objeto', []],
     ['nulo', null],
+    ['vazio ({}): sem progresso aqui, apagaria tudo sem perguntar', {}],
     ['chave estranha', { xyz: 1 }],
     ['arquivos: sem id', { 'arquivos:': {} }],
     ['progresso em lista', { progresso: [] }],

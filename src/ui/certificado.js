@@ -6,7 +6,7 @@ import { aplicarPreferencias } from './preferencias.js';
 import { svgSelo, htmlCertificado, linkPerfil, linkCompartilhar } from './selos.js';
 import { escapar } from './util.js';
 import { icone } from './icones.js';
-import { t } from '../i18n.js';
+import { t, idioma, idiomaInicial } from '../i18n.js';
 
 export function paginaCertificado() {
   return (main) => {
@@ -119,6 +119,7 @@ export function paginaPrivacidade() {
     const aplicar = () => {
       const problema = restaurar(dados);
       if (problema) return falhar(problema.texto, problema.valores);
+      if (idiomaInicial() !== idioma()) return location.reload(); // outro idioma no arquivo: o site todo é redesenhado nele
       aplicarPreferencias();
       aviso.className = 'quiz-retorno ok';
       aviso.textContent = t('Pronto: seus dados voltaram ({resumo}).', { resumo: resumo(dados) });

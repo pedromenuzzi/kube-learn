@@ -160,6 +160,7 @@ function desenhar(opcoes = {}) {
     }
   };
   try {
+    atualizarTopo(rota?.caminho); // antes da página: se ela quebrar, o topo já marca a rota nova
     const pagina = rota ? PAGINAS[rota.caminho](rota.parametro, opcoes) : naoEncontrada(false);
     main.classList.toggle('largo', !item?.leitura && ['/ex', '/livre', '/trilha', '/'].includes(rota?.caminho));
     main.classList.toggle('medio', ['/glossario', '/troubleshooting', '/oficina', '/plantao', '/diario'].includes(rota?.caminho));
@@ -177,7 +178,6 @@ function desenhar(opcoes = {}) {
     } else {
       paginaAtual = pintarComCuidado(pagina);
     }
-    atualizarTopo(rota?.caminho);
   } catch (erro) {
     quebrou(erro);
   }

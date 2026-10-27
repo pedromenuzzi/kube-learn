@@ -45,8 +45,7 @@ for (const [nome, valores] of [
       await expect(page.locator('main#conteudo'), rota).not.toContainText('Algo quebrou');
     }
     page.on('dialog', (d) => d.accept());
-    await page.getByRole('button', { name: 'Apagar meus dados' }).click();
-    await page.waitForLoadState('load');
+    await Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: 'Apagar meus dados' }).click()]);
     await expect(page.locator('main#conteudo h1')).toHaveText('Privacidade');
     expect(await instantaneo(page)).toEqual({});
   });
@@ -70,6 +69,7 @@ test("uma exceção numa página: 'Algo quebrou aqui', com o título do endereç
   await expect(main).toContainText('Isso é um defeito nosso');
   await expect(page.locator('#nivel-0')).toHaveCount(0);
   await expect(page).toHaveTitle('Glossário · kube-learn');
+  await expect(page.locator('.topo a[aria-current=page]')).toHaveAttribute('href', '#/glossario');
   await expect(main.getByRole('link', { name: 'Contar no Feedback' })).toHaveAttribute('href', /github\.com\/pedromenuzzi\/kube-learn\/issues\/new\?.*defeito\+de\+prop/);
   await expect(main.getByRole('link', { name: /Ir para o início/ })).toHaveAttribute('href', '#/');
   await expect(main.getByRole('link', { name: /Ver ou apagar seus dados/ })).toHaveAttribute('href', '#/privacidade');
@@ -88,8 +88,7 @@ test('baixar, apagar (o tema volta ao padrão) e restaurar pelo teclado: tudo vo
   await download.saveAs(arquivo);
 
   page.once('dialog', (d) => d.accept());
-  await page.getByRole('button', { name: 'Apagar meus dados' }).click();
-  await page.waitForLoadState('load');
+  await Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: 'Apagar meus dados' }).click()]);
   await expect(page.locator('html')).not.toHaveAttribute('data-tema');
   await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR');
   expect(await instantaneo(page)).toEqual({});
