@@ -47,7 +47,7 @@ export const QUIZZES = [
     pergunta: '<p>A <code>loja</code> (um Deployment com 3 réplicas) roda a 1.0. Você troca a imagem para a 1.1 e aplica. O que acontece por baixo?</p>',
     alternativas: [
       { texto: 'O ReplicaSet que já existe troca a imagem dos pods, um por um, sem recriá-los.', explicacao: 'Não: o Deployment não reforma o ReplicaSet antigo, cria outro (com outro hash no nome). E os pods são trocados, não reformados: nome novo, IP novo.' },
-      { texto: 'Nasce um ReplicaSet novo, que sobe os pods aos poucos; o antigo desce até 0 e fica guardado.', certa: true, explicacao: 'Isso. O ReplicaSet antigo, vazio, é a revisão anterior: é para ele que o <code>kubectl rollout undo</code> volta.' },
+      { texto: 'O Deployment cria um ReplicaSet novo e troca os pods aos poucos; o antigo desce até 0 e fica guardado.', certa: true, explicacao: 'Isso. O ReplicaSet antigo, vazio, é a revisão anterior: é para ele que o <code>kubectl rollout undo</code> volta.' },
       { texto: 'O Deployment apaga os 3 pods de uma vez e só depois cria os 3 novos, já na 1.1.', explicacao: 'Esse é o jeito da estratégia <code>Recreate</code>. O padrão é o <code>RollingUpdate</code>: aos poucos, sem fechar a loja.' },
       { texto: 'Nada por enquanto: os pods só pegam a imagem nova quando alguém os apagar.', explicacao: 'Isso aconteceria com um ReplicaSet sozinho. O Deployment percebe o template novo e começa a troca na hora.' },
     ],
@@ -201,7 +201,7 @@ export const QUIZZES = [
     limite: 'Se todos dizem "agora não posso" ao mesmo tempo, o ramal fica sem ninguém e a ligação é recusada: a readiness não chama reforço.',
     pergunta: '<p>Um pod da <code>loja</code> estava pronto. Agora a readinessProbe dele falha 3 vezes seguidas, e a livenessProbe continua passando. O que acontece?</p>',
     alternativas: [
-      { texto: 'O kubelet reinicia o contêiner, como faria se a liveness falhasse.', explicacao: 'Quem reinicia é a liveness, e ela está passando. A readiness só decide se o pod recebe clientes.' },
+      { texto: 'O kubelet reinicia o contêiner até a probe voltar a passar.', explicacao: 'Quem reinicia é a liveness, e ela está passando. A readiness só decide se o pod recebe clientes.' },
       { texto: 'O Deployment apaga o pod e cria outro no lugar, num node qualquer.', explicacao: 'Ninguém apaga o pod por causa da readiness: ele continua lá, esperando melhorar.' },
       { texto: 'O pod sai dos endpoints do Service (READY 0/1), mas continua rodando.', certa: true, explicacao: 'Isso: fora do ramal, sem reinício. Quando a probe volta a passar, o pod volta a receber clientes.' },
       { texto: 'Nada muda: o pod só fica marcado como não pronto, e segue atendendo.', explicacao: 'Muda, sim: um pod não pronto deixa de receber clientes pelo Service.' },

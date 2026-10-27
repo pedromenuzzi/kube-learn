@@ -54,7 +54,7 @@
         "explicacao": "No: the Deployment doesn’t renovate the old ReplicaSet, it creates another one (with another hash in the name). And the pods are replaced, not renovated: new name, new IP."
       },
       {
-        "texto": "A new ReplicaSet scales its pods up a few at a time; the old one goes down to 0 and is kept.",
+        "texto": "The Deployment creates a new ReplicaSet and swaps the pods a few at a time; the old one goes down to 0 and is kept.",
         "explicacao": "Right. The old, empty ReplicaSet is the previous revision: it’s what <code>kubectl rollout undo</code> goes back to."
       },
       {
@@ -294,7 +294,7 @@
     "limite": "If everyone says “I can’t right now” at the same time, the extension has no one and the call is refused: readiness doesn’t call for backup.",
     "alternativas": [
       {
-        "texto": "The kubelet restarts the container, as it would if the liveness failed.",
+        "texto": "The kubelet restarts the container until the probe passes again.",
         "explicacao": "Restarting is liveness’s job, and it’s passing. Readiness only decides whether the pod gets customers."
       },
       {
@@ -366,7 +366,7 @@
         "explicacao": "The toleration doesn’t take anyone there: it just moves the sign out of the way."
       },
       {
-        "texto": "On <code>node-1</code> or <code>node-2</code>: the toleration allows, it doesn’t force.",
+        "texto": "On <code>node-1</code> or <code>node-2</code>: the toleration lets it in, it doesn’t send it there.",
         "explicacao": "Right. To go only to <code>node-2</code>, combine the toleration with a nodeSelector (<code>dedicado: gpu</code>)."
       },
       {
