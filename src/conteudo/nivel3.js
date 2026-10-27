@@ -323,7 +323,7 @@ spec:
          (<code>kubectl get svc -w</code>) e teste do seu computador com <code>curl</code>. Qual é o IP externo?</p>`,
     rotuloResposta: 'O EXTERNAL-IP',
     dica: 'kubectl expose deployment loja --type=LoadBalancer --port=80 --target-port=8080',
-    respostaCerta: (c) => c.obter('Service', 'default', 'loja').status.loadBalancer.ingress[0].ip,
+    respostaCerta: (c) => c.obter('Service', 'default', 'loja')?.status?.loadBalancer?.ingress?.[0]?.ip,
     solucaoTerminal: ['kubectl expose deployment loja --type=LoadBalancer --port=80 --target-port=8080', 'kubectl get svc loja', 'curl http://172.18.255.200/'],
     testes: noCluster('a loja tem portaria na rua', [
       { objeto: 'service/loja', campo: 'spec.type', igual: 'LoadBalancer' },
