@@ -10,6 +10,7 @@ import { aplicarPreferencias, montarPreferencias } from './ui/preferencias.js';
 import { paginaCertificado, paginaPrivacidade } from './ui/certificado.js';
 import { montarTopo, atualizarTopo, montarRodape } from './ui/topo.js';
 import { icone } from './ui/icones.js';
+import { escapar } from './ui/util.js';
 import { definirIdioma, idioma, idiomaInicial, t } from './i18n.js';
 
 aplicarPreferencias();
@@ -27,6 +28,24 @@ const naoEncontrada = (missao) => `
     <p>${t('Este endereço não leva a lugar nenhum: o link pode estar errado, ou o conteúdo mudou de nome.')}</p>
     <p class="acoes"><a class="botao" href="#/trilha">${icone('trilha')} ${t('Ver a trilha')}</a> <a class="link-seta" href="#/">${t('Ir para o início')} ${icone('seguir')}</a></p>
   </section>`;
+
+/**
+ * A página que desenhou com erro: em vez da página anterior com o endereço novo (ou de uma tela branca), o aviso com o
+ * caminho para contar (o Feedback abre uma issue já preenchida), para o início e para os dados (lá dá para apagar tudo).
+ */
+const algoQuebrou = (erro) => {
+  const relato = `${t('Endereço')}: ${location.href}\n\n\`\`\`\n${String(erro?.stack ?? erro).slice(0, 1500)}\n\`\`\``;
+  const issue = `https://github.com/pedromenuzzi/kube-learn/issues/new?${new URLSearchParams({ template: 'feedback.yml', title: `[feedback] ${t('Algo quebrou aqui')}: ${location.hash || '#/'}`, relato })}`;
+  return `
+  <section class="nao-encontrada">
+    <p class="sobretitulo">${t('Erro')}</p>
+    <h1 class="pixel">${t('Algo quebrou aqui.')}</h1>
+    <p>${t('Isso é um defeito nosso, não seu. O que você guardou neste navegador continua lá.')}</p>
+    <p class="acoes"><a class="botao" href="${escapar(issue)}" target="_blank" rel="noopener">${icone('balao')} ${t('Contar no Feedback')}</a>
+      <a class="link-seta" href="#/">${t('Ir para o início')} ${icone('seguir')}</a>
+      <a class="link-seta" href="#/privacidade">${t('Ver ou apagar seus dados')} ${icone('seguir')}</a></p>
+  </section>`;
+};
 
 /**
  * Depois de um deploy, os arquivos antigos (com o hash no nome) somem do servidor: a aba aberta recarrega uma vez. A marca
@@ -97,6 +116,8 @@ function pintar(main, pagina) {
  * no botão, em vez de ficar em branco. Falhou de novo com a rede no ar? Era deploy: recarrega (uma vez).
  */
 let falhas = 0;
+// O que o Chromium, o Firefox, o Safari e o preload do Vite dizem quando um arquivo do site não chega.
+const NAO_CHEGOU = /dynamically imported module|Importing a module script failed|preload|Failed to fetch/i;
 function naoCarregou(main) {
   falhas += 1;
   if (falhas > 1 && navigator.onLine) recarregarUmaVez();
@@ -119,22 +140,47 @@ function desenhar(opcoes = {}) {
   Promise.resolve(paginaAtual).then((p) => p?.destruir?.());
   paginaAtual = null;
   const rota = resolverRota(location.hash);
-  const pagina = rota ? PAGINAS[rota.caminho](rota.parametro, opcoes) : naoEncontrada(false);
   const item = rota?.caminho === '/ex' ? itemDoIndice(rota.parametro) : null;
-  main.classList.toggle('largo', !item?.leitura && ['/ex', '/livre', '/trilha', '/'].includes(rota?.caminho));
-  main.classList.toggle('medio', ['/glossario', '/troubleshooting', '/oficina', '/plantao', '/diario'].includes(rota?.caminho));
-  if (pagina?.then) {
-    main.innerHTML = `<p class="nota carregando" role="status">${t('Carregando…')}</p>`;
-    paginaAtual = pagina.then((p) => {
-      if (minha !== geracao) return null;
-      falhas = 0;
-      return pintar(main, p);
-    }, () => (minha === geracao ? naoCarregou(main) : null));
-  } else {
-    paginaAtual = pintar(main, pagina);
-  }
+  // O título primeiro: ele bate com o endereço mesmo quando a página quebra.
   document.title = `${rota ? item?.titulo ?? t(rota.titulo) : t('Página não encontrada')} · kube-learn`;
-  atualizarTopo(rota?.caminho);
+  const quebrou = (erro) => {
+    console.error(erro);
+    main.classList.remove('largo', 'medio');
+    main.innerHTML = algoQuebrou(erro);
+  };
+  // Pinta sem deixar a exceção escapar; a tela do exercício monta depois (uma promessa), e o erro de lá também vira a
+  // página de erro, se o aluno ainda está nela.
+  const pintarComCuidado = (p) => {
+    try {
+      const montada = pintar(main, p);
+      return montada?.then ? montada.catch((erro) => (minha === geracao ? quebrou(erro) : null)) : montada;
+    } catch (erro) {
+      quebrou(erro);
+      return null;
+    }
+  };
+  try {
+    atualizarTopo(rota?.caminho); // antes da página: se ela quebrar, o topo já marca a rota nova
+    const pagina = rota ? PAGINAS[rota.caminho](rota.parametro, opcoes) : naoEncontrada(false);
+    main.classList.toggle('largo', !item?.leitura && ['/ex', '/livre', '/trilha', '/'].includes(rota?.caminho));
+    main.classList.toggle('medio', ['/glossario', '/troubleshooting', '/oficina', '/plantao', '/diario'].includes(rota?.caminho));
+    if (pagina?.then) {
+      main.innerHTML = `<p class="nota carregando" role="status">${t('Carregando…')}</p>`;
+      paginaAtual = pagina.then((p) => {
+        if (minha !== geracao) return null;
+        falhas = 0;
+        return pintarComCuidado(p);
+      }, (erro) => {
+        if (minha !== geracao) return null;
+        // Um arquivo que não chegou pede o "Tentar de novo"; qualquer outro erro é defeito nosso.
+        return NAO_CHEGOU.test(erro?.message) ? naoCarregou(main) : quebrou(erro);
+      });
+    } else {
+      paginaAtual = pintarComCuidado(pagina);
+    }
+  } catch (erro) {
+    quebrou(erro);
+  }
   // Cada página entra com um fade curto (o CSS desliga com "reduzir movimento").
   main.classList.remove('entrando');
   void main.offsetWidth;

@@ -7,8 +7,9 @@ const QUIZZES_N0 = ['n0-quiz-imagem-conteiner', 'n0-quiz-quantos', 'n0-quiz-refe
 test.beforeEach(async ({ page }) => {
   page.on('dialog', (d) => d.accept());
   await page.addInitScript((ids) => {
-    if (localStorage.getItem('kube-learn:semear') === 'nao') return;
-    localStorage.setItem('kube-learn:semear', 'nao');
+    // A marca fica na sessão: recarregar (inclusive o do 'Apagar meus dados') não semeia de novo.
+    if (sessionStorage.getItem('semeado')) return;
+    sessionStorage.setItem('semeado', '1');
     localStorage.setItem('kube-learn:progresso', JSON.stringify(Object.fromEntries(ids.map((i) => [i, { status: 'resolvido', em: '2026-10-20' }]))));
   }, QUIZZES_N0);
 });
@@ -38,8 +39,8 @@ test('privacidade: baixar e apagar os dados', async ({ page }) => {
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Baixar meus dados' }).click();
   expect((await download).suggestedFilename()).toBe('kube-learn-meus-dados.json');
-  await page.getByRole('button', { name: 'Apagar meus dados' }).click();
-  await expect(page.getByRole('status')).toContainText('tudo apagado');
+  await Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: 'Apagar meus dados' }).click()]); // apaga e recarrega
+  expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('kube-learn:')))).toEqual([]);
   await page.goto('#/trilha');
   await expect(page.locator('#nivel-0')).toContainText('0 de 8 missões');
 });
