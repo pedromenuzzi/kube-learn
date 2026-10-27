@@ -406,6 +406,7 @@ export function montarExercicio(raiz, item) {
   /** Para o relógio da Oficina, guarda o recorde se bateu e devolve a mensagem: a medalha, o tempo e quanto falta. */
   const tempoDaOficina = () => {
     terminouEm ??= tempo();
+    $('.cronometro-tempo').textContent = minutosESegundos(terminouEm); // já o tempo final, junto do aviso e do recorde
     const recordes = ler(CHAVES.recordes, {});
     const antes = recordes[item.id];
     const feito = minutosESegundos(terminouEm);
@@ -437,6 +438,7 @@ export function montarExercicio(raiz, item) {
   /** Para o relógio do Plantão e avisa. A primeira vez que resolve fica guardada: é o resultado do dia, o compartilhado. */
   const avisarPlantao = () => {
     terminouEm ??= tempo();
+    $('.cronometro-tempo').textContent = minutosESegundos(terminouEm);
     const abertos = ler(CHAVES.plantaoAberto, {});
     delete abertos[item.id];
     gravar(CHAVES.plantaoAberto, abertos);

@@ -30,10 +30,11 @@ const escalar = (l, k) => {
  * na última coluna, apaga colunas vazias e faz larguras e alturas somarem 100.
  */
 export function normalizar(arrumacao, ids) {
-  const a = copiar(arrumacao?.colunas ? arrumacao : ARRUMACAO_PADRAO);
+  const a = copiar(Array.isArray(arrumacao?.colunas) ? arrumacao : ARRUMACAO_PADRAO);
   const vistos = new Set();
+  a.colunas = a.colunas.filter((c) => Array.isArray(c?.janelas)); // coluna torta (guardada à mão) some
   for (const c of a.colunas) {
-    c.janelas = c.janelas.filter((j) => ids.includes(j.id) && !vistos.has(j.id) && vistos.add(j.id));
+    c.janelas = c.janelas.filter((j) => ids.includes(j?.id) && !vistos.has(j.id) && vistos.add(j.id));
   }
   a.colunas = a.colunas.filter((c) => c.janelas.length).slice(0, MAX_COLUNAS);
   const faltam = ids.filter((id) => !a.colunas.some((c) => c.janelas.some((j) => j.id === id)));
@@ -41,9 +42,9 @@ export function normalizar(arrumacao, ids) {
   const ultima = a.colunas.at(-1);
   for (const id of faltam) ultima.janelas.push({ id, altura: 100 / (ultima.janelas.length + 1) });
   for (const c of a.colunas) {
-    for (const j of c.janelas) j.altura = Math.max(j.altura || 0, 1);
+    for (const j of c.janelas) j.altura = Math.max(Number(j.altura) || 0, 1);
     escalar(c.janelas, 'altura');
-    c.largura = Math.max(c.largura || 0, 1);
+    c.largura = Math.max(Number(c.largura) || 0, 1);
   }
   escalar(a.colunas, 'largura');
   return a;
