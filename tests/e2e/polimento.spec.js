@@ -390,8 +390,8 @@ test('alto contraste: a caixa de explicação do terminal usa as cores do tema',
   await page.locator('input.term-entrada').press('Enter');
   const caixa = page.locator('.term-caixa');
   await expect(caixa).toBeVisible();
-  await expect(caixa).toHaveCSS('background-color', 'rgb(0, 0, 0)');
-  await expect(caixa).toHaveCSS('border-left-color', 'rgb(255, 255, 0)');
+  await expect(caixa).toHaveCSS('background-color', 'rgb(22, 27, 34)'); // --term-caixa do tema
+  await expect(caixa).toHaveCSS('border-left-color', 'rgb(240, 183, 47)'); // --ouro do tema
 });
 
 /** As cores que não podem aparecer na primeira e na última coluna do canvas: contêiner ou nuvem cortados. */
