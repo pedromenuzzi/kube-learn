@@ -9,8 +9,10 @@ test.beforeEach(async ({ page }) => {
 test('fechar o aviso pelo teclado devolve o foco ao botão que o pediu', async ({ page }) => {
   await page.goto('#/ex/n0-primeiro-pod');
   const fechar = page.getByRole('button', { name: 'Fechar o aviso' });
-  await page.locator('[data-acao=entregar]').click(); // falha: nada aplicado ainda
+  await page.locator('[data-acao=entregar]').click();
+  // O aviso do resultado, não o "Rodando todos os testes…" de antes (trocado 30 ms depois, com o botão de fechar junto).
   await expect(page.locator('.ex-aviso')).not.toBeEmpty();
+  await expect(page.locator('.ex-aviso')).not.toContainText('Rodando');
   await fechar.focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('.ex-aviso')).toBeEmpty();
@@ -18,7 +20,7 @@ test('fechar o aviso pelo teclado devolve o foco ao botão que o pediu', async (
   // Pelo atalho, o aviso é do Entregar (e não do +30s, o último botão clicado).
   await page.getByRole('button', { name: '+30s' }).click();
   await page.keyboard.press('Control+Shift+Enter');
-  await expect(page.locator('.ex-aviso')).not.toContainText('30');
+  await expect(page.locator('.ex-aviso')).not.toContainText(/30|Rodando/);
   await fechar.focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('[data-acao=entregar]')).toBeFocused();

@@ -1,5 +1,6 @@
 // O `test` de todos os specs: falha em qualquer erro que o aluno veria no console (pageerror ou console.error).
 // Os specs importam daqui, não de '@playwright/test'.
+import { setTimeout as esperar } from 'node:timers/promises';
 import { test as base, expect } from '@playwright/test';
 
 export const test = base.extend({
@@ -21,10 +22,13 @@ export const test = base.extend({
     // Assentamento: o erro que chega logo depois do último passo (um setTimeout, o próximo quadro) também conta. Só
     // quando o teste passou: se já falhou, não há o que esperar (e a página pode estar travada).
     if (info.status === 'passed') {
-      await Promise.all(context.pages().map((p) => p.evaluate(() => new Promise((r) => {
-        requestAnimationFrame(() => setTimeout(r, 250));
-        setTimeout(r, 1000); // aba sem quadros (em segundo plano): não espera para sempre
-      })).catch(() => p.waitForTimeout(250).catch(() => {})))); // navegando ou já fechada
+      await Promise.all(context.pages().map((p) => Promise.race([
+        p.evaluate(() => new Promise((r) => {
+          requestAnimationFrame(() => setTimeout(r, 250));
+          setTimeout(r, 1000); // aba sem quadros (em segundo plano): não espera para sempre
+        })).catch(() => esperar(250)), // navegando ou já fechada
+        esperar(1500), // relógio da página parado (page.clock): os timers dela não andam, este (do Node) anda
+      ])));
     }
     expect(erros, 'erros no console da página').toEqual([]);
   },

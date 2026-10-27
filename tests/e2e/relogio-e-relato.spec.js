@@ -2,6 +2,8 @@
 // Oficina mostra o tempo final no instante da entrega (o mesmo do aviso), sem esperar o próximo tique.
 import { test, expect } from './base.js';
 
+test.use({ errosPermitidos: [/defeito de propósito/] }); // o primeiro teste quebra a página de propósito
+
 test('o relato do Feedback leva a mensagem do erro, com um stack sem ela (como o do Firefox)', async ({ page }) => {
   await page.addInitScript(() => {
     const original = Element.prototype.replaceChildren;
