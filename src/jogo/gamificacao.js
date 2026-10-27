@@ -23,7 +23,7 @@ export function calcularJornada(niveis, progresso = {}, conquistas = {}) {
     const resolvidos = conta.filter((i) => progresso[i.id]?.status === 'resolvido').length;
     const pct = conta.length ? Math.round((resolvidos / conta.length) * 100) : 0;
     const emObra = n.itens.length === 0;
-    const lacrado = !emObra && !!conquistas.lacres?.[n.numero];
+    const lacrado = !emObra && !!conquistas?.lacres?.[n.numero];
     const comProgresso = n.itens.some((i) => progresso[i.id]);
     const desbloqueado = !emObra && (anteriorPassou || comProgresso || lacrado);
     const passou = emObra || lacrado || pct >= LIMITE_DESBLOQUEIO;
@@ -53,7 +53,7 @@ export function calcularJornada(niveis, progresso = {}, conquistas = {}) {
     niveis: resultado,
     proximo,
     niveisProntos: resultado.filter((n) => n.passou).length,
-    navioCheio: !!conquistas.navio || (comConteudo.length === resultado.length && comConteudo.every((n) => n.concluido)),
+    navioCheio: !!conquistas?.navio || (comConteudo.length === resultado.length && comConteudo.every((n) => n.concluido)),
   };
 }
 

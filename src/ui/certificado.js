@@ -1,6 +1,6 @@
 // O certificado final (com o navio carregado) e a página de privacidade.
 import { NIVEIS } from '../conteudo/index.js';
-import { calcularJornada } from '../jogo/gamificacao.js';
+import { calcularJornada, hojeLocal } from '../jogo/gamificacao.js';
 import { ler, gravar, CHAVES, DESCRICOES, exportarTudo, apagarTudo } from '../armazenamento.js';
 import { svgSelo, htmlCertificado, linkPerfil, linkCompartilhar } from './selos.js';
 import { escapar } from './util.js';
@@ -9,7 +9,7 @@ import { t } from '../i18n.js';
 
 export function paginaCertificado() {
   return (main) => {
-    const j = calcularJornada(NIVEIS, ler(CHAVES.progresso, {}));
+    const j = calcularJornada(NIVEIS, ler(CHAVES.progresso, {}), ler(CHAVES.conquistas, {}));
     const prontos = j.niveis.filter((n) => n.concluido);
     // Os lacres que faltam aparecem como um espaço vazio (dá vontade de completar).
     const selos = `${prontos.length ? '' : `<p class="nota">${t('Nenhum lacre ainda: um nível é lacrado com 100% das missões resolvidas.')}</p>`}
@@ -27,8 +27,8 @@ export function paginaCertificado() {
         <p><a class="botao" href="#/trilha">${icone('trilha')} ${t('Continuar embarcando')}</a></p>`;
       return {};
     }
-    // A data do certificado: o dia em que a última missão foi resolvida.
-    const data = Object.values(ler(CHAVES.progresso, {})).filter((p) => p.status === 'resolvido').map((p) => p.em).sort().at(-1) ?? new Date().toISOString().slice(0, 10);
+    // A data do certificado: o dia em que o navio ficou cheio (guardado na festa, ou na migração de quem chegou antes).
+    const data = ler(CHAVES.conquistas, {}).navio ?? hojeLocal();
     const desenhar = () => {
       const nome = ler(CHAVES.nome, '');
       main.innerHTML = `
