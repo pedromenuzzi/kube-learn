@@ -4,7 +4,8 @@ import { test as base, expect } from '@playwright/test';
 
 // Erros de console esperados (RegExp sobre o texto). Um lugar só; entra aqui só com o motivo ao lado.
 const PERMITIDOS = [
-  /defeito de propósito/, // dados-que-ficam.spec.js: a exceção forçada que abre a página 'Algo quebrou aqui'
+  /defeito de propósito/,
+  /^Failed to load resource: net::ERR_FAILED$/, // home-leve.spec.js: o route.abort() do pedaço lazy que não chega // dados-que-ficam.spec.js: a exceção forçada que abre a página 'Algo quebrou aqui'
 ];
 
 export const test = base.extend({

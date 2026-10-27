@@ -42,7 +42,7 @@ test('privacidade: baixar e apagar os dados', async ({ page }) => {
   await Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: 'Apagar meus dados' }).click()]); // apaga e recarrega
   expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('kube-learn:')))).toEqual([]);
   await page.goto('#/trilha');
-  await expect(page.locator('#nivel-0')).toContainText('0 de 8 missões');
+  await expect(page.locator('#nivel-0')).toContainText('0 de 10 missões');
 });
 
 test('mapa do cluster: prédios com uso, ramais e a administração escondida', async ({ page }) => {

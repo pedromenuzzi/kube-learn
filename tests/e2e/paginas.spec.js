@@ -47,7 +47,7 @@ test('nível 0: lição lida e quiz certo contam na trilha', async ({ page }) =>
   await page.getByRole('button', { name: 'Responder' }).click();
   await expect(page.locator('.quiz-retorno')).toContainText('Certo!');
   await page.goto('#/trilha');
-  await expect(page.locator('#nivel-0')).toContainText('2 de 8 missões (25%)');
+  await expect(page.locator('#nivel-0')).toContainText('2 de 10 missões (20%)');
   await expect(page.locator('.placar')).toContainText('15');
 });
 
