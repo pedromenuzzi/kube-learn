@@ -174,6 +174,7 @@ export default {
   'Chave': 'Key',
   'O que guarda': 'What it stores',
   'Quais missões você resolveu ou tentou, e quando.': 'Which missions you solved or attempted, and when.',
+  'Os lacres dos níveis e o navio carregado, com a data: missão nova que chega depois não tira.': 'Your level seals and the fully loaded ship, with their dates: missions added later never take them away.',
   'Os arquivos que você escreveu em cada missão.': 'The files you wrote in each mission.',
   'Os dias em que você estudou (para a sequência 🔥).': 'The days you studied (for the 🔥 streak).',
   'Onde você deixou as janelas da tela do exercício.': 'Where you left the windows on the exercise screen.',
