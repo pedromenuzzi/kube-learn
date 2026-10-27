@@ -93,6 +93,7 @@ export function montarExercicio(raiz, item) {
     desde = document.hidden ? null : performance.now();
     terminouEm = null;
   };
+  const chipRecorde = (ms) => `<span class="chip chip-recorde medalha-${medalha(ms, item.meta)}">${icone('lacre')} ${nomeDaMedalha(medalha(ms, item.meta))} · ${t('Recorde: {tempo}', { tempo: minutosESegundos(ms) })}</span>`;
   const xp = item.secao ? 0 : xpDoItem(item);
   const voltarPara = { troubleshooting: 'Troubleshooting', oficina: t('Oficina'), plantao: t('Plantão do dia') }[item.secao] ?? t('Trilha');
   raiz.innerHTML = `
@@ -103,7 +104,7 @@ export function montarExercicio(raiz, item) {
         ${item.projeto ? `<span class="chip chip-projeto">${icone('arvore')} ${escapar(item.projeto.titulo)} · ${t('etapa {etapa} de {total}', item.projeto)}</span>` : ''}
         ${item.dificuldade ? `<span class="chip chip-${item.dificuldade}">${t(DIFICULDADE[item.dificuldade])}</span>` : ''}${xp ? `<span class="chip">${xp} XP</span>` : ''}
         ${ler(CHAVES.progresso, {})[item.id]?.status === 'resolvido' ? `<span class="chip chip-ok">${icone('certo')} ${t('Resolvida')}</span>` : ''}
-        ${comRelogio ? `<span class="chip chip-cronometro">${icone('relogio')} ${t('Seu tempo')} <span class="cronometro-tempo">${minutosESegundos(tempo())}</span></span>` : ''}${naOficina ? `<span class="chip chip-meta">${icone('alvo')} ${t('Meta: {tempo}', { tempo: minutosESegundos(item.meta) })}</span>${recorde ? `<span class="chip chip-recorde medalha-${medalha(recorde, item.meta)}">${icone('lacre')} ${nomeDaMedalha(medalha(recorde, item.meta))} · ${t('Recorde: {tempo}', { tempo: minutosESegundos(recorde) })}</span>` : ''}` : ''}
+        ${comRelogio ? `<span class="chip chip-cronometro">${icone('relogio')} ${t('Seu tempo')} <span class="cronometro-tempo">${minutosESegundos(tempo())}</span></span>` : ''}${naOficina ? `<span class="chip chip-meta">${icone('alvo')} ${t('Meta: {tempo}', { tempo: minutosESegundos(item.meta) })}</span>${recorde ? chipRecorde(recorde) : ''}` : ''}
       </header>
       <div class="ex-acoes">
         ${temArquivos ? `<button type="button" class="botao" data-acao="aplicar" title="Ctrl+Enter">${icone('play')} ${t('Aplicar')}</button>` : `<button type="button" class="botao" data-acao="conferir" title="Ctrl+Enter">${icone('certo')} ${t('Conferir')}</button>`}
@@ -409,6 +410,11 @@ export function montarExercicio(raiz, item) {
     const antes = recordes[item.id];
     const feito = minutosESegundos(terminouEm);
     if (!antes || terminouEm < antes) gravar(CHAVES.recordes, { ...recordes, [item.id]: Math.round(terminouEm) });
+    // O chip do topo acompanha o recorde (desenhado ao abrir, não pode contradizer o aviso).
+    const chip = chipRecorde(Math.min(antes ?? Infinity, Math.round(terminouEm)));
+    const velho = raiz.querySelector('.chip-recorde');
+    if (velho) velho.outerHTML = chip;
+    else raiz.querySelector('.chip-meta')?.insertAdjacentHTML('afterend', chip);
     const cabeca = { ouro: t('Ouro!'), prata: t('Prata!'), bronze: t('Bronze!') }[medalha(terminouEm, item.meta)];
     const quando = !antes ? t('Feito em {tempo}.', { tempo: feito })
       : terminouEm < antes ? t('Novo recorde: {tempo}! (era {antes})', { tempo: feito, antes: minutosESegundos(antes) })
@@ -426,7 +432,7 @@ export function montarExercicio(raiz, item) {
   const pausar = () => {
     acumulado = tempo();
     desde = null;
-    if (noPlantao && terminouEm === null) gravar(CHAVES.plantaoAberto, { ...ler(CHAVES.plantaoAberto, {}), [item.id]: { ms: Math.round(acumulado), entregas: falhas } });
+    if (noPlantao && terminouEm === null && !ler(CHAVES.plantoes, {})[item.id]) gravar(CHAVES.plantaoAberto, { ...ler(CHAVES.plantaoAberto, {}), [item.id]: { ms: Math.round(acumulado), entregas: falhas } });
   };
   /** Para o relógio do Plantão e avisa. A primeira vez que resolve fica guardada: é o resultado do dia, o compartilhado. */
   const avisarPlantao = () => {

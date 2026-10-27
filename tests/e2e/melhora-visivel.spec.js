@@ -33,16 +33,19 @@ test('Oficina: bronze devagar, ouro rápido, e a medalha não rebaixa; o Diário
   await resolver(70_000);
   await expect(aviso).toContainText(/Bronze! Feito em 1:1\d\. Faltam 0:\d\d para a prata\./);
   await expect(aviso).not.toContainText('recorde');
+  await expect(page.locator('.chip-recorde')).toContainText(/Bronze · Recorde: 1:1\d/);
 
   // Rápido: ouro, dentro da meta.
   await aviso.getByRole('button', { name: 'Tentar de novo' }).click();
   await resolver(5_000);
   await expect(aviso).toContainText(/Ouro! Novo recorde: 0:0\d! \(era 1:1\d\) Dentro da meta de 0:25\./);
+  await expect(page.locator('.chip-recorde')).toContainText(/Ouro · Recorde: 0:0\d/);
 
   // Devagar de novo: o aviso diz bronze, mas o recorde (e a medalha da lista) continua o ouro.
   await aviso.getByRole('button', { name: 'Tentar de novo' }).click();
   await resolver(80_000);
   await expect(aviso).toContainText(/Bronze! Feito em 1:2\d\. O recorde continua 0:0\d\./);
+  await expect(page.locator('.chip-recorde')).toContainText(/Ouro · Recorde: 0:0\d/);
 
   await page.getByRole('link', { name: 'Voltar à Oficina' }).click();
   await expect(page.locator('ol.oficina li', { hasText: 'Volta, volta!' })).toContainText(/Meta: 0:25 · Ouro · Recorde: 0:0\d/);
@@ -97,6 +100,14 @@ test('Plantão: errar 2 vezes, recarregar e resolver dá 3 entregas e um tempo q
   const [resultado] = Object.values(await page.evaluate(() => JSON.parse(localStorage.getItem('kube-learn:plantoes'))));
   expect(resultado.entregas).toBe(3);
   expect(resultado.ms).toBeGreaterThanOrEqual(anotado * 1000);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('kube-learn:plantaoAberto')))).toEqual({});
+
+  // Já resolvido: recarregar, reabrir e sair não deixa um "em andamento" para trás.
+  await page.reload();
+  await expect(page.locator('input.term-entrada')).toBeVisible();
+  await page.clock.fastForward(5_000);
+  await page.getByRole('link', { name: 'Voltar ao Plantão do dia' }).click();
+  await expect(page.locator('.plantao-hoje')).toBeVisible();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('kube-learn:plantaoAberto')))).toEqual({});
 });
 
