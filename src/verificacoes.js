@@ -29,6 +29,10 @@
 //   { release: { nome, ns, status, revisao, descricao } }   a release do Helm (a última revisão)
 //   { espalhamento: { pods: 'app=x', chave: 'topology.kubernetes.io/zone', maxSkew: 1 } }   a maior diferença de
 //                                                      pods entre os domínios (os valores da label nos nodes)
+//   { egressMinimo: 'networkpolicy/x', ns }            a saída da NetworkPolicy é de menor privilégio: toda regra de egress
+//                                                      tem `to` e `ports` (cada uma com `port`), nenhum namespaceSelector
+//                                                      vazio nem ipBlock /0, e a porta 53 vai em UDP e em TCP (o DNS usa os
+//                                                      dois). Use com `msg` (a mensagem que ensina); o detalhe é a regra larga
 //
 // Passos (`passos`): { comando: 'kubectl ...' }, { avancar: '30s' }, { adicionarNode: 'node-3' } (um prédio novo no condomínio)
 // { derrubarNode: 'node-2' } (o prédio fica sem luz: o kubelet dele para) e { zerar: true } (o vigia e o rollout começam a contar
@@ -283,6 +287,19 @@ const REGRAS = {
     const valores = [...conta.values()];
     const dif = valores.length ? Math.max(...valores) - Math.min(...valores) : 0;
     return [dif <= q.maxSkew, t('os pods {pods} estão espalhados por {chave} (diferença de no máximo {n})', { pods: q.pods, chave: q.chave, n: q.maxSkew }), [...conta].map(([k, n]) => `${k}: ${n}`).join(', ')];
+  },
+  egressMinimo(r, ctx) {
+    const { nome } = separar(r.egressMinimo, 'networkpolicy');
+    const np = ctx.cluster.obter('NetworkPolicy', r.ns ?? 'default', nome);
+    if (!np) return [false, r.egressMinimo, t('{alvo} não existe', { alvo: r.egressMinimo })];
+    const vazio = (s) => !Object.keys(s?.matchLabels ?? {}).length && !s?.matchExpressions?.length;
+    const regras = np.spec.egress ?? [];
+    const larga = regras.findIndex((e) => !e.to?.length || !e.ports?.length || e.ports.some((p) => p.port === undefined)
+      || e.to.some((par) => (par.namespaceSelector && vazio(par.namespaceSelector)) || /\/0$/.test(par.ipBlock?.cidr ?? '')));
+    const portas53 = new Set(regras.flatMap((e) => e.ports ?? []).filter((p) => String(p.port) === '53').map((p) => p.protocol ?? 'TCP'));
+    const semDns = portas53.size && !(portas53.has('UDP') && portas53.has('TCP'));
+    const detalhe = larga !== -1 ? `egress[${larga}]: ${JSON.stringify(regras[larga])}` : `egress: 53/${[...portas53].join(', 53/')}`;
+    return [larga === -1 && !semDns, `${r.egressMinimo}: egress (to, ports)`, detalhe];
   },
   contexto(r, ctx) {
     const atual = ctx.cluster.contexto.namespace;

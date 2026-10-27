@@ -6,6 +6,15 @@ const depois = (descricao, regras, { oculto = false, esperar = '1m', mais = [] }
 const pode = (quem, verbo, recurso, resposta, extra = {}) => ({ pode: { quem, verbo, recurso, resposta, ...extra } });
 const pede = (de, url, status, ns = 'rede') => ({ requisicao: { de: `pod/${de}`, ns, url, status } });
 
+/** A trava da saída: a política libera só o necessário (para quem e em que porta), e o DNS é 53/UDP e 53/TCP. */
+export const saidaMinima = (politica, ns) => ({
+  egressMinimo: `networkpolicy/${politica}`,
+  ns,
+  msg: 'a saída libera só o necessário: toda regra de egress diz para quem (to) e em que porta (ports, cada uma com port); sem isso, vale para tudo. O DNS precisa só de 53/UDP e 53/TCP, para os pods k8s-app=kube-dns do kube-system',
+});
+/** A armadilha da saída larga: a regra do DNS sem `to` (a porta 53 aberta para qualquer destino), no fim do egress. */
+export const DNS_SEM_TO = '  - ports:\n    - protocol: UDP\n      port: 53\n    - protocol: TCP\n      port: 53\n';
+
 // ---------- RBAC ----------
 const papelLeitor = yaml`
   apiVersion: rbac.authorization.k8s.io/v1
@@ -552,7 +561,9 @@ in API group "" in the namespace "default"</code></pre>
       { semErros: true },
       { objeto: 'pod/painel', campo: 'status.phase', igual: 'Running' },
       { objeto: 'pod/painel', campo: 'spec.serviceAccountName', igual: 'painel' },
+      pode('system:serviceaccount:default:painel', 'get', 'pods', true),
       pode('system:serviceaccount:default:painel', 'list', 'pods', true),
+      pode('system:serviceaccount:default:painel', 'watch', 'pods', true),
       pode('system:serviceaccount:default:painel', 'delete', 'pods', false),
       pode('system:serviceaccount:default:painel', 'list', 'secrets', false),
     ], { esperar: '30s' })],
@@ -646,7 +657,12 @@ spec:
     manual: ['networkpolicy.spec.ingress'],
     inicial: { 'libera-vitrine.yaml': liberaVitrine(8080) },
     solucao: { 'libera-vitrine.yaml': liberaVitrine(80) },
-    testes: [depois('a vitrine passa, o curioso não', [{ semErros: true }, pede('vitrine', 'http://api', 200), pede('curioso', 'http://api', 'timeout')], { esperar: '5s' })],
+    testes: [
+      depois('a vitrine passa, o curioso não', [{ semErros: true }, pede('vitrine', 'http://api', 200), pede('curioso', 'http://api', 'timeout')], { esperar: '5s' }),
+      depois('a catraca continua presa a uma porta', [
+        { objeto: 'networkpolicy/libera-vitrine', ns: 'rede', campo: 'spec.ingress[0].ports[0].port', igual: 80 },
+      ], { oculto: true, esperar: '5s' }),
+    ],
   }),
 
   problema({
@@ -666,11 +682,15 @@ spec:
     manual: ['networkpolicy.spec.egress'],
     inicial: { 'saida-da-vitrine.yaml': saidaDaVitrine(false) },
     solucao: { 'saida-da-vitrine.yaml': saidaDaVitrine(true) },
-    testes: [depois('a vitrine acha a api pelo nome', [
-      { semErros: true },
-      pede('vitrine', 'http://api', 200),
-      { ...pede('vitrine', 'http://kube-dns.kube-system:9153', 'timeout'), msg: 'o resto da saída continua fechado (a porta 9153 do kube-dns dá timeout)' },
-    ], { esperar: '5s' })],
+    testes: [
+      depois('a vitrine acha a api pelo nome', [
+        { semErros: true },
+        pede('vitrine', 'http://api', 200),
+        { ...pede('vitrine', 'http://kube-dns.kube-system:9153', 'timeout'), msg: 'o resto da saída continua fechado (a porta 9153 do kube-dns dá timeout)' },
+      ], { esperar: '5s' }),
+      depois('a saída continua com o menor privilégio', [saidaMinima('saida-da-vitrine', 'rede')], { oculto: true, esperar: '5s' }),
+    ],
+    armadilhas: [{ descricao: 'liberar a porta 53 para qualquer destino (a regra do DNS sem to)', arquivos: { 'saida-da-vitrine.yaml': saidaDaVitrine(false) + DNS_SEM_TO } }],
   }),
 
   problema({
