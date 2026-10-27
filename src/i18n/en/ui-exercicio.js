@@ -4,8 +4,8 @@ export default {
   'erro interno do simulador: {erro}': 'internal simulator error: {erro}',
   'O simulador tropeçou': 'The simulator tripped',
   'Isso é um defeito nosso, não seu. Se puder, conte pelo botão <b>Feedback</b>: ele já leva os últimos comandos.': 'That’s our bug, not yours. If you can, tell us with the <b>Feedback</b> button: it already includes your last commands.',
-  'Idioma trocado. O cluster continua como estava (↑ traz os comandos de antes).': 'Language switched. The cluster is just as you left it (↑ brings back your earlier commands).',
-  'Cluster pronto (1 control plane + 2 workers). Digite help para ajuda.': 'Cluster ready (1 control plane + 2 workers). Type help for help.',
+  'Seu cluster continua como você deixou (Resetar cluster recomeça).': 'Your cluster is just as you left it (Reset cluster starts over).',
+  'Cluster pronto. Digite help para ajuda.': 'Cluster ready. Type help for help.',
   'Nesta missão, use o terminal.': 'In this mission, use the terminal.',
 
   // exercicio.js: o help do terminal
@@ -16,6 +16,7 @@ export default {
   '{cmd}: aqui o {cmd} lê a saída de outro comando (depois de um |) ou um arquivo do editor.': '{cmd}: here {cmd} reads the output of another command (after a |) or a file from the editor.',
   "awk: aqui o awk só entende programas como '{print $1}', '{print $1, $3}', '{print $NF}' e 'NR>1 {print $1}'.": "awk: here awk only understands programs like '{print $1}', '{print $1, $3}', '{print $NF}' and 'NR>1 {print $1}'.",
   'bash: {cmd}: este terminal não tem esse comando. Depois de um | ele entende: {lista}.': 'bash: {cmd}: this terminal doesn’t have that command. After a | it understands: {lista}.',
+  'bash: {arquivo}: só dá para gravar arquivos .yaml, .json ou .txt aqui': 'bash: {arquivo}: only .yaml, .json or .txt files can be written here',
   // kubectl/index.js: o rollout status que não termina em 20 minutos
   '(o kubectl de verdade continuaria esperando até alguém apertar Ctrl+C; o simulador parou depois de 20 minutos sem o rollout terminar)': '(the real kubectl would keep waiting until someone pressed Ctrl+C; the simulator stopped after 20 minutes without the rollout finishing)',
   // exercicio.js: o topo, os botões, as janelas e as abas
@@ -82,6 +83,9 @@ export default {
   '{ok} de {total} passaram (só os visíveis)': '{ok} of {total} passed (visible only)',
   'Incidente resolvido! O morador agradece.': 'Incident solved! The resident thanks you.',
   'Missão cumprida! +{xp} XP. Mais um contêiner embarcado no seu navio.': 'Mission accomplished! +{xp} XP. One more container loaded aboard your ship.',
+  'Lição concluída! +{xp} XP. Mais um contêiner embarcado no seu navio.': 'Lesson complete! +{xp} XP. One more container loaded aboard your ship.',
+  'Resolvida de novo: bom treino!': 'Solved again: good practice!',
+  'Aplicado! Agora siga os passos da missão.': 'Applied! Now follow the mission’s steps.',
   'Veja o que faltou na aba Testes.': 'See what’s missing on the Tests tab.',
   'Testes visíveis: {ok} de {total} passaram. Agora é só entregar.': 'Visible tests: {ok} of {total} passed. Now just submit.',
   'Testes visíveis: {ok} de {total} passaram. Veja a aba Testes.': 'Visible tests: {ok} of {total} passed. See the Tests tab.',
@@ -124,9 +128,12 @@ export default {
   'Mover {janela} para baixo': 'Move {janela} down',
   'Mover {janela} para a esquerda': 'Move {janela} left',
   'Mover {janela} para a direita': 'Move {janela} right',
-  'Arraste para mudar de lugar': 'Drag to move it',
+  'Mover a janela {janela}': 'Move the {janela} window',
+  'Arraste para mudar de lugar, ou use as setas do teclado': 'Drag to move it, or use the arrow keys',
   'Largura entre as colunas {a} e {b}': 'Width between columns {a} and {b}',
   'Altura entre {a} e {b}': 'Height between {a} and {b}',
+  // editor.js
+  'Tab recua · Esc e depois Tab sai do editor': 'Tab indents · Esc then Tab leaves the editor',
 
   // feedback.js: o diálogo e o relato (o corpo da issue)
   'Gostei': 'Liked it',

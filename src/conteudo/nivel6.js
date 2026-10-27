@@ -1,7 +1,10 @@
 // Nível 6: saúde e recursos (o síndico que bate na porta, o disjuntor, a potência contratada e os temporários).
 import { licao, problema, yaml } from './util.js';
+import { PERGUNTA_CERTA } from './nivel9.js';
 
 const noCluster = (descricao, regras) => [{ noClusterDoAluno: true, descricao, regras }];
+// O teste oculto das travas: o conserto não pode ser tirar a proteção (a sonda, o limite, a cota).
+const TRAVAS = 'as travas de segurança continuam lá';
 const depois = (descricao, regras, { oculto = false, esperar = '1m' } = {}) => ({ oculto, descricao, passos: [{ comando: 'kubectl apply -f .' }, { avancar: esperar }], regras });
 
 /** A loja (Deployment), com o que cada missão pede a mais no contêiner. */
@@ -35,6 +38,8 @@ const recursos = (pedido, limite) => `          resources:
             requests:
 ${Object.entries(pedido).map(([k, v]) => `              ${k}: ${v}`).join('\n')}
 ${limite ? `            limits:\n${Object.entries(limite).map(([k, v]) => `              ${k}: ${v}`).join('\n')}\n` : ''}`;
+
+const travada = (extra) => loja({ versao: '2.2-trava', replicas: 2, extra });
 
 const relatorio = (limite) => yaml`
   apiVersion: apps/v1
@@ -95,7 +100,7 @@ const limiteDoNamespace = yaml`
 
 /** Os clusters de partida deste nível (em clusters.js). */
 export const PARTIDA6 = {
-  trava: loja({ versao: '2.2-trava', replicas: 2 }),
+  trava: travada(),
   lenta: loja({ versao: '3.0-lenta', replicas: 2, extra: sonda('livenessProbe', { extra: '            periodSeconds: 5\n' }) }),
   sondaErrada: loja({ replicas: 2, extra: sonda('readinessProbe', { caminho: '/saude' }) }),
   apertado: loja({ extra: recursos({ cpu: '1500m' }) }),
@@ -232,12 +237,22 @@ export const NIVEL6 = [
     dica: 'Uma livenessProbe httpGet em /healthz, porta 8080.',
     manual: ['pod.spec.containers.livenessProbe'],
     inicial: { 'loja.yaml': PARTIDA6.trava },
-    solucao: { 'loja.yaml': loja({ versao: '2.2-trava', replicas: 2, extra: sonda('livenessProbe', { extra: '            periodSeconds: 5\n' }) }) },
+    solucao: { 'loja.yaml': travada(sonda('livenessProbe', { extra: '            periodSeconds: 5\n' })) },
     testes: [depois('o kubelet reinicia a loja travada', [
       { semErros: true },
-      { evento: { motivo: 'Killing' }, msg: 'o kubelet matou um contêiner pela liveness' },
+      // o Killing sozinho não basta: a troca de versão também mata os contêineres antigos (Stopping container)
+      { evento: { motivo: 'Killing', mensagem: 'failed liveness probe, will be restarted' }, msg: 'o kubelet matou um contêiner pela liveness' },
+      { evento: { motivo: 'Unhealthy', mensagem: 'Liveness probe failed: .*deadline exceeded' }, msg: 'a liveness reprovou a loja quando ela travou (sem resposta), e não antes' },
       { objeto: 'deployment/loja', campo: 'spec.template.spec.containers[0].livenessProbe', existe: true },
     ], { esperar: '2m' })],
+    armadilhas: [
+      // a loja travada ainda aceita a conexão: só a pergunta HTTP percebe que ninguém responde
+      { descricao: 'liveness tcpSocket na 8080', arquivos: { 'loja.yaml': travada('          livenessProbe:\n            tcpSocket:\n              port: 8080\n') } },
+      { descricao: 'liveness num caminho que não existe (/saude)', arquivos: { 'loja.yaml': travada(sonda('livenessProbe', { caminho: '/saude' })) } },
+      { descricao: 'liveness na porta 9090', arquivos: { 'loja.yaml': travada(sonda('livenessProbe').replace('8080', '9090')) } },
+      // sem a porta, o API Server recusa (port 0), como no kind
+      { descricao: 'liveness httpGet sem a porta', arquivos: { 'loja.yaml': travada(sonda('livenessProbe').replace(/ +port: 8080\n/, '')) } },
+    ],
   }),
 
   problema({
@@ -288,7 +303,11 @@ export const NIVEL6 = [
     dica: 'A readinessProbe pergunta num caminho que a loja não conhece (404).',
     inicial: { 'loja.yaml': PARTIDA6.sondaErrada },
     solucao: { 'loja.yaml': loja({ replicas: 2, extra: sonda('readinessProbe') }) },
-    testes: [depois('o ramal volta a tocar', [{ semErros: true }, { endpoints: 'svc/loja', quantidade: 2 }])],
+    testes: [
+      depois('o ramal volta a tocar', [{ semErros: true }, { endpoints: 'svc/loja', quantidade: 2 }]),
+      depois(TRAVAS, [PERGUNTA_CERTA], { oculto: true }),
+    ],
+    armadilhas: [{ descricao: 'apagar a readinessProbe', arquivos: { 'loja.yaml': loja({ replicas: 2 }) } }],
   }),
 
   problema({
@@ -305,7 +324,11 @@ export const NIVEL6 = [
     dica: 'resources.requests.cpu: 1500m é demais. A loja usa poucos milicores; 250m sobra.',
     inicial: { 'loja.yaml': PARTIDA6.apertado },
     solucao: { 'loja.yaml': loja({ extra: recursos({ cpu: '250m' }) }) },
-    testes: [depois('as 3 lojas cabem', [{ semErros: true }, { pods: 'app=loja', prontos: 3 }])],
+    testes: [
+      depois('as 3 lojas cabem', [{ semErros: true }, { pods: 'app=loja', prontos: 3 }]),
+      depois(TRAVAS, [{ objeto: 'deployment/loja', campo: 'spec.template.spec.containers[0].resources.requests.cpu', existe: true, msg: 'o pedido de CPU continua lá: rasgar a conta de luz não diminui o consumo' }], { oculto: true }),
+    ],
+    armadilhas: [{ descricao: 'apagar o resources (BestEffort)', arquivos: { 'loja.yaml': loja() } }],
   }),
 
   problema({
@@ -322,7 +345,18 @@ export const NIVEL6 = [
     dica: 'OOMKilled: o contêiner passou do limits.memory. Suba o limite (512Mi dá folga).',
     inicial: { 'relatorio.yaml': PARTIDA6.oom },
     solucao: { 'relatorio.yaml': relatorio('512Mi') },
-    testes: [depois('o relatório fica de pé', [{ semErros: true }, { pods: 'app=relatorio', prontos: 1, reinicios: { max: 0 } }])],
+    testes: [
+      depois('o relatório fica de pé', [
+        { semErros: true },
+        { pods: 'app=relatorio', prontos: 1, reinicios: { max: 0 } },
+        { objeto: 'deployment/relatorio', campo: 'spec.template.spec.containers[0].resources.limits.memory', maiorQue: '300Mi', msg: 'o limite de memória deixa folga acima dos 300Mi da planilha' },
+      ]),
+      depois(TRAVAS, [{ objeto: 'deployment/relatorio', campo: 'spec.template.spec.containers[0].resources.limits.memory', existe: true, msg: 'o limite de memória continua lá: tirar o disjuntor não conserta a fiação' }], { oculto: true }),
+    ],
+    armadilhas: [
+      { descricao: 'o limite justo nos 300Mi, sem folga', arquivos: { 'relatorio.yaml': relatorio('300Mi') } },
+      { descricao: 'apagar o limits (sem disjuntor)', mudar: (a) => ({ 'relatorio.yaml': a['relatorio.yaml'].replace(/\n\s+resources:[\s\S]*$/, '\n') }) },
+    ],
   }),
 
   problema({
@@ -419,7 +453,14 @@ export const NIVEL6 = [
     dica: 'A cota tem requests.cpu e limits.memory: todo contêiner precisa declarar os dois. Cada loja pode pedir 250m de CPU e 256Mi de limite de memória.',
     inicial: { 'loja.yaml': PARTIDA6.vendas },
     solucao: { 'loja.yaml': loja({ replicas: 2, ns: 'vendas', extra: recursos({ cpu: '250m' }, { memory: '256Mi' }) }) },
-    testes: [depois('a loja de vendas abre dentro da cota', [{ semErros: true }, { pods: 'app=loja', ns: 'vendas', prontos: 2 }], { esperar: '2m' })],
+    testes: [
+      depois('a loja de vendas abre dentro da cota', [{ semErros: true }, { pods: 'app=loja', ns: 'vendas', prontos: 2 }], { esperar: '2m' }),
+      depois(TRAVAS, [{ objeto: 'quota/cota', ns: 'vendas', campo: 'spec.hard', igual: { 'requests.cpu': '1', 'limits.memory': '1Gi' }, msg: 'a cota continua como a administração deixou: rasgar a regra do condomínio não cria energia' }], { oculto: true }),
+    ],
+    armadilhas: [{
+      descricao: 'reescrever a cota sem mexer no Deployment',
+      arquivos: { 'cota.yaml': 'apiVersion: v1\nkind: ResourceQuota\nmetadata:\n  name: cota\n  namespace: vendas\nspec:\n  hard:\n    pods: "10"\n', 'loja.yaml': PARTIDA6.vendas },
+    }],
   }),
 
   problema({

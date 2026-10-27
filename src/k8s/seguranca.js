@@ -41,7 +41,7 @@ const casaRegra = (r, p) => (r.verbs ?? []).some((v) => v === '*' || v === p.ver
   && (r.resources ?? []).some((x) => x === '*' || x === (p.sub ? `${p.recurso}/${p.sub}` : p.recurso) || (p.sub && x === `*/${p.sub}`))
   && (!r.resourceNames?.length || (!!p.nome && r.resourceNames.includes(p.nome)));
 
-const regrasDo = (c, ref, ns) => (ref.kind === 'ClusterRole' ? c.obter('ClusterRole', null, ref.name) : c.obter('Role', ns, ref.name))?.rules ?? [];
+const regrasDo = (c, ref, ns) => (ref?.kind === 'ClusterRole' ? c.obter('ClusterRole', null, ref.name) : c.obter('Role', ns, ref?.name))?.rules ?? [];
 
 /**
  * O pedido é permitido? pedido: { verbo, recurso (plural), grupo (da API, "" para o core), sub, ns, nome }.
@@ -115,7 +115,8 @@ export function normasDe(c, ns) {
 }
 
 /** Os rótulos de PodSecurity com valor inválido, como o apiserver recusa (o PolicyToEvaluate do PodSecurity admission). */
-export function errosDasNormas(labels = {}) {
+export function errosDasNormas(labels) {
+  labels ??= {};
   const erros = [];
   for (const modo of ['enforce', 'audit', 'warn']) {
     const nivel = labels[`${ROTULO}${modo}`];

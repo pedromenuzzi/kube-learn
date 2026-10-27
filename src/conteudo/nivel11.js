@@ -933,7 +933,7 @@ export const NIVEL11 = [
         titulo: '10% para o canário',
         dificuldade: 'medio',
         vidaReal: 'A placa da portaria manda 1 em cada 10 visitantes para o apartamento reformado.',
-        limite: 'O peso é por conexão, não por pessoa: o mesmo cliente pode cair ora numa versão, ora na outra.',
+        limite: 'O peso é por requisição, não por pessoa: o mesmo cliente pode cair ora numa versão, ora na outra.',
         enunciado: `<p>O <code>rota.yaml</code> manda tudo de <code>loja.local</code> para a v1. Mande <b>uns 10%</b> dos visitantes
                     para a <code>loja-v2</code>, e o resto continua na <code>loja-v1</code>.</p>`,
         dica: 'Cada backendRef ganha um weight, e os pesos são relativos (não precisam somar 100): 9 e 1 dá o mesmo que 90 e 10. backendRefs: [{ name: loja-v1, port: 80, weight: 90 }, { name: loja-v2, port: 80, weight: 10 }]',
@@ -982,8 +982,10 @@ export const NIVEL11 = [
             { saida: 'node/node-1 drained', msg: 'o kubectl drain node-1 termina' },
             { saida: '^([4-9]|[1-9]\\d+)\\s*$', msg: 'um PodDisruptionBudget garante pelo menos 4 prontos' },
             { rollout: 'deployment/loja-v2', minDisponivel: 4 },
-          ], { oculto: true, mais: [{ comando: 'kubectl get pdb -o jsonpath={.items[*].status.desiredHealthy}' }, { zerar: true }, drenar] }),
+            { saida: '"(app|versao)":"(loja|v2)"', msg: 'o PodDisruptionBudget escolhe os pods da v2 pelas labels (matchLabels): um seletor vazio protege tudo e nada' },
+          ], { oculto: true, mais: [{ comando: 'kubectl get pdb -o jsonpath={.items[*].status.desiredHealthy}' }, { comando: 'kubectl get pdb -o jsonpath={.items[*].spec.selector.matchLabels}' }, { zerar: true }, drenar] }),
         ],
+        armadilhas: [{ descricao: 'o PDB sem seletor (selector: {})', mudar: (a) => ({ ...a, 'pdb.yaml': a['pdb.yaml'].replace(/selector:[\s\S]*$/, 'selector: {}\n') }) }],
       },
     ],
   }),
@@ -1023,10 +1025,16 @@ export const NIVEL11 = [
         dica: 'kubectl logs carga (bad address). O Service se chama loja: http://loja',
         novos: { 'trafego.yaml': carga('http://lojas', false) },
         solucao: { 'loja.yaml': lojaBf(true), 'hpa.yaml': hpa(2, 8, 50), 'trafego.yaml': carga('http://loja', false) },
-        testes: [depois('o gerente contratou temporários', [
-          { semErros: true },
-          { objeto: 'hpa/loja', campo: 'status.desiredReplicas', regex: '^[3-8]$', msg: 'o HPA pediu mais de 2 réplicas' },
-        ], { esperar: '3m' })],
+        testes: [
+          depois('o gerente contratou temporários', [
+            { semErros: true },
+            { objeto: 'hpa/loja', campo: 'status.desiredReplicas', regex: '^[3-8]$', msg: 'o HPA pediu mais de 2 réplicas' },
+          ], { esperar: '3m' }),
+          depois('as travas de segurança continuam lá', [
+            { objeto: 'hpa/loja', campo: 'spec.minReplicas', igual: 2, msg: 'o HPA continua com o mínimo de 2: contratar na mão não prova que o gerente enxerga a fila' },
+          ], { oculto: true, esperar: '10s' }),
+        ],
+        armadilhas: [{ descricao: 'subir o minReplicas do HPA para 3, sem consertar o endereço', arquivos: { 'loja.yaml': lojaBf(true), 'hpa.yaml': hpa(3, 8, 50), 'trafego.yaml': carga('http://lojas', false) } }],
       },
       {
         titulo: 'O teto da empresa',
@@ -1196,8 +1204,13 @@ export const NIVEL11 = [
             deAndar('time-b', 'http://api.time-a', 'timeout'),
             deAndar('time-b', 'http://api', 200),
             deAndar('time-a', 'http://api', 200),
-          ], { oculto: true }),
+            { ...deAndar('time-c', 'http://api.time-b', 'timeout'), msg: 'um pod app: cliente de outro andar (time-c) continua barrado: a catraca confere o andar, não só a etiqueta' },
+          ], { oculto: true, mais: [{ comando: 'kubectl create namespace time-c' }, { comando: 'kubectl run cliente -n time-c --image=busybox:1.36 --labels=app=cliente -- sleep 3600' }, { avancar: '30s' }] }),
         ],
+        armadilhas: [{
+          descricao: 'abrir para o app: cliente de qualquer andar (namespaceSelector vazio)',
+          mudar: (a) => ({ ...a, 'catracas.yaml': a['catracas.yaml'].replace(/\n\s+kubernetes\.io\/metadata\.name: time-a/, '') }),
+        }],
       },
     ],
   }),
@@ -1216,7 +1229,13 @@ export const NIVEL11 = [
         dica: 'Os eventos do pod (kubectl describe pod) dizem: container has runAsNonRoot and image will run as root. A imagem do busybox roda como root: diga qual usuário usar (runAsUser: 1000, no securityContext do pod).',
         novos: { 'cofre.yaml': cofre() },
         solucao: { 'cofre.yaml': cofre({ uid: true }) },
-        testes: [depois('o cofre roda como 1000', [{ saida: 'uid=1000 ' }], { mais: [{ comando: 'kubectl exec deploy/cofre -- id' }] })],
+        testes: [
+          depois('o cofre roda como 1000', [{ saida: 'uid=1000 ' }], { mais: [{ comando: 'kubectl exec deploy/cofre -- id' }] }),
+          depois('as travas de segurança continuam lá', [
+            { objeto: 'deployment/cofre', campo: 'spec.template.spec.securityContext.runAsNonRoot', igual: true, msg: 'a trava runAsNonRoot continua lá: tirar a trava não tira a chave mestra do cofre' },
+          ], { oculto: true, esperar: '10s' }),
+        ],
+        armadilhas: [{ descricao: 'trocar a trava runAsNonRoot pelo runAsUser 1000', mudar: (a) => ({ 'cofre.yaml': a['cofre.yaml'].replace('        runAsNonRoot: true\n', '') }) }],
       },
       {
         titulo: 'As normas do bloco',

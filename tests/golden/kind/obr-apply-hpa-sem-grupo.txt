@@ -1,0 +1,2 @@
+The HorizontalPodAutoscaler "sem-grupo" is invalid: spec.scaleTargetRef.apiVersion: Invalid value: "": apiVersion must specify API group
+exit=1

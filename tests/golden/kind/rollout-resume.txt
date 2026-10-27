@@ -1,0 +1,2 @@
+deployment.apps/loja resumed
+exit=0

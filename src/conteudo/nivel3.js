@@ -350,7 +350,7 @@ spec:
     solucaoTerminal: ['kubectl port-forward svc/loja 8080:80', 'curl http://localhost:8080'],
     testes: noCluster('você chegou na loja pela passagem', [
       { comando: 'port-forward', msg: 'você usou o port-forward' },
-      { comando: '^curl.*localhost:8080', msg: 'você chamou o localhost:8080' },
+      { comando: '^curl.*(localhost|127\\.0\\.0\\.1):8080', msg: 'você chamou o localhost:8080' },
       { resposta: '1.0' },
     ]),
   }),

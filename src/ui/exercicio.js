@@ -2,8 +2,7 @@
 // que anda no tempo (1 segundo por segundo), painéis do cluster e os testes.
 import { montarCluster } from '../conteudo/clusters.js';
 import { proximoDe } from '../conteudo/index.js';
-import { XP } from '../conteudo/util.js';
-import { COMANDOS, rodarLinha } from '../k8s/linha.js';
+import { conhece, rodarLinha } from '../k8s/linha.js';
 import { explicar as explicarSaida } from '../k8s/explicacoes.js';
 import { explicar as explicarCampo } from '../k8s/esquema.js';
 import { todosOsRecursos, acharRecurso } from '../k8s/recursos.js';
@@ -13,13 +12,14 @@ import { ler, gravar, CHAVES, registrarDia } from '../armazenamento.js';
 import { registrarComFesta } from './festa.js';
 import { abrirFeedback } from './feedback.js';
 import { t } from '../i18n.js';
-import { hojeLocal } from '../jogo/gamificacao.js';
+import { hojeLocal, xpDoItem } from '../jogo/gamificacao.js';
 import { criarTerminal } from './terminal.js';
 import { criarEditor } from './editor.js';
 import { htmlCluster, htmlRecursos, htmlEventos, htmlLegendaMapa } from './paineis.js';
 import { ativarAbas, htmlAbas, escapar, minutosESegundos } from './util.js';
 import { montarJanelas } from './janelas.js';
 import { icone } from './icones.js';
+import { compartilharResultado, htmlCompartilhar, tempoEEntregas, textoDoPlantao } from './compartilhar.js';
 
 const DIFICULDADE = { facil: 'Fácil', medio: 'Médio', dificil: 'Difícil' };
 const SUBCOMANDOS = ['annotate', 'api-resources', 'apply', 'cluster-info', 'config', 'create', 'delete', 'describe', 'edit', 'exec', 'explain', 'expose', 'get', 'help', 'label', 'logs', 'port-forward', 'rollout', 'run', 'scale', 'set', 'version', 'wait', 'autoscale', 'top'];
@@ -43,21 +43,23 @@ O relógio do cluster anda sozinho; o botão +30s adianta 30 segundos.
 
 /**
  * Os arquivos com que a missão abre: os que o aluno já salvou nela; numa etapa de projeto, os da etapa anterior (os
- * dele) mais os novos desta etapa; senão, os do começo da missão.
+ * dele, se ele a resolveu) mais os novos desta etapa; senão, os do começo da missão (a referência).
  */
-function arquivosIniciais(item, salvos) {
+export function arquivosIniciais(item, salvos) {
   if (salvos) return salvos;
-  const daAnterior = item.continuaDe ? ler(CHAVES.arquivos + item.continuaDe) : null;
+  const resolveu = item.continuaDe && ler(CHAVES.progresso, {})[item.continuaDe]?.status === 'resolvido';
+  const daAnterior = resolveu ? ler(CHAVES.arquivos + item.continuaDe) : null;
   if (daAnterior) return { ...daAnterior, ...Object.fromEntries(Object.entries(item.novos ?? {}).filter(([k]) => !(k in daAnterior))) };
   return item.inicial ?? {};
 }
 
-// A última missão desmontada: na troca de idioma, a tela é montada de novo e continua com o mesmo cluster e histórico.
-let ultima = null;
+// As últimas missões desmontadas nesta aba (a mais antiga sai): voltar a uma delas (do Glossário, ou na troca de
+// idioma) continua com o mesmo cluster, histórico, cronômetro, escada de ajuda e aba Testes.
+const guardadas = new Map();
+const GUARDAR = 5;
 
-/** `manter`: a mesma missão de novo (troca de idioma), com o cluster e o histórico do terminal como estavam. */
-export function montarExercicio(raiz, item, { manter = false } = {}) {
-  const anterior = manter && ultima?.id === item.id ? ultima : null;
+export function montarExercicio(raiz, item) {
+  const anterior = guardadas.get(item.id);
   const temArquivos = !item.terminal || !!item.comArquivos || Object.keys(item.inicial ?? {}).length > 0;
   const pedeResposta = item.testes?.some((t) => t.regras.some((r) => 'resposta' in r));
   const chaveArquivos = CHAVES.arquivos + item.id;
@@ -71,10 +73,14 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   const caixasVistas = new Set();
 
   // A Oficina do kubectl corre contra o relógio (de verdade, não o do cluster): vale o recorde de cada exercício.
+  // O Plantão do dia também tem relógio, sem recorde nem meta: o tempo da primeira vez vai para o resultado do dia.
   const naOficina = item.secao === 'oficina';
+  const comRelogio = naOficina || item.secao === 'plantao';
   const recorde = naOficina ? ler(CHAVES.recordes, {})[item.id] : null;
-  let comecou = performance.now();
-  let terminouEm = null;
+  let comecou = anterior?.comecou ?? performance.now();
+  let terminouEm = anterior?.terminouEm ?? null;
+  const cronometro = () => `${icone('relogio')} ${minutosESegundos(terminouEm ?? performance.now() - comecou)}`;
+  const xp = item.secao ? 0 : xpDoItem(item);
   const voltarPara = { troubleshooting: 'Troubleshooting', oficina: t('Oficina'), plantao: t('Plantão do dia') }[item.secao] ?? t('Trilha');
   raiz.innerHTML = `
     <div class="ex${temArquivos ? '' : ' ex-so-terminal'}">
@@ -82,9 +88,9 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
         <a class="voltar" href="#/${item.secao ?? 'trilha'}">${icone('voltar')}<span class="visualmente-oculto">${['troubleshooting', 'plantao'].includes(item.secao) ? t('Voltar ao') : t('Voltar à')} </span>${voltarPara}</a>
         <h1>${escapar(item.titulo)}</h1>
         ${item.projeto ? `<span class="chip chip-projeto">${icone('arvore')} ${escapar(item.projeto.titulo)} · ${t('etapa {etapa} de {total}', item.projeto)}</span>` : ''}
-        ${item.dificuldade ? `<span class="chip chip-${item.dificuldade}">${t(DIFICULDADE[item.dificuldade])}</span>${item.secao ? '' : `<span class="chip">${XP[item.dificuldade]} XP</span>`}` : ''}
+        ${item.dificuldade ? `<span class="chip chip-${item.dificuldade}">${t(DIFICULDADE[item.dificuldade])}</span>` : ''}${xp ? `<span class="chip">${xp} XP</span>` : ''}
         ${ler(CHAVES.progresso, {})[item.id]?.status === 'resolvido' ? `<span class="chip chip-ok">${icone('certo')} ${t('Resolvida')}</span>` : ''}
-        ${naOficina ? `<span class="chip chip-cronometro" aria-hidden="true">${icone('relogio')} 0:00</span><span class="chip chip-recorde">${recorde ? `${icone('raio')} ${t('Recorde: {tempo}', { tempo: minutosESegundos(recorde) })}` : t('Primeira vez: o tempo de hoje vira o recorde')}</span>` : ''}
+        ${comRelogio ? `<span class="chip chip-cronometro" aria-hidden="true">${cronometro()}</span>` : ''}${naOficina ? `<span class="chip chip-recorde">${recorde ? `${icone('raio')} ${t('Recorde: {tempo}', { tempo: minutosESegundos(recorde) })}` : t('Primeira vez: o tempo de hoje vira o recorde')}</span>` : ''}
       </header>
       <div class="ex-acoes">
         ${temArquivos ? `<button type="button" class="botao" data-acao="aplicar" title="Ctrl+Enter">${icone('play')} ${t('Aplicar')}</button>` : `<button type="button" class="botao" data-acao="conferir" title="Ctrl+Enter">${icone('certo')} ${t('Conferir')}</button>`}
@@ -134,17 +140,27 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   const $ = (s) => raiz.querySelector(s);
   const aviso = $('.ex-aviso');
   let tempoDoAviso = 0;
+  let origemDoAviso = null; // o botão que pediu o aviso (Aplicar, Entregar, Conferir, +30s)
+  /** Fecha o aviso; se o foco estava nele, volta para o botão que o pediu (ou para o Entregar), não cai no <body>. */
+  const fecharAviso = () => {
+    clearTimeout(tempoDoAviso);
+    const tinhaFoco = aviso.contains(document.activeElement);
+    aviso.replaceChildren();
+    if (tinhaFoco) (origemDoAviso ?? $('[data-acao=entregar]') ?? $('[data-acao=aplicar]') ?? $('[data-acao=conferir]')).focus();
+  };
   /** O aviso flutua sobre a tela (não empurra as janelas) e some sozinho; o de missão cumprida fica, com o link da próxima. */
   // `ajuda`: { texto, aba, rotulo } — a ajuda do degrau (a dica, o Manual, a Solução), com o botão que abre a aba.
-  const avisar = (texto, { tipo = 'info', proximo, ajuda, refazer } = {}) => {
+  // `compartilhar`: o texto do botão "Compartilhar resultado" (o do Plantão do dia).
+  const avisar = (texto, { tipo = 'info', proximo, ajuda, refazer, compartilhar } = {}) => {
     clearTimeout(tempoDoAviso);
     aviso.className = `ex-aviso ${tipo}`;
     aviso.innerHTML = `${tipo === 'info' ? '' : icone(tipo === 'ok' ? 'certo' : 'fechar')}<div class="aviso-texto"><span>${escapar(texto)}</span>`
       + (proximo ? `<a href="#/ex/${proximo.id}">${t('Próxima: {titulo}', { titulo: escapar(proximo.titulo) })} ${icone('seguir')}</a>` : '')
       + (ajuda ? `<span class="aviso-ajuda">${icone('lampada')} ${escapar(ajuda.texto)}</span><button type="button" class="link-botao" data-acao="abrir-aba" data-aba="${ajuda.aba}">${escapar(ajuda.rotulo)}</button>` : '')
       + (refazer ? `<button type="button" class="link-botao" data-acao="refazer">${icone('reiniciar')} ${t('Tentar de novo')}</button>` : '')
+      + (compartilhar ? htmlCompartilhar(compartilhar) : '')
       + `</div><button type="button" class="aviso-fechar" data-acao="fechar-aviso" aria-label="${t('Fechar o aviso')}">${icone('fechar')}</button>`;
-    if (!proximo && !ajuda) tempoDoAviso = setTimeout(() => aviso.replaceChildren(), tipo === 'info' ? 4000 : 8000);
+    if (!proximo && !ajuda && !compartilhar) tempoDoAviso = setTimeout(fecharAviso, tipo === 'info' ? 4000 : 8000);
   };
 
   // ---------- lado: missão, vida real, manual, solução, testes ----------
@@ -232,13 +248,14 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   }
 
   // ---------- terminal ----------
+  let diaMarcado = false;
   function executar(linha) {
     // KUBE_EDITOR="sed -i ..." kubectl edit ...: o editor vem antes do comando (como no shell de verdade).
     const [cmd] = palavras(linha).filter((p, i) => i || !p.startsWith('KUBE_EDITOR='));
     if (cmd === 'clear') return { limpar: true };
     if (cmd === 'help') return { saida: ajuda() };
     if (cmd === 'history') return { saida: terminal.historico.map((l, i) => `  ${i + 1}  ${l}\n`).join('') };
-    if (!COMANDOS.includes(cmd)) {
+    if (!conhece(estado.cluster, cmd)) {
       const texto = `bash: ${cmd}: command not found\n`;
       return { saida: texto, codigo: 127, partes: [{ fluxo: 'err', texto }], caixas: [{ titulo: t('Aqui o terminal só fala kubectl'), texto: t('Use <code>kubectl ...</code>, ou <code>help</code> para ver os outros comandos.') }] };
     }
@@ -247,6 +264,11 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
       r = rodarLinha(estado.cluster, linha, estado.arquivos);
     } catch (erro) {
       return tropecou(erro);
+    }
+    // Um comando que deu certo já é estudo (no Playground também): conta para a sequência de dias, uma vez por visita.
+    if (r.codigo === 0 && !diaMarcado) {
+      diaMarcado = true;
+      registrarDia(hojeLocal());
     }
     if (r.arquivoGravado && editor) {
       estado.atual = r.arquivoGravado;
@@ -288,25 +310,30 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   }
 
   function completar(linha) {
-    const ps = linha.split(/\s+/);
+    // O -n já digitado escolhe o namespace (e sai da conta das palavras): kubectl logs -n estoque <Tab>.
+    const comNs = linha.match(/(?:^|\s)(?:-n|--namespace)(?:=|\s+)(\S+)(?=\s)/);
+    const ns = comNs?.[1] ?? estado.cluster.contexto.namespace;
+    const ps = (comNs ? linha.replace(comNs[0], ' ') : linha).trimStart().split(/\s+/);
     const ultimo = ps.at(-1);
-    const base = ps.slice(0, -1).join(' ');
-    const opcoes = (lista) => lista.filter((o) => o.startsWith(ultimo)).map((o) => `${base ? `${base} ` : ''}${o}`);
+    const base = linha.slice(0, linha.length - ultimo.length);
+    const opcoes = (lista) => lista.filter((o) => o.startsWith(ultimo)).map((o) => `${base}${o}`);
+    const nomes = (r) => estado.cluster.listar(r.kind, r.namespaced ? ns : undefined).map((o) => o.metadata.name);
     if (ps.length === 1) return opcoes(['kubectl', 'curl', 'clear', 'help', 'ls', 'cat', 'history']);
     if (ps[0] === 'cat' || ps.at(-2) === '-f') return opcoes(['.', ...Object.keys(estado.arquivos)]);
     if (ps[0] !== 'kubectl') return [];
+    if (['-n', '--namespace'].includes(ps.at(-2))) return opcoes(nomes(acharRecurso('namespaces')));
     if (ps.length === 2) return opcoes(SUBCOMANDOS);
     const sub = ps[1];
     if (ultimo.includes('/')) {
       const [tipo] = ultimo.split('/');
       const r = acharRecurso(tipo);
-      return r ? opcoes(estado.cluster.listar(r.kind, r.namespaced ? estado.cluster.contexto.namespace : undefined).map((o) => `${tipo}/${o.metadata.name}`)) : [];
+      return r ? opcoes(nomes(r).map((n) => `${tipo}/${n}`)) : [];
     }
     if (COM_TIPO.has(sub) && ps.length === 3) return opcoes(todosOsRecursos().map((r) => r.plural));
-    if (['logs', 'exec'].includes(sub)) return opcoes(estado.cluster.listar('Pod', estado.cluster.contexto.namespace).map((p) => p.metadata.name));
+    if (['logs', 'exec'].includes(sub)) return opcoes(nomes(acharRecurso('pods')));
     if (COM_TIPO.has(sub) && ps.length >= 4) {
       const r = acharRecurso(ps[2]);
-      return r ? opcoes(estado.cluster.listar(r.kind, r.namespaced ? estado.cluster.contexto.namespace : undefined).map((o) => o.metadata.name)) : [];
+      return r ? opcoes(nomes(r)) : [];
     }
     return [];
   }
@@ -314,9 +341,9 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   const terminal = criarTerminal($('#baixo-terminal'), { executar, completar });
   if (anterior) {
     terminal.lembrar(anterior.historico);
-    terminal.escrever(t('Idioma trocado. O cluster continua como estava (↑ traz os comandos de antes).'), 'term-info');
+    terminal.escrever(t('Seu cluster continua como você deixou (Resetar cluster recomeça).'), 'term-info');
   } else {
-    terminal.escrever(`${t('Cluster pronto (1 control plane + 2 workers). Digite help para ajuda.')}${item.terminal ? ` ${t('Nesta missão, use o terminal.')}` : ''}`, 'term-info');
+    terminal.escrever(`${t('Cluster pronto. Digite help para ajuda.')}${item.terminal ? ` ${t('Nesta missão, use o terminal.')}` : ''}`, 'term-info');
   }
 
   // ---------- painéis ----------
@@ -341,22 +368,26 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   };
 
   // ---------- testes ----------
-  function mostrarTestes(resultados, todos) {
-    const total = resultados.length;
-    const ok = resultados.filter((r) => r.ok).length;
+  let ultimoTeste = null; // para o feedback
+  let resultados = anterior?.resultados ?? null; // os últimos: a aba Testes volta com eles
+  function mostrarTestes(lista, todos) {
+    resultados = { lista, todos };
+    const total = lista.length;
+    const ok = lista.filter((r) => r.ok).length;
     const ocultosNaoRodados = !todos ? item.testes.filter((t) => t.oculto).length : 0;
     $('#lado-testes').innerHTML = `
       <p class="resumo ${ok === total ? 'ok' : 'falha'}">${resumoDosTestes(ok, total)}</p>
-      <ol class="testes">${resultados.map((t) => `
+      <ol class="testes">${lista.map((t) => `
         <li class="${t.ok ? 'ok' : 'falha'}">
           <p>${icone(t.ok ? 'certo' : 'fechar')} ${t.oculto ? `${icone('cadeado')} ` : ''}${escapar(t.descricao)}</p>
           <ul>${t.regras.filter((r) => !t.oculto || !r.ok).map((r) => `<li>${r.ok ? '✔' : '✘'} ${escapar(r.mensagem)}${!r.ok && !t.oculto && r.detalhe ? ` <span class="detalhe">(${escapar(r.detalhe)})</span>` : ''}</li>`).join('')}</ul>
         </li>`).join('')}</ol>
       ${ocultosNaoRodados ? `<p class="nota">${icone('cadeado')} ${ocultosNaoRodados > 1 ? t('Mais {n} testes ocultos rodam quando você clicar em Entregar.', { n: ocultosNaoRodados }) : t('Mais {n} teste oculto roda quando você clicar em Entregar.', { n: ocultosNaoRodados })}</p>` : ''}`;
+    ultimoTeste = todos ? t('{ok} de {total} passaram (entregue)', { ok, total }) : t('{ok} de {total} passaram (só os visíveis)', { ok, total });
     return { ok, total };
   }
+  if (resultados) mostrarTestes(resultados.lista, resultados.todos);
 
-  let ultimoTeste = null; // para o feedback
   /** Para o relógio da Oficina, guarda o recorde se bateu e devolve a mensagem. */
   const tempoDaOficina = () => {
     terminouEm ??= performance.now() - comecou;
@@ -368,9 +399,21 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
     return terminouEm < antes ? t('Novo recorde: {tempo}! (era {antes})', { tempo, antes: minutosESegundos(antes) })
       : t('Feito em {tempo}. O recorde continua {antes}: tenta de novo?', { tempo, antes: minutosESegundos(antes) });
   };
-  // A escada de ajuda: cada entrega errada nesta visita abre um degrau (a dica, o Manual, a Solução), sem tirar XP.
-  let falhas = 0;
-  let acertosAntes = null;
+  // A escada de ajuda: cada entrega errada abre um degrau (a dica, o Manual, a Solução), sem tirar XP.
+  let falhas = anterior?.falhas ?? 0;
+  let acertosAntes = anterior?.acertosAntes ?? null;
+  /** Para o relógio do Plantão e avisa. A primeira vez que resolve fica guardada: é o resultado do dia, o compartilhado. */
+  const avisarPlantao = () => {
+    terminouEm ??= performance.now() - comecou;
+    const agora = { ms: Math.round(terminouEm), entregas: falhas + 1 };
+    const plantoes = ler(CHAVES.plantoes, {});
+    const antes = plantoes[item.id];
+    if (!antes) gravar(CHAVES.plantoes, { ...plantoes, [item.id]: agora });
+    const texto = !antes || (antes.ms === agora.ms && antes.entregas === agora.entregas)
+      ? t('Incidente resolvido em {placar}. O morador agradece!', { placar: tempoEEntregas(agora) })
+      : t('Incidente resolvido em {placar}. Vale o resultado da primeira vez: {antes}.', { placar: tempoEEntregas(agora), antes: tempoEEntregas(antes) });
+    avisar(texto, { tipo: 'ok', compartilhar: textoDoPlantao(item, antes ?? agora) });
+  };
   const degrauDeAjuda = () => {
     const solucao = item.solucao || item.solucaoTerminal ? { texto: t('Travou? A aba Solução tem a referência, e ver não tira XP.'), aba: 'solucao', rotulo: t('Abrir a Solução') } : null;
     if (falhas === 2 && item.dica) {
@@ -380,32 +423,61 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
     if (falhas === 3 && item.manual?.length) return { texto: t('A aba Manual tem os campos certos, com a explicação de cada um.'), aba: 'manual', rotulo: t('Abrir o Manual') };
     return falhas >= 3 ? solucao : null;
   };
-  function testar(todos) {
+  /** O aviso da vitória: o XP é o do item (a lição também vale); resolvida de novo não ganha XP nem contêiner. */
+  const textoDaVitoria = (festa) => {
+    if (!festa) return t('Resolvida de novo: bom treino!');
+    return item.tipo === 'licao' ? t('Lição concluída! +{xp} XP. Mais um contêiner embarcado no seu navio.', { xp })
+      : t('Missão cumprida! +{xp} XP. Mais um contêiner embarcado no seu navio.', { xp });
+  };
+
+  /**
+   * Um defeito do simulador nunca deixa a tela muda: o aviso conta o que houve (com o texto do tropecou, que cita o
+   * botão Feedback). `entrega`: o erro foi nos testes, então a aba Testes mostra o erro e conta como entrega errada.
+   */
+  const guardar = (fn, { entrega = false } = {}) => (...args) => {
+    try {
+      return fn(...args);
+    } catch (erro) {
+      const { saida, caixas: [caixa] } = tropecou(erro);
+      const texto = `${caixa.titulo}: ${saida.trim()}. ${caixa.texto.replace(/<[^>]+>/g, '')}`;
+      if (!entrega) return avisar(texto, { tipo: 'falha' });
+      falhas += 1;
+      ultimoTeste = saida.trim();
+      $('#lado-testes').innerHTML = `<p class="resumo falha">${escapar(caixa.titulo)}</p><pre>${escapar(saida)}</pre>`;
+      abasLado.selecionar('testes');
+      avisar(texto, { tipo: 'falha', ajuda: degrauDeAjuda() });
+    }
+  };
+
+  // `doAplicar`: o Aplicar só troca a aba Missão pela Testes quando algo falha (os passos da missão ficam à vista).
+  function testar(todos, doAplicar = false) {
     avisar(todos ? t('Rodando todos os testes, inclusive os ocultos…') : t('Rodando os testes visíveis…'));
     registrarDia(hojeLocal());
-    setTimeout(() => {
+    setTimeout(guardar(() => {
       const resultados = rodarTestes(item, {
         arquivos: estado.arquivos, historico: terminal.historico, resposta: estado.resposta, clusterDoAluno: estado.cluster,
       }, { todos });
       const { ok, total } = mostrarTestes(resultados, todos);
-      ultimoTeste = todos ? t('{ok} de {total} passaram (entregue)', { ok, total }) : t('{ok} de {total} passaram (só os visíveis)', { ok, total });
       if (todos) {
         const resolvido = ok === total;
-        registrarComFesta(item, resolvido);
+        const festa = registrarComFesta(item, resolvido);
         if (resolvido && !$('.ex-topo .chip-ok')) $('.ex-topo').insertAdjacentHTML('beforeend', `<span class="chip chip-ok">${icone('certo')} ${t('Resolvida')}</span>`);
         if (resolvido && naOficina) avisar(tempoDaOficina(), { tipo: 'ok', proximo: proximoDe(item), refazer: true });
-        else if (resolvido) avisar(item.secao ? t('Incidente resolvido! O morador agradece.') : t('Missão cumprida! +{xp} XP. Mais um contêiner embarcado no seu navio.', { xp: XP[item.dificuldade] ?? 0 }), { tipo: 'ok', proximo: proximoDe(item) });
+        else if (resolvido && item.secao === 'plantao') avisarPlantao();
+        else if (resolvido) avisar(item.secao ? t('Incidente resolvido! O morador agradece.') : textoDaVitoria(festa), { tipo: 'ok', proximo: proximoDe(item) });
         else {
           falhas += 1;
           const melhorou = acertosAntes !== null && ok > acertosAntes ? ` (${t('antes eram {n}: quase lá!', { n: acertosAntes })})` : '';
           acertosAntes = ok;
           avisar(`${resumoDosTestes(ok, total)}${melhorou}. ${t('Veja o que faltou na aba Testes.')}`, { tipo: 'falha', ajuda: degrauDeAjuda() });
         }
+      } else if (ok === total && doAplicar && item.tipo === 'licao') {
+        avisar(t('Aplicado! Agora siga os passos da missão.'), { tipo: 'ok' });
       } else {
         avisar(ok === total ? t('Testes visíveis: {ok} de {total} passaram. Agora é só entregar.', { ok, total }) : t('Testes visíveis: {ok} de {total} passaram. Veja a aba Testes.', { ok, total }), { tipo: ok === total ? 'ok' : 'falha' });
       }
-      abasLado.selecionar('testes');
-    }, 30);
+      if (!doAplicar || ok < total) abasLado.selecionar('testes');
+    }, { entrega: true }), 30);
   }
 
   // ---------- botões e atalhos ----------
@@ -415,40 +487,51 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
       // Nas missões de Kustomize, o botão aplica as pastas que os testes aplicam (apply -f . leria o kustomization.yaml).
       const pastas = [...new Set(item.testes?.filter((t) => !t.oculto).map((t) => t.passos?.[0]?.comando).filter((l) => /^kubectl apply -k /.test(l ?? '')))];
       for (const linha of pastas.length ? pastas : ['kubectl apply -f .']) terminal.rodar(linha);
-      if (item.testes?.some((t) => !t.oculto)) testar(false);
+      // No celular as janelas ficam empilhadas: a saída do Aplicar fica à vista (e a linha do terminal acima da barra de
+      // baixo), não 1.600 px abaixo do botão.
+      if (matchMedia('(max-width: 60rem)').matches) $('#baixo-terminal').scrollIntoView({ block: 'center' });
+      if (item.testes?.some((t) => !t.oculto)) testar(false, true);
     },
     conferir: () => testar(false),
     entregar: () => testar(true),
-    avancar() {
+    avancar: guardar(() => {
       estado.cluster.avancar('30s');
       terminal.tique();
       atualizarPaineis();
       avisar(t('O relógio do cluster andou 30 segundos.'));
-    },
-    'fechar-aviso': () => aviso.replaceChildren(),
+    }),
+    'fechar-aviso': fecharAviso,
     'abrir-aba': (botao) => abasLado.selecionar(botao.dataset.aba),
+    compartilhar: compartilharResultado,
     feedback: () => abrirFeedback(item, () => ({ testes: ultimoTeste, comandos: terminal.historico.slice(-10) })),
     // Oficina: de novo do zero, sem perguntar (o cluster, os arquivos e o relógio voltam ao começo).
-    refazer() {
+    refazer: guardar(() => {
       estado.cluster = montarCluster(item.cluster, `${item.id}:aluno`);
+      relogioTravado = false;
       estado.arquivos = { ...(item.inicial ?? {}) };
       caixasVistas.clear();
-      terminal.limpar();
+      terminal.reiniciar();
       terminal.escrever(t('De novo, do zero: o relógio voltou a contar.'), 'term-info');
       comecou = performance.now();
       terminouEm = null;
       aviso.replaceChildren();
       atualizarPaineis();
       terminal.focar();
-    },
-    resetar() {
+    }),
+    resetar: guardar(() => {
       if (!confirm(t('Voltar o cluster para o começo da missão? (Seus arquivos ficam.)'))) return;
       estado.cluster = montarCluster(item.cluster, `${item.id}:aluno`);
+      relogioTravado = false;
+      // Na Oficina, o cluster do começo põe o cronômetro no começo também (o recorde vale do zero ao fim).
+      if (naOficina) {
+        comecou = performance.now();
+        terminouEm = null;
+      }
       caixasVistas.clear();
-      terminal.limpar();
+      terminal.reiniciar();
       terminal.escrever(t('Cluster recriado do zero.'), 'term-info');
       atualizarPaineis();
-    },
+    }),
     'ver-solucao'() {
       const div = $('.solucao');
       div.hidden = false;
@@ -473,30 +556,39 @@ export function montarExercicio(raiz, item, { manter = false } = {}) {
   const fim = new AbortController();
   raiz.addEventListener('click', (e) => {
     const alvo = e.target.closest('[data-acao]');
+    if (['aplicar', 'entregar', 'conferir', 'avancar'].includes(alvo?.dataset.acao)) origemDoAviso = alvo;
     if (acoes[alvo?.dataset.acao]) acoes[alvo.dataset.acao](alvo);
   }, { signal: fim.signal });
   const teclas = (e) => {
     if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey) || e.target.closest?.('dialog')) return;
     e.preventDefault();
-    if (e.shiftKey && item.testes?.length) acoes.entregar();
-    else if (!e.shiftKey) (temArquivos ? acoes.aplicar : acoes.conferir)();
+    const nome = e.shiftKey ? (item.testes?.length ? 'entregar' : null) : (temArquivos ? 'aplicar' : 'conferir');
+    if (!nome) return;
+    origemDoAviso = $(`[data-acao=${nome}]`);
+    acoes[nome]();
   };
   document.addEventListener('keydown', teclas, { signal: fim.signal });
 
   // ---------- relógio: 1 segundo do cluster por segundo de verdade ----------
-  const relogio = setInterval(() => {
-    if (naOficina && terminouEm === null) $('.chip-cronometro').innerHTML = `${icone('relogio')} ${minutosESegundos(performance.now() - comecou)}`;
-    if (document.hidden) return;
+  // Se o simulador tropeça num tique, o relógio para (e avisa uma vez só) até o cluster ser recriado.
+  let relogioTravado = false;
+  const relogio = setInterval(guardar(() => {
+    if (comRelogio) $('.chip-cronometro').innerHTML = cronometro(); // parado: o tempo final
+    if (document.hidden || relogioTravado) return;
+    relogioTravado = true;
     estado.cluster.avancar(1000);
     terminal.tique();
     atualizarPaineis();
-  }, 1000);
+    relogioTravado = false;
+  }), 1000);
   atualizarPaineis();
 
   return {
     destruir() {
       clearInterval(relogio);
-      ultima = { id: item.id, cluster: estado.cluster, historico: [...terminal.historico] };
+      guardadas.delete(item.id);
+      guardadas.set(item.id, { cluster: estado.cluster, historico: [...terminal.historico], comecou, terminouEm, falhas, acertosAntes, resultados });
+      if (guardadas.size > GUARDAR) guardadas.delete(guardadas.keys().next().value);
       clearTimeout(tempoDoAviso);
       fim.abort();
       editor?.destruir();

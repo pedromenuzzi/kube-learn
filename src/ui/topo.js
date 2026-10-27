@@ -67,6 +67,9 @@ export function atualizarTopo(caminho) {
   }
   const placar = document.querySelector('.placar-topo');
   if (!placar) return;
-  placar.setAttribute('aria-label', t(dias === 1 ? 'Seu placar: {xp} XP e {dias} dia seguido de estudo' : 'Seu placar: {xp} XP e {dias} dias seguidos de estudo', { xp, dias }));
-  placar.innerHTML = `<span class="placar-item xp">${icone('raio')}${xp}<small>XP</small></span><span class="placar-item fogo${dias ? '' : ' apagado'}">${icone('chama')}${dias}</span>`;
+  // O nome do link vem do texto (um aria-label esconderia o "75 XP" que se vê; WCAG 2.5.3): os números à mostra ficam
+  // fora da árvore de acessibilidade, e o leitor de tela lê a frase inteira ("75 XP, 4 dias seguidos de estudo").
+  placar.innerHTML = `<span class="placar-item xp" aria-hidden="true">${icone('raio')}${xp}<small>XP</small></span>`
+    + `<span class="placar-item fogo${dias ? '' : ' apagado'}" aria-hidden="true">${icone('chama')}${dias}</span>`
+    + `<span class="visualmente-oculto">${t(dias === 1 ? '{xp} XP, {dias} dia seguido de estudo' : '{xp} XP, {dias} dias seguidos de estudo', { xp, dias })}</span>`;
 }

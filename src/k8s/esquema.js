@@ -22,6 +22,13 @@ const lista = (item, desc, extra) => campo('array', desc, { item, ...extra });
 const objeto = (go, desc, campos, extra) => campo('object', desc, { go, campos, ...extra });
 
 // ---------- tipos comuns ----------
+const referenciaLocal = objeto('v1.LocalObjectReference', 'Um objeto do mesmo namespace, pelo nome.', { name: texto('O nome.') });
+const exigencia = (go, desc, operadores = 'In, NotIn, Exists, DoesNotExist, Gt ou Lt.') => objeto(go, desc, {
+  key: texto('A chave da label.', { obrigatorio: true }),
+  operator: texto(operadores, { obrigatorio: true }),
+  values: lista(texto(''), 'Os valores (para In e NotIn).'),
+});
+
 const metadata = objeto('v1.ObjectMeta', 'Os dados de identificação do objeto: nome, namespace, labels e annotations.', {
   name: texto('O nome do objeto. É único dentro do namespace (para objetos com namespace) e não pode mudar depois de criado.'),
   generateName: texto('Prefixo para o servidor gerar um nome único, quando `name` não é informado.'),
@@ -34,14 +41,21 @@ const metadata = objeto('v1.ObjectMeta', 'Os dados de identificação do objeto:
   creationTimestamp: qualquer('Quando o objeto foi criado. Gerado pelo servidor.'),
   deletionTimestamp: qualquer('Quando o objeto foi marcado para apagar. Gerado pelo servidor.'),
   deletionGracePeriodSeconds: int64('Segundos de espera antes de apagar de vez.'),
-  ownerReferences: qualquer('Quem é o "dono" deste objeto (ex.: o ReplicaSet de um pod). Quando o dono é apagado, os filhos vão junto.'),
+  ownerReferences: lista(objeto('v1.OwnerReference', 'Um dono.', {
+    apiVersion: texto('O apiVersion do dono.', { obrigatorio: true }),
+    kind: texto('O kind do dono.', { obrigatorio: true }),
+    name: texto('O nome do dono.', { obrigatorio: true }),
+    uid: texto('O uid do dono.', { obrigatorio: true }),
+    controller: booleano('Se o dono é o controlador (só um pode ser).'),
+    blockOwnerDeletion: booleano(''),
+  }), 'Quem é o "dono" deste objeto (ex.: o ReplicaSet de um pod). Quando o dono é apagado, os filhos vão junto.'),
   finalizers: lista(texto(''), 'Tarefas que precisam terminar antes do objeto ser apagado.'),
   managedFields: qualquer('Quem gerencia cada campo (server-side apply).'),
 });
 
 const labelSelector = objeto('v1.LabelSelector', 'Um seletor de labels: escolhe objetos pelas etiquetas.', {
   matchLabels: mapa('Os pares chave=valor que o objeto precisa ter (todos).'),
-  matchExpressions: qualquer('Regras mais elaboradas (In, NotIn, Exists, DoesNotExist).'),
+  matchExpressions: lista(exigencia('v1.LabelSelectorRequirement', 'Uma regra sobre uma label.', 'In, NotIn, Exists ou DoesNotExist.'), 'Regras mais elaboradas (In, NotIn, Exists, DoesNotExist).'),
 });
 
 const perfilSeccomp = objeto('v1.SeccompProfile', 'O filtro de chamadas ao sistema (seccomp).', {
@@ -216,11 +230,6 @@ const toleration = objeto('v1.Toleration', 'Uma tolerância a um taint.', {
   tolerationSeconds: int64('Quanto tempo tolera um taint NoExecute.'),
 });
 
-const exigencia = (go, desc) => objeto(go, desc, {
-  key: texto('A chave da label.', { obrigatorio: true }),
-  operator: texto('In, NotIn, Exists, DoesNotExist, Gt ou Lt.', { obrigatorio: true }),
-  values: lista(texto(''), 'Os valores (para In e NotIn).'),
-});
 const termoDeNode = objeto('v1.NodeSelectorTerm', 'Um termo: todas as regras dele precisam valer.', {
   matchExpressions: lista(exigencia('v1.NodeSelectorRequirement', 'Uma regra sobre uma label do node.'), 'Regras sobre as labels do node.'),
   matchFields: lista(exigencia('v1.NodeSelectorRequirement', 'Uma regra sobre um campo do node.'), 'Regras sobre campos do node (só metadata.name).'),
@@ -283,7 +292,7 @@ const podSpec = objeto('v1.PodSpec', 'A especificação do pod: os contêineres 
   hostIPC: booleano(''),
   shareProcessNamespace: booleano(''),
   securityContext: contextoDoPod,
-  imagePullSecrets: qualquer('Secrets para baixar imagens de registries privados.'),
+  imagePullSecrets: lista(referenciaLocal, 'Secrets para baixar imagens de registries privados.'),
   hostname: texto(''),
   subdomain: texto(''),
   affinity: afinidade,
@@ -310,6 +319,30 @@ const podSpec = objeto('v1.PodSpec', 'A especificação do pod: os contêineres 
 const podTemplate = objeto('v1.PodTemplateSpec', 'O molde dos pods que serão criados.', {
   metadata,
   spec: podSpec,
+});
+
+const vinculo = {
+  roleRef: objeto('v1.RoleRef', 'O crachá entregue (não muda depois de criado).', {
+    apiGroup: texto('rbac.authorization.k8s.io', { obrigatorio: true }), kind: texto('Role ou ClusterRole.', { obrigatorio: true }), name: texto('O nome.', { obrigatorio: true }),
+  }, { obrigatorio: true }),
+  subjects: lista(objeto('v1.Subject', 'Quem recebe.', {
+    kind: texto('User, Group ou ServiceAccount.', { obrigatorio: true }), name: texto('O nome.', { obrigatorio: true }),
+    namespace: texto('O namespace (para ServiceAccount).'), apiGroup: texto('rbac.authorization.k8s.io (para User e Group); "" para ServiceAccount.'),
+  }), 'Quem recebe o crachá.'),
+};
+
+const parDaCatraca = (desc) => objeto('v1.NetworkPolicyPeer', desc, {
+  podSelector: { ...labelSelector, desc: 'Os pods (do namespace da política, ou dos namespaces escolhidos ao lado).' },
+  namespaceSelector: { ...labelSelector, desc: 'Os namespaces, pelas labels ({} escolhe todos).' },
+  ipBlock: objeto('v1.IPBlock', 'Uma faixa de IPs (de fora do cluster, normalmente).', {
+    cidr: texto('A faixa (ex.: 10.0.0.0/8).', { obrigatorio: true }),
+    except: lista(texto(''), 'As faixas de dentro dela que ficam de fora.'),
+  }),
+});
+const portaDaCatraca = (desc) => objeto('v1.NetworkPolicyPort', desc, {
+  protocol: texto('TCP (padrão), UDP ou SCTP.'),
+  port: intOuTexto('A porta (número ou nome). Sem ela, todas.'),
+  endPort: inteiro('A última porta de uma faixa (port até endPort).'),
 });
 
 const status = (kind) => qualquer('O estado atual, preenchido pelo sistema. Não se escreve à mão.', { go: `${kind}Status` });
@@ -632,8 +665,10 @@ export const ESQUEMAS = {
     }),
   }),
   ServiceAccount: raiz('ServiceAccount', 'A ServiceAccount é o crachá de máquina: a identidade de um pod (ou programa) quando fala com a API.', {
-    secrets: qualquer(''),
-    imagePullSecrets: qualquer('Secrets para baixar imagens de registries privados, para os pods que usam esta conta.'),
+    secrets: lista(objeto('v1.ObjectReference', '', {
+      apiVersion: texto(''), kind: texto(''), name: texto(''), namespace: texto(''), uid: texto(''), resourceVersion: texto(''), fieldPath: texto(''),
+    }), ''),
+    imagePullSecrets: lista(referenciaLocal, 'Secrets para baixar imagens de registries privados, para os pods que usam esta conta.'),
     automountServiceAccountToken: booleano('Se o token desta conta é montado nos pods.'),
   }),
   Role: raiz('Role', 'A Role é um tipo de crachá dentro de um namespace: a lista do que pode ser feito (verbos em recursos).', {
@@ -655,30 +690,19 @@ export const ESQUEMAS = {
   }), 'As regras.'),
     aggregationRule: qualquer(''),
   }),
-  RoleBinding: raiz('RoleBinding', 'O RoleBinding entrega um crachá (Role ou ClusterRole) a alguém (usuário, grupo ou ServiceAccount), dentro de um namespace.', {
-    roleRef: objeto('v1.RoleRef', 'O crachá entregue (não muda depois de criado).', {
-      apiGroup: texto('rbac.authorization.k8s.io', { obrigatorio: true }), kind: texto('Role ou ClusterRole.', { obrigatorio: true }), name: texto('O nome.', { obrigatorio: true }),
-    }, { obrigatorio: true }),
-    subjects: lista(objeto('v1.Subject', 'Quem recebe.', {
-      kind: texto('User, Group ou ServiceAccount.', { obrigatorio: true }), name: texto('O nome.', { obrigatorio: true }),
-      namespace: texto('O namespace (para ServiceAccount).'), apiGroup: texto('rbac.authorization.k8s.io (para User e Group); "" para ServiceAccount.'),
-    }), 'Quem recebe o crachá.'),
-  }),
-  ClusterRoleBinding: raiz('ClusterRoleBinding', 'O ClusterRoleBinding entrega uma ClusterRole a alguém no cluster inteiro.', {
-    roleRef: qualquer('A ClusterRole entregue.', { obrigatorio: true }),
-    subjects: qualquer('Quem recebe.'),
-  }),
+  RoleBinding: raiz('RoleBinding', 'O RoleBinding entrega um crachá (Role ou ClusterRole) a alguém (usuário, grupo ou ServiceAccount), dentro de um namespace.', vinculo),
+  ClusterRoleBinding: raiz('ClusterRoleBinding', 'O ClusterRoleBinding entrega uma ClusterRole a alguém no cluster inteiro.', vinculo),
   NetworkPolicy: raiz('NetworkPolicy', 'A NetworkPolicy é uma catraca interna: escolhe pods e diz de quem eles aceitam conexão (ingress) e com quem podem falar (egress). Sem nenhuma política, tudo fica aberto.', {
     spec: objeto('v1.NetworkPolicySpec', 'A regra da catraca.', {
       podSelector: { ...labelSelector, desc: 'Os pods que a política protege ({} escolhe todos do namespace).', obrigatorio: true },
       policyTypes: lista(texto(''), 'Ingress, Egress ou os dois. Escolhido e sem regra = tudo bloqueado naquele sentido.'),
       ingress: lista(objeto('v1.NetworkPolicyIngressRule', 'Quem pode entrar.', {
-        from: lista(qualquer('Um par: podSelector, namespaceSelector (os dois juntos = pods destes namespaces) ou ipBlock.', { go: 'NetworkPolicyPeer' }), 'De quem (vazio = de qualquer um).'),
-        ports: lista(qualquer('Uma porta: protocol (TCP padrão) e port.', { go: 'NetworkPolicyPort' }), 'Em que portas (vazio = todas).'),
+        from: lista(parDaCatraca('Um par: podSelector, namespaceSelector (os dois juntos = pods destes namespaces) ou ipBlock.'), 'De quem (vazio = de qualquer um).'),
+        ports: lista(portaDaCatraca('Uma porta: protocol (TCP padrão) e port.'), 'Em que portas (vazio = todas).'),
       }), 'As regras de entrada (a soma delas).'),
       egress: lista(objeto('v1.NetworkPolicyEgressRule', 'Para onde pode sair.', {
-        to: lista(qualquer('Um par: podSelector, namespaceSelector ou ipBlock.', { go: 'NetworkPolicyPeer' }), 'Para quem (vazio = qualquer um).'),
-        ports: lista(qualquer('Uma porta: protocol (TCP padrão) e port. O DNS é 53, UDP e TCP.', { go: 'NetworkPolicyPort' }), 'Em que portas (vazio = todas).'),
+        to: lista(parDaCatraca('Um par: podSelector, namespaceSelector ou ipBlock.'), 'Para quem (vazio = qualquer um).'),
+        ports: lista(portaDaCatraca('Uma porta: protocol (TCP padrão) e port. O DNS é 53, UDP e TCP.'), 'Em que portas (vazio = todas).'),
       }), 'As regras de saída. Atenção ao DNS: sem liberar a porta 53, nenhum nome resolve.'),
     }, { obrigatorio: true }),
   }),
@@ -698,7 +722,31 @@ export const ESQUEMAS = {
     preemptionPolicy: texto('PreemptLowerPriority (padrão: pode tirar pods menos importantes) ou Never (espera, sem tirar ninguém).'),
   }),
   CustomResourceDefinition: raiz('CustomResourceDefinition', 'O CustomResourceDefinition (CRD) ensina um tipo novo à API: depois dele, o cluster aceita objetos desse tipo (um formulário novo na administração).', {
-    spec: qualquer('O grupo, os nomes, o escopo e as versões (com o esquema) do tipo novo.', { obrigatorio: true }),
+    spec: objeto('v1.CustomResourceDefinitionSpec', 'O grupo, os nomes, o escopo e as versões (com o esquema) do tipo novo.', {
+      group: texto('O grupo da API (ex.: kube-learn.dev). O nome do CRD é <plural>.<group>.', { obrigatorio: true }),
+      names: objeto('v1.CustomResourceDefinitionNames', 'Os nomes do tipo novo.', {
+        plural: texto('O nome no plural, em minúsculas (ex.: backups): o que vai no kubectl get.', { obrigatorio: true }),
+        singular: texto('O nome no singular. Padrão: o kind em minúsculas.'),
+        kind: texto('O kind (ex.: Backup): o que vai no YAML.', { obrigatorio: true }),
+        listKind: texto(''),
+        shortNames: lista(texto(''), 'Apelidos para o kubectl (ex.: bk).'),
+        categories: lista(texto(''), ''),
+      }, { obrigatorio: true }),
+      scope: texto('Namespaced ou Cluster.', { obrigatorio: true }),
+      versions: lista(objeto('v1.CustomResourceDefinitionVersion', 'Uma versão.', {
+        name: texto('O nome da versão (ex.: v1).', { obrigatorio: true }),
+        served: booleano('Se a API atende nesta versão.', { obrigatorio: true }),
+        storage: booleano('Se é a versão guardada (exatamente uma).', { obrigatorio: true }),
+        deprecated: booleano(''),
+        deprecationWarning: texto(''),
+        schema: qualquer('O esquema (openAPIV3Schema): os campos e os tipos do objeto.'),
+        subresources: qualquer(''),
+        additionalPrinterColumns: qualquer('As colunas a mais do kubectl get.'),
+        selectableFields: qualquer(''),
+      }), 'As versões do tipo.', { obrigatorio: true }),
+      conversion: qualquer(''),
+      preserveUnknownFields: booleano(''),
+    }, { obrigatorio: true }),
     status: status('CustomResourceDefinition'),
   }),
   Node: raiz('Node', 'O Node é uma máquina do cluster, onde os pods rodam.', { spec: qualquer('', { go: 'NodeSpec' }), status: status('Node') }),
@@ -738,10 +786,27 @@ function deOpenApi(s, obrigatorio) {
 /** O esquema do tipo que um CRD define (a versão de armazenamento). */
 export function esquemaDoCrd(crd) {
   const versao = crd.spec.versions.find((v) => v.storage) ?? crd.spec.versions[0];
-  const raizApi = versao.schema?.openAPIV3Schema ?? { type: 'object' };
+  const raizApi = semNulos(versao.schema?.openAPIV3Schema ?? { type: 'object' });
   const campos = Object.fromEntries(Object.entries(raizApi.properties ?? {}).map(([k, v]) => [k, deOpenApi(v, (raizApi.required ?? []).includes(k))]));
   return { ...raiz('Object', raizApi.description ?? '', campos), crd: true, openapi: raizApi };
 }
+
+/**
+ * O esquema estrutural do CRD: todo campo (e o item de lista) diz o tipo. Como o apiserver, confere os filhos antes do
+ * próprio nó, e o campo escrito sem nada (null) ele ignora.
+ */
+function semTipo(s, cam, onde, erros) {
+  if (s.items) semTipo(s.items, `${cam}.items`, 'for specified array items', erros);
+  for (const [k, filho] of Object.entries(s.properties ?? {})) if (filho) semTipo(filho, `${cam}.properties[${k}]`, 'for specified object fields', erros);
+  if (!s.type && !s['x-kubernetes-int-or-string'] && !s['x-kubernetes-preserve-unknown-fields'] && !s['x-kubernetes-embedded-resource']) {
+    erros.push(`${cam}.type: Required value: must not be empty ${onde}`);
+  }
+}
+
+/** O subesquema escrito sem nada (`spec:` em properties) o apiserver ignora: ele some daqui também. */
+const semNulos = (s) => (s && typeof s === 'object' && !Array.isArray(s)
+  ? Object.fromEntries(Object.entries(s).filter(([, v]) => v !== null).map(([k, v]) => [k, semNulos(v)]))
+  : s);
 
 /** A validação do apiserver para um recurso de CRD: tipos, obrigatórios, mínimo/máximo e enum (em ordem de caminho). */
 function validarCr(obj, raizApi) {
@@ -785,8 +850,15 @@ const jsonTipo = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : type
 const tipoGo = (c) => c.go ?? (c.tipo === 'object' ? c.go : c.tipo === 'array' ? `[]${tipoGo(c.item)}` : GO[c.tipo]);
 const nomeStruct = (c) => (c.go ?? '').replace(/^v1\./, '');
 
+// O valor zero do Go para um null dentro de uma lista (`- ` sem nada).
+const ZERO = { object: () => ({}), map: () => ({}), string: () => '', integer: () => 0, boolean: () => false };
+const soNulos = (v) => jsonTipo(v) === 'object' && Object.keys(v).length > 0 && Object.values(v).every((x) => x === null);
+
 /**
  * Confere os tipos e os campos desconhecidos, como o apiserver (strict decoding).
+ * Como ele, trata null como campo não definido: apaga do objeto as chaves com null (num mapa também: `app:` sem valor
+ * some das labels, e o mapa que só tinha null some junto) e troca um null numa lista pelo valor zero
+ * (`containers:\n  -` vira [{}], e a validação diz "Required value"). O objeto muda aqui mesmo.
  * Devolve { desconhecidos: ['spec.replica', ...], tipo: 'json: cannot unmarshal ...' | null }.
  */
 export function decodificar(obj) {
@@ -807,10 +879,11 @@ export function decodificar(obj) {
       case 'IntOrString': if (t !== 'number' && t !== 'string') falha(); return;
       case 'map':
         if (t !== 'object') return falha();
-        for (const v of Object.values(valor)) {
+        for (const [k, v] of Object.entries(valor)) {
           const tv = jsonTipo(v);
           const ok = c.quantidade ? tv === 'string' || tv === 'number' : tv === 'string';
-          if (!ok && v !== null) {
+          if (v === null) delete valor[k];
+          else if (!ok) {
             erroTipo = `json: cannot unmarshal ${tv} into Go struct field ${nomeStruct(pai)}.${caminhoSemIndice} of type ${c.quantidade ? 'resource.Quantity' : 'string'}`;
             return;
           }
@@ -818,7 +891,10 @@ export function decodificar(obj) {
         return;
       case 'array':
         if (t !== 'array') return falha();
-        valor.forEach((v, i) => visitar(v, c.item, `${caminho}[${i}]`, caminhoSemIndice, pai));
+        valor.forEach((v, i) => {
+          if (v === null && ZERO[c.item.tipo]) valor[i] = ZERO[c.item.tipo]();
+          visitar(valor[i], c.item, `${caminho}[${i}]`, caminhoSemIndice, pai);
+        });
         return;
       case 'object':
         if (t !== 'object') return falha();
@@ -827,6 +903,7 @@ export function decodificar(obj) {
           const cam = caminho ? `${caminho}.${k}` : k;
           const camSem = caminhoSemIndice ? `${caminhoSemIndice}.${k}` : k;
           if (!filho) desconhecidos.push(cam);
+          else if (v === null || (filho.tipo === 'map' && soNulos(v))) delete valor[k];
           else visitar(v, filho, cam, camSem, c);
         }
     }
@@ -860,6 +937,17 @@ function validarNome(obj, erros) {
   else if (!RE_SUBDOMINIO.test(nome) || nome.length > 253) erros.push(invalido('metadata.name', nome, MSG_SUBDOMINIO));
 }
 
+/** Uma sonda ou um gancho do lifecycle: um tipo de ação, com o que cada tipo exige (o validateHandler do apiserver). */
+function validarAcao(h, cam, erros) {
+  if (h.exec && !h.exec.command?.length) erros.push(obrigatorio(`${cam}.exec.command`));
+  for (const tipo of ['httpGet', 'tcpSocket']) {
+    const porta = h[tipo]?.port;
+    // ponytail: a porta com nome não é conferida (o IsValidPortName); confira quando um exercício precisar.
+    if (h[tipo] && typeof porta !== 'string' && !(porta >= 1 && porta <= 65535)) erros.push(invalido(`${cam}.${tipo}.port`, porta ?? 0, 'must be between 1 and 65535, inclusive'));
+  }
+  if (!h.exec && !h.httpGet && !h.tcpSocket && !h.grpc && !h.sleep) erros.push(`${cam}: Required value: must specify a handler type`);
+}
+
 /** `volumesExtras`: nomes que valem como volume sem estar em spec.volumes (os volumeClaimTemplates do StatefulSet). */
 function validarPodSpec(spec, base, erros, volumesExtras = []) {
   if (!spec?.containers?.length) {
@@ -874,33 +962,52 @@ function validarPodSpec(spec, base, erros, volumesExtras = []) {
     else if (volumes.has(v.name)) erros.push(`${cam}.name: Duplicate value: ${JSON.stringify(v.name)}`);
     volumes.add(v.name);
     if (v.persistentVolumeClaim && !v.persistentVolumeClaim.claimName) erros.push(obrigatorio(`${cam}.persistentVolumeClaim.claimName`));
+    if (v.hostPath && !v.hostPath.path) erros.push(obrigatorio(`${cam}.hostPath.path`));
   });
+  // Os contêineres e depois os init containers (como o apiserver), com as mesmas conferências; o nome não repete entre eles.
   const nomes = new Set();
-  spec.containers.forEach((c, i) => {
-    const cam = `${base}.containers[${i}]`;
-    if (!c.name) erros.push(obrigatorio(`${cam}.name`));
-    else if (!RE_LABEL.test(c.name)) erros.push(invalido(`${cam}.name`, c.name, MSG_LABEL));
-    else if (nomes.has(c.name)) erros.push(`${cam}.name: Duplicate value: ${JSON.stringify(c.name)}`);
-    nomes.add(c.name);
-    if (!c.image) erros.push(obrigatorio(`${cam}.image`));
-    (c.ports ?? []).forEach((p, j) => {
-      if (p.containerPort === undefined) erros.push(obrigatorio(`${cam}.ports[${j}].containerPort`));
-      else if (p.containerPort < 1 || p.containerPort > 65535) erros.push(invalido(`${cam}.ports[${j}].containerPort`, p.containerPort, 'must be between 1 and 65535, inclusive'));
+  for (const [campo, lista] of [['containers', spec.containers], ['initContainers', spec.initContainers ?? []]]) {
+    lista.forEach((c, i) => {
+      const cam = `${base}.${campo}[${i}]`;
+      if (!c.name) erros.push(obrigatorio(`${cam}.name`));
+      else if (!RE_LABEL.test(c.name)) erros.push(invalido(`${cam}.name`, c.name, MSG_LABEL));
+      if (!c.image) erros.push(obrigatorio(`${cam}.image`));
+      (c.ports ?? []).forEach((p, j) => {
+        if (p.containerPort === undefined) erros.push(obrigatorio(`${cam}.ports[${j}].containerPort`));
+        else if (p.containerPort < 1 || p.containerPort > 65535) erros.push(invalido(`${cam}.ports[${j}].containerPort`, p.containerPort, 'must be between 1 and 65535, inclusive'));
+      });
+      (c.env ?? []).forEach((e, j) => {
+        if (!e.name) erros.push(obrigatorio(`${cam}.env[${j}].name`));
+        for (const ref of ['configMapKeyRef', 'secretKeyRef']) {
+          const r = e.valueFrom?.[ref];
+          if (!r) continue;
+          if (!RE_SUBDOMINIO.test(r.name ?? '')) erros.push(invalido(`${cam}.env[${j}].valueFrom.${ref}.name`, r.name ?? '', MSG_SUBDOMINIO));
+          if (!r.key) erros.push(obrigatorio(`${cam}.env[${j}].valueFrom.${ref}.key`));
+        }
+      });
+      (c.envFrom ?? []).forEach((ef, j) => {
+        if (!ef.configMapRef && !ef.secretRef) erros.push(invalido(`${cam}.envFrom`, '', 'must specify one of: `configMapRef` or `secretRef`'));
+        for (const ref of ['configMapRef', 'secretRef']) if (ef[ref] && !ef[ref].name) erros.push(obrigatorio(`${cam}.envFrom[${j}].${ref}.name`));
+      });
+      (c.volumeMounts ?? []).forEach((m, j) => {
+        const cm = `${cam}.volumeMounts[${j}]`;
+        if (!m.name) erros.push(obrigatorio(`${cm}.name`));
+        else if (!volumes.has(m.name)) erros.push(`${cm}.name: Not found: ${JSON.stringify(m.name)}`);
+        if (!m.mountPath) erros.push(obrigatorio(`${cm}.mountPath`));
+      });
+      if (c.imagePullPolicy !== undefined && !['Always', 'IfNotPresent', 'Never'].includes(c.imagePullPolicy)) {
+        erros.push(`${cam}.imagePullPolicy: Unsupported value: ${JSON.stringify(c.imagePullPolicy)}: supported values: "Always", "IfNotPresent", "Never"`);
+      }
+      validarRecursos(c.resources, `${cam}.resources`, erros, base === 'spec'); // só o Pod tem o PodSpec em spec (os moldes, em .template.spec)
+      if (c.name && nomes.has(c.name)) erros.push(`${cam}.name: Duplicate value: ${JSON.stringify(c.name)}`);
+      nomes.add(c.name);
+      const ganchos = [['lifecycle.postStart', c.lifecycle?.postStart], ['lifecycle.preStop', c.lifecycle?.preStop], ...['livenessProbe', 'readinessProbe', 'startupProbe'].map((q) => [q, c[q]])];
+      // Init container comum (sem restartPolicy: Always, o sidecar) roda até o fim: não tem gancho nem sonda.
+      if (campo === 'initContainers' && c.restartPolicy !== 'Always') {
+        for (const k of ['lifecycle', 'livenessProbe', 'readinessProbe', 'startupProbe']) if (c[k]) erros.push(`${cam}.${k}: Forbidden: may not be set for init containers without restartPolicy=Always`);
+      } else for (const [onde, h] of ganchos) if (h) validarAcao(h, `${cam}.${onde}`, erros);
     });
-    (c.env ?? []).forEach((e, j) => {
-      if (!e.name) erros.push(obrigatorio(`${cam}.env[${j}].name`));
-    });
-    (c.volumeMounts ?? []).forEach((m, j) => {
-      const cm = `${cam}.volumeMounts[${j}]`;
-      if (!m.name) erros.push(obrigatorio(`${cm}.name`));
-      else if (!volumes.has(m.name)) erros.push(`${cm}.name: Not found: ${JSON.stringify(m.name)}`);
-      if (!m.mountPath) erros.push(obrigatorio(`${cm}.mountPath`));
-    });
-    if (c.imagePullPolicy !== undefined && !['Always', 'IfNotPresent', 'Never'].includes(c.imagePullPolicy)) {
-      erros.push(`${cam}.imagePullPolicy: Unsupported value: ${JSON.stringify(c.imagePullPolicy)}: supported values: "Always", "IfNotPresent", "Never"`);
-    }
-    validarRecursos(c.resources, `${cam}.resources`, erros, base === 'spec'); // só o Pod tem o PodSpec em spec (os moldes, em .template.spec)
-  });
+  }
   const politica = spec.restartPolicy;
   if (politica && !['Always', 'OnFailure', 'Never'].includes(politica)) {
     erros.push(`${base}.restartPolicy: Unsupported value: ${JSON.stringify(politica)}: supported values: "Always", "OnFailure", "Never"`);
@@ -985,6 +1092,9 @@ export function validar(obj, antigo) {
   const erros = [];
   if (esquemasExtras[obj.kind]) return [...(validarNomeCr(obj)), ...validarCr(obj, esquemasExtras[obj.kind].openapi)];
   validarNome(obj, erros);
+  (obj.metadata?.ownerReferences ?? []).forEach((r, i) => {
+    for (const k of ['apiVersion', 'kind', 'name', 'uid']) if (!r[k]) erros.push(`metadata.ownerReferences[${i}].${k}: Required value: must not be empty`);
+  });
   const s = obj.spec;
   switch (obj.kind) {
     case 'Namespace':
@@ -1006,7 +1116,7 @@ export function validar(obj, antigo) {
       if (!s?.selector || (!ml && !s.selector.matchExpressions)) erros.push(obrigatorio('spec.selector'));
       else if (ml && !Object.keys(ml).length && !s.selector.matchExpressions) erros.push(invalido('spec.selector', s.selector, 'empty selector is invalid for deployment'));
       const labels = s?.template?.metadata?.labels;
-      if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? {}, '`selector` does not match template `labels`'));
+      if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? null, '`selector` does not match template `labels`'));
       validarPodSpec(s?.template?.spec, 'spec.template.spec', erros);
       if (s?.replicas < 0) erros.push(invalido('spec.replicas', s.replicas, 'must be greater than or equal to 0'));
       const ru = obj.kind === 'Deployment' && (s?.strategy?.type ?? 'RollingUpdate') === 'RollingUpdate' ? s?.strategy?.rollingUpdate ?? {} : null;
@@ -1015,8 +1125,8 @@ export function validar(obj, antigo) {
       if (s?.template?.spec?.restartPolicy && s.template.spec.restartPolicy !== 'Always') {
         erros.push(`spec.template.spec.restartPolicy: Unsupported value: ${JSON.stringify(s.template.spec.restartPolicy)}: supported values: "Always"`);
       }
-      if (antigo && JSON.stringify(antigo.spec.selector) !== JSON.stringify(s.selector)) {
-        erros.push(invalido('spec.selector', s.selector, 'field is immutable'));
+      if (antigo && JSON.stringify(antigo.spec.selector) !== JSON.stringify(s?.selector)) {
+        erros.push(invalido('spec.selector', s?.selector ?? null, 'field is immutable'));
       }
       break;
     }
@@ -1051,7 +1161,13 @@ export function validar(obj, antigo) {
       const ml = s?.selector?.matchLabels;
       if (!s?.selector || (!ml && !s.selector.matchExpressions)) erros.push(obrigatorio('spec.selector'));
       const labels = s?.template?.metadata?.labels;
-      if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? {}, '`selector` does not match template `labels`'));
+      if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? null, '`selector` does not match template `labels`'));
+      // O apiserver valida os volumeClaimTemplates como volumes a mais do molde (depois dos volumes dele).
+      (s?.volumeClaimTemplates ?? []).forEach((t, i) => {
+        if (t.metadata?.name) return;
+        const cam = `spec.template.spec.volumes[${(s.template?.spec?.volumes?.length ?? 0) + i}]`;
+        erros.push(obrigatorio(`${cam}.persistentVolumeClaim.claimName`), obrigatorio(`${cam}.name`));
+      });
       validarPodSpec(s?.template?.spec, 'spec.template.spec', erros, (s?.volumeClaimTemplates ?? []).map((t) => t.metadata?.name));
       if (s?.replicas < 0) erros.push(invalido('spec.replicas', s.replicas, 'must be greater than or equal to 0'));
       (s?.volumeClaimTemplates ?? []).forEach((t, i) => validarPvcSpec(t.spec, `spec.volumeClaimTemplates[${i}].spec`, erros));
@@ -1093,12 +1209,12 @@ export function validar(obj, antigo) {
       const ml = s?.selector?.matchLabels;
       if (!s?.selector || (!ml && !s.selector.matchExpressions)) erros.push(obrigatorio('spec.selector'));
       const labels = s?.template?.metadata?.labels;
-      if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? {}, '`selector` does not match template `labels`'));
+      if (ml && !casaSeletor(ml, labels)) erros.push(invalido('spec.template.metadata.labels', labels ?? null, '`selector` does not match template `labels`'));
       validarPodSpec(s?.template?.spec, 'spec.template.spec', erros);
       if (s?.template?.spec?.restartPolicy && s.template.spec.restartPolicy !== 'Always') {
         erros.push(`spec.template.spec.restartPolicy: Unsupported value: ${JSON.stringify(s.template.spec.restartPolicy)}: supported values: "Always"`);
       }
-      if (antigo && JSON.stringify(antigo.spec.selector) !== JSON.stringify(s.selector)) erros.push(invalido('spec.selector', s.selector, 'field is immutable'));
+      if (antigo && JSON.stringify(antigo.spec.selector) !== JSON.stringify(s?.selector)) erros.push(invalido('spec.selector', s?.selector ?? null, 'field is immutable'));
       break;
     }
     case 'PersistentVolumeClaim':
@@ -1112,6 +1228,7 @@ export function validar(obj, antigo) {
       if (!s?.accessModes?.length) erros.push('spec.accessModes: Required value');
       if (!s?.capacity?.storage) erros.push('spec.capacity: Required value');
       if (!s?.hostPath && !s?.local && !s?.nfs && !s?.csi) erros.push('spec: Required value: must specify a volume type');
+      if (s?.hostPath && !s.hostPath.path) erros.push(obrigatorio('spec.hostPath.path'));
       break;
     case 'StorageClass':
       if (!obj.provisioner) erros.push(obrigatorio('provisioner'));
@@ -1119,6 +1236,64 @@ export function validar(obj, antigo) {
         erros.push('provisioner: Forbidden: updates to provisioner are forbidden.');
       }
       break;
+    case 'HorizontalPodAutoscaler': {
+      const ref = s?.scaleTargetRef ?? {};
+      for (const k of ['kind', 'name']) if (!ref[k]) erros.push(obrigatorio(`spec.scaleTargetRef.${k}`));
+      const [grupo, versao] = (ref.apiVersion ?? '').split('/');
+      if (!grupo || versao === undefined) erros.push(invalido('spec.scaleTargetRef.apiVersion', ref.apiVersion ?? '', 'apiVersion must specify API group'));
+      break;
+    }
+    case 'RoleBinding':
+    case 'ClusterRoleBinding': {
+      const ref = obj.roleRef ?? {};
+      const go = (r) => JSON.stringify({ APIGroup: r?.apiGroup || 'rbac.authorization.k8s.io', Kind: r?.kind ?? '', Name: r?.name ?? '' });
+      // ponytail: numa atualização com kind inválido o real fala da escalada; aqui sai o "imutável" (os dois recusam)
+      const fora = (campoNome, v, aceitos) => `${campoNome}: Unsupported value: ${JSON.stringify(v)}: supported values: ${aceitos.map((x) => JSON.stringify(x)).join(', ')}`;
+      if (antigo) {
+        if (go(antigo.roleRef) !== go(ref)) erros.push(`roleRef: Invalid value: ${go(ref)}: field is immutable`);
+      } else if (['Role', 'ClusterRole'].includes(ref.kind)) { // outro kind o apiserver recusa antes, ao conferir a escalada (cluster.admitir)
+        if (ref.apiGroup && ref.apiGroup !== 'rbac.authorization.k8s.io') erros.push(fora('roleRef.apiGroup', ref.apiGroup, ['rbac.authorization.k8s.io'])); // vazio vira o padrão
+        if (obj.kind === 'ClusterRoleBinding' && ref.kind !== 'ClusterRole') erros.push(fora('roleRef.kind', ref.kind, ['ClusterRole']));
+        if (!ref.name) erros.push(obrigatorio('roleRef.name'));
+      }
+      (obj.subjects ?? []).forEach((sj, i) => { // o `- ` sem nada em subjects
+        if (!['ServiceAccount', 'User', 'Group'].includes(sj.kind)) erros.push(fora(`subjects[${i}].kind`, sj.kind ?? '', ['ServiceAccount', 'User', 'Group']));
+        if (!sj.name) erros.push(obrigatorio(`subjects[${i}].name`));
+      });
+      break;
+    }
+    case 'NetworkPolicy':
+      for (const [sentido, campo] of [['ingress', 'from'], ['egress', 'to']]) {
+        (s?.[sentido] ?? []).forEach((r, i) => (r[campo] ?? []).forEach((par, j) => {
+          const cam = `spec.${sentido}[${i}].${campo}[${j}]`;
+          if (!par.podSelector && !par.namespaceSelector && !par.ipBlock) erros.push(`${cam}: Required value: must specify a peer`);
+          else if (par.ipBlock && !par.ipBlock.cidr) erros.push(obrigatorio(`${cam}.ipBlock.cidr`));
+        }));
+      }
+      break;
+    case 'CustomResourceDefinition': {
+      // Os nomes depois dos padrões do apiserver (singular e listKind saem do kind).
+      const n = { ...s?.names, singular: s?.names?.singular || (s?.names?.kind ?? '').toLowerCase(), listKind: s?.names?.listKind || (s?.names?.kind ? `${s.names.kind}List` : '') };
+      if (obj.metadata?.name !== `${n.plural ?? ''}.${s?.group ?? ''}`) erros.push(invalido('metadata.name', obj.metadata?.name ?? '', 'must be spec.names.plural+"."+spec.group'));
+      for (const k of ['plural', 'singular', 'kind', 'listKind']) if (!n[k]) erros.push(obrigatorio(`spec.names.${k}`));
+      const versoes = s?.versions ?? [];
+      versoes.forEach((v, i) => {
+        if (!v.schema?.openAPIV3Schema) erros.push(obrigatorio(`spec.versions[${i}].schema.openAPIV3Schema`));
+        if (!RE_1035.test(v.name ?? '')) erros.push(invalido(`spec.versions[${i}].name`, v.name ?? '', MSG_1035));
+      });
+      // Com o mesmo esquema em todas as versões, o apiserver guarda um só (em spec.validation) e confere ali.
+      const mesmo = versoes.every((v) => JSON.stringify(v.schema) === JSON.stringify(versoes[0].schema));
+      versoes.forEach((v, i) => {
+        if (v.schema?.openAPIV3Schema && (!mesmo || !i)) semTipo(v.schema.openAPIV3Schema, mesmo ? 'spec.validation.openAPIV3Schema' : `spec.versions[${i}].schema.openAPIV3Schema`, 'at the root', erros);
+      });
+      if (versoes.filter((v) => v.storage).length !== 1) {
+        // ponytail: o Go mostra o schema, os subresources e as colunas por inteiro; aqui eles saem como null (exato só sem eles)
+        const go = versoes.map((v) => ({ Name: v.name ?? '', Served: !!v.served, Storage: !!v.storage, Deprecated: !!v.deprecated, DeprecationWarning: v.deprecationWarning ?? null, Schema: null, Subresources: null, AdditionalPrinterColumns: null, SelectableFields: null }));
+        erros.push(invalido('spec.versions', versoes.length ? go : null, 'must have exactly one version marked as storage version'));
+      }
+      if (!versoes.some((v) => v.storage)) erros.push('status.storedVersions: Invalid value: null: must have at least one stored version');
+      break;
+    }
     case 'ConfigMap':
     case 'Secret':
       if (antigo?.immutable && JSON.stringify(antigo.data) !== JSON.stringify(obj.data)) {
@@ -1265,13 +1440,21 @@ export function aplicarPadroes(obj) {
     case 'PriorityClass':
       obj.preemptionPolicy ??= 'PreemptLowerPriority';
       break;
-    case 'NetworkPolicy':
-      s.policyTypes ??= ['Ingress', ...(s.egress ? ['Egress'] : [])];
-      for (const r of [...(s.ingress ?? []), ...(s.egress ?? [])]) for (const p of r.ports ?? []) p.protocol ??= 'TCP';
+    case 'PodDisruptionBudget': // `spec:` sem nada é válido (no Go, a struct nunca é nil): o PDB sem seletor não protege ninguém
+    case 'ResourceQuota': // e a cota sem hard não limita nada
+      obj.spec ??= {};
       break;
+    case 'NetworkPolicy': {
+      const np = (obj.spec ??= {}); // `spec:` sem nada: o podSelector vazio escolhe todos, e a entrada fecha
+      np.podSelector ??= {};
+      np.policyTypes ??= ['Ingress', ...(np.egress ? ['Egress'] : [])];
+      for (const r of [...(np.ingress ?? []), ...(np.egress ?? [])]) for (const p of r.ports ?? []) p.protocol ??= 'TCP';
+      break;
+    }
     case 'RoleBinding':
     case 'ClusterRoleBinding':
       for (const sj of obj.subjects ?? []) if (sj.kind !== 'ServiceAccount') sj.apiGroup ??= 'rbac.authorization.k8s.io';
+      if (obj.roleRef && !obj.roleRef.apiGroup) obj.roleRef.apiGroup = 'rbac.authorization.k8s.io';
       break;
     case 'StorageClass':
       obj.reclaimPolicy ??= 'Delete';

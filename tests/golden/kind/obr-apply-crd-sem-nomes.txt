@@ -1,0 +1,7 @@
+The CustomResourceDefinition "fichas.obrigatorios.kube-learn.dev" is invalid: 
+* metadata.name: Invalid value: "fichas.obrigatorios.kube-learn.dev": must be spec.names.plural+"."+spec.group
+* spec.names.plural: Required value
+* spec.names.singular: Required value
+* spec.names.kind: Required value
+* spec.names.listKind: Required value
+exit=1

@@ -1,0 +1,5 @@
+Name:       padrao
+Namespace:  obrigatorios
+Type        Resource  Min  Max  Default Request  Default Limit  Max Limit/Request Ratio
+----        --------  ---  ---  ---------------  -------------  -----------------------
+exit=0

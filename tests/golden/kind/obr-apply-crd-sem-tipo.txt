@@ -1,0 +1,5 @@
+The CustomResourceDefinition "fichas.obrigatorios.kube-learn.dev" is invalid: 
+* spec.validation.openAPIV3Schema.properties[spec].properties[dono].type: Required value: must not be empty for specified object fields
+* spec.validation.openAPIV3Schema.properties[spec].properties[tags].items.type: Required value: must not be empty for specified array items
+* spec.validation.openAPIV3Schema.type: Required value: must not be empty at the root
+exit=1

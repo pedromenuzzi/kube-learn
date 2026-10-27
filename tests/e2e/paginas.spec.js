@@ -31,8 +31,8 @@ test('nível 0: lição lida e quiz certo contam na trilha', async ({ page }) =>
   await page.goto('#/trilha');
   await expect(page.locator('#nivel-2')).toContainText('Bloqueado');
   await page.locator('#nivel-0').getByRole('link', { name: /Funciona na minha máquina/ }).click();
-  await page.getByRole('button', { name: 'Marquei como lida' }).click();
-  await expect(page.getByRole('status')).toContainText('+5 XP');
+  await page.getByRole('link', { name: /^Lida · Próxima: / }).click(); // marca a lição como lida e abre a próxima
+  await expect(page.locator('.placar-topo')).toHaveAccessibleName(/^5 XP, /);
   await page.goto('#/ex/n0-quiz-latest');
   await page.getByLabel(/a versão mais nova publicada/).check();
   await page.getByRole('button', { name: 'Responder' }).click();
@@ -112,3 +112,31 @@ test('preferências: tema e tamanho do texto ficam salvos', async ({ page }) => 
   await expect(page.locator('html')).toHaveAttribute('data-tema', 'contraste');
   await expect(page.locator('html')).toHaveAttribute('data-texto', '125');
 });
+
+// O "pular para o conteúdo" leva o foco ao <main> e a página fica (seguir o href #conteudo abria a 404).
+for (const ingles of [false, true]) {
+  for (const [largura, altura] of [[1280, 800], [390, 844]]) {
+    test(`pular para o conteúdo: o foco vai ao <main> sem trocar a página (${largura}px${ingles ? ', em inglês' : ''})`, async ({ page }) => {
+      await page.setViewportSize({ width: largura, height: altura });
+      if (ingles) await page.addInitScript(() => localStorage.setItem('kube-learn:preferencias', JSON.stringify({ idioma: 'en' })));
+      for (const rota of ['#/trilha', '#/ex/n0-primeiro-pod', '#/glossario']) {
+        await page.goto(rota);
+        await page.reload(); // página recém-aberta: o primeiro Tab cai no link
+        await page.waitForSelector('main#conteudo > *');
+        const titulo = await page.title();
+        await page.keyboard.press('Tab');
+        await expect(page.locator('.pular')).toBeFocused();
+        await expect(page.locator('.pular')).toHaveText(ingles ? 'Skip to content' : 'Pular para o conteúdo');
+        await page.keyboard.press('Enter');
+        await expect(page.locator('main#conteudo')).toBeFocused();
+        expect(await page.evaluate(() => location.hash)).toBe(rota);
+        await expect(page).toHaveTitle(titulo);
+        await expect(page.locator('main')).not.toContainText(/Página não encontrada|Page not found/);
+        if (rota.startsWith('#/ex/')) {
+          await page.keyboard.press('Tab');
+          await expect(page.locator('a.voltar')).toBeFocused();
+        }
+      }
+    });
+  }
+}

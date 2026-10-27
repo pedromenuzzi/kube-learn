@@ -163,7 +163,13 @@ export const NIVEL7 = [
     manual: ['pod.spec.nodeSelector'],
     inicial: { 'caixa.yaml': deployment('caixa', 2) },
     solucao: { 'caixa.yaml': deployment('caixa', 2, { extra: seletor('energia', 'gerador') }) },
-    testes: [depois('as duas caixas no prédio com gerador', [{ semErros: true }, { pods: 'app=caixa', prontos: 2, node: 'node-2' }])],
+    testes: [
+      depois('as duas caixas no prédio com gerador', [{ semErros: true }, { pods: 'app=caixa', prontos: 2, node: 'node-2' }]),
+      depois('as travas de segurança continuam lá', [
+        { objeto: 'deployment/caixa', campo: 'spec.template.spec.nodeName', existe: false, msg: 'quem escolhe o prédio continua sendo o scheduler (sem nodeName): pular a corretora não confere se cabe, nem acha outro prédio com gerador' },
+      ], { oculto: true, esperar: '10s' }),
+    ],
+    armadilhas: [{ descricao: 'nodeName: node-2 (fura o scheduler)', arquivos: { 'caixa.yaml': deployment('caixa', 2, { extra: '      nodeName: node-2\n' }) } }],
   }),
 
   problema({
@@ -404,7 +410,12 @@ Cannot evict pod as it would violate the pod's disruption budget.</code></pre>
       depois('no drain, o PDB segura a fila e a loja muda inteira para o node-2', [
         { saida: "violate the pod's disruption budget", msg: 'o drain esperou o PDB' },
         { pods: 'app=loja', prontos: 3, node: 'node-2' },
+        { objeto: 'pdb/loja', campo: 'spec.selector.matchLabels.app', igual: 'loja', msg: 'o PDB escolhe os pods da loja (matchLabels app: loja): um seletor vazio protege tudo e nada' },
       ], { oculto: true, esperar: '30s', mais: [{ comando: 'kubectl drain node-1 --ignore-daemonsets --timeout=3m' }, { avancar: '30s' }] }),
+    ],
+    armadilhas: [
+      { descricao: 'matchLabels vazio (o seletor escolhe todos os pods)', mudar: (a) => ({ 'pdb.yaml': a['pdb.yaml'].replace(/\n\s+app: loja/, '') }) },
+      { descricao: 'selector: {}', mudar: (a) => ({ 'pdb.yaml': a['pdb.yaml'].replace(/selector:[\s\S]*$/, 'selector: {}\n') }) },
     ],
   }),
 

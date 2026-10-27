@@ -5,10 +5,12 @@ import { GLOSSARIO } from '../conteudo/glossario.js';
 import { calcularJornada, sequenciaDeDias, hojeLocal } from '../jogo/gamificacao.js';
 import { somarDias, termosVistos } from '../jogo/revisao.js';
 import { atividadePorDia, calendario, cartoesParaHoje, numerosDosDias } from '../jogo/hoje.js';
-import { plantaoDoDia } from '../jogo/plantao.js';
+import { plantaoDoDia, NIVEL_DO_PLANTAO } from '../jogo/plantao.js';
+import { marcasDoDia, diaCumprido, lembreteIcs } from '../jogo/ritual.js';
 import { ler, CHAVES } from '../armazenamento.js';
 import { desenharNavio, CORES } from './navio.js';
-import { svgSelo, linkCompartilhar } from './selos.js';
+import { svgSelo, linkCompartilhar, SITE } from './selos.js';
+import { compartilharResultado, htmlCompartilhar, tempoEEntregas, textoDoPlantao } from './compartilhar.js';
 import { escapar, minutosESegundos } from './util.js';
 import { icone } from './icones.js';
 import { idioma, t } from '../i18n.js';
@@ -34,16 +36,86 @@ function placar(j) {
 
 const continuar = (j, classe = '') => (j.proximo
   ? `<a class="botao ${classe}" href="#/ex/${j.proximo.id}">${icone('play')}<span>${j.proximo.estado === 'tentado' ? t('Continuar') : t('Próxima missão')}: ${escapar(j.proximo.titulo)}</span></a>`
-  : `<p>${t('Tudo embarcado por aqui. Novos níveis chegam em breve!')}</p>`);
+  : j.navioCheio
+    ? `<a class="botao ${classe}" href="#/certificado">${icone('lacre')}<span>${t('Pegar o seu certificado')}</span></a>`
+    : `<p>${t('Tudo embarcado por aqui. Novos níveis chegam em breve!')}</p>`);
 
-/** O painel de quem volta: a sequência, o próximo passo, a revisão de hoje e o que ficou para depois. */
-function painelHoje(j) {
-  const hoje = hojeLocal();
+// O Plantão do dia traz dois defeitos dos níveis 3 a 7: no painel, ele vira link quando o Nível NIVEL_DO_PLANTAO
+// (jogo/plantao.js) abre. A Oficina usa Deployment: abre com o Nível 2.
+const NIVEL_DA_OFICINA = 2;
+
+/** O dia de hoje: as marcas do ritual, se ele está cumprido, os cartões da revisão e o plantão (null antes do Nível 6). */
+function diaDeHoje(j, hoje) {
+  const progresso = ler(CHAVES.progresso, {});
+  const vistos = termosVistos(GLOSSARIO, j);
+  const cartoes = cartoesParaHoje({ termos: vistos, estado: ler(CHAVES.revisao, {}), hoje });
+  const plantao = j.niveis[NIVEL_DO_PLANTAO].desbloqueado ? plantaoDoDia(hoje) : null;
+  const marcas = marcasDoDia({ jornada: j, progresso, hoje, termos: vistos.length, cartoes, plantao: plantao?.id });
+  // Sem termos vistos, a revisão espera a primeira missão da trilha que traz cartões (hoje, a lição de imagem e contêiner).
+  const primeirosCartoes = vistos.length ? null : j.niveis.flatMap((n) => n.itens).find((i) => i.estado !== 'concluido' && GLOSSARIO.some((g) => g.item === i.id));
+  return { hoje, marcas, cumprido: diaCumprido(marcas), termos: vistos.length, cartoes, plantao, primeirosCartoes };
+}
+
+/** O ritual do dia: cada marca diz em texto se está feita e, com tudo feito, o dia ganha um fecho (sem "só mais uma"). */
+function ritual(dia) {
+  if (!dia.marcas.length) return '';
+  const rotulo = {
+    missao: () => t('Uma missão da trilha'),
+    revisao: (feito) => (feito ? t('Revisão do dia em dia.')
+      : dia.primeirosCartoes ? t('Revisão do dia: os primeiros cartões chegam com «{titulo}»', { titulo: escapar(dia.primeirosCartoes.titulo) })
+      : `<a class="link-seta" href="#/revisao">${t(dia.cartoes === 1 ? 'Revisão do dia: 1 cartão, uns 2 minutos' : 'Revisão do dia: {n} cartões, uns 2 minutos', { n: dia.cartoes })} ${icone('seguir')}</a>`),
+    plantao: (feito) => (feito ? t('Plantão do dia atendido. O morador agradece!')
+      : `<a class="link-seta" href="#/ex/${dia.plantao.id}">${t('Plantão do dia: {titulo}', { titulo: escapar(dia.plantao.titulo) })} ${icone('seguir')}</a>`),
+  };
+  return `
+      <section class="ritual" aria-labelledby="ritual-titulo">
+        <h2 id="ritual-titulo">${t('Ritual do dia')} <span>${t('{n} de {total}', { n: dia.marcas.filter((m) => m.feito).length, total: dia.marcas.length })}</span></h2>
+        <ul>${dia.marcas.map((m) => `
+          <li class="${m.feito ? 'ritual-feito' : 'ritual-falta'}${m.id === 'revisao' ? ' hoje-cartoes' : ''}"><span class="ritual-marca">${m.feito ? `${icone('certo')}${t('Feito')}` : t('A fazer')}</span> <span>${rotulo[m.id](m.feito)}</span></li>`).join('')}
+        </ul>
+        ${dia.cumprido ? `<p class="ritual-fecho" role="status">${icone('certo')} ${t('Dia cumprido. Bom descanso, amanhã tem mais.')}</p>` : ''}
+      </section>`;
+}
+
+/**
+ * O lembrete diário: o aluno escolhe a hora e baixa um .ics para a própria agenda (feito aqui; nada sai do navegador).
+ * `aberto`: o primeiro dia que fecha já mostra o lembrete (é a hora de marcar o de amanhã).
+ */
+const lembrete = (aberto = false) => `
+      <details class="lembrete"${aberto ? ' open' : ''}>
+        <summary>${icone('relogio')} ${t('Lembrete diário')}</summary>
+        <p class="nota">${t('Escolha a hora e abra o arquivo na sua agenda (Google Agenda, Outlook, celular): ela avisa todo dia. O arquivo é feito aqui mesmo, e nada sai do navegador.')}</p>
+        <form>
+          <label for="lembrete-hora">${t('Horário')}</label>
+          <input id="lembrete-hora" name="hora" type="time" value="19:00" required>
+          <button type="submit">${icone('baixar')} ${t('Baixar o lembrete (.ics)')}</button>
+        </form>
+        <p class="nota lembrete-aviso" role="status"></p>
+      </details>`;
+
+function baixarLembrete(e) {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const hora = form.elements.hora.value;
+  const ics = lembreteIcs({
+    hora, hoje: hojeLocal(), agora: new Date(), url: SITE,
+    titulo: t('kube-learn: hora da sua missão'),
+    descricao: t('Uma missão e a revisão do dia, uns 15 minutos. Pulou um dia? Tudo bem: amanhã tem mais.'),
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
+  a.download = 'kube-learn-lembrete.ics';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000); // depois que o download começou
+  form.nextElementSibling.textContent = t('Lembrete baixado: todo dia às {hora}. Abra o arquivo kube-learn-lembrete.ics para pô-lo na sua agenda.', { hora });
+}
+
+/** O painel de quem volta: a sequência, o próximo passo, o ritual do dia e o que ficou para depois. */
+function painelHoje(j, dia) {
+  const { hoje } = dia;
   const dias = ler(CHAVES.dias, []);
   const n = numerosDosDias(dias, hoje, sequenciaDeDias(dias, hoje));
-  const cartoes = cartoesParaHoje({ termos: termosVistos(GLOSSARIO, j), estado: ler(CHAVES.revisao, {}), hoje });
   const depois = j.niveis.flatMap((x) => x.itens).filter((i) => i.estado === 'tentado' && i.id !== j.proximo?.id).slice(0, 3);
-  const plantao = plantaoDoDia(hoje);
   // Sem cobrança: a sequência quebrada vira convite, e a melhor e o total de dias ficam (o esforço não some).
   const selo = n.atual > 1 ? t('{n} dias seguidos. Bora manter?', { n: n.atual })
     : n.atual === 1 ? t('Primeiro dia da sequência. Amanhã tem mais.')
@@ -58,32 +130,35 @@ function painelHoje(j) {
         <div><dt>${t('Dias de estudo')}</dt><dd>${n.total}</dd></div>
         <div><dt>XP</dt><dd>${j.xp}</dd></div>
       </dl>
-      <p class="acoes">${continuar(j, 'botao-grande')}</p>
-      <p class="hoje-revisao hoje-cartoes">${cartoes
-    ? `<a class="link-seta" href="#/revisao">${icone('cartas')} ${t(cartoes === 1 ? 'Revisão do dia: 1 cartão, uns 2 minutos' : 'Revisão do dia: {n} cartões, uns 2 minutos', { n: cartoes })} ${icone('seguir')}</a>`
-    : `${icone('certo')} ${t('Revisão do dia em dia.')}`}</p>
-      <p class="hoje-revisao hoje-extra">${resolvido(ler(CHAVES.progresso, {}), plantao.id)
-    ? `${icone('certo')} ${t('Plantão do dia atendido. O morador agradece!')}`
-    : `<a class="link-seta" href="#/ex/${plantao.id}">${icone('alerta')} ${t('Plantão do dia: {titulo}', { titulo: escapar(plantao.titulo) })} ${icone('seguir')}</a>`}</p>
-      <p class="hoje-revisao hoje-extra"><a class="link-seta" href="#/oficina">${icone('raio')} ${t('Oficina do kubectl: bata um recorde')} ${icone('seguir')}</a></p>
+      ${dia.cumprido && j.proximo ? '' : `<p class="acoes">${continuar(j, 'botao-grande')}</p>`}
+      ${ritual(dia)}
+      ${dia.plantao ? '' : `<p class="hoje-revisao hoje-extra">${icone('cadeado')} ${t('Plantão do dia: abre no Nível {n}', { n: NIVEL_DO_PLANTAO })}</p>`}
+      ${j.niveis[NIVEL_DA_OFICINA].desbloqueado ? `<p class="hoje-revisao hoje-extra"><a class="link-seta" href="#/oficina">${icone('raio')} ${t('Oficina do kubectl: bata um recorde')} ${icone('seguir')}</a></p>` : ''}
       <p class="hoje-revisao hoje-extra"><a class="link-seta" href="#/diario">${icone('livro')} ${t('Seu diário de bordo')} ${icone('seguir')}</a></p>
       ${depois.length ? `<div class="hoje-depois"><p>${t('Ficaram para depois:')}</p><ul>${depois.map((i) => `<li><a href="#/ex/${i.id}">${escapar(i.titulo)}</a></li>`).join('')}</ul></div>` : ''}
+      ${lembrete()}
     </div>`;
 }
 
 export function paginaInicio() {
   return (main) => {
     const j = jornadaAtual();
-    const voltou = Object.keys(ler(CHAVES.progresso, {})).length > 0;
+    const hoje = hojeLocal();
+    const comecou = Object.keys(ler(CHAVES.progresso, {})).length > 0;
+    // De volta é quem estudou num dia antes de hoje. No primeiro dia, o herói de boas-vindas fica, com o próximo passo.
+    const voltou = comecou && ler(CHAVES.dias, []).some((d) => d < hoje);
+    const dia = comecou ? diaDeHoje(j, hoje) : null;
+    // Dia cumprido com missão pela frente: sem "mais uma" (nem o "Continue de onde parou:" que a anunciava); o ritual fecha.
+    const fechou = dia?.cumprido && j.proximo;
     main.innerHTML = `
       <section class="heroi">
         <canvas class="navio" aria-hidden="true"></canvas>
-        ${voltou ? painelHoje(j) : `<div class="heroi-texto">
+        ${voltou ? painelHoje(j, dia) : `<div class="heroi-texto">
           <p class="heroi-selo">${icone('frasco')} ${t('Um cluster de verdade, simulado no navegador')}</p>
           <h1 class="pixel titulo-heroi">${t('Aprenda Kubernetes contêiner por contêiner')}</h1>
-          <p class="chamada">${t('Você escreve YAML, usa o <code>kubectl</code> e vê os pods nascerem, quebrarem e voltarem. Cada missão resolvida embarca um contêiner no seu navio.')}</p>
-          <p class="acoes">${continuar(j, 'botao-grande')} <a class="link-seta" href="#/trilha">${t('Ver a trilha')} ${icone('seguir')}</a></p>
-          <ul class="vantagens"><li>${icone('certo')} ${t('Sem conta')}</li><li>${icone('certo')} ${t('Sem custo')}</li><li>${icone('certo')} ${t('Tudo fica no seu navegador')}</li></ul>
+          ${fechou ? '' : `<p class="chamada">${comecou ? t('Continue de onde parou:') : t('Você escreve YAML, usa o <code>kubectl</code> e vê os pods nascerem, quebrarem e voltarem. Cada missão resolvida embarca um contêiner no seu navio.')}</p>`}
+          <p class="acoes">${fechou ? '' : continuar(j, 'botao-grande')} <a class="link-seta" href="#/trilha">${t('Ver a trilha')} ${icone('seguir')}</a></p>
+          ${comecou ? ritual(dia) + lembrete(fechou) : `<ul class="vantagens"><li>${icone('certo')} ${t('Sem conta')}</li><li>${icone('certo')} ${t('Sem custo')}</li><li>${icone('certo')} ${t('Tudo fica no seu navegador')}</li></ul>`}
         </div>`}
       </section>
       ${voltou ? '' : `<section class="cartoes" aria-label="${t('Como funciona')}">
@@ -91,6 +166,7 @@ export function paginaInicio() {
         <article><span class="cartao-icone">${icone('casa')}</span><h2>${t('Vida real em tudo')}</h2><p>${t('Pod é apartamento, Service é ramal, limite de memória é disjuntor. E cada comparação diz onde deixa de valer. <a href="#/glossario">Veja o glossário</a>.')}</p></article>
         <article><span class="cartao-icone">${icone('trilha')}</span><h2>${t('Seu navio enche')}</h2><p>${t('Cada missão embarca um contêiner com a cor do nível; com 70% de um nível, o próximo abre. Até onde a pilha aguenta?')}</p></article>
       </section>`}`;
+    main.querySelector('.lembrete form')?.addEventListener('submit', baixarLembrete);
     return { destruir: desenharNavio(main.querySelector('canvas'), j) };
   };
 }
@@ -178,13 +254,13 @@ export function paginaTrilha() {
 
 // Os incidentes da seção Troubleshooting: o relato de cada morador e se você já resolveu.
 const SITUACAO_CHAMADO = () => ({ resolvido: ['chip-ok', 'certo', t('Resolvido')], tentado: ['chip-medio', 'relogio', t('Em andamento')] });
-const chamado = (i, status) => {
+const chamado = (i, status, extra = '') => {
   const situacao = SITUACAO_CHAMADO()[status];
   return `
     <li class="chamado">
       <p class="chamado-chips"><span class="chip chip-${i.dificuldade}">${icone('terminal')} ${DIFICULDADE()[i.dificuldade]}</span>${situacao ? ` <span class="chip ${situacao[0]}">${icone(situacao[1])} ${situacao[2]}</span>` : ''}</p>
       <h2><a href="#/ex/${i.id}">${escapar(i.titulo)}</a></h2>
-      <blockquote class="relato"><p>${i.relato}</p><footer>${escapar(i.morador)}</footer></blockquote>
+      <blockquote class="relato"><p>${i.relato}</p><footer>${escapar(i.morador)}</footer></blockquote>${extra}
     </li>`;
 };
 
@@ -216,25 +292,37 @@ export function paginaOficina() {
       </a></li>`).join('')}</ol>`;
 }
 
-// O Plantão do dia: o chamado de hoje e os dos últimos dias (quem perdeu um dia ainda pode atender).
+// O Plantão do dia: o chamado de hoje em destaque (com o resultado, se já foi atendido) e os dos últimos dias (quem
+// perdeu um dia ainda pode atender).
 export function paginaPlantao() {
   const progresso = ler(CHAVES.progresso, {});
+  const placares = ler(CHAVES.plantoes, {});
   const hoje = plantaoDoDia(hojeLocal());
   const anteriores = [1, 2, 3, 4, 5, 6, 7].map((n) => plantaoDoDia(somarDias(hojeLocal(), -n)));
   const atendidos = Object.keys(progresso).filter((id) => id.startsWith('plantao-') && resolvido(progresso, id)).length;
-  return `
-    <p class="sobretitulo">${t('Todo dia, um chamado novo')}</p>
-    <h1 class="pixel">${t('Plantão do dia')}</h1>
-    <p>${t('Um incidente novo por dia, o mesmo para todo mundo: a aplicação de um morador chega com dois defeitos. Uns 10 minutos de investigação no terminal. Não vale XP: vale o morador satisfeito.')}</p>
-    <p class="nota">${t(atendidos === 1 ? '1 plantão atendido até hoje' : '{n} plantões atendidos até hoje', { n: atendidos })}</p>
-    <ul class="chamados">${chamado(hoje, progresso[hoje.id]?.status)}</ul>
-    <h2>${t('Os dos últimos dias')}</h2>
-    <p class="nota">${t('Perdeu um dia? O chamado continua aberto.')}</p>
-    <ol class="oficina plantoes">${anteriores.map((i) => `
-      <li><a href="#/ex/${i.id}">
-        <span class="oficina-titulo"><span class="plantao-dia">${dataCurta(i.id.slice(8))}</span> ${escapar(i.titulo)}</span>
-        <span class="oficina-recorde">${resolvido(progresso, i.id) ? `${icone('certo')} ${t('Atendido')}` : t('Em aberto')}</span>
-      </a></li>`).join('')}</ol>`;
+  const cedo = !jornadaAtual().niveis.find((n) => n.numero === NIVEL_DO_PLANTAO)?.desbloqueado;
+  const deHoje = placares[hoje.id];
+  const acao = deHoje
+    ? `<p class="plantao-acoes"><span>${icone('relogio')} ${t('Atendido em {tempo}', { tempo: tempoEEntregas(deHoje) })}</span> ${htmlCompartilhar(textoDoPlantao(hoje, deHoje))}</p>`
+    : resolvido(progresso, hoje.id) ? '' : `<p class="plantao-acoes"><a class="botao botao-grande" href="#/ex/${hoje.id}">${icone('play')} ${t('Atender agora')}</a></p>`;
+  return (main) => {
+    main.innerHTML = `
+      <p class="sobretitulo">${t('Todo dia, um chamado novo')}</p>
+      <h1 class="pixel">${t('Plantão do dia')}</h1>
+      <p>${t('Um incidente novo por dia, o mesmo para todo mundo: a aplicação de um morador chega com dois defeitos. Uns 10 minutos de investigação no terminal. Não vale XP: vale o morador satisfeito.')}</p>
+      <p class="nota">${t(atendidos === 1 ? '1 plantão atendido até hoje' : '{n} plantões atendidos até hoje', { n: atendidos })}</p>
+      ${cedo ? `<p class="nota">${icone('trilha')} ${t('Recomendado a partir do Nível {n}: os defeitos passam por probes e limites (Nível 6) e por agendamento (Nível 7). Mas pode atender já: a aba Solução explica o que estava quebrado.', { n: NIVEL_DO_PLANTAO })}</p>` : ''}
+      <ul class="chamados plantao-hoje">${chamado(hoje, progresso[hoje.id]?.status, acao)}</ul>
+      <h2>${t('Os dos últimos dias')}</h2>
+      <p class="nota">${t('Perdeu um dia? O chamado continua aberto.')}</p>
+      <ol class="oficina plantoes">${anteriores.map((i) => `
+        <li><a href="#/ex/${i.id}">
+          <span class="oficina-titulo"><span class="plantao-dia">${dataCurta(i.id.slice(8))}</span> ${escapar(i.titulo)}</span>
+          <span class="oficina-recorde">${resolvido(progresso, i.id) ? `${icone('certo')} ${placares[i.id] ? t('Atendido em {tempo}', { tempo: minutosESegundos(placares[i.id].ms) }) : t('Atendido')}` : t('Em aberto')}</span>
+        </a></li>`).join('')}</ol>`;
+    main.querySelector('[data-acao=compartilhar]')?.addEventListener('click', (e) => compartilharResultado(e.currentTarget));
+    return {};
+  };
 }
 
 // O Diário de bordo: o caminho até aqui (os números, os dias de estudo e as últimas conquistas).

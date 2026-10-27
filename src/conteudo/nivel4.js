@@ -5,6 +5,9 @@ import { BANCO, CADERNO, PVC, DB } from './manifestos.js';
 const noCluster = (descricao, regras) => [{ noClusterDoAluno: true, descricao, regras }];
 const aplicar = (regras) => ({ descricao: 'kubectl apply -f .', passos: [{ comando: 'kubectl apply -f .' }], regras: [{ semErros: true }, ...regras] });
 const depois = (descricao, regras, { oculto = false, esperar = '1m' } = {}) => ({ oculto, descricao, passos: [{ comando: 'kubectl apply -f .' }, { avancar: esperar }], regras });
+/** A senha continua no envelope: escrever a senha no Deployment também faz o banco subir, mas deixa a senha à vista. */
+const SENHA_A_VISTA = { descricao: 'a senha em texto puro no Deployment', mudar: (a) => ({ ...a, 'banco.yaml': a['banco.yaml'].replace(/valueFrom:[\s\S]*$/, 'value: senha123\n') }) };
+const senhaDoSecret = () => depois('a senha vem do Secret', [{ objeto: 'deployment/banco', campo: 'spec.template.spec.containers[0].env', regex: '"secretKeyRef"', msg: 'POSTGRES_PASSWORD vem de um secretKeyRef' }], { oculto: true });
 
 const loja = (env = '') => yaml`
   apiVersion: apps/v1
@@ -334,8 +337,9 @@ spec:
     testes: [
       aplicar([{ objeto: 'secret/banco-senha', campo: 'data.senha', existe: true, msg: 'o Secret banco-senha tem a chave senha' }]),
       depois('o banco sobe', [{ pods: 'app=banco', prontos: 1 }]),
-      depois('a senha vem do Secret', [{ objeto: 'deployment/banco', campo: 'spec.template.spec.containers[0].env', regex: '"secretKeyRef"', msg: 'POSTGRES_PASSWORD vem de um secretKeyRef' }], { oculto: true }),
+      senhaDoSecret(),
     ],
+    armadilhas: [SENHA_A_VISTA],
   }),
 
   problema({
@@ -372,7 +376,8 @@ spec:
     dica: 'O secretKeyRef precisa citar uma chave que exista no Secret.',
     inicial: { 'banco.yaml': BANCO({ chave: 'password' }) },
     solucao: { 'banco.yaml': BANCO({ chave: 'senha' }) },
-    testes: [depois('o banco sobe', [{ semErros: true }, { pods: 'app=banco', prontos: 1 }])],
+    testes: [depois('o banco sobe', [{ semErros: true }, { pods: 'app=banco', prontos: 1 }]), senhaDoSecret()],
+    armadilhas: [SENHA_A_VISTA],
   }),
 
   problema({

@@ -1,0 +1,5 @@
+The Pod "ganchos-sem-porta" is invalid: 
+* spec.containers[0].lifecycle.postStart: Required value: must specify a handler type
+* spec.containers[0].lifecycle.preStop.httpGet.port: Invalid value: 0: must be between 1 and 65535, inclusive
+* spec.containers[0].startupProbe.tcpSocket.port: Invalid value: 0: must be between 1 and 65535, inclusive
+exit=1

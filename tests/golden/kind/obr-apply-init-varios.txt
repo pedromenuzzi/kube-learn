@@ -1,0 +1,9 @@
+The Pod "init-varios" is invalid: 
+* spec.initContainers[0].ports[0].containerPort: Required value
+* spec.initContainers[0].env[0].name: Required value
+* spec.initContainers[0].volumeMounts[0].name: Not found: "nada"
+* spec.initContainers[0].name: Duplicate value: "nginx"
+* spec.initContainers[0].livenessProbe: Forbidden: may not be set for init containers without restartPolicy=Always
+* spec.initContainers[0].readinessProbe: Forbidden: may not be set for init containers without restartPolicy=Always
+* spec.initContainers[1].startupProbe.httpGet.port: Invalid value: 0: must be between 1 and 65535, inclusive
+exit=1

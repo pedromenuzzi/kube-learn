@@ -1,0 +1,2 @@
+The RoleBinding "grupo-errado" is invalid: roleRef.apiGroup: Unsupported value: "rbac": supported values: "rbac.authorization.k8s.io"
+exit=1

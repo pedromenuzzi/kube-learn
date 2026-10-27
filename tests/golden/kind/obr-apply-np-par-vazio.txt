@@ -1,0 +1,2 @@
+The NetworkPolicy "par-vazio" is invalid: spec.ingress[0].from[0]: Required value: must specify a peer
+exit=1

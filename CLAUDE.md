@@ -69,6 +69,8 @@ seção da fase pedida antes de mexer (fases em §15, simulador em §8, formato 
   ou linhas `helm ...`; `repoHelm: true` já cadastra o repositório kube-learn; `gitops: { arquivo: yaml }` liga o GitOps).
 - **Id publicado não muda:** o progresso do aluno é guardado pelo id; missão nova entra no fim de `tests/ids-conhecidos.json`
   (`tests/ids.test.js` falha se um id some ou é renomeado).
+- **Missão com antipadrão óbvio leva pelo menos uma armadilha** (`armadilhas` do `problema()`: apagar a sonda, afrouxar a
+  cota, tirar o limite), com a regra oculta "a trava continua lá" que a pega; o teste da trilha confere que nenhuma passa.
 - As regras de teste estão documentadas no topo de `src/verificacoes.js`. O teste da trilha
   (`tests/trilha.js`, repartido em `tests/trilha-N.test.js` para rodar em paralelo) roda a solução e o inicial de toda missão.
 

@@ -10,7 +10,7 @@ const texto = (r, v) => (r === 'pods' || !/(cpu|memory|storage)$/.test(r) ? Stri
 
 /** LimitRanger: põe os requests e limits padrão em quem não disse nada e confere mínimos e máximos. Erro → mensagem. */
 export function aplicarLimites(c, pod) {
-  const regras = c.listar('LimitRange', pod.metadata.namespace).flatMap((lr) => lr.spec.limits.filter((l) => l.type === 'Container'));
+  const regras = c.listar('LimitRange', pod.metadata.namespace).flatMap((lr) => (lr.spec?.limits ?? []).filter((l) => l.type === 'Container'));
   if (!regras.length) return null;
   const notas = [];
   for (const ct of [...(pod.spec.initContainers ?? []), ...pod.spec.containers]) {
@@ -96,10 +96,11 @@ export function conferirCotas(c, pod) {
 export function controladorDeCotas(c) {
   for (const q of c.listar('ResourceQuota')) {
     const uso = usoDaCota(c, q);
-    const status = {
+    // A cota sem hard fica com `status: {}` (os mapas vazios somem no JSON do Go).
+    const status = q.spec.hard && Object.keys(q.spec.hard).length ? {
       hard: { ...q.spec.hard },
-      used: Object.fromEntries(Object.keys(q.spec.hard ?? {}).map((r) => [r, texto(r, uso[r])])),
-    };
+      used: Object.fromEntries(Object.keys(q.spec.hard).map((r) => [r, texto(r, uso[r])])),
+    } : {};
     c.trocarStatus(q, status);
   }
 }

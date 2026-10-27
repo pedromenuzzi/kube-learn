@@ -3,7 +3,8 @@
 //
 //   { semErros: true }                                 todos os comandos do teste deram certo
 //   { erro: 'texto' }                                  algum comando falhou com esse texto
-//   { objeto: 'deployment/loja', ns, campo: 'spec.replicas', igual | contem | regex | existe }
+//   { objeto: 'deployment/loja', ns, campo: 'spec.replicas', igual | contem | regex | existe | maiorQue }
+//                                                      (maiorQue: uma quantidade, como '300Mi' ou '500m')
 //   { pods: 'app=loja', ns, quantidade, prontos, fase, imagem, node, reinicios: { max } }
 //   { status: 'pod/x' | 'app=x', motivo: 'CrashLoopBackOff' }   motivo atual (ou o último término)
 //   { endpoints: 'svc/loja', quantidade }              quantos pods prontos atrás do Service
@@ -12,9 +13,11 @@
 //   { distribuicao: { url, de, host, vezes: 100, corpo: 'regex', entre: [5, 15] } }   quantas respostas casam
 //   { dns: { nome, de: 'pod/x', quantidade } }         quantos endereços o nome resolve (headless = um por pod)
 //   { rollout: 'deployment/loja', minDisponivel: 3 }   nunca ficou com menos pods prontos durante o teste
-//   { evento: { motivo, objeto } }                     aconteceu um evento com esse motivo
+//   { evento: { motivo, objeto, mensagem: 'regex' } }  aconteceu um evento com esse motivo (e essa mensagem)
 //   { env: { pods: 'app=x', nome, igual | regex } }    a variável de ambiente dentro do contêiner
-//   { comando: 'regex' }                               o aluno usou esse comando no terminal
+//   { comando: 'regex' }                               o aluno usou esse comando no terminal (a regex é testada na linha
+//                                                      crua e na normalizada, e nas duas da linha expandida no shell do
+//                                                      aluno, com o k, os aliases e o $do: veja formasDoComando)
 //   { saida: 'regex' }                                 a saída de algum comando dos passos do teste combina
 //   { vigia: { maxFalhas: 0 } }                        com `vigiar: 'http://loja'` no teste: um cliente pediu a URL a
 //                                                      cada segundo dos passos, e no máximo tantas deram erro
@@ -33,13 +36,14 @@
 // Sem `passos`: kubectl apply -f . e 1 minuto de relógio.
 import { montarCluster } from './conteudo/clusters.js';
 import { seletorDeLabels } from './k8s/kubectl/index.js';
-import { rodarLinha } from './k8s/linha.js';
+import { linhaExpandida, rodarLinha } from './k8s/linha.js';
+import { palavras } from './k8s/kubectl/argv.js';
 import { acharRecurso, pluralQualificado } from './k8s/recursos.js';
 import { estaPronto, http, httpDeFora, resolver } from './k8s/rede.js';
 import { resumoPod } from './k8s/kubectl/tabelas.js';
 import { canonico } from './k8s/aleatorio.js';
 import { pode as podeFazer, quemE } from './k8s/seguranca.js';
-import { parseDuracao } from './k8s/unidades.js';
+import { parseDuracao, valorQuantidade } from './k8s/unidades.js';
 import { t } from './i18n.js';
 
 /** Uma requisição de teste: de um pod, de dentro do cluster (sem pod) ou de fora (o computador do aluno). */
@@ -77,9 +81,49 @@ function comparar(valor, regra, rotulo) {
     const ok = Array.isArray(valor) ? valor.includes(regra.contem) : String(valor ?? '').includes(regra.contem);
     return [ok, t('{alvo} contém {valor}', { alvo: rotulo, valor: mostrar(regra.contem) }), veio];
   }
+  if ('maiorQue' in regra) return [valorQuantidade(valor) > valorQuantidade(regra.maiorQue), t('{alvo} maior que {valor}', { alvo: rotulo, valor: regra.maiorQue }), veio];
   if ('regex' in regra) return [new RegExp(regra.regex).test(valor && typeof valor === 'object' ? JSON.stringify(valor) : String(valor ?? '')), t('{alvo} combina com /{re}/', { alvo: rotulo, re: regra.regex }), veio];
   const deveExistir = regra.existe ?? true;
   return [(valor !== undefined) === deveExistir, deveExistir ? t('{alvo} existe', { alvo: rotulo }) : t('{alvo} não existe', { alvo: rotulo }), veio];
+}
+
+const SEPARADORES = new Set(['&&', '||', ';']);
+
+/** Um comando do kubectl com as flags na forma de sempre: -o yaml, -l x, -n x (depois do verbo) e --from=x. */
+function normalizarKubectl(p) {
+  const fim = p.findIndex((x, i) => i && /^(\||\d?>)/.test(x)); // o cano e o redirecionamento terminam o comando
+  const corpo = fim === -1 ? p : p.slice(0, fim);
+  const saida = [];
+  for (let i = 0; i < corpo.length; i++) {
+    const x = corpo[i];
+    if (x === '--') break; // daqui em diante é o comando do contêiner (exec, run): fica como está
+    const curta = x.match(/^-([onl])=?(.+)$/); // -oyaml, -o=yaml, -nloja, -lapp=x
+    const longa = x.match(/^--(output|namespace|selector)(?:=(.*))?$/);
+    if (curta) saida.push(`-${curta[1]}`, curta[2]);
+    else if (longa) saida.push({ output: '-o', namespace: '-n', selector: '-l' }[longa[1]], ...(longa[2] === undefined ? [] : [longa[2]]));
+    else if (x === '--from' && i + 1 < corpo.length) saida.push(`--from=${corpo[++i]}`);
+    else saida.push(x);
+  }
+  // o -n antes do verbo (kubectl -n loja get pods) vai para o fim das flags: kubectl get pods -n loja
+  const globais = [];
+  while (saida[1] === '-n' && saida.length > 3) globais.push(...saida.splice(1, 2));
+  const traco = corpo.indexOf('--');
+  return [...saida, ...globais, ...(traco === -1 ? [] : corpo.slice(traco)), ...(fim === -1 ? [] : p.slice(fim))];
+}
+
+/**
+ * As formas de uma linha do histórico que a regra `comando` aceita: a linha crua, a normalizada (sem aspas, com as flags
+ * na forma de sempre) e cada comando dela separado por &&, || ou ;. Assim `kubectl -n x get pods -l 'a=b'` casa com
+ * /^kubectl\s+get\s+pods\s+-l\s*a=b/.
+ */
+export function formasDoComando(linha) {
+  const comandos = [[]];
+  for (const x of palavras(linha.trim())) {
+    if (SEPARADORES.has(x)) comandos.push(x, []);
+    else comandos.at(-1).push(x);
+  }
+  const normalizados = comandos.map((c) => (Array.isArray(c) ? (c[0] === 'kubectl' ? normalizarKubectl(c) : c).join(' ') : c));
+  return [linha.trim(), normalizados.join(' '), ...normalizados.filter((c, i) => i % 2 === 0)];
 }
 
 const REGRAS = {
@@ -145,7 +189,7 @@ const REGRAS = {
     const obtido = res.erro ?? res.status;
     const statusOk = obtido === (q.status ?? 200);
     const corpoOk = !q.corpo || new RegExp(q.corpo).test(res.corpo ?? '');
-    const detalhe = statusOk ? t('veio {valor}, mas sem /{re}/ na resposta: {corpo}', { valor: obtido, re: q.corpo, corpo: mostrar((res.corpo ?? '').trim().slice(0, 80)) }) : t('veio {valor}', { valor: obtido });
+    const detalhe = statusOk ? t('veio {valor}, mas sem /{re}/ na resposta: {corpo}', { valor: obtido, re: q.corpo, corpo: mostrar((res.corpo ?? '').trim().slice(0, 80)) }) : t('veio {valor}', { valor: { recusada: t('recusada'), vazia: t('vazia') }[obtido] ?? obtido });
     const pedido = { url: q.url, status: q.status ?? 200, re: q.corpo };
     return [statusOk && corpoOk, q.corpo ? t('{url} responde {status} com /{re}/', pedido) : t('{url} responde {status}', pedido), detalhe];
   },
@@ -175,8 +219,10 @@ const REGRAS = {
     return [min !== undefined && min >= r.minDisponivel, t('deployment/{nome} nunca ficou com menos de {n} pods prontos', { nome, n: r.minDisponivel }), t('chegou a {n}', { n: min ?? '?' })];
   },
   evento(r, ctx) {
-    const ok = ctx.cluster.eventos.some((e) => e.reason === r.evento.motivo && (!r.evento.objeto || `${e.involvedObject.kind.toLowerCase()}/${e.involvedObject.name}` === r.evento.objeto));
-    return [ok, t('aconteceu um evento {motivo}', { motivo: r.evento.motivo }), t('não aconteceu')];
+    const { motivo, objeto, mensagem } = r.evento;
+    const re = mensagem && new RegExp(mensagem);
+    const ok = ctx.cluster.eventos.some((e) => e.reason === motivo && (!objeto || `${e.involvedObject.kind.toLowerCase()}/${e.involvedObject.name}` === objeto) && (!re || re.test(e.message)));
+    return [ok, re ? t('aconteceu um evento {motivo} com /{re}/', { motivo, re: mensagem }) : t('aconteceu um evento {motivo}', { motivo }), t('não aconteceu')];
   },
   env(r, ctx) {
     const q = r.env;
@@ -196,7 +242,8 @@ const REGRAS = {
   },
   comando(r, ctx) {
     const re = new RegExp(r.comando);
-    return [ctx.historico.some((l) => re.test(l.trim())), t('você usou um comando que combina com /{re}/', { re: r.comando }), t('nenhum comando parecido no histórico')];
+    const formas = (l) => [l, linhaExpandida(ctx.clusterDoAluno, l)].flatMap(formasDoComando);
+    return [ctx.historico.some((l) => formas(l).some((f) => re.test(f))), t('você usou um comando que combina com /{re}/', { re: r.comando }), t('nenhum comando parecido no histórico')];
   },
   resposta(r, ctx) {
     const dada = String(ctx.resposta ?? '').trim();
@@ -275,7 +322,7 @@ function amostrar(cluster, ctx) {
  * → { descricao, oculto, ok, regras: [{ ok, mensagem, detalhe }] }
  */
 export function rodarTeste(item, teste, indice, { arquivos = {}, historico = [], resposta, clusterDoAluno } = {}) {
-  const ctx = { resultados: [], historico, resposta, minimos: new Map(), versoes: new Map(), urlVigiada: teste.vigiar, vigia: { falhas: 0, total: 0 } };
+  const ctx = { resultados: [], historico, resposta, clusterDoAluno, minimos: new Map(), versoes: new Map(), urlVigiada: teste.vigiar, vigia: { falhas: 0, total: 0 } };
   if (teste.noClusterDoAluno) {
     ctx.cluster = clusterDoAluno;
   } else {

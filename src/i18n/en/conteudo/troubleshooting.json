@@ -11,6 +11,12 @@
     "testes": [
       {
         "descricao": "the incident is resolved"
+      },
+      {
+        "descricao": "the safety locks are still there",
+        "msgs": {
+          "0": "the readinessProbe still asks at /healthz: removing the smoke detector doesn’t put out the fire"
+        }
       }
     ]
   },

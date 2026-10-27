@@ -1,0 +1,4 @@
+The ClusterRoleBinding "obr-sujeito-vazio" is invalid: 
+* subjects[0].kind: Unsupported value: "": supported values: "ServiceAccount", "User", "Group"
+* subjects[0].name: Required value
+exit=1

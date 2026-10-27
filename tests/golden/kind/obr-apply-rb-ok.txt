@@ -1,0 +1,2 @@
+rolebinding.rbac.authorization.k8s.io/troca created
+exit=0

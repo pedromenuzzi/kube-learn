@@ -199,6 +199,10 @@ export class Cluster {
 
   /** O que os "admission controllers" acrescentam na criação. */
   admitir(obj) {
+    // A checagem de escalada do RBAC vem antes da validação e só conhece Role e ClusterRole (o erro sai sem motivo).
+    if (['RoleBinding', 'ClusterRoleBinding'].includes(obj.kind) && !['Role', 'ClusterRole'].includes(obj.roleRef?.kind)) {
+      throw new ErroApi('', `unsupported role reference kind: ${JSON.stringify(obj.roleRef?.kind ?? '')}`);
+    }
     if (obj.kind === 'Pod') {
       // LimitRanger e ResourceQuota: os padrões do namespace, os máximos e as cotas.
       const recusa = aplicarLimites(this, obj) ?? conferirCotas(this, obj);

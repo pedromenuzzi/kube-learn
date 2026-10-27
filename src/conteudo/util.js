@@ -32,6 +32,9 @@ export const quiz = (dados) => ({ tipo: 'quiz', testes: [], ...dados, enunciado:
  * Um problema: enunciado, arquivos iniciais, solução e testes.
  * Teste: { descricao, oculto?, passos?: [{ comando } | { avancar }], noClusterDoAluno?, regras: [...] }.
  * Sem `passos`, o teste aplica os arquivos num cluster novo e espera 1 minuto.
+ * `armadilhas`: os atalhos que parecem conserto e não são (apagar a sonda, afrouxar a cota...). Cada uma é a solução com
+ * um desvio: { descricao, arquivos? (todos os arquivos) | mudar?(arquivos da solução) → arquivos, historico?, resposta? };
+ * o teste da trilha confere que nenhuma passa.
  */
 export const problema = (dados) => ({ tipo: 'problema', cluster: 'vazio', inicial: {}, ...dados });
 

@@ -1,7 +1,7 @@
 // A seção Troubleshooting: clusters que chegam quebrados com mais de um defeito, um atrás do outro (cada conserto
 // revela o próximo). Fica fora da trilha: abre desde o começo e não vale XP nem contêiner no navio.
 import { yaml } from './util.js';
-import { incidente } from './nivel9.js';
+import { incidente, PERGUNTA_CERTA } from './nivel9.js';
 
 /** Os clusters de partida de cada incidente, em clusters.js. */
 export const PARTIDA_TS = {};
@@ -536,6 +536,8 @@ export const TROUBLESHOOTING = [
       { pods: 'app=loja', prontos: 3, imagem: 'kubelearn/loja:1.0' },
       { requisicao: { de: 'fora', url: 'http://loja.local', status: 200, corpo: '"app":"loja"' } },
     ],
+    travas: [PERGUNTA_CERTA],
+    armadilhas: [{ descricao: 'apagar a readinessProbe', mudar: (a) => ({ ...a, 'loja.yaml': a['loja.yaml'].replace(/\n\s+readinessProbe:[\s\S]*$/, '\n') }) }],
   }),
 
   daSecao({

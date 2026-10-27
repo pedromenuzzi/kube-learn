@@ -917,7 +917,7 @@ function autoscalers(c) {
 
 function escalarPeloUso(c, hpa, marca) {
   const ns = hpa.metadata.namespace;
-  const ref = hpa.spec.scaleTargetRef;
+  const ref = hpa.spec?.scaleTargetRef;
   const evento = (tipo, motivo, msg) => c.evento(hpa, tipo, motivo, msg, { componente: 'horizontal-pod-autoscaler' });
   const anteriores = hpa.status?.conditions ?? [];
   const cond = (tipo, status, motivo, msg) => {
@@ -925,6 +925,7 @@ function escalarPeloUso(c, hpa, marca) {
     return { lastTransitionTime: a?.status === status ? a.lastTransitionTime : iso(c.agora), message: msg, reason: motivo, status, type: tipo };
   };
   const salvar = (status) => c.trocarStatus(hpa, status);
+  if (!ref?.kind || !ref.name) return; // a validação recusa; um controlador nunca derruba o avancar
   const alvo = c.obter(ref.kind, ns, ref.name);
   if (!alvo) {
     const msg = `${ref.kind.toLowerCase()}s/scale.apps "${ref.name}" not found`;

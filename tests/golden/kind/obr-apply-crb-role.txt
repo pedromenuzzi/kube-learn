@@ -1,0 +1,2 @@
+The ClusterRoleBinding "obr-com-role" is invalid: roleRef.kind: Unsupported value: "Role": supported values: "ClusterRole"
+exit=1

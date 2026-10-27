@@ -81,7 +81,7 @@
       {
         "descricao": "you found the node",
         "msgs": {
-          "0": "you looked up the node with kubectl (-o wide or describe)"
+          "0": "you looked at the node in kubectl (-o wide, describe or jsonpath)"
         }
       }
     ]

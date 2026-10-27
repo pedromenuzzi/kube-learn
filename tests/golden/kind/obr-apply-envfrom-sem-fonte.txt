@@ -1,0 +1,2 @@
+The Pod "sem-fonte" is invalid: spec.containers[0].envFrom: Invalid value: "": must specify one of: `configMapRef` or `secretRef`
+exit=1

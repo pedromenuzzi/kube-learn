@@ -27,9 +27,12 @@ export function criarTerminal(raiz, { executar, completar }) {
   const entrada = raiz.querySelector('input');
   const rotulo = raiz.querySelector('.term-prompt');
   const historico = [];
+  const historicoDaSessao = []; // o shell do contêiner tem o seu: o ↑ lá dentro não traz um comando do host
   let posicao = 0;
   let observador = null;
   let sessao = null;
+  const promptAtual = () => (sessao ? sessao.prompt : `${PROMPT} `);
+  const lista = () => (sessao ? historicoDaSessao : historico);
 
   const rolar = () => {
     while (saida.childElementCount > MAX_LINHAS) saida.firstElementChild.remove();
@@ -58,16 +61,14 @@ export function criarTerminal(raiz, { executar, completar }) {
 
   function rodar(linha, { mostrar = true } = {}) {
     pararObservador();
-    const prompt = sessao ? sessao.prompt : `${PROMPT} `;
-    if (mostrar) escrever(`${prompt}${linha}`, 'term-comando');
+    if (mostrar) escrever(`${promptAtual()}${linha}`, 'term-comando');
     if (!linha.trim()) return null;
     if (sessao) {
+      historicoDaSessao.push(linha);
+      posicao = historicoDaSessao.length;
       const r = sessao.executar(linha);
       escrever(r.saida);
-      if (r.sair) {
-        sessao = null;
-        rotulo.textContent = PROMPT;
-      }
+      if (r.sair) sairDaSessao();
       return r;
     }
     historico.push(linha);
@@ -81,12 +82,20 @@ export function criarTerminal(raiz, { executar, completar }) {
     return r;
   }
 
+  function sairDaSessao() {
+    sessao = null;
+    posicao = historico.length;
+    rotulo.textContent = PROMPT;
+  }
+
   function exibir(r) {
     for (const p of r.partes ?? [{ texto: r.saida, fluxo: 'out' }]) escrever(p.texto, p.fluxo === 'err' ? 'term-erro' : '');
     for (const c of r.caixas ?? []) caixa(c);
     if (r.observar) observador = r.observar;
     if (r.sessao) {
       sessao = r.sessao;
+      historicoDaSessao.length = 0;
+      posicao = 0;
       rotulo.textContent = sessao.prompt.trim();
     }
     if (r.editar) editar(r.editar);
@@ -147,10 +156,11 @@ export function criarTerminal(raiz, { executar, completar }) {
 
   entrada.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      if (!historico.length) return;
+      const h = lista();
+      if (!h.length) return;
       e.preventDefault();
-      posicao = Math.max(0, Math.min(historico.length, posicao + (e.key === 'ArrowUp' ? -1 : 1)));
-      entrada.value = historico[posicao] ?? '';
+      posicao = Math.max(0, Math.min(h.length, posicao + (e.key === 'ArrowUp' ? -1 : 1)));
+      entrada.value = h[posicao] ?? '';
     } else if (e.key === 'Tab' && entrada.value.trim() && !sessao) {
       // Com texto, o Tab completa; com a linha vazia, ele segue para o próximo elemento da página.
       const opcoes = completar(entrada.value);
@@ -166,7 +176,7 @@ export function criarTerminal(raiz, { executar, completar }) {
       e.preventDefault();
       if (observador) pararObservador();
       else {
-        escrever(`${PROMPT} ${entrada.value}^C`, 'term-comando');
+        escrever(`${promptAtual()}${entrada.value}^C`, 'term-comando');
         entrada.value = '';
       }
     } else if (e.key === 'l' && e.ctrlKey) {
@@ -183,7 +193,12 @@ export function criarTerminal(raiz, { executar, completar }) {
     rodar,
     escrever,
     focar: () => entrada.focus(),
-    limpar: () => saida.replaceChildren(),
+    /** Um cluster novo (Resetar, Tentar de novo): a tela limpa e o shell do contêiner e o -w do cluster velho fecham. */
+    reiniciar() {
+      saida.replaceChildren();
+      observador = null;
+      sairDaSessao();
+    },
     /** Chamado a cada tique do relógio: as linhas novas do -w / -f. */
     tique() {
       if (observador) escrever(observador());
@@ -191,7 +206,7 @@ export function criarTerminal(raiz, { executar, completar }) {
     get historico() {
       return historico;
     },
-    /** Põe linhas no histórico (as de antes da troca de idioma): ↑ traz a última. */
+    /** Põe linhas no histórico (as da visita anterior à mesma missão): ↑ traz a última. */
     lembrar(linhas) {
       historico.push(...linhas);
       posicao = historico.length;
