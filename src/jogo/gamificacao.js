@@ -66,15 +66,15 @@ const maiorData = (itens, progresso, hoje) => itens.map((i) => progresso[i.id]).
  */
 export function conquistasMigradas(niveis, progresso = {}, conquistas = {}, hoje = hojeLocal()) {
   const j = calcularJornada(niveis, progresso, conquistas);
-  const lacres = { ...conquistas.lacres };
+  const lacres = { ...conquistas?.lacres };
   let mudou = false;
   for (const n of j.niveis) {
     if (n.pct !== 100 || lacres[n.numero]) continue;
     lacres[n.numero] = maiorData(n.itens, progresso, hoje);
     mudou = true;
   }
-  const navio = conquistas.navio ?? (j.navioCheio ? maiorData(niveis.flatMap((n) => n.itens), progresso, hoje) : undefined);
-  if (!mudou && navio === conquistas.navio) return null;
+  const navio = conquistas?.navio ?? (j.navioCheio ? maiorData(niveis.flatMap((n) => n.itens), progresso, hoje) : undefined);
+  if (!mudou && navio === conquistas?.navio) return null;
   return { ...conquistas, lacres, ...(navio && { navio }) };
 }
 

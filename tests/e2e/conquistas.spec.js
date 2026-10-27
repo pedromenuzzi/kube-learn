@@ -68,7 +68,7 @@ test('nível lacrado que ganhou missão: o lacre fica e a missão nova é um con
   await expect(nivel).toContainText('Lacrado');
   await expect(nivel).toContainText('1 missão nova');
   await expect(nivel).not.toContainText(/perdeu|incompleto/i);
-  await nivel.locator('summary').click(); // aberto: a missão nova está à mão
+  await expect(nivel.locator('details')).toHaveAttribute('open', ''); // aberto: a missão nova está à mão
   await expect(nivel.locator(`a[href="#/ex/${nova}"]`)).toBeVisible();
   await page.goto('#/certificado');
   await expect(page.getByRole('heading', { name: 'Certificado' })).toBeVisible();
