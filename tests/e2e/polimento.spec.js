@@ -294,6 +294,7 @@ test('detalhes: todas as letras na fonte pixel, topo limpo, rádios iguais', asy
   await expect(page.locator('.pular')).toHaveCSS('box-shadow', 'none');
   await page.setViewportSize(CELULAR);
   await page.goto('#/ex/n0-quiz-latest');
+  await expect(page.locator('.alternativa input').first()).toBeVisible(); // a tela de leitura chega por import()
   const larguras = await page.locator('.alternativa input').evaluateAll((l) => l.map((i) => i.getBoundingClientRect().width));
   expect(new Set(larguras).size).toBe(1);
 });

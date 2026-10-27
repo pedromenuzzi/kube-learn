@@ -156,15 +156,15 @@ describe('a chave plantoes', () => {
 
 describe('a página do Plantão', () => {
   afterEach(() => apagarTudo());
-  const abrir = () => {
+  const abrir = async () => {
     const main = document.createElement('main');
-    paginaPlantao()(main);
+    (await paginaPlantao())(main);
     return main;
   };
   const hoje = () => plantaoDoDia(hojeLocal()).id;
 
-  it('quem ainda não chegou ao Nível 6 vê a recomendação, e o chamado de hoje abre com "Atender agora"', () => {
-    const main = abrir();
+  it('quem ainda não chegou ao Nível 6 vê a recomendação, e o chamado de hoje abre com "Atender agora"', async () => {
+    const main = await abrir();
     expect(main.textContent).toContain(`Recomendado a partir do Nível ${NIVEL_DO_PLANTAO}`);
     const atender = main.querySelector('.plantao-hoje a.botao-grande');
     expect(atender.textContent).toContain('Atender agora');
@@ -172,17 +172,17 @@ describe('a página do Plantão', () => {
     expect(main.querySelectorAll('ol.plantoes li')).toHaveLength(7);
   });
 
-  it('quem chegou ao Nível 6 não vê a recomendação', () => {
+  it('quem chegou ao Nível 6 não vê a recomendação', async () => {
     gravar(CHAVES.progresso, { [NIVEIS[NIVEL_DO_PLANTAO].itens[0].id]: { status: 'tentado', em: hojeLocal() } });
-    expect(abrir().textContent).not.toContain('Recomendado a partir');
+    expect((await abrir()).textContent).not.toContain('Recomendado a partir');
   });
 
-  it('o de hoje atendido mostra o tempo, as entregas e o Compartilhar; a lista mostra o tempo de cada dia', () => {
+  it('o de hoje atendido mostra o tempo, as entregas e o Compartilhar; a lista mostra o tempo de cada dia', async () => {
     const ontem = plantaoDoDia(somarDias(hojeLocal(), -1)).id;
     const anteontem = plantaoDoDia(somarDias(hojeLocal(), -2)).id;
     gravar(CHAVES.progresso, { [hoje()]: { status: 'resolvido' }, [ontem]: { status: 'resolvido' }, [anteontem]: { status: 'resolvido' } });
     gravar(CHAVES.plantoes, { [hoje()]: { ms: 462_000, entregas: 3 }, [ontem]: { ms: 75_000, entregas: 1 } });
-    const main = abrir();
+    const main = await abrir();
     const destaque = main.querySelector('.plantao-hoje');
     expect(destaque.textContent).toContain('Atendido em 7:42 · 3 entregas');
     expect(destaque.querySelector('a.botao-grande')).toBeNull();
