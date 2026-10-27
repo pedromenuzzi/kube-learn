@@ -81,15 +81,17 @@
   color-scheme: dark;
 }
 :root[data-tema="contraste"] {
-  --fundo: #000000; --superficie: #000000; --superficie-2: #000000; --texto: #ffffff; --suave: #ffffff;
-  --borda: #ffffff; --borda-forte: #ffffff; --destaque: #ffff00; --destaque-forte: #ffff00; --destaque-suave: #000000;
-  --acento: #ffb000; --acento-suave: #000000; --obra: #ffff00; --ok: #00ff66; --ok-suave: #000000; --ruim: #ff6b6b;
-  --ruim-suave: #000000; --espera: #ffd000; --espera-suave: #000000; --texto-botao: #000000; --topo-fundo: #000000;
-  --ceu-topo: #000000; --ceu-baixo: #1a1a1a; --janelas-navio: #ffd75e; --editor-fundo: #000000; --editor-linha: #1a1a1a;
-  --sx-chave: #ffff00; --sx-texto: #00ffff; --sx-numero: #ff9de2; --sx-comentario: #cccccc;
-  --term-fundo: #000000; --term-texto: #ffffff; --term-erro: #ff6b6b; --term-cmd: #00ff66;
-  --term-suave: #ffffff; --term-caixa: #000000; --term-borda: #ffffff; --ouro: #ffff00;
-  --sombra-1: none; --sombra-2: none; --sombra-3: none;
+  /* Alto contraste com acabamento: todo texto passa de 7:1 (AAA) e toda borda de 4,5:1, sem o preto, o branco e o
+     amarelo puros de antes (no estilo do "dark high contrast" do GitHub). */
+  --fundo: #0a0c10; --superficie: #12161d; --superficie-2: #0e1117; --texto: #f0f3f6; --suave: #c9d1d9;
+  --borda: #7a828e; --borda-forte: #9ea7b3; --destaque: #71b7ff; --destaque-forte: #91cbff; --destaque-suave: #0d2547;
+  --acento: #ff9b4e; --acento-suave: #3a1d0a; --obra: #f0b72f; --ok: #3fdd6e; --ok-suave: #0b2e17; --ruim: #ff7b7a;
+  --ruim-suave: #3c1214; --espera: #f0b72f; --espera-suave: #362a0b; --texto-botao: #0a0c10; --topo-fundo: #0a0c10;
+  --ceu-topo: #0b1a3a; --ceu-baixo: #3b5b8f; --janelas-navio: #ffd75e; --editor-fundo: #0a0c10; --editor-linha: #161b22;
+  --sx-chave: #91cbff; --sx-texto: #7ee8a8; --sx-numero: #ffb757; --sx-comentario: #bdc4cc;
+  --term-fundo: #0a0c10; --term-texto: #f0f3f6; --term-erro: #ff7b7a; --term-cmd: #3fdd6e;
+  --term-suave: #bdc4cc; --term-caixa: #161b22; --term-borda: #7a828e; --ouro: #f0b72f;
+  --sombra-1: none; --sombra-2: 0 8px 24px rgb(0 0 0 / 60%); --sombra-3: 0 16px 48px rgb(0 0 0 / 70%);
   color-scheme: dark;
 }
 :root[data-tema="contraste"] a { text-decoration-thickness: 2px; }
