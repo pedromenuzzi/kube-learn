@@ -15,6 +15,7 @@ const item = (i) => ({
   ...(i.terminal ? { terminal: true } : {}),
   ...(i.projeto ? { projeto: { ...i.projeto, titulo: i._pt?.projeto ?? i.projeto.titulo } } : {}),
   ...(i.secao ? { secao: i.secao } : {}),
+  ...(i.desde ? { desde: i.desde } : {}), // a data em que a missão foi publicada (a migração das conquistas usa)
   // Lição sem cluster e quiz abrem na tela de leitura (a página fica estreita); o resto, na tela do exercício.
   ...(i.tipo === 'quiz' || (i.tipo === 'licao' && !i.inicial) ? { leitura: true } : {}),
 });

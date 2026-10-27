@@ -5,6 +5,7 @@ import { criarRepositorio } from '../k8s/gitops.js';
 import { helm, REPO_PADRAO } from '../k8s/helm.js';
 import { yaml } from './util.js';
 import { BANCO, CADERNO, PVC, DB } from './manifestos.js';
+import { PARTIDA0 } from './nivel0.js';
 import { PARTIDA5 } from './nivel5.js';
 import { PARTIDA6 } from './nivel6.js';
 import { PARTIDA7 } from './nivel7.js';
@@ -209,6 +210,7 @@ const GALERIA = yaml`
 
 export const CLUSTERS = {
   vazio: {},
+  'tag-que-nao-existe': { manifestos: PARTIDA0.vitrine },
   'loja-3-replicas': { manifestos: LOJA(3, '1.0') },
   'loja-4-replicas': { manifestos: LOJA(4, '1.0') },
   relatorio: {

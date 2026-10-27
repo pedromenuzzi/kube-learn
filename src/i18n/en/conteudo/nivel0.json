@@ -42,6 +42,22 @@
     "vidaReal": "The image is the prefab module that always leaves the factory the same; the container is that module installed and working on the site.",
     "limite": "A real module becomes just one house; an image becomes as many containers as you want, at the same time."
   },
+  "n0-tres-conteineres": {
+    "titulo": "Three containers, one image",
+    "enunciado": "\n      <p>The same image gives you as many containers as you want. Prove it: run <b>3 pods</b> from the <code>nginx:1.27</code> image.</p>\n      <ol>\n        <li><code>copias.yaml</code> already has the first pod, <code>copia-1</code>. The <code>---</code> line separates one blueprint\n            from the next in the same file: below each <code>---</code>, copy the <code>copia-1</code> block and change only the\n            name, to <code>copia-2</code> and <code>copia-3</code>.</li>\n        <li>Click <b>▶ Apply</b> and run <code>kubectl get pods -o wide</code>: each pod has its own name and its own IP.</li>\n        <li>Now <code>kubectl describe pod copia-2</code>: the <code>Image:</code> line is the same as in <code>copia-1</code>.</li>\n        <li>To finish, click <b>⬆ Submit</b>.</li>\n      </ol>",
+    "dica": "Three identical blocks, separated by ---, each with a different metadata.name: copia-1, copia-2 and copia-3.",
+    "vidaReal": "Three identical modules, out of the same factory mold, installed side by side on the building site.",
+    "limite": "On the site, each module uses new material. On a node, containers from the same image share the layers, downloaded only once (each node downloads its own copy).",
+    "comoSaber": "<code>kubectl get pods</code> shows the three pods <code>Running</code>.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f .",
+        "msgs": {
+          "1": "3 ready pods, all from the nginx:1.27 image"
+        }
+      }
+    ]
+  },
   "n0-quiz-imagem-conteiner": {
     "titulo": "Quiz: image or container?",
     "enunciado": "<p>Which sentence is <b>right</b>?</p>",
@@ -111,6 +127,29 @@
     "enunciado": "\n      <p>Every image has a full address, in the format <code>registry/repository:tag</code>:</p>\n      <pre><code>ghcr.io/minha-empresa/api:2.3.1\n└──┬──┘ └──────┬──────┘ └─┬─┘\nregistry   repository     tag</code></pre>\n      <ul>\n        <li><b>Registry</b>: the server that stores the images (Docker Hub, <code>ghcr.io</code>, <code>registry.k8s.io</code>...).\n            If you don’t write the registry, Docker Hub (<code>docker.io</code>) is assumed.</li>\n        <li><b>Repository</b>: the image name. On Docker Hub, the official images live under <code>library/</code>:\n            <code>nginx</code> is, in full, <code>docker.io/library/nginx</code>.</li>\n        <li><b>Tag</b>: the version. Without a tag, <code>latest</code> is assumed.</li>\n      </ul>\n      <h2>The danger of <code>latest</code></h2>\n      <p><code>latest</code> doesn’t mean “the newest”: it’s just a tag like any other, which the image owner can\n         point at another version whenever they like. Today <code>nginx:latest</code> is one version; tomorrow, another. In production,\n         always use a fixed tag (<code>nginx:1.27</code>), so you know exactly what’s running.</p>",
     "vidaReal": "The registry is the precast factory and warehouse; the tag is the model or batch you order.",
     "limite": "A real factory doesn’t swap the “current batch” model without telling you; in a registry, the latest tag can change at any time."
+  },
+  "n0-tag-que-nao-existe": {
+    "titulo": "The tag that doesn’t exist",
+    "enunciado": "\n      <p>Someone started the <code>vitrine</code> pod with the <code>nginx:1.99</code> image, a version nginx never published. The\n         pod is already in your cluster, and it’s going nowhere.</p>\n      <ol>\n        <li>In the terminal, run <code>kubectl get pods</code>. The STATUS is <code>ErrImagePull</code> or\n            <code>ImagePullBackOff</code>: Kubernetes tried to download the image, the registry didn’t have that tag, and it waits\n            longer and longer before trying again. <code>kubectl describe pod vitrine</code> shows the reason in the Events, at the end.</li>\n        <li>In the editor, change the tag in <code>vitrine.yaml</code> to a fixed version that exists (the one from the other lessons works)\n            and click <b>▶ Apply</b>.</li>\n        <li>Run <code>kubectl get pods</code> until you see <code>Running</code>. The next attempt may take up to a minute: the\n            <b>+30s</b> button moves the clock forward.</li>\n        <li>To finish, click <b>⬆ Submit</b>.</li>\n      </ol>",
+    "dica": "The version you’ve used so far, nginx:1.27, exists. Changing the tag and applying is enough: it’s the same pod, only the image changes.",
+    "vidaReal": "The order went to the factory with a model it never made: the truck comes back empty, and the foreman sends it again, waiting longer and longer between attempts.",
+    "limite": "A real factory would call to point out the mistake. Kubernetes only writes it down in the events and keeps trying: fixing the order is up to you.",
+    "comoSaber": "<code>kubectl get pod vitrine</code> shows <code>1/1 Running</code>.",
+    "testes": [
+      {
+        "descricao": "kubectl apply -f .",
+        "msgs": {
+          "1": "the vitrine pod is Running"
+        }
+      },
+      {
+        "descricao": "the vitrine in your cluster was fixed, not deleted",
+        "msgs": {
+          "0": "the vitrine is still in your cluster: deleting the pod takes the shop window offline, it doesn’t fix the tag",
+          "1": "the image has a fixed version, like nginx:1.27: latest (or stable) changes version without warning"
+        }
+      }
+    ]
   },
   "n0-quiz-referencia": {
     "titulo": "Quiz: write the reference",
