@@ -29,9 +29,12 @@
 //   { release: { nome, ns, status, revisao, descricao } }   a release do Helm (a última revisão)
 //   { espalhamento: { pods: 'app=x', chave: 'topology.kubernetes.io/zone', maxSkew: 1 } }   a maior diferença de
 //                                                      pods entre os domínios (os valores da label nos nodes)
-//   { egressMinimo: 'networkpolicy/x', ns }            a saída da NetworkPolicy é de menor privilégio: toda regra de egress
-//                                                      tem `to` e `ports` (cada uma com `port`), nenhum namespaceSelector
-//                                                      vazio nem ipBlock /0, e a porta 53 vai em UDP e em TCP (o DNS usa os
+//   { egressMinimo: 'networkpolicy/x', ns }            a saída dos pods da NetworkPolicy é de menor privilégio, somando toda
+//                                                      política de Egress do namespace que pega um deles: toda regra de
+//                                                      egress tem `to` e `ports` (cada uma com `port`, sem faixa endPort),
+//                                                      nenhum par que vale para qualquer namespace sem fixar os pods
+//                                                      (namespaceSelector vazio ou só Exists, sem podSelector com label) nem
+//                                                      ipBlock maior que /8, e a porta 53 vai em UDP e em TCP (o DNS usa os
 //                                                      dois). Use com `msg` (a mensagem que ensina); o detalhe é a regra larga
 //
 // Passos (`passos`): { comando: 'kubectl ...' }, { avancar: '30s' }, { adicionarNode: 'node-3' } (um prédio novo no condomínio)
@@ -46,6 +49,7 @@ import { acharRecurso, pluralQualificado } from './k8s/recursos.js';
 import { estaPronto, http, httpDeFora, resolver } from './k8s/rede.js';
 import { resumoPod } from './k8s/kubectl/tabelas.js';
 import { canonico } from './k8s/aleatorio.js';
+import { casaLabelSelector } from './k8s/scheduler.js';
 import { pode as podeFazer, quemE } from './k8s/seguranca.js';
 import { parseDuracao, valorQuantidade } from './k8s/unidades.js';
 import { t } from './i18n.js';
@@ -289,17 +293,26 @@ const REGRAS = {
     return [dif <= q.maxSkew, t('os pods {pods} estão espalhados por {chave} (diferença de no máximo {n})', { pods: q.pods, chave: q.chave, n: q.maxSkew }), [...conta].map(([k, n]) => `${k}: ${n}`).join(', ')];
   },
   egressMinimo(r, ctx) {
+    const ns = r.ns ?? 'default';
     const { nome } = separar(r.egressMinimo, 'networkpolicy');
-    const np = ctx.cluster.obter('NetworkPolicy', r.ns ?? 'default', nome);
+    const np = ctx.cluster.obter('NetworkPolicy', ns, nome);
     if (!np) return [false, r.egressMinimo, t('{alvo} não existe', { alvo: r.egressMinimo })];
-    const vazio = (s) => !Object.keys(s?.matchLabels ?? {}).length && !s?.matchExpressions?.length;
-    const regras = np.spec.egress ?? [];
-    const larga = regras.findIndex((e) => !e.to?.length || !e.ports?.length || e.ports.some((p) => p.port === undefined)
-      || e.to.some((par) => (par.namespaceSelector && vazio(par.namespaceSelector)) || /\/0$/.test(par.ipBlock?.cidr ?? '')));
-    const portas53 = new Set(regras.flatMap((e) => e.ports ?? []).filter((p) => String(p.port) === '53').map((p) => p.protocol ?? 'TCP'));
+    // As políticas se somam: vale toda NetworkPolicy de saída que pega um dos pods desta (uma 2ª "libera-dns" também).
+    const pods = ctx.cluster.listar('Pod', ns).filter((p) => casaLabelSelector(np.spec.podSelector ?? {}, p.metadata.labels));
+    const deSaida = (x) => (x.spec.policyTypes ?? ['Ingress', ...(x.spec.egress ? ['Egress'] : [])]).includes('Egress');
+    const politicas = ctx.cluster.listar('NetworkPolicy', ns).filter((x) => x.metadata.name === nome
+      || (deSaida(x) && pods.some((p) => casaLabelSelector(x.spec.podSelector ?? {}, p.metadata.labels))));
+    const regras = politicas.flatMap((x) => (x.spec.egress ?? []).map((e, i) => [`networkpolicy/${x.metadata.name} egress[${i}]`, e]));
+    // Fixa = escolhe pelo valor da label (matchLabels ou In); vazio, Exists, DoesNotExist e NotIn pegam qualquer um.
+    const fixa = (s) => !!s && (Object.keys(s.matchLabels ?? {}).length > 0 || (s.matchExpressions ?? []).some((e) => e.operator === 'In'));
+    // ponytail: ipBlock largo pelo prefixo (< /8), não pela soma dos blocos; some os blocos se alguém juntar 256 /8.
+    const parLargo = (par) => (par.namespaceSelector && !fixa(par.namespaceSelector) && !fixa(par.podSelector)) || Number(par.ipBlock?.cidr?.split('/')[1] ?? 32) < 8;
+    const portaLarga = (p) => p.port === undefined || (p.endPort !== undefined && p.endPort > p.port);
+    const larga = regras.find(([, e]) => !e.to?.length || !e.ports?.length || e.ports.some(portaLarga) || e.to.some(parLargo));
+    const portas53 = new Set(regras.flatMap(([, e]) => e.ports ?? []).filter((p) => String(p.port) === '53').map((p) => p.protocol ?? 'TCP'));
     const semDns = portas53.size && !(portas53.has('UDP') && portas53.has('TCP'));
-    const detalhe = larga !== -1 ? `egress[${larga}]: ${JSON.stringify(regras[larga])}` : `egress: 53/${[...portas53].join(', 53/')}`;
-    return [larga === -1 && !semDns, `${r.egressMinimo}: egress (to, ports)`, detalhe];
+    const detalhe = larga ? `${larga[0]}: ${JSON.stringify(larga[1])}` : `egress: 53/${[...portas53].join(', 53/')}`;
+    return [!larga && !semDns, `${r.egressMinimo}: egress (to, ports)`, detalhe];
   },
   contexto(r, ctx) {
     const atual = ctx.cluster.contexto.namespace;

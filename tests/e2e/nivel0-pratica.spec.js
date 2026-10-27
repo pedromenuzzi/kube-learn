@@ -52,6 +52,7 @@ for (const [idioma, titulos] of [['pt', ['Três contêineres, uma imagem', 'A ta
   test(`perfil novo (${idioma}): as práticas vêm logo depois das lições de imagem e de registry`, async ({ page }) => {
     await semear(page, { preferencias: { idioma } });
     await page.goto('#/trilha');
+    await expect(nivel0(page).locator('a[href="#/ex/n0-tres-conteineres"]')).toBeVisible(); // a trilha já desenhou (o inglês chega depois)
     const ids = await missoes(page);
     expect(ids[ids.indexOf('n0-imagem-e-conteiner') + 1]).toBe('n0-tres-conteineres');
     expect(ids[ids.indexOf('n0-registry-e-tags') + 1]).toBe('n0-tag-que-nao-existe');
@@ -107,4 +108,38 @@ test('a tag que não existe: só o arquivo, latest e apagar o pod caem na armadi
   await expect(page.locator('.term-saida')).toContainText(/vitrine\s+1\/1\s+Running/);
   await page.getByRole('button', { name: 'Entregar' }).click();
   await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
+});
+
+test('a tag consertada só no terminal (kubectl set image): a entrega diz que aplica o arquivo do editor', async ({ page }) => {
+  await page.goto('#/ex/n0-tag-que-nao-existe');
+  await rodar(page, 'kubectl set image pod/vitrine vitrine=nginx:1.27');
+  await expect(page.locator('.term-saida')).toContainText('pod/vitrine image updated');
+  await page.getByRole('button', { name: '+30s' }).click();
+  await rodar(page, 'kubectl get pods');
+  await expect(page.locator('.term-saida')).toContainText(/vitrine\s+1\/1\s+Running/);
+  await page.getByRole('button', { name: 'Entregar' }).click();
+  await expect(page.locator('.ex-aviso')).toContainText('Veja o que faltou na aba Testes');
+  await expect(page.locator('#lado-testes')).toContainText('a entrega aplica o arquivo do editor');
+});
+
+test('perfil de antes das práticas com 6 dos 8 quizzes: o nível 1 continua aberto e a prática não repete a faixa', async ({ page }) => {
+  const quizzes = NIVEIS[0].itens.filter((i) => i.tipo === 'quiz').map((i) => i.id).slice(0, 6);
+  await semear(page, { progresso: Object.fromEntries(quizzes.map((id) => [id, { status: 'resolvido', em: '2026-09-01' }])) });
+  await page.goto('#/trilha');
+  await expect(page.locator('#nivel-1')).not.toContainText('Bloqueado');
+  await page.goto('#/ex/n0-tres-conteineres');
+  await escrever(page, [1, 2, 3].map((n) => POD(`copia-${n}`, 'nginx:1.27')).join('---\n'));
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(page.locator('.term-saida')).toContainText('pod/copia-3 created');
+  await page.getByRole('button', { name: 'Entregar' }).click();
+  await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
+  await page.waitForTimeout(600);
+  await expect(page.locator('.festa-faixa')).toHaveCount(0);
+});
+
+test('formado de antes das práticas (sem conquistas): lacres e navio no primeiro boot, com a data da última missão', async ({ page }) => {
+  const antigos = NIVEIS.flatMap((n) => n.itens).filter((i) => !i.desde).map((i) => i.id);
+  await semear(page, { progresso: Object.fromEntries(antigos.map((id) => [id, { status: 'resolvido', em: '2026-09-01' }])) });
+  await page.goto('#/trilha');
+  await expect.poll(async () => JSON.parse(await page.evaluate(() => localStorage.getItem('kube-learn:conquistas')))?.navio).toBe('2026-09-01');
 });

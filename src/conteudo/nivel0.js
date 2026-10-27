@@ -259,6 +259,7 @@ registry   repositório    tag</code></pre>
     testes: [
       { descricao: 'kubectl apply -f .', regras: [
         { semErros: true },
+        { objeto: 'pod/vitrine', campo: 'spec.containers[0].image', regex: '^(docker\\.io/(library/)?)?nginx:(?!1\\.99\\b)\\d+\\.\\d+', msg: 'o vitrine.yaml pede uma versão fixa que existe, como nginx:1.27: o seu cluster pode estar certo, mas a entrega aplica o arquivo do editor' },
         { objeto: 'pod/vitrine', campo: 'status.phase', igual: 'Running', msg: 'a vitrine fica Running' },
       ] },
       { oculto: true, noClusterDoAluno: true, descricao: 'a vitrine do seu cluster foi consertada, não apagada', regras: [
