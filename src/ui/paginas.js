@@ -15,7 +15,7 @@ import { escapar, minutosESegundos } from './util.js';
 import { icone } from './icones.js';
 import { idioma, t } from '../i18n.js';
 
-const jornadaAtual = () => calcularJornada(NIVEIS, ler(CHAVES.progresso, {}));
+const jornadaAtual = () => calcularJornada(NIVEIS, ler(CHAVES.progresso, {}), ler(CHAVES.conquistas, {}));
 const ICONE_SALA = { concluido: 'certo', proximo: 'seguir', bloqueado: 'cadeado' };
 const ROTULO = () => ({ concluido: t('resolvida'), tentado: t('tentada'), proximo: t('próxima'), disponivel: t('disponível'), bloqueado: t('bloqueada') });
 const SITUACAO = () => ({ bloqueado: t('Bloqueado'), carregando: t('Carregando'), pronto: t('Pronto'), lacrado: t('Lacrado!') });
@@ -203,8 +203,10 @@ function contagem(itens) {
 // Cada nível é um cartão que abre e fecha; abertos ficam só os que estão em andamento (o resto é um resumo).
 function nivel(n) {
   const cor = n.desbloqueado && !n.concluido ? ` style="--cor-nivel: ${CORES[n.numero % CORES.length]}"` : '';
-  const aberto = n.desbloqueado && !n.concluido;
-  const status = n.emObra ? t('Em breve') : `${SITUACAO()[n.situacao]} · ${t('{n} de {total} missões ({pct}%)', { n: n.resolvidos, total: n.total, pct: n.pct })}`;
+  // Lacrado com missões que chegaram depois: o lacre fica, e as novas aparecem abertas, como convite.
+  const aberto = n.desbloqueado && (!n.concluido || n.novas > 0);
+  const novas = n.novas === 1 ? t('1 missão nova') : t('{n} missões novas', { n: n.novas });
+  const status = n.emObra ? t('Em breve') : `${SITUACAO()[n.situacao]} · ${n.novas ? novas : t('{n} de {total} missões ({pct}%)', { n: n.resolvidos, total: n.total, pct: n.pct })}`;
   return `
     <li class="nivel nivel-${n.emObra ? 'embreve' : n.situacao}" id="nivel-${n.numero}"${cor}>
       <details${aberto ? ' open' : ''}>
@@ -219,7 +221,7 @@ function nivel(n) {
           ${n.itens.length ? `<p class="nivel-conta">${contagem(n.itens)}</p>` : ''}
           ${n.emObra ? `<p class="nota">${t('As missões deste nível ainda estão sendo escritas.')}</p>` : ''}
           ${!n.emObra && !n.desbloqueado ? `<p class="nota">${t('Abre quando o nível anterior tiver 70% das missões resolvidas.')}</p>` : ''}
-          ${n.concluido ? `<div class="nivel-selo"><p>${t('<b>Lacrado!</b> Nível concluído.')} <a href="${linkCompartilhar()}" target="_blank" rel="noopener">${t('Compartilhar no LinkedIn')}</a></p></div>` : ''}
+          ${n.concluido ? `<div class="nivel-selo"><p>${n.novas ? t('<b>Lacrado!</b> O lacre é seu. Chegou conteúdo novo por aqui: {novas}, quando quiser.', { novas }) : t('<b>Lacrado!</b> Nível concluído.')} <a href="${linkCompartilhar()}" target="_blank" rel="noopener">${t('Compartilhar no LinkedIn')}</a></p></div>` : ''}
           ${n.itens.length ? `<ul class="salas">${n.itens.map((i) => (i.projeto?.etapa === 1 ? `<li class="sala-grupo" aria-hidden="true">${icone('arvore')} ${escapar(i.projeto.titulo)}</li>` : '') + sala(i)).join('')}</ul>` : ''}
         </div>
       </details>

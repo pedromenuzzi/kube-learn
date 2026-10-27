@@ -2,7 +2,9 @@ import '@fontsource/atkinson-hyperlegible/400.css';
 import '@fontsource/atkinson-hyperlegible/700.css';
 import '@fontsource/press-start-2p/400.css';
 import { resolverRota } from './rotas.js';
-import { itemDoIndice } from './conteudo/indice.js';
+import { itemDoIndice, NIVEIS } from './conteudo/indice.js';
+import { conquistasMigradas } from './jogo/gamificacao.js';
+import { ler, gravar, CHAVES } from './armazenamento.js';
 import { paginaInicio, paginaTrilha, paginaGlossario, paginaTroubleshooting, paginaOficina, paginaPlantao, paginaDiario } from './ui/paginas.js';
 import { aplicarPreferencias, montarPreferencias } from './ui/preferencias.js';
 import { paginaCertificado, paginaPrivacidade } from './ui/certificado.js';
@@ -11,6 +13,11 @@ import { icone } from './ui/icones.js';
 import { definirIdioma, idioma, idiomaInicial, t } from './i18n.js';
 
 aplicarPreferencias();
+
+// Quem chegou antes das conquistas serem guardadas: os níveis a 100% e o navio cheio ganham o lacre agora, sem festa
+// (missão nova que chegar depois não tira). Idempotente: sem nada a acrescentar, não grava.
+const migradas = conquistasMigradas(NIVEIS, ler(CHAVES.progresso, {}), ler(CHAVES.conquistas, {}));
+if (migradas) gravar(CHAVES.conquistas, migradas);
 
 /** O endereço que não leva a lugar nenhum (página ou missão). */
 const naoEncontrada = (missao) => `

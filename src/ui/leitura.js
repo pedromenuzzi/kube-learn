@@ -22,7 +22,7 @@ export function conferirQuiz(item, escolha) {
   return { certa, explicacao: certa ? item.explicacao : (item.dicaErro ?? t('Ainda não. Releia a pergunta e tente de novo.')) };
 }
 
-const jornada = () => calcularJornada(NIVEIS, ler(CHAVES.progresso, {}));
+const jornada = () => calcularJornada(NIVEIS, ler(CHAVES.progresso, {}), ler(CHAVES.conquistas, {}));
 const proxima = (proximo) => t('Próxima: {titulo}', { titulo: escapar(proximo.titulo) });
 
 /**

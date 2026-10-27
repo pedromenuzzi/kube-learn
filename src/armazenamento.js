@@ -7,6 +7,7 @@ const PREFIXO = 'kube-learn:';
 /** As chaves que o site grava (a página de privacidade lista estas). */
 export const CHAVES = {
   progresso: 'progresso', // { [idDoItem]: { status: 'resolvido' | 'tentado', em: 'AAAA-MM-DD' } }
+  conquistas: 'conquistas', // { lacres: { [nivel]: 'AAAA-MM-DD' }, navio: 'AAAA-MM-DD' }: o que já foi ganho (missão nova não tira)
   arquivos: 'arquivos:', // arquivos:<idDoItem> → { nome: conteúdo } que o aluno escreveu
   dias: 'dias', // ['AAAA-MM-DD', ...]: os dias em que o aluno estudou (para a sequência 🔥)
   janelas: 'janelas', // a arrumação das janelas da tela do exercício
@@ -20,6 +21,7 @@ export const CHAVES = {
 /** O que cada chave guarda, em português (a página de privacidade mostra esta lista). */
 export const DESCRICOES = {
   progresso: 'Quais missões você resolveu ou tentou, e quando.',
+  conquistas: 'Os lacres dos níveis e o navio carregado, com a data: missão nova que chega depois não tira.',
   'arquivos:': 'Os arquivos que você escreveu em cada missão.',
   dias: 'Os dias em que você estudou (para a sequência 🔥).',
   janelas: 'Onde você deixou as janelas da tela do exercício.',

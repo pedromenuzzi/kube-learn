@@ -54,7 +54,7 @@ export function atualizarTopo(caminho) {
     if (a.getAttribute('href') === `#${caminho}`) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   }
-  const jornada = calcularJornada(NIVEIS, ler(CHAVES.progresso, {}));
+  const jornada = calcularJornada(NIVEIS, ler(CHAVES.progresso, {}), ler(CHAVES.conquistas, {}));
   const { xp } = jornada;
   const dias = sequenciaDeDias(ler(CHAVES.dias, []), hojeLocal());
   // Na aba Revisão, quantos cartões esperam hoje (some quando a revisão do dia foi feita).
