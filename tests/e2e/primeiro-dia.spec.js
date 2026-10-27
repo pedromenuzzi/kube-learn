@@ -1,7 +1,7 @@
 // Um dia com começo e fim: o primeiro dia mantém as boas-vindas, o painel Hoje só oferece o que já abriu, o ritual do dia
 // fecha o dia e o lembrete diário sai num .ics feito no navegador.
 import { readFileSync } from 'node:fs';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 import { NIVEIS } from '../../src/conteudo/index.js';
 import { GLOSSARIO } from '../../src/conteudo/glossario.js';

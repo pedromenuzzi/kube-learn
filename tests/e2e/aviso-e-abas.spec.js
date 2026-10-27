@@ -1,6 +1,6 @@
 // A tela da missão pelo teclado: fechar o aviso (ou ele sumir sozinho) devolve o foco ao botão que o pediu, e a aba
 // escolhida fica inteira à vista na faixa de abas do celular.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 
 test.beforeEach(async ({ page }) => {
   page.on('dialog', (d) => d.accept());

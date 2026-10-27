@@ -1,5 +1,5 @@
 // Fase 3: o navio, o progresso, o glossário, as preferências e a acessibilidade (axe, WCAG 2.2 AA).
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 import { NIVEIS, TROUBLESHOOTING } from '../../src/conteudo/index.js';
 
@@ -11,12 +11,14 @@ const TEMAS = ['claro', 'escuro', 'contraste'];
 
 for (const tema of TEMAS) {
   test(`axe sem violações (tema ${tema})`, async ({ page }) => {
-    await page.addInitScript((t) => localStorage.setItem('kube-learn:preferencias', JSON.stringify({ tema: t, texto: '100', movimento: 'normal' })), tema);
+    test.slow(); // 12 páginas com o axe: com a máquina ocupada, passava dos 60 s
+    // Reduzir movimento: sem o fade de entrada, o contraste é medido na cor final, sem esperar animação.
+    await page.addInitScript((t) => localStorage.setItem('kube-learn:preferencias', JSON.stringify({ tema: t, texto: '100', movimento: 'reduzido' })), tema);
     for (const url of PAGINAS) {
+      // A troca de hash redesenha depois do goto: marca a página velha e espera a nova no lugar dela.
+      await page.evaluate(() => document.querySelector('main#conteudo > *')?.setAttribute('data-velha', ''));
       await page.goto(url);
-      await page.waitForSelector('main#conteudo > *');
-      // O contraste é medido depois do fade de entrada da página.
-      await page.waitForFunction(() => document.getAnimations().every((x) => x.playState !== 'running'));
+      await page.waitForSelector('main#conteudo > :not([data-velha])');
       if (url.includes('deploy-') || url.includes('livre') || url.includes('n3-') || url.includes('n9-')) await page.waitForSelector('.cm-content');
       // .cm-scroller fica de fora: o editor é alcançado pelo teclado pela caixa de texto dele (contenteditable),
       // que rola junto com o cursor; o axe não reconhece isso como conteúdo focável.

@@ -1,5 +1,5 @@
 // O que faz voltar: o painel Hoje de quem volta, o número de cartões na aba Revisão e a escada de ajuda depois de errar.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import { NIVEIS } from '../../src/conteudo/index.js';
 import { GLOSSARIO } from '../../src/conteudo/glossario.js';
 

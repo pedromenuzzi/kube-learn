@@ -1,5 +1,5 @@
 // O kubectl edit no Playground: o editor abre num diálogo, salvar aplica a mudança, Esc desiste, e o foco volta ao terminal.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 
 test('kubectl edit: muda as réplicas no editor, salva, e o get mostra o número novo', async ({ page }) => {
   await page.goto('#/livre');

@@ -1,7 +1,7 @@
 // O placar do Plantão do dia: o relógio e as entregas, o resultado guardado (vale a primeira vez), o Compartilhar (pelo
 // menu do sistema ou pela área de transferência, só com o clique), a página com o chamado de hoje em destaque, a
 // recomendação do Nível 6 e a data impossível.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 import { NIVEIS } from '../../src/conteudo/index.js';
 import { NIVEL_DO_PLANTAO } from '../../src/jogo/plantao.js';

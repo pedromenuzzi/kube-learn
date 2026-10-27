@@ -1,6 +1,6 @@
 name: CI
 
-# Portão de qualidade em todo PR (e reaproveitado pelo deploy.yml). Os dois jobs rodam ao mesmo tempo.
+# Portão de qualidade em todo PR (e reaproveitado pelo deploy.yml). Os jobs rodam ao mesmo tempo.
 on:
   pull_request:
   workflow_call:
@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: npm ci
-      - run: npx playwright test --reporter=line
+      - run: npx playwright test --project=chromium --reporter=line
         env:
           CI: '1'
           HOME: /root
@@ -42,4 +42,22 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: test-results
+          path: test-results/
+
+  # Os specs de polimento e de missão no Firefox (testMatch no playwright.config.js). Só em PR: o deploy não espera.
+  e2e-firefox:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
+    steps:
+      - uses: actions/checkout@v7
+      - run: npm ci
+      - run: npx playwright test --project=firefox --reporter=line
+        env:
+          CI: '1'
+          HOME: /root
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-firefox
           path: test-results/

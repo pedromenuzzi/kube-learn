@@ -1,6 +1,6 @@
 // A Revisão do dia só cobra o que a trilha já ensinou, marca a resposta certa (com texto, não só cor), atravessa a troca
 // de idioma no meio da sessão e, feita a sessão, não traz termo novo nem fica cobrando na aba.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 
 const comProgresso = (page, ids) => page.addInitScript((lista) => {
   if (sessionStorage.getItem('semeado')) return;

@@ -1,5 +1,5 @@
 // Uma missão resolvida de ponta a ponta no navegador: o que define a Fase 2 como pronta.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 
 test.beforeEach(async ({ page }) => {
   page.on('dialog', (d) => d.accept());

@@ -1,6 +1,6 @@
 // O YAML pela metade e o campo com nome errado viram explicação na tela da missão (nunca "erro interno do simulador"),
 // em português e em inglês.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 
 test.beforeEach(async ({ page }) => {
   page.on('dialog', (d) => d.accept());
