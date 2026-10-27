@@ -2,7 +2,7 @@
 // revela o próximo). Fica fora da trilha: abre desde o começo e não vale XP nem contêiner no navio.
 import { yaml } from './util.js';
 import { incidente, PERGUNTA_CERTA } from './nivel9.js';
-import { DNS_SEM_TO, saidaMinima } from './nivel8.js';
+import { ARMADILHA_LIBERA_DNS, DNS_SEM_TO, liberaDns, saidaMinima } from './nivel8.js';
 
 /** Os clusters de partida de cada incidente, em clusters.js. */
 export const PARTIDA_TS = {};
@@ -567,7 +567,10 @@ export const TROUBLESHOOTING = [
       { requisicao: { de: 'pod/vitrine', ns: 'loja', url: 'http://admin.default', status: 'timeout' }, msg: 'a catraca da loja continua fechando o resto' },
     ],
     travas: [saidaMinima('so-o-estoque', 'loja')],
-    armadilhas: [{ descricao: 'liberar a porta 53 para qualquer destino (a regra do DNS sem to)', arquivos: { 'catraca.yaml': catraca(false) + DNS_SEM_TO } }],
+    armadilhas: [
+      { descricao: 'liberar a porta 53 para qualquer destino (a regra do DNS sem to)', arquivos: { 'catraca.yaml': catraca(false) + DNS_SEM_TO } },
+      { descricao: ARMADILHA_LIBERA_DNS, arquivos: { 'catraca.yaml': catraca(false), 'libera-dns.yaml': liberaDns('loja') } },
+    ],
   }),
 
   daSecao({

@@ -200,6 +200,11 @@
     "motivo": "sem o podSelector (ou com ele vazio), a regra libera a porta 53 para o namespace kube-system inteiro: um pouco mais largo que o pedido, mas ainda só o kube-system e só a 53/UDP e 53/TCP, onde só o DNS ouve. A trava de menor privilégio (egressMinimo) pega o que abre de verdade: sem to, sem ports, namespaceSelector vazio"
   },
   {
+    "id": "n8-dns",
+    "linha": "saida-da-vitrine.yaml: kubernetes.io/metadata.name: kube-system",
+    "motivo": "sem a label do kube-system, o namespaceSelector fica vazio (qualquer namespace), mas o podSelector k8s-app=kube-dns no mesmo par ainda fixa os pods: é o padrão da documentação do Kubernetes, só o kube-dns na 53/UDP e 53/TCP. A trava de menor privilégio (egressMinimo) pega o par que não fixa nem o namespace nem os pods"
+  },
+  {
     "id": "n8-somente-leitura",
     "linha": "vitrine.yaml: emptyDir: {}",
     "motivo": "um volume sem fonte vira emptyDir (o padrão da API): dá no mesmo"
@@ -380,6 +385,11 @@
     "motivo": "sem o podSelector (ou com ele vazio), a regra libera a porta 53 para o namespace kube-system inteiro: um pouco mais largo que o pedido, mas ainda só o kube-system e só a 53/UDP e 53/TCP, onde só o DNS ouve. A trava de menor privilégio (egressMinimo) pega o que abre de verdade: sem to, sem ports, namespaceSelector vazio"
   },
   {
+    "id": "n11-cofre-5",
+    "linha": "isola.yaml: kubernetes.io/metadata.name: kube-system",
+    "motivo": "sem a label do kube-system, o namespaceSelector fica vazio (qualquer namespace), mas o podSelector k8s-app=kube-dns no mesmo par ainda fixa os pods: é o padrão da documentação do Kubernetes, só o kube-dns na 53/UDP e 53/TCP. A trava de menor privilégio (egressMinimo) pega o par que não fixa nem o namespace nem os pods"
+  },
+  {
     "id": "n11-ambientes-5",
     "linha": "overlays/prod/reserva.yaml: apiVersion: apps/v1",
     "motivo": "lacuna do simulador, não da missão: o kustomize real recusa o patch sem apiVersion (\"no resource matches strategic merge patch\"), e o do simulador ainda acha o alvo só pelo kind e pelo nome. O conserto é em src/k8s/kustomize.js; aí esta mutação morre e a decisão sai daqui"
@@ -398,6 +408,11 @@
     "id": "ts-ninguem-se-acha",
     "linha": "catraca.yaml: k8s-app: kube-dns",
     "motivo": "sem o podSelector (ou com ele vazio), a regra libera a porta 53 para o namespace kube-system inteiro: um pouco mais largo que o pedido, mas ainda só o kube-system e só a 53/UDP e 53/TCP, onde só o DNS ouve. A trava de menor privilégio (egressMinimo) pega o que abre de verdade: sem to, sem ports, namespaceSelector vazio"
+  },
+  {
+    "id": "ts-ninguem-se-acha",
+    "linha": "catraca.yaml: kubernetes.io/metadata.name: kube-system",
+    "motivo": "sem a label do kube-system, o namespaceSelector fica vazio (qualquer namespace), mas o podSelector k8s-app=kube-dns no mesmo par ainda fixa os pods: é o padrão da documentação do Kubernetes, só o kube-dns na 53/UDP e 53/TCP. A trava de menor privilégio (egressMinimo) pega o par que não fixa nem o namespace nem os pods"
   },
   {
     "id": "ts-fila-parada",

@@ -3,7 +3,7 @@
 // Cada etapa pede algo novo para pensar (um conceito, um defeito diferente para achar, uma decisão), e a última de cada
 // projeto é um ticket: só o pedido e os critérios de aceite, sem o passo a passo.
 import { licao, projeto, yaml } from './util.js';
-import { saidaMinima } from './nivel8.js';
+import { ARMADILHA_LIBERA_DNS, liberaDns, saidaMinima } from './nivel8.js';
 
 const depois = (descricao, regras, { oculto = false, esperar = '1m', mais = [], vigiar } = {}) => ({ oculto, descricao, vigiar, passos: [{ comando: 'kubectl apply -f .' }, { avancar: esperar }, ...mais], regras });
 const pede = (url, extra) => ({ requisicao: { de: 'pod/cliente', url, ...extra } });
@@ -1329,7 +1329,10 @@ export const NIVEL11 = [
           ], { oculto: true, mais: [noCofre('id'), noCofre('touch /x')] }),
           depois('a saída do cofre é a menor possível', [saidaMinima('isola', 'cofre')], { oculto: true, esperar: '10s' }),
         ],
-        armadilhas: [{ descricao: 'liberar o kube-dns em todas as portas (a regra do DNS sem ports)', mudar: (a) => ({ ...a, 'isola.yaml': isola.replace(/\n +ports:[^]*$/, '\n') }) }],
+        armadilhas: [
+          { descricao: 'liberar o kube-dns em todas as portas (a regra do DNS sem ports)', mudar: (a) => ({ ...a, 'isola.yaml': isola.replace(/\n +ports:[^]*$/, '\n') }) },
+          { descricao: ARMADILHA_LIBERA_DNS, mudar: (a) => ({ ...a, 'isola.yaml': isola.replace(/\n +egress:[^]*$/, '\n'), 'libera-dns.yaml': liberaDns('cofre') }) },
+        ],
       },
     ],
   }),

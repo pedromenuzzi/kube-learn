@@ -111,6 +111,41 @@ describe('conquistas permanentes: missão nova vira convite, nunca perda', () =>
   });
 });
 
+describe('missão nova, perfil antigo', () => {
+  const D = '2026-10-27'; // o dia em que as missões novas chegaram
+  const velhas = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8'];
+  const trilha = [
+    { numero: 0, itens: [...velhas.map((id) => p(id)), { ...p('pr1'), desde: D }, { ...p('pr2'), desde: D }] },
+    { numero: 1, itens: [p('n1')] },
+  ];
+  const em = (dia, ...ids) => Object.fromEntries(ids.map((id) => [id, { status: 'resolvido', em: dia }]));
+
+  it('a migração dá lacres e navio numa passada só, com a data da última missão (T7)', () => {
+    const progresso = { ...em('2026-09-01', ...velhas), ...em('2026-09-02', 'n1') };
+    const m = conquistasMigradas(trilha, progresso, {}, '2026-10-30');
+    expect(m).toEqual({ lacres: { 0: '2026-09-01', 1: '2026-09-02' }, navio: '2026-09-02' });
+    expect(conquistasMigradas(trilha, progresso, m, '2026-10-30')).toBeNull();
+  });
+
+  it('quem passou dos 70% antes das missões novas não tem o nível seguinte trancado de novo (T8)', () => {
+    const antes = em('2026-09-01', 'q1', 'q2', 'q3', 'q4', 'q5', 'q6'); // 6 de 8 = 75%: o nível 1 abriu
+    const j = calcularJornada(trilha, antes);
+    expect(j.niveis[0].pct).toBe(60); // a porcentagem mostrada conta todas
+    expect(j.niveis[1].desbloqueado).toBe(true);
+    // Resolver a prática não repete a faixa de "Nível 1 desbloqueado".
+    expect(novidades(j, calcularJornada(trilha, { ...antes, ...em('2026-10-30', 'pr1') }))).toEqual([]);
+    // Nem resolver mais uma antiga hoje (7 de 10 continua aberto; nunca tranca).
+    expect(calcularJornada(trilha, { ...antes, ...em('2026-10-30', 'q7') }).niveis[1].desbloqueado).toBe(true);
+  });
+
+  it('perfil novo segue a regra dos 70% sobre todas', () => {
+    expect(calcularJornada(trilha, em('2026-10-30', 'q1', 'q2', 'q3', 'q4', 'q5', 'q6')).niveis[1].desbloqueado).toBe(false);
+    expect(calcularJornada(trilha, em('2026-10-30', 'q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'pr1')).niveis[1].desbloqueado).toBe(true);
+    // Abaixo de 70% antes das novas: elas contam.
+    expect(calcularJornada(trilha, em('2026-09-01', 'q1', 'q2', 'q3', 'q4', 'q5')).niveis[1].desbloqueado).toBe(false);
+  });
+});
+
 describe('sequência de dias', () => {
   it('conta até hoje, ou até ontem de manhã', () => {
     expect(sequenciaDeDias(['2026-10-18', '2026-10-19', '2026-10-20'], '2026-10-20')).toBe(3);

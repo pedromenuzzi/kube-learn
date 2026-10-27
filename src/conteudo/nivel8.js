@@ -10,10 +10,29 @@ const pede = (de, url, status, ns = 'rede') => ({ requisicao: { de: `pod/${de}`,
 export const saidaMinima = (politica, ns) => ({
   egressMinimo: `networkpolicy/${politica}`,
   ns,
-  msg: 'a saída libera só o necessário: toda regra de egress diz para quem (to) e em que porta (ports, cada uma com port); sem isso, vale para tudo. O DNS precisa só de 53/UDP e 53/TCP, para os pods k8s-app=kube-dns do kube-system',
+  msg: 'a saída libera só o necessário: toda regra de egress que vale para esses pods (de todas as NetworkPolicies que os pegam: elas se somam) diz para quem (to) e em que porta (ports, cada uma com port); sem isso, vale para tudo. O DNS precisa só de 53/UDP e 53/TCP, para os pods k8s-app=kube-dns',
 });
 /** A armadilha da saída larga: a regra do DNS sem `to` (a porta 53 aberta para qualquer destino), no fim do egress. */
 export const DNS_SEM_TO = '  - ports:\n    - protocol: UDP\n      port: 53\n    - protocol: TCP\n      port: 53\n';
+/** A mesma armadilha numa 2ª NetworkPolicy (o "allow-dns" mais copiado da internet): as políticas se somam. */
+export const liberaDns = (ns) => yaml`
+  apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    name: libera-dns
+    namespace: ${ns}
+  spec:
+    podSelector: {}
+    policyTypes:
+    - Egress
+    egress:
+    - ports:
+      - protocol: UDP
+        port: 53
+      - protocol: TCP
+        port: 53
+`;
+export const ARMADILHA_LIBERA_DNS = 'tirar a regra do DNS e liberar a porta 53 para qualquer destino numa 2ª NetworkPolicy';
 
 // ---------- RBAC ----------
 const papelLeitor = yaml`
@@ -690,7 +709,10 @@ spec:
       ], { esperar: '5s' }),
       depois('a saída continua com o menor privilégio', [saidaMinima('saida-da-vitrine', 'rede')], { oculto: true, esperar: '5s' }),
     ],
-    armadilhas: [{ descricao: 'liberar a porta 53 para qualquer destino (a regra do DNS sem to)', arquivos: { 'saida-da-vitrine.yaml': saidaDaVitrine(false) + DNS_SEM_TO } }],
+    armadilhas: [
+      { descricao: 'liberar a porta 53 para qualquer destino (a regra do DNS sem to)', arquivos: { 'saida-da-vitrine.yaml': saidaDaVitrine(false) + DNS_SEM_TO } },
+      { descricao: ARMADILHA_LIBERA_DNS, arquivos: { 'saida-da-vitrine.yaml': saidaDaVitrine(false), 'libera-dns.yaml': liberaDns('rede') } },
+    ],
   }),
 
   problema({

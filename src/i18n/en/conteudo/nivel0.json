@@ -139,7 +139,8 @@
       {
         "descricao": "kubectl apply -f .",
         "msgs": {
-          "1": "the vitrine pod is Running"
+          "1": "vitrine.yaml asks for a fixed version that exists, like nginx:1.27: your cluster may be right, but the submission applies the file in the editor",
+          "2": "the vitrine pod is Running"
         }
       },
       {
