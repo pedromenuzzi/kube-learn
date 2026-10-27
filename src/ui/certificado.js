@@ -1,7 +1,8 @@
 // O certificado final (com o navio carregado) e a página de privacidade. As duas desenham na hora, só com o índice leve.
 import { NIVEIS } from '../conteudo/indice.js';
 import { calcularJornada, hojeLocal } from '../jogo/gamificacao.js';
-import { ler, gravar, CHAVES, DESCRICOES, exportarTudo, apagarTudo } from '../armazenamento.js';
+import { ler, gravar, CHAVES, DESCRICOES, exportarTudo, apagarTudo, conferirDados, restaurar } from '../armazenamento.js';
+import { aplicarPreferencias } from './preferencias.js';
 import { svgSelo, htmlCertificado, linkPerfil, linkCompartilhar } from './selos.js';
 import { escapar } from './util.js';
 import { icone } from './icones.js';
@@ -55,6 +56,17 @@ export function paginaCertificado() {
   };
 }
 
+/** '12 missões, 8 dias, 3 lacres': o que há num conjunto de dados (o do arquivo ou o deste navegador). */
+function resumo(dados) {
+  const conta = (n, um, varios) => t(n === 1 ? um : varios, { n });
+  const missoes = Object.values(dados.progresso ?? {}).filter((p) => p?.status === 'resolvido').length;
+  return [
+    conta(missoes, '{n} missão', '{n} missões'),
+    conta(dados.dias?.length ?? 0, '{n} dia', '{n} dias'),
+    conta(Object.keys(dados.conquistas?.lacres ?? {}).length, '{n} lacre', '{n} lacres'),
+  ].join(', ');
+}
+
 export function paginaPrivacidade() {
   return (main) => {
     main.innerHTML = `
@@ -68,7 +80,18 @@ export function paginaPrivacidade() {
       <p>${t('Pela LGPD, os dados são seus: dá para baixar uma cópia ou apagar tudo a qualquer momento.')}</p>
       <p class="acoes"><button type="button" class="botao" data-baixar>${icone('baixar')} ${t('Baixar meus dados')}</button>
         <button type="button" class="botao-perigo" data-apagar>${icone('lixeira')} ${t('Apagar meus dados')}</button></p>
-      <p class="quiz-retorno" role="status" aria-live="polite"></p>`;
+      <p>${t('Estuda em outro aparelho, ou limpou o navegador? O arquivo do <b>Baixar meus dados</b> traz tudo de volta: progresso, dias, lacres, revisão, recordes e os arquivos das missões.')}</p>
+      <p><label for="restaurar-arquivo">${t('Restaurar de um arquivo')}</label><br>
+        <input type="file" id="restaurar-arquivo" accept="application/json"></p>
+      <p class="quiz-retorno" role="status" aria-live="polite"></p>
+      <dialog class="feedback restaurar" aria-labelledby="restaurar-titulo" aria-describedby="restaurar-resumo">
+        <form method="dialog">
+          <h2 id="restaurar-titulo">${t('Trocar os dados deste navegador?')}</h2>
+          <div id="restaurar-resumo"></div>
+          <p><button type="submit" class="botao" value="restaurar">${t('Restaurar')}</button>
+            <button type="submit" class="botao-secundario" value="">${t('Cancelar')}</button></p>
+        </form>
+      </dialog>`;
     const aviso = main.querySelector('.quiz-retorno');
     main.querySelector('[data-baixar]').addEventListener('click', () => {
       const blob = new Blob([JSON.stringify(exportarTudo(), null, 2)], { type: 'application/json' });
@@ -82,8 +105,50 @@ export function paginaPrivacidade() {
     main.querySelector('[data-apagar]').addEventListener('click', () => {
       if (!confirm(t('Apagar todo o seu progresso, arquivos e preferências deste navegador? Não dá para desfazer.'))) return;
       apagarTudo();
-      dispatchEvent(new Event('kube-learn:progresso')); // o placar do topo zera junto
-      aviso.textContent = t('Pronto: tudo apagado. O navio voltou vazio para o porto.');
+      location.reload(); // o tema, o idioma e o placar voltam ao padrão
+    });
+
+    // Restaurar: confere o arquivo inteiro antes de gravar qualquer coisa; com progresso aqui, pergunta antes de trocar.
+    const entrada = main.querySelector('#restaurar-arquivo');
+    const dialogo = main.querySelector('dialog');
+    let dados = null;
+    const falhar = (texto, valores) => {
+      aviso.className = 'quiz-retorno falha';
+      aviso.textContent = t(texto, valores);
+    };
+    const aplicar = () => {
+      const problema = restaurar(dados);
+      if (problema) return falhar(problema.texto, problema.valores);
+      aplicarPreferencias();
+      aviso.className = 'quiz-retorno ok';
+      aviso.textContent = t('Pronto: seus dados voltaram ({resumo}).', { resumo: resumo(dados) });
+    };
+    entrada.addEventListener('change', async () => {
+      const arquivo = entrada.files[0];
+      entrada.value = ''; // o mesmo arquivo de novo também dispara
+      if (!arquivo) return;
+      try {
+        dados = JSON.parse(await arquivo.text());
+      } catch {
+        return falhar('Este arquivo não é um JSON: escolha o arquivo do Baixar meus dados.');
+      }
+      const problema = conferirDados(dados);
+      if (problema) return falhar(problema.texto, problema.valores);
+      if (!Object.keys(ler(CHAVES.progresso, {})).length) return aplicar();
+      dialogo.querySelector('#restaurar-resumo').innerHTML = `
+        <p>${t('Neste navegador: {resumo}.', { resumo: resumo(exportarTudo()) })}</p>
+        <p>${t('No arquivo: {resumo}.', { resumo: resumo(dados) })}</p>
+        <p class="nota">${t('O que está aqui é trocado pelo que está no arquivo (os dois não se juntam).')}</p>`;
+      dialogo.returnValue = '';
+      dialogo.showModal();
+    });
+    dialogo.addEventListener('close', () => {
+      if (dialogo.returnValue === 'restaurar') aplicar();
+      else {
+        aviso.className = 'quiz-retorno';
+        aviso.textContent = t('Nada mudou: os dados deste navegador continuam como estavam.');
+      }
+      entrada.focus();
     });
     return {};
   };
