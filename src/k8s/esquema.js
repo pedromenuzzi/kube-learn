@@ -1544,12 +1544,20 @@ function quebrar(texto, recuo) {
 
 const porBytes = ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0); // a ordem do Go (maiúsculas antes)
 
+// As descrições do explain em inglês (cerca de 300 kB) ficam fora do pacote do inglês: chegam por import() quando a tela
+// do exercício abre em inglês (src/main.js), e só ela as usa.
+let esquemaIngles = null;
+export async function carregarEsquemaIngles() {
+  esquemaIngles ??= (await import('../i18n/en/esquema.json')).default;
+}
+
 /**
  * Saída do `kubectl explain` para kind e caminho ('spec.replicas'). Erro → { erro }. Em inglês, as descrições são as do
- * kubectl de verdade (src/i18n/en/esquema.json, com os "enum" de cada campo); em português, as nossas, mais didáticas.
+ * kubectl de verdade (src/i18n/en/esquema.json, com os "enum" de cada campo, depois de carregarEsquemaIngles); em
+ * português, as nossas, mais didáticas.
  */
 export function explicar(recurso, caminho = []) {
-  const en = pacoteIngles()?.esquema;
+  const en = pacoteIngles() && esquemaIngles;
   const raiz = esquemaDe(recurso.kind);
   let c = raiz;
   let tipoEn = en?.raizes[recurso.kind];

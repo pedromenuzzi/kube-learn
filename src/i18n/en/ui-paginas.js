@@ -209,4 +209,9 @@ export default {
   'Tamanho do texto': 'Text size',
   'Reduzir movimento': 'Reduce motion',
   'Efeitos sonoros nas comemorações': 'Sound effects in celebrations',
+  // a página que chega por import() (src/main.js)
+  'Carregando…': 'Loading…',
+  'Sem conexão?': 'Offline?',
+  'Esta página não carregou': 'This page didn’t load',
+  'Uma parte do site não chegou até o seu navegador. Confira a conexão e tente de novo: o seu progresso continua guardado.': 'Part of the site didn’t reach your browser. Check your connection and try again: your progress is still saved.',
 };
