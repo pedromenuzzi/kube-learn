@@ -6,6 +6,7 @@ import { calcularJornada, sequenciaDeDias, hojeLocal } from '../jogo/gamificacao
 import { somarDias, termosVistos } from '../jogo/revisao.js';
 import { atividadePorDia, calendario, cartoesParaHoje, numerosDosDias } from '../jogo/hoje.js';
 import { chamadoDoDia, NIVEL_DO_PLANTAO } from '../jogo/rodizio.js';
+import { medalha, nomeDaMedalha } from '../jogo/medalhas.js';
 import { marcasDoDia, diaCumprido, lembreteIcs } from '../jogo/ritual.js';
 import { ler, CHAVES } from '../armazenamento.js';
 import { desenharNavio, CORES } from './navio.js';
@@ -278,21 +279,26 @@ export async function paginaTroubleshooting() {
     <p class="nota">${icone('raio')} ${t('Quer treinar os comandos em si? A <a href="#/oficina">Oficina do kubectl</a> tem exercícios curtos, contra o relógio.')}</p>`;
 }
 
-// A Oficina do kubectl: os exercícios e o seu recorde em cada um.
+// A Oficina do kubectl: os exercícios, a meta e o seu recorde em cada um, com a melhor medalha (em texto, não só cor).
+const ourosNaOficina = (oficina, recordes) => oficina.filter((i) => recordes[i.id] && medalha(recordes[i.id], i.meta) === 'ouro').length;
+const htmlMedalha = (ms, meta) => `<span class="medalha medalha-${medalha(ms, meta)}">${icone('lacre')}${nomeDaMedalha(medalha(ms, meta))}</span>`;
+
 export async function paginaOficina() {
   const { OFICINA } = await import('../conteudo/index.js');
   const recordes = ler(CHAVES.recordes, {});
   const comRecorde = OFICINA.filter((i) => recordes[i.id]).length;
+  const ouros = ourosNaOficina(OFICINA, recordes);
   return `
     <p class="sobretitulo">${t('Fluência')}</p>
     <h1 class="pixel">${t('Oficina do kubectl')}</h1>
     <p>${t('Exercícios curtos de terminal, contra o relógio: os comandos que poupam tempo no dia a dia (e na prova CKAD). O relógio começa quando o exercício abre, e vale o seu recorde. Abre desde o começo e não vale XP.')}</p>
-    <p class="nota">${t('{n} de {total} com recorde', { n: comRecorde, total: OFICINA.length })}</p>
+    <p class="nota">${t('{n} de {total} com recorde', { n: comRecorde, total: OFICINA.length })} · ${t(ouros === 1 ? '1 ouro' : '{n} ouros', { n: ouros })}</p>
+    <p class="nota">${t('Ouro: dentro da meta. Prata: até o dobro da meta. Bronze: resolveu. A medalha sai do seu recorde, então nunca cai.')}</p>
     <ol class="oficina">${OFICINA.map((i) => `
       <li><a href="#/ex/${i.id}">
         <span class="oficina-titulo">${escapar(i.titulo)}</span>
         <span class="chip chip-${i.dificuldade}">${DIFICULDADE()[i.dificuldade]}</span>
-        <span class="oficina-recorde">${recordes[i.id] ? `${icone('raio')} ${t('Recorde: {tempo}', { tempo: minutosESegundos(recordes[i.id]) })}` : t('Sem recorde ainda')}</span>
+        <span class="oficina-recorde">${icone('alvo')} ${t('Meta: {tempo}', { tempo: minutosESegundos(i.meta) })} · ${recordes[i.id] ? `${htmlMedalha(recordes[i.id], i.meta)} · ${t('Recorde: {tempo}', { tempo: minutosESegundos(recordes[i.id]) })}` : t('Sem recorde ainda')}</span>
       </a></li>`).join('')}</ol>`;
 }
 
@@ -354,6 +360,7 @@ export async function paginaDiario() {
     [t('Incidentes resolvidos'), t('{n} de {total}', { n: TROUBLESHOOTING.filter((i) => resolvido(progresso, i.id)).length, total: TROUBLESHOOTING.length })],
     [t('Plantões atendidos'), Object.keys(progresso).filter((id) => id.startsWith('plantao-') && resolvido(progresso, id)).length],
     [t('Recordes na Oficina'), t('{n} de {total}', { n: OFICINA.filter((i) => recordes[i.id]).length, total: OFICINA.length })],
+    [t('Ouros na Oficina'), t('{n} de {total}', { n: ourosNaOficina(OFICINA, recordes), total: OFICINA.length })],
     [t('Termos firmes na memória'), cartoes.filter((c) => c.caixa >= 4).length],
   ];
   const atividade = atividadePorDia(progresso, dias);
