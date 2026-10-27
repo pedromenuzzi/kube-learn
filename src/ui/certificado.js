@@ -1,5 +1,5 @@
-// O certificado final (com o navio carregado) e a página de privacidade.
-import { NIVEIS } from '../conteudo/index.js';
+// O certificado final (com o navio carregado) e a página de privacidade. As duas desenham na hora, só com o índice leve.
+import { NIVEIS } from '../conteudo/indice.js';
 import { calcularJornada, hojeLocal } from '../jogo/gamificacao.js';
 import { ler, gravar, CHAVES, DESCRICOES, exportarTudo, apagarTudo } from '../armazenamento.js';
 import { svgSelo, htmlCertificado, linkPerfil, linkCompartilhar } from './selos.js';

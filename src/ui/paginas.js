@@ -1,11 +1,11 @@
 // As páginas fora do exercício: início, trilha (o navio), as seções (Troubleshooting, Oficina, Plantão do dia), o Diário de
-// bordo e o glossário.
-import { NIVEIS, OFICINA, TROUBLESHOOTING, acharItem } from '../conteudo/index.js';
-import { GLOSSARIO } from '../conteudo/glossario.js';
+// bordo e o glossário. O início e a trilha usam só o índice leve e desenham na hora; as outras trazem o texto que mostram
+// por import() (devolvem uma promessa, e o main.js mostra "Carregando…" enquanto isso).
+import { NIVEIS, GLOSSARIO } from '../conteudo/indice.js';
 import { calcularJornada, sequenciaDeDias, hojeLocal } from '../jogo/gamificacao.js';
 import { somarDias, termosVistos } from '../jogo/revisao.js';
 import { atividadePorDia, calendario, cartoesParaHoje, numerosDosDias } from '../jogo/hoje.js';
-import { plantaoDoDia, NIVEL_DO_PLANTAO } from '../jogo/plantao.js';
+import { chamadoDoDia, NIVEL_DO_PLANTAO } from '../jogo/rodizio.js';
 import { marcasDoDia, diaCumprido, lembreteIcs } from '../jogo/ritual.js';
 import { ler, CHAVES } from '../armazenamento.js';
 import { desenharNavio, CORES } from './navio.js';
@@ -49,7 +49,7 @@ function diaDeHoje(j, hoje) {
   const progresso = ler(CHAVES.progresso, {});
   const vistos = termosVistos(GLOSSARIO, j);
   const cartoes = cartoesParaHoje({ termos: vistos, estado: ler(CHAVES.revisao, {}), hoje });
-  const plantao = j.niveis[NIVEL_DO_PLANTAO].desbloqueado ? plantaoDoDia(hoje) : null;
+  const plantao = j.niveis[NIVEL_DO_PLANTAO].desbloqueado ? chamadoDoDia(hoje) : null;
   const marcas = marcasDoDia({ jornada: j, progresso, hoje, termos: vistos.length, cartoes, plantao: plantao?.id });
   // Sem termos vistos, a revisão espera a primeira missão da trilha que traz cartões (hoje, a lição de imagem e contêiner).
   const primeirosCartoes = vistos.length ? null : j.niveis.flatMap((n) => n.itens).find((i) => i.estado !== 'concluido' && GLOSSARIO.some((g) => g.item === i.id));
@@ -266,7 +266,8 @@ const chamado = (i, status, extra = '') => {
     </li>`;
 };
 
-export function paginaTroubleshooting() {
+export async function paginaTroubleshooting() {
+  const { TROUBLESHOOTING } = await import('../conteudo/index.js');
   const progresso = ler(CHAVES.progresso, {});
   return `
     <p class="sobretitulo">${t('Plantão')}</p>
@@ -278,7 +279,8 @@ export function paginaTroubleshooting() {
 }
 
 // A Oficina do kubectl: os exercícios e o seu recorde em cada um.
-export function paginaOficina() {
+export async function paginaOficina() {
+  const { OFICINA } = await import('../conteudo/index.js');
   const recordes = ler(CHAVES.recordes, {});
   const comRecorde = OFICINA.filter((i) => recordes[i.id]).length;
   return `
@@ -296,7 +298,8 @@ export function paginaOficina() {
 
 // O Plantão do dia: o chamado de hoje em destaque (com o resultado, se já foi atendido) e os dos últimos dias (quem
 // perdeu um dia ainda pode atender).
-export function paginaPlantao() {
+export async function paginaPlantao() {
+  const { plantaoDoDia } = await import('../jogo/plantao.js');
   const progresso = ler(CHAVES.progresso, {});
   const placares = ler(CHAVES.plantoes, {});
   const hoje = plantaoDoDia(hojeLocal());
@@ -331,7 +334,8 @@ export function paginaPlantao() {
 const SECAO = () => ({ troubleshooting: 'Troubleshooting', oficina: t('Oficina do kubectl'), plantao: t('Plantão do dia') });
 const intensidade = (n) => (n >= 4 ? 3 : n >= 2 ? 2 : n);
 
-export function paginaDiario() {
+export async function paginaDiario() {
+  const { TROUBLESHOOTING, OFICINA, acharItem } = await import('../conteudo/index.js');
   const progresso = ler(CHAVES.progresso, {});
   const dias = ler(CHAVES.dias, []);
   const hoje = hojeLocal();
@@ -388,7 +392,9 @@ export function paginaDiario() {
 
 const semAcento = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
-export function paginaGlossario() {
+export async function paginaGlossario() {
+  // O glossário inteiro (definição, vida real e limite), pelo conteúdo: é ele que acompanha a troca de idioma.
+  const { GLOSSARIO } = await import('../conteudo/index.js');
   return (main) => {
     const grupos = NIVEIS.map((n) => ({ n, termos: GLOSSARIO.filter((g) => g.nivel === n.numero) })).filter((g) => g.termos.length);
     main.innerHTML = `

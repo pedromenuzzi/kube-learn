@@ -6,9 +6,11 @@ import { describe, expect, it } from 'vitest';
 import { rodarCenario } from './golden/cenario.js';
 import { normalizar } from './golden/normalizar.js';
 import { definirIdioma } from '../src/i18n.js';
+import { carregarEsquemaIngles } from '../src/k8s/esquema.js';
 
 // Em inglês, como o kubectl de verdade: o explain usa as descrições reais (as em português são outras, de propósito).
 await definirIdioma('en', { salvar: false });
+await carregarEsquemaIngles();
 
 // Casos que não dá para comparar linha a linha, e por quê.
 const ESPECIAIS = {

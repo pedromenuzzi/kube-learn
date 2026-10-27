@@ -1,6 +1,12 @@
 import js from '@eslint/js';
 import globals from 'globals';
 
+// O simulador fica fora do pacote da página inicial (chega com a tela do exercício, por import()).
+const SEM_SIMULADOR = [
+  { group: ['**/k8s/*', '!**/k8s/aleatorio.js'], message: 'O simulador não entra no pacote da página inicial: use src/constantes.js ou src/conteudo/manifestos.js.' },
+  { group: ['./clusters.js', '**/conteudo/clusters.js'], message: 'clusters.js traz o simulador: use src/conteudo/manifestos.js.' },
+];
+
 export default [
   { ignores: ['dist/', 'coverage/', '.claude/'] }, // .claude/: as worktrees dos agentes
   js.configs.recommended,
@@ -17,9 +23,22 @@ export default [
     files: ['src/conteudo/**/*.js', 'src/ui/paginas.js', 'src/ui/leitura.js', 'src/ui/revisao.js', 'src/ui/certificado.js', 'src/ui/festa.js', 'src/ui/topo.js', 'src/main.js'],
     ignores: ['src/conteudo/clusters.js'],
     rules: {
+      'no-restricted-imports': ['error', { patterns: SEM_SIMULADOR }],
+    },
+  },
+  {
+    // A página inicial (o que main.js importa sem import()) também não leva o texto das missões nem as telas que o usam:
+    // ela usa o índice leve (src/conteudo/indice.js), e o resto chega por import() na rota. O orçamento do vite.config.js
+    // mede o resultado.
+    files: ['src/main.js', 'src/ui/paginas.js', 'src/ui/topo.js', 'src/ui/certificado.js', 'src/ui/navio.js', 'src/ui/selos.js', 'src/ui/preferencias.js', 'src/ui/compartilhar.js', 'src/conteudo/indice.js', 'src/jogo/*.js'],
+    ignores: ['src/jogo/plantao.js'],
+    rules: {
       'no-restricted-imports': ['error', { patterns: [
-        { group: ['**/k8s/*', '!**/k8s/aleatorio.js'], message: 'O simulador não entra no pacote da página inicial: use src/constantes.js ou src/conteudo/manifestos.js.' },
-        { group: ['./clusters.js', '**/conteudo/clusters.js'], message: 'clusters.js traz o simulador: use src/conteudo/manifestos.js.' },
+        ...SEM_SIMULADOR,
+        {
+          group: ['**/conteudo/index.js', '**/conteudo/niveis.js', '**/conteudo/nivel*.js', '**/conteudo/quizzes.js', '**/conteudo/troubleshooting.js', '**/conteudo/oficina.js', '**/conteudo/glossario.js', '**/conteudo/traducao.js', '**/plantao.js', '**/ui/exercicio.js', '**/ui/leitura.js', '**/ui/revisao.js', '**/i18n/en/*'],
+          message: 'A página inicial usa o índice leve (src/conteudo/indice.js); o texto completo e as outras telas chegam por import() na rota.',
+        },
       ] }],
     },
   },

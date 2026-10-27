@@ -7,6 +7,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { textosDoArquivo } from '../scripts/textos.mjs';
 import * as EN from '../src/i18n/en/index.js';
+import ESQUEMA_EN from '../src/i18n/en/esquema.json';
 import { REGRAS, STATUS } from '../src/k8s/explicacoes.js';
 import { ESQUEMAS } from '../src/k8s/esquema.js';
 import { ITENS, NIVEIS, TROUBLESHOOTING } from '../src/conteudo/index.js';
@@ -77,7 +78,7 @@ describe('inglês', () => {
   });
 
   it('kubectl explain: todo campo do esquema com descrição em português tem a de verdade, em inglês', () => {
-    const { raizes, tipos } = EN.esquema;
+    const { raizes, tipos } = ESQUEMA_EN;
     const faltam = [];
     const visitar = (no, ref, caminho) => {
       for (const [nome, campo] of Object.entries(no.campos ?? {})) {
