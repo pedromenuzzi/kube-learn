@@ -112,8 +112,14 @@ function faixa(nivel) {
     <a href="#/trilha">${t('Ver na trilha')}</a><button type="button" class="aviso-fechar" aria-label="${t('Fechar')}">${icone('fechar')}</button>`;
   document.body.append(el);
   anunciar(t('Nível {n} desbloqueado: {titulo}.', { n: nivel.numero, titulo: nivel.titulo }));
-  const tirar = () => el.remove();
+  // Some ao trocar de página (não fica sobre a migalha e a pergunta da seguinte) ou depois de 9 s; o leitor de tela já
+  // ouviu o aviso. Com "reduzir movimento" ela só não desce animada (o CSS tira a animação).
+  const tirar = () => {
+    el.remove();
+    removeEventListener('hashchange', tirar);
+  };
   el.addEventListener('click', (e) => e.target.closest('a, button') && tirar());
+  addEventListener('hashchange', tirar);
   setTimeout(tirar, 9000);
 }
 
