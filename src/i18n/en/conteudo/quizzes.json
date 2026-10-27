@@ -38,7 +38,7 @@
         "explicacao": "Labels don’t open or close the network: they’re only for picking pods."
       },
       {
-        "texto": "Yes: by default, every pod talks to every pod, in any namespace.",
+        "texto": "Yes: by default, every pod talks to every pod.",
         "explicacao": "Right. To close the way, there are turnstiles (NetworkPolicy), in level 8."
       }
     ]
@@ -54,15 +54,15 @@
         "explicacao": "No: the Deployment doesn’t renovate the old ReplicaSet, it creates another one (with another hash in the name). And the pods are replaced, not renovated: new name, new IP."
       },
       {
-        "texto": "The Deployment creates a new ReplicaSet, scales its pods up and the old one’s down, a few at a time. The old one stays, with 0 pods.",
+        "texto": "A new ReplicaSet scales its pods up a few at a time; the old one goes down to 0 and is kept.",
         "explicacao": "Right. The old, empty ReplicaSet is the previous revision: it’s what <code>kubectl rollout undo</code> goes back to."
       },
       {
-        "texto": "The Deployment deletes the 3 pods and only then creates the 3 new ones.",
+        "texto": "The Deployment deletes the 3 pods at once and only then creates the 3 new ones, on 1.1.",
         "explicacao": "That’s how the <code>Recreate</code> strategy works. The default is <code>RollingUpdate</code>: a few at a time, without closing the store."
       },
       {
-        "texto": "Nothing: the pods only get the new image when they’re deleted.",
+        "texto": "Nothing for now: the pods only get the new image when someone deletes them.",
         "explicacao": "That would happen with a ReplicaSet on its own. The Deployment notices the new template and starts the swap right away."
       }
     ]
@@ -114,15 +114,15 @@
     "limite": "At a real switchboard, the call goes to whoever is free. The Service doesn’t know who’s busy: it just draws at random.",
     "alternativas": [
       {
-        "texto": "Round-robin: one connection to each pod, in order.",
+        "texto": "Round-robin: one connection to each pod, in order, and a fourth would go back to the first.",
         "explicacao": "It’s what almost everyone imagines, but kube-proxy (in its default mode) doesn’t keep track of anyone’s turn."
       },
       {
-        "texto": "Each connection goes to a randomly drawn pod: the same pod may handle all three.",
+        "texto": "Each connection draws a pod at random: one pod may handle all three.",
         "explicacao": "Right: a random draw for every new connection. With many connections the load evens out; with few, it can be lopsided. And it’s per connection: a client that reuses its connection (keep-alive) always talks to the same pod."
       },
       {
-        "texto": "They all go to the least busy pod.",
+        "texto": "They all go to whichever pod is least busy at connection time.",
         "explicacao": "The extension doesn’t measure load: it doesn’t know whether the clerk is busy."
       },
       {
@@ -206,7 +206,7 @@
     "limite": "A real desk could go along on the move; the emptyDir never does: new pod, empty desk.",
     "alternativas": [
       {
-        "texto": "It vanished along with the container.",
+        "texto": "It vanished along with the container: the kubelet starts over with an empty folder.",
         "explicacao": "What vanishes on a restart is what was written to the container’s own disk, outside the volumes. The emptyDir belongs to the pod."
       },
       {
@@ -214,7 +214,7 @@
         "explicacao": "Right: the emptyDir survives a container restart. It only vanishes when the pod goes away (deleted, evicted or replaced by a Deployment)."
       },
       {
-        "texto": "It was copied to a PVC.",
+        "texto": "It was copied to a PVC, which the kubelet creates to keep the volume.",
         "explicacao": "Nobody copies anything to a PVC on their own: the PVC is a separate request of yours."
       }
     ]
@@ -294,19 +294,19 @@
     "limite": "If everyone says “I can’t right now” at the same time, the extension has no one and the call is refused: readiness doesn’t call for backup.",
     "alternativas": [
       {
-        "texto": "The kubelet restarts the container.",
+        "texto": "The kubelet restarts the container, as it would if the liveness failed.",
         "explicacao": "Restarting is liveness’s job, and it’s passing. Readiness only decides whether the pod gets customers."
       },
       {
-        "texto": "The Deployment deletes the pod and creates another.",
+        "texto": "The Deployment deletes the pod and creates another in its place, on any node.",
         "explicacao": "Nobody deletes the pod because of readiness: it stays there, waiting to get better."
       },
       {
-        "texto": "The pod leaves the Service’s endpoints (READY 0/1), but keeps running, and comes back when the probe passes.",
+        "texto": "The pod leaves the Service’s endpoints (READY 0/1), but keeps running.",
         "explicacao": "Right: off the extension, no restart. When the probe passes again, the pod gets customers again."
       },
       {
-        "texto": "Nothing changes: the pod is just marked as not ready.",
+        "texto": "Nothing changes: the pod is just marked as not ready, and keeps serving.",
         "explicacao": "It does change: a pod that isn’t ready stops getting customers through the Service."
       }
     ]
@@ -326,7 +326,7 @@
         "explicacao": "The scheduler doesn’t look at usage (<code>kubectl top</code>): the pod hasn’t even started. It adds up the reservations."
       },
       {
-        "texto": "Yes: the scheduler only adds up requests; the limit is the usage ceiling.",
+        "texto": "Yes: the scheduler only adds up requests, not limits.",
         "explicacao": "Right: 500m fits in the 1 CPU left. The limit of 2 only says how far the container can draw, if there’s free CPU."
       }
     ]
@@ -338,11 +338,11 @@
     "limite": "In a real HR department, someone would notice the tug-of-war. In the cluster nobody warns you: the number goes up and down, and customers feel it.",
     "alternativas": [
       {
-        "texto": "The store drops to 2, and the HPA scales back up on its next calculation: the two fight.",
+        "texto": "It drops to 2, and the HPA scales back up on its next calculation: the two fight.",
         "explicacao": "Right. With an HPA, leave <code>replicas</code> out of the YAML: the manager decides the number."
       },
       {
-        "texto": "The apply is rejected, because the HPA is in charge of the replicas.",
+        "texto": "The apply is rejected, because the store’s replicas are now the HPA’s job.",
         "explicacao": "apply doesn’t know about the HPA: it writes what the file says."
       },
       {
@@ -362,19 +362,19 @@
     "limite": "In the condo, whoever has authorization usually goes to the special building. In the cluster, the real-estate agent ignores the authorization when choosing: only the nodeSelector (or affinity) pulls the pod there.",
     "alternativas": [
       {
-        "texto": "Only on <code>node-2</code>.",
+        "texto": "Only on <code>node-2</code>: it’s the node it tolerates.",
         "explicacao": "The toleration doesn’t take anyone there: it just moves the sign out of the way."
       },
       {
-        "texto": "On <code>node-1</code> or <code>node-2</code>: the toleration allows <code>node-2</code>, it doesn’t force it.",
+        "texto": "On <code>node-1</code> or <code>node-2</code>: the toleration allows, it doesn’t force.",
         "explicacao": "Right. To go only to <code>node-2</code>, combine the toleration with a nodeSelector (<code>dedicado: gpu</code>)."
       },
       {
-        "texto": "Nowhere: it stays Pending.",
+        "texto": "Nowhere: it stays Pending until it gets a nodeSelector.",
         "explicacao": "<code>node-1</code> has no taint at all: any pod gets in."
       },
       {
-        "texto": "On any node, including the <code>control-plane</code>.",
+        "texto": "On any node, including the <code>control-plane</code>, which also has a taint.",
         "explicacao": "The <code>control-plane</code> has a different taint (<code>node-role.kubernetes.io/control-plane</code>), which this toleration doesn’t cover."
       }
     ]
@@ -474,11 +474,11 @@
         "explicacao": "A NetworkPolicy has no way to deny: each one only allows, and the allowances add up."
       },
       {
-        "texto": "It depends on which policy was applied last.",
+        "texto": "It depends on which of the two policies was applied last.",
         "explicacao": "Order doesn’t matter: there’s no priority between them."
       },
       {
-        "texto": "Yes: the rules add up, and whatever any of them allows gets through.",
+        "texto": "Yes: the rules add up; whatever any of them allows gets in.",
         "explicacao": "Right. <code>nega-tudo</code> only “closes” because it selects the pods without allowing anything; the other one adds an allowance."
       }
     ]
@@ -518,7 +518,7 @@
         "explicacao": "The Deployment (through the ReplicaSet) replaces the pod right away."
       },
       {
-        "texto": "Another pod is born, with the same wrong image, and the error comes back.",
+        "texto": "A new pod is born with the same bad image, and the error returns.",
         "explicacao": "Right: the fix goes in the Deployment (in the YAML or with <code>kubectl set image</code>). Then the pods are replaced on their own."
       }
     ]
@@ -534,7 +534,7 @@
         "explicacao": "That’s <code>helm upgrade</code>. <code>install</code> only creates a new release."
       },
       {
-        "texto": "Error: the name <code>loja</code> is already in use, and nothing changes.",
+        "texto": "Error: the name <code>loja</code> is in use, and nothing changes.",
         "explicacao": "Right. To change an existing release: <code>helm upgrade</code> (or <code>helm upgrade --install</code>, which installs it if it doesn’t exist yet)."
       },
       {
@@ -554,11 +554,11 @@
     "limite": "A paper sheet gets filed away; Kustomize’s output isn’t kept anywhere. To see what went to the cluster, run kubectl kustomize again.",
     "alternativas": [
       {
-        "texto": "It’s rewritten with <code>replicas: 3</code> and tag 1.1.",
+        "texto": "It’s rewritten with <code>replicas: 3</code> and tag 1.1, to keep a record of what was applied.",
         "explicacao": "Kustomize never writes to your files: it only reads them."
       },
       {
-        "texto": "Nothing: Kustomize builds the result on the fly, and only the result goes to the cluster.",
+        "texto": "Nothing: Kustomize puts it all together on the fly and only sends the result.",
         "explicacao": "Right. The base stays the same, and the other overlays (dev, staging) keep building on it."
       },
       {
@@ -574,16 +574,16 @@
     "limite": "When the specialist arrives, they read the whole pile: the operator also handles the requests that already existed.",
     "alternativas": [
       {
-        "texto": "The apply is rejected: the operator is missing.",
+        "texto": "The apply is rejected: the operator that understands the Backup kind is missing.",
         "explicacao": "The CRD has already taught the API the new kind: the Backup is accepted (and validated against the schema)."
       },
       {
-        "texto": "Kubernetes creates the backup’s CronJob on its own.",
+        "texto": "Kubernetes creates the backup’s CronJob on its own, from the CRD.",
         "explicacao": "Kubernetes doesn’t know what a Backup means: the operator is the one that creates the CronJob."
       },
       {
-        "texto": "The Backup is stored (<code>kubectl get backups</code> shows it), but no backup is made.",
-        "explicacao": "Right: the CRD only stores the request. The operator is the one that acts."
+        "texto": "The Backup is stored, but no backup is made.",
+        "explicacao": "Right: the CRD only stores the request (<code>kubectl get backups</code> shows <code>noturno</code>). The operator is the one that acts."
       }
     ]
   },
@@ -594,7 +594,7 @@
     "limite": "In real life, an “at least 3” agreement would cover everything. In the cluster, each rule only counts for whoever checks it.",
     "alternativas": [
       {
-        "texto": "The PDB.",
+        "texto": "The PDB, which counts the ready pods during the change.",
         "explicacao": "The PDB only applies to evictions through the eviction API (drain). The rollout doesn’t even check the PDB."
       },
       {
@@ -622,11 +622,11 @@
         "explicacao": "The label is accepted; the response just comes with a warning."
       },
       {
-        "texto": "They keep running: <code>kubectl label</code> only warns (Warning) which ones break the code.",
-        "explicacao": "Right. Careful: if one of them crashes or gets replaced, the new pod is rejected. Fix the pods before setting the code."
+        "texto": "They keep running; <code>kubectl label</code> only warns (Warning).",
+        "explicacao": "Right: the warning lists the pods that break the code. Careful: if one of them crashes or gets replaced, the new pod is rejected. Fix the pods before setting the code."
       },
       {
-        "texto": "They’re restarted as a regular user.",
+        "texto": "They’re restarted as a regular user, to comply with the code.",
         "explicacao": "Pod Security doesn’t change pods: it only accepts or rejects them."
       }
     ]

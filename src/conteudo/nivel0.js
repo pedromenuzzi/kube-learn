@@ -62,9 +62,9 @@ export const NIVEL0 = [
     limite: 'O isolamento do contêiner é menor que o de uma máquina virtual: um bug grave no kernel afeta todos.',
     pergunta: '<p>Por que um contêiner sobe em segundos, e uma máquina virtual demora mais?</p>',
     alternativas: [
-      { texto: 'Porque o contêiner usa o kernel da máquina onde roda, em vez de ligar um sistema operacional inteiro.', certa: true, explicacao: 'Isso: não há "boot" de sistema. O contêiner é um processo isolado.' },
-      { texto: 'Porque o contêiner não tem arquivos.', explicacao: 'Tem, sim: os da imagem. O que ele não tem é um kernel próprio.' },
-      { texto: 'Porque o contêiner só roda programas pequenos.', explicacao: 'Roda programas de qualquer tamanho (bancos de dados, inclusive).' },
+      { texto: 'Porque usa o kernel da máquina onde roda, em vez de ligar outro sistema operacional.', certa: true, explicacao: 'Isso: não há "boot" de sistema. O contêiner é um processo isolado.' },
+      { texto: 'Porque o contêiner não tem arquivos: usa direto os do disco da máquina.', explicacao: 'Tem, sim: os da imagem, separados dos da máquina. O que ele não tem é um kernel próprio.' },
+      { texto: 'Porque o contêiner só roda programas pequenos, e a máquina virtual, sistemas inteiros.', explicacao: 'Roda programas de qualquer tamanho (bancos de dados, inclusive).' },
     ],
   }),
 
@@ -103,8 +103,8 @@ CMD ["node", "server.js"]  # o comando que roda quando o contêiner sobe</code><
     limite: 'Da mesma imagem saem vários contêineres ao mesmo tempo.',
     pergunta: '<p>Qual frase está <b>certa</b>?</p>',
     alternativas: [
-      { texto: 'O contêiner é a imagem rodando: tem um processo vivo e ocupa memória.', certa: true, explicacao: 'Isso. A imagem é o pacote parado; o contêiner é ela em execução.' },
-      { texto: 'A imagem é o contêiner depois que ele para.', explicacao: 'Não: a imagem existe antes (é de onde o contêiner nasce) e continua igual depois.' },
+      { texto: 'O contêiner é a imagem rodando, com um processo vivo.', certa: true, explicacao: 'Isso. A imagem é o pacote parado; o contêiner é ela em execução.' },
+      { texto: 'A imagem é o que sobra do contêiner depois que ele para.', explicacao: 'Não: a imagem existe antes (é de onde o contêiner nasce) e continua igual depois.' },
       { texto: 'Cada imagem só pode ter um contêiner de cada vez.', explicacao: 'Não: da mesma imagem saem quantos contêineres você quiser, ao mesmo tempo.' },
       { texto: 'Para mudar o programa, você edita a imagem que já existe.', explicacao: 'Não: imagem não se edita. Você gera uma imagem nova (outra tag).' },
     ],
@@ -117,9 +117,9 @@ CMD ["node", "server.js"]  # o comando que roda quando o contêiner sobe</code><
     limite: 'Na fábrica cada módulo custa material; contêineres da mesma imagem dividem as camadas no disco.',
     pergunta: '<p>Você baixou a imagem <code>nginx:1.27</code> uma vez. Quantos contêineres dá para rodar com ela?</p>',
     alternativas: [
-      { texto: 'Um: para outro, é preciso baixar de novo.', explicacao: 'Não precisa baixar de novo: a imagem já está no disco e é reaproveitada.' },
-      { texto: 'Quantos a máquina aguentar, todos a partir da mesma imagem.', certa: true, explicacao: 'Isso. O limite é a memória e a CPU da máquina, não a imagem.' },
-      { texto: 'Dois: um principal e um de reserva.', explicacao: 'Não existe esse limite. Reserva é uma decisão sua (réplicas), não da imagem.' },
+      { texto: 'Um: para rodar outro, é preciso baixar a imagem de novo.', explicacao: 'Não precisa baixar de novo: a imagem já está no disco e é reaproveitada.' },
+      { texto: 'Quantos a máquina aguentar, todos da mesma imagem.', certa: true, explicacao: 'Isso. O limite é a memória e a CPU da máquina, não a imagem.' },
+      { texto: 'Dois: um principal e um de reserva, que assume se o primeiro cair.', explicacao: 'Não existe esse limite. Reserva é uma decisão sua (réplicas), não da imagem.' },
     ],
   }),
 
@@ -199,9 +199,9 @@ registry   repositório    tag</code></pre>
     limite: 'Algumas empresas configuram o registry para tags imutáveis; aí latest não muda. Mas não conte com isso.',
     pergunta: '<p>Sobre a tag <code>latest</code>, o que é verdade?</p>',
     alternativas: [
-      { texto: 'É sempre a versão mais nova publicada.', explicacao: 'Esse é o erro clássico: ela aponta para o que o dono quiser, e pode ficar parada numa versão velha.' },
-      { texto: 'É uma tag comum, que pode passar a apontar para outra versão a qualquer momento.', certa: true, explicacao: 'Isso. Por isso, em produção, use tags fixas, como <code>nginx:1.27</code>.' },
-      { texto: 'O Kubernetes não aceita imagens com latest.', explicacao: 'Aceita, sim (e até baixa de novo a cada vez). Só não é uma boa ideia.' },
+      { texto: 'É sempre a versão mais nova publicada: o registry a atualiza sozinho.', explicacao: 'Esse é o erro clássico: o registry não mexe nela sozinho. Ela aponta para o que o dono quiser, e pode ficar parada numa versão velha.' },
+      { texto: 'É uma tag comum: pode passar a apontar para outra versão.', certa: true, explicacao: 'Isso: o dono a move quando quiser. Por isso, em produção, use tags fixas, como <code>nginx:1.27</code>.' },
+      { texto: 'O Kubernetes não aceita imagens com latest: recusa o pod.', explicacao: 'Aceita, sim (e até baixa de novo a cada vez). Só não é uma boa ideia.' },
     ],
   }),
 
