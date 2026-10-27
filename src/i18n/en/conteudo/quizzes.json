@@ -39,7 +39,7 @@
       },
       {
         "texto": "Yes: by default, every pod talks to every pod.",
-        "explicacao": "Right. To close the way, there are turnstiles (NetworkPolicy), in level 8."
+        "explicacao": "Right: from any namespace. To close the way, there are turnstiles (NetworkPolicy), in level 8."
       }
     ]
   },
@@ -374,7 +374,7 @@
         "explicacao": "<code>node-1</code> has no taint at all: any pod gets in."
       },
       {
-        "texto": "On any node, including the <code>control-plane</code>, which also has a taint.",
+        "texto": "On any node, including the <code>control-plane</code>: the toleration lifts every taint.",
         "explicacao": "The <code>control-plane</code> has a different taint (<code>node-role.kubernetes.io/control-plane</code>), which this toleration doesn’t cover."
       }
     ]
@@ -594,7 +594,7 @@
     "limite": "In real life, an “at least 3” agreement would cover everything. In the cluster, each rule only counts for whoever checks it.",
     "alternativas": [
       {
-        "texto": "The PDB, which counts the ready pods during the change.",
+        "texto": "The PDB, which holds the change if fewer than 3 are ready.",
         "explicacao": "The PDB only applies to evictions through the eviction API (drain). The rollout doesn’t even check the PDB."
       },
       {

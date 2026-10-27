@@ -34,7 +34,7 @@ export const QUIZZES = [
     alternativas: [
       { texto: 'Não: namespaces diferentes têm redes separadas.', explicacao: 'Esse é o engano mais comum. O namespace separa os nomes (e, mais à frente, crachás e cotas), não a rede.' },
       { texto: 'Só se os dois pods tiverem a mesma label.', explicacao: 'Labels não abrem nem fecham a rede: elas só servem para escolher pods.' },
-      { texto: 'Sim: por padrão, todo pod fala com todo pod.', certa: true, explicacao: 'Isso. Para fechar a passagem existem as catracas (NetworkPolicy), no nível 8.' },
+      { texto: 'Sim: por padrão, todo pod fala com todo pod.', certa: true, explicacao: 'Isso: de qualquer namespace. Para fechar a passagem existem as catracas (NetworkPolicy), no nível 8.' },
     ],
   }),
 
@@ -90,7 +90,7 @@ export const QUIZZES = [
     pergunta: '<p>Há 3 pods atrás do Service <code>loja</code>. Um cliente abre 3 conexões, uma depois da outra. Como o ramal reparte?</p>',
     alternativas: [
       { texto: 'Em rodízio: uma conexão para cada pod, na ordem, e a quarta voltaria ao primeiro.', explicacao: 'É o que quase todo mundo imagina, mas o kube-proxy (no modo padrão) não guarda a vez de ninguém.' },
-      { texto: 'Cada conexão sorteia um pod: um só pode atender as três.', certa: true, explicacao: 'Isso: um sorteio a cada conexão nova. Com muitas conexões a carga fica parecida; com poucas, pode ficar torta. E é por conexão: quem reaproveita a conexão (keep-alive) fala sempre com o mesmo pod.' },
+      { texto: 'Cada conexão sorteia um pod: o mesmo pode atender as três.', certa: true, explicacao: 'Isso: um sorteio a cada conexão nova. Com muitas conexões a carga fica parecida; com poucas, pode ficar torta. E é por conexão: quem reaproveita a conexão (keep-alive) fala sempre com o mesmo pod.' },
       { texto: 'Todas vão para o pod menos ocupado no momento da conexão.', explicacao: 'O ramal não mede carga: ele não sabe se o atendente está ocupado.' },
       { texto: 'Todas vão para o primeiro pod, até ele cair.', explicacao: 'Não: o Service espalha as conexões entre todos os pods prontos.' },
     ],
@@ -246,7 +246,7 @@ export const QUIZZES = [
       { texto: 'Só no <code>node-2</code>: é o node que ela tolera.', explicacao: 'A toleration não leva ninguém até lá: ela só tira a placa do caminho.' },
       { texto: 'No <code>node-1</code> ou no <code>node-2</code>: a toleration permite, não obriga.', certa: true, explicacao: 'Isso. Para ir só para o <code>node-2</code>, junte a toleration com um nodeSelector (<code>dedicado: gpu</code>).' },
       { texto: 'Em nenhum: fica Pending até ganhar um nodeSelector.', explicacao: 'O <code>node-1</code> não tem taint nenhum: qualquer pod entra.' },
-      { texto: 'Em qualquer node, inclusive o <code>control-plane</code>, que também tem um taint.', explicacao: 'O <code>control-plane</code> tem outro taint (<code>node-role.kubernetes.io/control-plane</code>), que essa toleration não cobre.' },
+      { texto: 'Em qualquer node, inclusive o <code>control-plane</code>: a toleration libera todos os taints.', explicacao: 'O <code>control-plane</code> tem outro taint (<code>node-role.kubernetes.io/control-plane</code>), que essa toleration não cobre.' },
     ],
   }),
   novoQuiz('n7-esvaziar', {
@@ -388,7 +388,7 @@ export const QUIZZES = [
     limite: 'Na vida real, um combinado de "pelo menos 3" valeria para tudo. No cluster, cada regra só vale para quem a consulta.',
     pergunta: '<p>A <code>loja</code> tem 4 réplicas, o PDB com <code>minAvailable: 3</code> e o rolling update com <code>maxUnavailable: 0</code>. Durante a troca de versão, quem garante os pods prontos?</p>',
     alternativas: [
-      { texto: 'O PDB, que conta os pods prontos durante a troca.', explicacao: 'O PDB só vale para despejos pela API de eviction (o drain). O rollout nem consulta o PDB.' },
+      { texto: 'O PDB, que segura a troca se ficarem menos de 3 prontos.', explicacao: 'O PDB só vale para despejos pela API de eviction (o drain). O rollout nem consulta o PDB.' },
       { texto: 'Os dois juntos: o mais rígido vence.', explicacao: 'Não se somam: o rollout não consulta o PDB, e o drain não olha a estratégia.' },
       { texto: 'A estratégia do Deployment (<code>maxUnavailable: 0</code>).', certa: true, explicacao: 'Isso. Cada um protege um momento: a estratégia, a troca de versão; o PDB, a manutenção dos nodes.' },
     ],
