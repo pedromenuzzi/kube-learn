@@ -95,17 +95,26 @@ test('baixar, apagar (o tema volta ao padrão) e restaurar pelo teclado: tudo vo
   await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR');
   expect(await instantaneo(page)).toEqual({});
   await expect(page.locator('.placar-topo')).toHaveAccessibleName(/^0 XP/);
+  // Depois de recarregar, o aviso diz que deu certo (e o leitor de tela ouve: o foco está nele).
+  await expect(page.getByRole('status')).toHaveText('Pronto: tudo apagado. O navio voltou vazio para o porto.');
+  await expect(page.getByRole('status')).toBeFocused();
+  await page.reload();
+  await expect(page.getByRole('status')).toBeEmpty(); // uma vez só
 
-  // Só o teclado: Tab até o campo, Enter abre o seletor de arquivos.
-  const entrada = page.getByLabel('Restaurar de um arquivo');
+  // Só o teclado: Tab até o botão (do tamanho dos vizinhos), Enter abre o seletor de arquivos.
+  const entrada = page.locator('#restaurar-arquivo');
   await expect(entrada).toHaveAttribute('type', 'file');
   await expect(entrada).toHaveAttribute('accept', 'application/json');
+  await expect(entrada).toBeHidden();
+  const botao = page.getByRole('button', { name: 'Restaurar de um arquivo' });
+  expect((await botao.boundingBox()).height).toBeGreaterThanOrEqual(40);
   await page.getByRole('button', { name: 'Apagar meus dados' }).focus();
   await page.keyboard.press('Tab');
-  await expect(entrada).toBeFocused();
+  await expect(botao).toBeFocused();
   const [seletor] = await Promise.all([page.waitForEvent('filechooser'), page.keyboard.press('Enter')]);
   await seletor.setFiles(arquivo);
-  await expect(page.getByRole('status')).toContainText('Pronto: seus dados voltaram (2 missões, 2 dias, 1 lacre)');
+  // As missões contam como na trilha: a lição lida não entra.
+  await expect(page.getByRole('status')).toContainText('Pronto: seus dados voltaram (1 missão, 2 dias, 1 lacre)');
   expect(await instantaneo(page)).toEqual(antes);
   await expect(page.locator('html')).toHaveAttribute('data-tema', 'contraste');
   await expect(page.locator('.placar-topo .visualmente-oculto')).toHaveText(placar);
@@ -121,7 +130,7 @@ test('com progresso aqui: o resumo e a confirmação antes de trocar (cancelar n
   const dialogo = page.getByRole('dialog', { name: 'Trocar os dados deste navegador?' });
 
   await page.getByLabel('Restaurar de um arquivo').setInputFiles(arquivo);
-  await expect(dialogo).toContainText('Neste navegador: 2 missões, 2 dias, 1 lacre.');
+  await expect(dialogo).toContainText('Neste navegador: 1 missão, 2 dias, 1 lacre.');
   await expect(dialogo).toContainText('No arquivo: 1 missão, 1 dia, 0 lacres.');
   for (const tema of ['claro', 'escuro', 'contraste']) {
     await page.evaluate((t) => { document.documentElement.dataset.tema = t; }, tema);
@@ -129,9 +138,12 @@ test('com progresso aqui: o resumo e a confirmação antes de trocar (cancelar n
     const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`), tema).toEqual([]);
   }
-  await dialogo.getByRole('button', { name: 'Cancelar' }).click();
+  // O foco abre no Cancelar (trocar tudo não tem volta): um Enter de reflexo não muda nada, e o foco volta ao botão.
+  await expect(dialogo.getByRole('button', { name: 'Cancelar' })).toBeFocused();
+  await page.keyboard.press('Enter');
   await expect(dialogo).toBeHidden();
   await expect(page.getByRole('status')).toContainText('Nada mudou');
+  await expect(page.getByRole('button', { name: 'Restaurar de um arquivo' })).toBeFocused();
   expect(await instantaneo(page)).toEqual(antes);
 
   await page.getByLabel('Restaurar de um arquivo').setInputFiles(arquivo);
@@ -171,3 +183,33 @@ for (const [nome, conteudo, mensagem] of [
     expect(await instantaneo(page)).toEqual(antes);
   });
 }
+
+// Um arquivo de antes das conquistas (os 8 quizzes do nível 0, de antes das práticas): o lacre vem já, sem recarregar,
+// como no boot. E, com o idioma do arquivo diferente, o aviso aparece (no idioma novo) depois de recarregar.
+const ANTIGO = {
+  progresso: Object.fromEntries(['n0-quiz-vm', 'n0-quiz-imagem-conteiner', 'n0-quiz-quantos', 'n0-quiz-dockerfile', 'n0-quiz-referencia', 'n0-quiz-partes', 'n0-quiz-latest', 'n0-quiz-papel-k8s']
+    .map((id) => [id, { status: 'resolvido', em: '2026-09-01' }])),
+  dias: ['2026-09-01'],
+};
+
+test('restaurar um arquivo de antes das conquistas: o nível 0 vem lacrado, sem recarregar', async ({ page }, info) => {
+  const arquivo = info.outputPath('antigo.json');
+  writeFileSync(arquivo, JSON.stringify(ANTIGO));
+  await page.goto('#/privacidade');
+  await page.locator('#restaurar-arquivo').setInputFiles(arquivo);
+  await expect(page.getByRole('status')).toHaveText('Pronto: seus dados voltaram (8 missões, 1 dia, 1 lacre).');
+  expect(JSON.parse((await instantaneo(page))['kube-learn:conquistas']).lacres).toEqual({ 0: '2026-09-01' });
+  await page.evaluate(() => { location.hash = '#/trilha'; });
+  await expect(page.locator('#nivel-0')).toContainText('Lacrado!');
+});
+
+test('restaurar um arquivo em inglês: recarrega em inglês e anuncia que deu certo', async ({ page }, info) => {
+  const arquivo = info.outputPath('antigo-en.json');
+  writeFileSync(arquivo, JSON.stringify({ ...ANTIGO, preferencias: { idioma: 'en' } }));
+  await page.goto('#/privacidade');
+  await Promise.all([page.waitForEvent('load'), page.locator('#restaurar-arquivo').setInputFiles(arquivo)]);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.getByRole('status')).toHaveText('Done: your data is back (8 missions, 1 day, 1 seal).');
+  await expect(page.getByRole('status')).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Restore from a file' })).toBeVisible();
+});
