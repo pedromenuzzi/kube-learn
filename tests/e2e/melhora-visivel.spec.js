@@ -1,6 +1,6 @@
 // A melhora que se vê: a meta e a medalha da Oficina (que nunca rebaixa, e o Diário conta os ouros), o placar do
 // Plantão que sobrevive ao recarregar (e não anda com a aba escondida), um relógio só, e a Revisão no celular e a 200%.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 
 const tempoNaTela = async (page) => {

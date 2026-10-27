@@ -1,6 +1,6 @@
 // Dados que ficam: o site não cai com um valor torto no localStorage, uma exceção numa página vira a página 'Algo
 // quebrou aqui', e o arquivo do 'Baixar meus dados' volta pelo 'Restaurar de um arquivo' (só com o teclado).
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 import { writeFileSync } from 'node:fs';
 

@@ -1,6 +1,6 @@
 // Nível 0 mão na massa: as duas práticas (três cópias de uma imagem e a tag que não existe) nas posições certas, com a
 // armadilha da tag; e o perfil de antes delas, que mantém o lacre do nível 0 e as recebe como convite.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import { NIVEIS } from '../../src/conteudo/index.js';
 
 test.beforeEach(async ({ page }) => {

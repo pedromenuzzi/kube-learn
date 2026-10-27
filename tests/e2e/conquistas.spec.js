@@ -1,6 +1,6 @@
 // Conquistas permanentes: o lacre, o navio e o certificado ficam guardados. Missão nova que chega depois vira convite,
 // nunca perda; quem já tinha os níveis a 100% ganha os lacres no primeiro boot, sem festa.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import { NIVEIS } from '../../src/conteudo/index.js';
 
 const conta = (n) => n.itens.filter((i) => i.tipo !== 'licao').map((i) => i.id);

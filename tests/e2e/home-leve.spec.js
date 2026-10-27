@@ -1,7 +1,7 @@
 // A home leve: a página inicial, a trilha e a privacidade desenham só com o pacote de entrada (o texto das missões, a tela
 // do exercício e as descrições do explain chegam por import() na rota); com a rede lenta, a home aparece antes de qualquer
 // pedaço lazy; um pedaço que não chega vira "Tentar de novo", nunca uma tela em branco.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import { ROTAS } from '../../src/rotas.js';
 
 /** Os .js que a página inicial baixa antes de desenhar: o de entrada e os que o index.html já pede (modulepreload). */

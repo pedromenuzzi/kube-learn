@@ -3,7 +3,9 @@
 import { test as base, expect } from '@playwright/test';
 
 // Erros de console esperados (RegExp sobre o texto). Um lugar só; entra aqui só com o motivo ao lado.
-const PERMITIDOS = [];
+const PERMITIDOS = [
+  /defeito de propósito/, // dados-que-ficam.spec.js: a exceção forçada que abre a página 'Algo quebrou aqui'
+];
 
 export const test = base.extend({
   // No contexto, e não na página: pega também as páginas que o teste abre (context.newPage, popups).

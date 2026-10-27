@@ -49,6 +49,7 @@ export const FORMAS = {
   nome: '',
   recordes: {},
   plantoes: {},
+  plantaoAberto: {},
 };
 
 /** O valor tem a forma do padrão: nem null, nem outro tipo, nem lista no lugar de objeto (ou o contrário). */
