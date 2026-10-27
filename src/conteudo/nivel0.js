@@ -16,6 +16,13 @@ const vitrine = (tag) => yaml`
 `;
 export const PARTIDA0 = { vitrine: vitrine('1.99') };
 
+/**
+ * O dia em que as duas práticas foram publicadas (o `desde` delas): quem fechou o nível 0 até esse dia mantém o lacre
+ * (conquistasMigradas). Na dúvida, uma data depois da publicação: errar para depois só dá um lacre de graça; para antes,
+ * tira o lacre de quem já tinha.
+ */
+export const PUBLICADO = '2026-10-27';
+
 const copia = (n) => yaml`
   apiVersion: v1
   kind: Pod
@@ -123,7 +130,7 @@ CMD ["node", "server.js"]  # o comando que roda quando o contêiner sobe</code><
 
   problema({
     id: 'n0-tres-conteineres',
-    desde: '2026-10-27', // quem fechou o nível 0 antes desta missão mantém o lacre (conquistasMigradas)
+    desde: PUBLICADO,
     titulo: 'Três contêineres, uma imagem',
     dificuldade: 'facil',
     vidaReal: 'Três módulos iguais, saídos da mesma fôrma da fábrica, instalados lado a lado na obra.',
@@ -224,7 +231,7 @@ registry   repositório    tag</code></pre>
 
   problema({
     id: 'n0-tag-que-nao-existe',
-    desde: '2026-10-27', // quem fechou o nível 0 antes desta missão mantém o lacre (conquistasMigradas)
+    desde: PUBLICADO,
     titulo: 'A tag que não existe',
     dificuldade: 'facil',
     cluster: 'tag-que-nao-existe',
@@ -239,8 +246,8 @@ registry   repositório    tag</code></pre>
             cada vez mais para tentar de novo. O <code>kubectl describe pod vitrine</code> mostra o motivo nas Events, no fim.</li>
         <li>No editor, troque a tag do <code>vitrine.yaml</code> por uma versão fixa que exista (a das outras lições serve)
             e clique em <b>▶ Aplicar</b>.</li>
-        <li>Rode <code>kubectl get pods</code> até ver <code>Running</code>. A próxima tentativa pode levar até um minuto: o
-            botão <b>+30s</b> adianta o relógio.</li>
+        <li>Rode <code>kubectl get pods</code> até ver <code>Running</code>. Com a tag nova, o kubelet tenta
+            baixar na hora, e o download leva alguns segundos: o botão <b>+30s</b> adianta o relógio.</li>
         <li>Para concluir, clique em <b>⬆ Entregar</b>.</li>
       </ol>`,
     comoSaber: '<code>kubectl get pod vitrine</code> mostra <code>1/1 Running</code>.',
@@ -256,12 +263,13 @@ registry   repositório    tag</code></pre>
       ] },
       { oculto: true, noClusterDoAluno: true, descricao: 'a vitrine do seu cluster foi consertada, não apagada', regras: [
         { objeto: 'pod/vitrine', msg: 'a vitrine continua no seu cluster: apagar o pod tira a vitrine do ar, não conserta a tag' },
-        { objeto: 'pod/vitrine', campo: 'spec.containers[0].image', regex: '^(docker\\.io/(library/)?)?nginx:\\d+\\.\\d+', msg: 'a imagem tem uma versão fixa, como nginx:1.27: latest (ou stable) muda de versão sem avisar' },
+        { objeto: 'pod/vitrine', campo: 'spec.containers[0].image', regex: '^(docker\\.io/(library/)?)?nginx:(?!1\\.99\\b)\\d+\\.\\d+', msg: 'a imagem do pod no seu cluster tem uma versão fixa que existe, como nginx:1.27: o 1.99 nunca foi publicado, e latest (ou stable) muda de versão sem avisar' },
       ] },
     ],
     armadilhas: [
       { descricao: 'consertar o arquivo, mas apagar o pod do cluster', historico: ['kubectl delete pod vitrine'] },
       { descricao: 'trocar para nginx:latest', mudar: () => ({ 'vitrine.yaml': vitrine('latest') }) },
+      { descricao: 'consertar só o arquivo, sem aplicar', historico: [] },
     ],
   }),
 

@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { NIVEIS } from '../src/conteudo/niveis.js';
 import { montarCluster } from '../src/conteudo/clusters.js';
+import { PUBLICADO } from '../src/conteudo/nivel0.js';
 import { kubectl } from '../src/k8s/kubectl/index.js';
 import { calcularJornada, conquistasMigradas, LIMITE_DESBLOQUEIO } from '../src/jogo/gamificacao.js';
 
@@ -37,13 +38,19 @@ describe('nível 0', () => {
 
   it('quem fechou o nível 0 antes das práticas chegarem ganha o lacre no boot, e elas viram 2 missões novas', () => {
     const quizzes = (em) => Object.fromEntries(nivel0.filter((i) => i.tipo === 'quiz').map((i) => [i.id, { status: 'resolvido', em }]));
+    const depois = new Date(Date.parse(PUBLICADO) + 86_400_000).toISOString().slice(0, 10);
     const antigo = quizzes('2026-09-01');
-    const m = conquistasMigradas(NIVEIS, antigo, {}, '2026-10-28');
+    const m = conquistasMigradas(NIVEIS, antigo, {}, depois);
     expect(m).toEqual({ lacres: { 0: '2026-09-01' } });
     const [n0, n1] = calcularJornada(NIVEIS, antigo, m).niveis;
     expect([n0.situacao, n0.novas, n1.desbloqueado]).toEqual(['lacrado', 2, true]);
     // quem chegou depois delas e pulou as duas não ganha o lacre de graça
-    expect(conquistasMigradas(NIVEIS, quizzes('2026-10-28'), {}, '2026-10-28')).toBeNull();
+    expect(conquistasMigradas(NIVEIS, quizzes(depois), {}, depois)).toBeNull();
+  });
+
+  it('a última atividade no mesmo dia da publicação ainda conta como antes: o lacre fica', () => {
+    const progresso = Object.fromEntries(nivel0.filter((i) => i.tipo === 'quiz').map((i) => [i.id, { status: 'resolvido', em: PUBLICADO }]));
+    expect(conquistasMigradas(NIVEIS, progresso, {}, PUBLICADO)).toEqual({ lacres: { 0: PUBLICADO } });
   });
 
   it('o arquivo inicial das três cópias aplica sem erro (os blocos só de comentário não atrapalham)', () => {
@@ -53,11 +60,13 @@ describe('nível 0', () => {
     expect(r.saida).toBe('pod/copia-1 created\n');
   });
 
-  it('a vitrine de partida está em ErrImagePull/ImagePullBackOff, e a tag certa a faz rodar', () => {
+  it('a vitrine de partida está em ErrImagePull/ImagePullBackOff, e a tag certa a faz rodar na hora', () => {
     const c = montarCluster('tag-que-nao-existe');
     expect(kubectl(c, 'kubectl get pods').saida).toMatch(/vitrine\s+0\/1\s+(ErrImagePull|ImagePullBackOff)/);
+    c.avancar('5m'); // a espera entre tentativas já chegou perto do teto (5 min)
     kubectl(c, 'kubectl apply -f .', { arquivos: item('n0-tag-que-nao-existe').solucao });
-    c.avancar('1m');
+    // a espera é por imagem (como no kubelet real): a imagem nova é baixada na hora, sem herdar o backoff da 1.99
+    c.avancar('10s');
     expect(kubectl(c, 'kubectl get pods').saida).toMatch(/vitrine\s+1\/1\s+Running/);
   });
 });

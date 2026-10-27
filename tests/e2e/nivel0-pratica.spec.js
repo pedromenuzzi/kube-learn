@@ -72,7 +72,7 @@ test('três contêineres, uma imagem: as três cópias aplicam e a missão é en
   await expect(page.locator('.ex-aviso')).toContainText('Missão cumprida');
 });
 
-test('a tag que não existe: latest e apagar o pod caem na armadilha; a tag fixa passa', async ({ page }) => {
+test('a tag que não existe: só o arquivo, latest e apagar o pod caem na armadilha; a tag fixa passa', async ({ page }) => {
   await page.goto('#/ex/n0-tag-que-nao-existe');
   await rodar(page, 'kubectl get pods');
   await expect(page.locator('.term-saida')).toContainText(/vitrine\s+0\/1\s+(ErrImagePull|ImagePullBackOff)/);
@@ -80,6 +80,11 @@ test('a tag que não existe: latest e apagar o pod caem na armadilha; a tag fixa
     await page.getByRole('button', { name: 'Entregar' }).click();
     await expect(page.locator('.ex-aviso')).toContainText('Veja o que faltou na aba Testes');
   };
+
+  // consertar só o arquivo, sem aplicar: a vitrine do cluster continua na 1.99
+  await escrever(page, POD('vitrine', 'nginx:1.27'));
+  await entregar();
+  await expect(page.locator('#lado-testes')).toContainText('o 1.99 nunca foi publicado');
 
   // trocar para latest: roda, mas a tag muda sem avisar
   await escrever(page, POD('vitrine', 'nginx:latest'));
@@ -97,7 +102,7 @@ test('a tag que não existe: latest e apagar o pod caem na armadilha; a tag fixa
 
   // a tag fixa, aplicada no cluster: passa
   await page.getByRole('button', { name: 'Aplicar' }).click();
-  for (let i = 0; i < 3; i++) await page.getByRole('button', { name: '+30s' }).click();
+  await page.getByRole('button', { name: '+30s' }).click(); // a imagem nova é baixada na hora, sem herdar o backoff
   await rodar(page, 'kubectl get pods');
   await expect(page.locator('.term-saida')).toContainText(/vitrine\s+1\/1\s+Running/);
   await page.getByRole('button', { name: 'Entregar' }).click();

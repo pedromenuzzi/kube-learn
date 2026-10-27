@@ -62,8 +62,8 @@ const maiorData = (itens, progresso, hoje) => itens.map((i) => progresso[i.id]).
 /**
  * As conquistas de quem chegou antes delas existirem: cada nível a 100% sem lacre guardado ganha o lacre, datado pela
  * última missão resolvida dele; o navio cheio, pela última missão resolvida da trilha. A missão publicada (`desde`)
- * depois dessa data não conta: quem fechou o nível antes dela chegar ganha o lacre, e ela vira convite. Idempotente: sem
- * nada a acrescentar, devolve null (nada a gravar).
+ * nesse mesmo dia ou depois não conta (o lado generoso): quem fechou o nível antes dela chegar ganha o lacre, e ela
+ * vira convite. Idempotente: sem nada a acrescentar, devolve null (nada a gravar).
  */
 export function conquistasMigradas(niveis, progresso = {}, conquistas = {}, hoje = hojeLocal()) {
   const j = calcularJornada(niveis, progresso, conquistas);
@@ -72,7 +72,7 @@ export function conquistasMigradas(niveis, progresso = {}, conquistas = {}, hoje
   for (const n of j.niveis) {
     if (lacres[n.numero]) continue;
     const data = maiorData(n.itens, progresso, hoje);
-    const conta = n.itens.filter((i) => contaNaPorcentagem(i) && !(i.desde > data));
+    const conta = n.itens.filter((i) => contaNaPorcentagem(i) && !(i.desde >= data));
     if (!conta.length || conta.some((i) => progresso[i.id]?.status !== 'resolvido')) continue;
     lacres[n.numero] = data;
     mudou = true;

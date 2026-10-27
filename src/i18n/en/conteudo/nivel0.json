@@ -130,7 +130,7 @@
   },
   "n0-tag-que-nao-existe": {
     "titulo": "The tag that doesn’t exist",
-    "enunciado": "\n      <p>Someone started the <code>vitrine</code> pod with the <code>nginx:1.99</code> image, a version nginx never published. The\n         pod is already in your cluster, and it’s going nowhere.</p>\n      <ol>\n        <li>In the terminal, run <code>kubectl get pods</code>. The STATUS is <code>ErrImagePull</code> or\n            <code>ImagePullBackOff</code>: Kubernetes tried to download the image, the registry didn’t have that tag, and it waits\n            longer and longer before trying again. <code>kubectl describe pod vitrine</code> shows the reason in the Events, at the end.</li>\n        <li>In the editor, change the tag in <code>vitrine.yaml</code> to a fixed version that exists (the one from the other lessons works)\n            and click <b>▶ Apply</b>.</li>\n        <li>Run <code>kubectl get pods</code> until you see <code>Running</code>. The next attempt may take up to a minute: the\n            <b>+30s</b> button moves the clock forward.</li>\n        <li>To finish, click <b>⬆ Submit</b>.</li>\n      </ol>",
+    "enunciado": "\n      <p>Someone started the <code>vitrine</code> pod with the <code>nginx:1.99</code> image, a version nginx never published. The\n         pod is already in your cluster, and it’s going nowhere.</p>\n      <ol>\n        <li>In the terminal, run <code>kubectl get pods</code>. The STATUS is <code>ErrImagePull</code> or\n            <code>ImagePullBackOff</code>: Kubernetes tried to download the image, the registry didn’t have that tag, and it waits\n            longer and longer before trying again. <code>kubectl describe pod vitrine</code> shows the reason in the Events, at the end.</li>\n        <li>In the editor, change the tag in <code>vitrine.yaml</code> to a fixed version that exists (the one from the other lessons works)\n            and click <b>▶ Apply</b>.</li>\n        <li>Run <code>kubectl get pods</code> until you see <code>Running</code>. With the new tag, the kubelet tries to\n            pull right away, and the download takes a few seconds: the <b>+30s</b> button moves the clock forward.</li>\n        <li>To finish, click <b>⬆ Submit</b>.</li>\n      </ol>",
     "dica": "The version you’ve used so far, nginx:1.27, exists. Changing the tag and applying is enough: it’s the same pod, only the image changes.",
     "vidaReal": "The order went to the factory with a model it never made: the truck comes back empty, and the foreman sends it again, waiting longer and longer between attempts.",
     "limite": "A real factory would call to point out the mistake. Kubernetes only writes it down in the events and keeps trying: fixing the order is up to you.",
@@ -146,7 +146,7 @@
         "descricao": "the vitrine in your cluster was fixed, not deleted",
         "msgs": {
           "0": "the vitrine is still in your cluster: deleting the pod takes the shop window offline, it doesn’t fix the tag",
-          "1": "the image has a fixed version, like nginx:1.27: latest (or stable) changes version without warning"
+          "1": "the pod’s image in your cluster has a fixed version that exists, like nginx:1.27: 1.99 was never published, and latest (or stable) changes version without warning"
         }
       }
     ]

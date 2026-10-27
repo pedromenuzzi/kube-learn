@@ -332,6 +332,11 @@ export class Kubelet {
       est.decidido = true;
       est.reiniciarEm = agora;
     }
+    if (est.imagem && est.imagem !== ct.image && ['erroPull', 'backoffPull'].includes(est.fase)) {
+      // A espera entre pulls é por imagem (no kubelet, a chave é pod UID + imagem): a imagem nova é baixada na hora.
+      est.backoffPull = BACKOFF_INICIAL;
+      est.fase = 'esperando';
+    }
     switch (est.fase) {
       case 'esperando':
         this.iniciarPull(pod, ct, est);
