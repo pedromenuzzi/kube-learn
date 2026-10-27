@@ -20,6 +20,7 @@ import { ativarAbas, htmlAbas, escapar, minutosESegundos } from './util.js';
 import { montarJanelas } from './janelas.js';
 import { icone } from './icones.js';
 import { compartilharResultado, htmlCompartilhar, tempoEEntregas, textoDoPlantao } from './compartilhar.js';
+import { medalha, faltaParaSeguinte, nomeDaMedalha } from '../jogo/medalhas.js';
 
 export { carregarEsquemaIngles } from '../k8s/esquema.js'; // main.js o chama antes de abrir a tela em inglês
 
@@ -74,14 +75,24 @@ export function montarExercicio(raiz, item) {
   estado.atual = Object.keys(estado.arquivos)[0] ?? null;
   const caixasVistas = new Set();
 
-  // A Oficina do kubectl corre contra o relógio (de verdade, não o do cluster): vale o recorde de cada exercício.
-  // O Plantão do dia também tem relógio, sem recorde nem meta: o tempo da primeira vez vai para o resultado do dia.
+  // A Oficina do kubectl corre contra o relógio (de verdade, não o do cluster): vale o recorde e a medalha de cada
+  // exercício. O Plantão do dia também tem relógio, sem recorde nem meta: o tempo da primeira vez vai para o resultado
+  // do dia, e o tempo e as entregas em andamento ficam guardados (plantaoAberto) até resolver: recarregar não zera.
+  // O relógio só anda com a tela da missão aberta e visível (o relógio real é permitido aqui: o determinismo é do src/k8s).
   const naOficina = item.secao === 'oficina';
-  const comRelogio = naOficina || item.secao === 'plantao';
+  const noPlantao = item.secao === 'plantao';
+  const comRelogio = naOficina || noPlantao;
   const recorde = naOficina ? ler(CHAVES.recordes, {})[item.id] : null;
-  let comecou = anterior?.comecou ?? performance.now();
+  const aberto = noPlantao ? ler(CHAVES.plantaoAberto, {})[item.id] : null;
+  let acumulado = anterior?.acumulado ?? aberto?.ms ?? 0; // o tempo até a última pausa
+  let desde = document.hidden ? null : performance.now(); // desde quando o relógio anda (null: parado)
   let terminouEm = anterior?.terminouEm ?? null;
-  const cronometro = () => `${icone('relogio')} ${minutosESegundos(terminouEm ?? performance.now() - comecou)}`;
+  const tempo = () => terminouEm ?? acumulado + (desde === null ? 0 : performance.now() - desde);
+  const zerarRelogio = () => {
+    acumulado = 0;
+    desde = document.hidden ? null : performance.now();
+    terminouEm = null;
+  };
   const xp = item.secao ? 0 : xpDoItem(item);
   const voltarPara = { troubleshooting: 'Troubleshooting', oficina: t('Oficina'), plantao: t('Plantão do dia') }[item.secao] ?? t('Trilha');
   raiz.innerHTML = `
@@ -92,7 +103,7 @@ export function montarExercicio(raiz, item) {
         ${item.projeto ? `<span class="chip chip-projeto">${icone('arvore')} ${escapar(item.projeto.titulo)} · ${t('etapa {etapa} de {total}', item.projeto)}</span>` : ''}
         ${item.dificuldade ? `<span class="chip chip-${item.dificuldade}">${t(DIFICULDADE[item.dificuldade])}</span>` : ''}${xp ? `<span class="chip">${xp} XP</span>` : ''}
         ${ler(CHAVES.progresso, {})[item.id]?.status === 'resolvido' ? `<span class="chip chip-ok">${icone('certo')} ${t('Resolvida')}</span>` : ''}
-        ${comRelogio ? `<span class="chip chip-cronometro" aria-hidden="true">${cronometro()}</span>` : ''}${naOficina ? `<span class="chip chip-recorde">${recorde ? `${icone('raio')} ${t('Recorde: {tempo}', { tempo: minutosESegundos(recorde) })}` : t('Primeira vez: o tempo de hoje vira o recorde')}</span>` : ''}
+        ${comRelogio ? `<span class="chip chip-cronometro">${icone('relogio')} ${t('Seu tempo')} <span class="cronometro-tempo">${minutosESegundos(tempo())}</span></span>` : ''}${naOficina ? `<span class="chip chip-meta">${icone('alvo')} ${t('Meta: {tempo}', { tempo: minutosESegundos(item.meta) })}</span>${recorde ? `<span class="chip chip-recorde medalha-${medalha(recorde, item.meta)}">${icone('lacre')} ${nomeDaMedalha(medalha(recorde, item.meta))} · ${t('Recorde: {tempo}', { tempo: minutosESegundos(recorde) })}</span>` : ''}` : ''}
       </header>
       <div class="ex-acoes">
         ${temArquivos ? `<button type="button" class="botao" data-acao="aplicar" title="Ctrl+Enter">${icone('play')} ${t('Aplicar')}</button>` : `<button type="button" class="botao" data-acao="conferir" title="Ctrl+Enter">${icone('certo')} ${t('Conferir')}</button>`}
@@ -102,7 +113,7 @@ export function montarExercicio(raiz, item) {
         <button type="button" data-acao="resetar">${icone('reiniciar')}<span class="rotulo">${t('Resetar cluster')}</span></button>
         <button type="button" data-acao="arrumacao" title="${t('Volta as janelas para o lugar e o tamanho de começo')}">${icone('janelas')}<span class="rotulo">${t('Arrumação padrão')}</span></button>
         <button type="button" data-acao="feedback" title="${t('Conte como foi esta missão')}">${icone('balao')}<span class="rotulo">Feedback</span></button>
-        <span class="relogio" aria-hidden="true"></span>
+        ${comRelogio ? '' : '<span class="relogio" aria-hidden="true"></span>'}
       </div>
       <div class="ex-aviso" role="status" aria-live="polite"></div>
       <div class="ex-janelas"></div>
@@ -365,6 +376,7 @@ export function montarExercicio(raiz, item) {
       eventosEm = estado.cluster.agora;
       pintar('#baixo-eventos', htmlEventos(estado.cluster));
     }
+    if (comRelogio) return; // um relógio só na tela: o seu tempo
     const seg = Math.floor((estado.cluster.agora - Date.UTC(2026, 9, 16, 12)) / 1000);
     $('.relogio').innerHTML = `${icone('relogio')}${String(Math.floor(seg / 60)).padStart(2, '0')}:${String(seg % 60).padStart(2, '0')}`;
   };
@@ -390,23 +402,38 @@ export function montarExercicio(raiz, item) {
   }
   if (resultados) mostrarTestes(resultados.lista, resultados.todos);
 
-  /** Para o relógio da Oficina, guarda o recorde se bateu e devolve a mensagem. */
+  /** Para o relógio da Oficina, guarda o recorde se bateu e devolve a mensagem: a medalha, o tempo e quanto falta. */
   const tempoDaOficina = () => {
-    terminouEm ??= performance.now() - comecou;
+    terminouEm ??= tempo();
     const recordes = ler(CHAVES.recordes, {});
     const antes = recordes[item.id];
-    const tempo = minutosESegundos(terminouEm);
+    const feito = minutosESegundos(terminouEm);
     if (!antes || terminouEm < antes) gravar(CHAVES.recordes, { ...recordes, [item.id]: Math.round(terminouEm) });
-    if (!antes) return t('Feito em {tempo}! Esse é o seu primeiro recorde.', { tempo });
-    return terminouEm < antes ? t('Novo recorde: {tempo}! (era {antes})', { tempo, antes: minutosESegundos(antes) })
-      : t('Feito em {tempo}. O recorde continua {antes}: tenta de novo?', { tempo, antes: minutosESegundos(antes) });
+    const cabeca = { ouro: t('Ouro!'), prata: t('Prata!'), bronze: t('Bronze!') }[medalha(terminouEm, item.meta)];
+    const quando = !antes ? t('Feito em {tempo}.', { tempo: feito })
+      : terminouEm < antes ? t('Novo recorde: {tempo}! (era {antes})', { tempo: feito, antes: minutosESegundos(antes) })
+        : t('Feito em {tempo}. O recorde continua {antes}.', { tempo: feito, antes: minutosESegundos(antes) });
+    const proxima = faltaParaSeguinte(terminouEm, item.meta);
+    const falta = !proxima ? t('Dentro da meta de {meta}.', { meta: minutosESegundos(item.meta) })
+      : proxima.seguinte === 'ouro' ? t('Faltam {falta} para o ouro.', { falta: minutosESegundos(proxima.falta) })
+        : t('Faltam {falta} para a prata.', { falta: minutosESegundos(proxima.falta) });
+    return `${cabeca} ${quando} ${falta}`;
   };
   // A escada de ajuda: cada entrega errada abre um degrau (a dica, o Manual, a Solução), sem tirar XP.
-  let falhas = anterior?.falhas ?? 0;
+  let falhas = anterior?.falhas ?? aberto?.entregas ?? 0;
   let acertosAntes = anterior?.acertosAntes ?? null;
+  /** O Plantão em andamento: o tempo até agora e as entregas (erradas) ficam guardados, por id, até resolver. */
+  const pausar = () => {
+    acumulado = tempo();
+    desde = null;
+    if (noPlantao && terminouEm === null) gravar(CHAVES.plantaoAberto, { ...ler(CHAVES.plantaoAberto, {}), [item.id]: { ms: Math.round(acumulado), entregas: falhas } });
+  };
   /** Para o relógio do Plantão e avisa. A primeira vez que resolve fica guardada: é o resultado do dia, o compartilhado. */
   const avisarPlantao = () => {
-    terminouEm ??= performance.now() - comecou;
+    terminouEm ??= tempo();
+    const abertos = ler(CHAVES.plantaoAberto, {});
+    delete abertos[item.id];
+    gravar(CHAVES.plantaoAberto, abertos);
     const agora = { ms: Math.round(terminouEm), entregas: falhas + 1 };
     const plantoes = ler(CHAVES.plantoes, {});
     const antes = plantoes[item.id];
@@ -514,8 +541,7 @@ export function montarExercicio(raiz, item) {
       caixasVistas.clear();
       terminal.reiniciar();
       terminal.escrever(t('De novo, do zero: o relógio voltou a contar.'), 'term-info');
-      comecou = performance.now();
-      terminouEm = null;
+      zerarRelogio();
       aviso.replaceChildren();
       atualizarPaineis();
       terminal.focar();
@@ -525,10 +551,7 @@ export function montarExercicio(raiz, item) {
       estado.cluster = montarCluster(item.cluster, `${item.id}:aluno`);
       relogioTravado = false;
       // Na Oficina, o cluster do começo põe o cronômetro no começo também (o recorde vale do zero ao fim).
-      if (naOficina) {
-        comecou = performance.now();
-        terminouEm = null;
-      }
+      if (naOficina) zerarRelogio();
       caixasVistas.clear();
       terminal.reiniciar();
       terminal.escrever(t('Cluster recriado do zero.'), 'term-info');
@@ -570,12 +593,20 @@ export function montarExercicio(raiz, item) {
     acoes[nome]();
   };
   document.addEventListener('keydown', teclas, { signal: fim.signal });
+  // O relógio da Oficina e do Plantão para com a aba escondida (e o Plantão guarda o tempo: recarregar não zera).
+  if (comRelogio) {
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) pausar();
+      else if (desde === null) desde = performance.now();
+    }, { signal: fim.signal });
+    addEventListener('pagehide', pausar, { signal: fim.signal });
+  }
 
   // ---------- relógio: 1 segundo do cluster por segundo de verdade ----------
   // Se o simulador tropeça num tique, o relógio para (e avisa uma vez só) até o cluster ser recriado.
   let relogioTravado = false;
   const relogio = setInterval(guardar(() => {
-    if (comRelogio) $('.chip-cronometro').innerHTML = cronometro(); // parado: o tempo final
+    if (comRelogio) $('.cronometro-tempo').textContent = minutosESegundos(tempo()); // parado: o tempo final
     if (document.hidden || relogioTravado) return;
     relogioTravado = true;
     estado.cluster.avancar(1000);
@@ -588,8 +619,9 @@ export function montarExercicio(raiz, item) {
   return {
     destruir() {
       clearInterval(relogio);
+      pausar(); // fora da tela da missão, o relógio não anda
       guardadas.delete(item.id);
-      guardadas.set(item.id, { cluster: estado.cluster, historico: [...terminal.historico], comecou, terminouEm, falhas, acertosAntes, resultados });
+      guardadas.set(item.id, { cluster: estado.cluster, historico: [...terminal.historico], acumulado, terminouEm, falhas, acertosAntes, resultados });
       if (guardadas.size > GUARDAR) guardadas.delete(guardadas.keys().next().value);
       clearTimeout(tempoDoAviso);
       fim.abort();

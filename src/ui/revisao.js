@@ -19,6 +19,8 @@ let sessao = null;
 /** Depois de responder: a certa com ✓ e "resposta certa", a escolhida errada com ✗ e "sua resposta" (texto, não só cor). */
 function marcar(form, c, resposta) {
   form.querySelectorAll('input, button').forEach((el) => { el.disabled = true; });
+  // O Responder já fez o seu trabalho: sai da frente, e o Próximo fica logo abaixo das alternativas.
+  form.querySelector('[type=submit]').closest('p').hidden = true;
   form.querySelectorAll('.alternativa').forEach((rotulo, k) => {
     const o = c.opcoes[k];
     if (o.id === resposta.id) rotulo.querySelector('input').checked = true;
@@ -55,15 +57,18 @@ export function paginaRevisao(_parametro, opcoes = {}) {
       return {};
     }
 
-    /** A explicação depois de responder (no aria-live), com o botão do próximo cartão. */
+    /**
+     * A explicação depois de responder (no aria-live), com o botão do próximo cartão logo abaixo do veredito: por
+     * longa que seja a explicação, o ✓/✗ das alternativas e o Próximo cabem juntos na tela do celular (e a 200%).
+     */
     const mostrarRetorno = (retorno, certo) => {
       const x = cartoes[sessao.i].explicacao;
       retorno.className = `quiz-retorno ${certo ? 'ok' : 'falha'}`;
-      retorno.innerHTML = `<p><b>${certo ? t('Certo!') : t('Não foi dessa vez.')}</b></p>
+      retorno.innerHTML = `<p class="retorno-veredito"><b>${certo ? t('Certo!') : t('Não foi dessa vez.')}</b>
+          <button type="button" class="botao" data-proximo>${sessao.i + 1 < cartoes.length ? `${t('Próximo cartão')} ${icone('seguir')}` : t('Terminar')}</button></p>
         <p><b>${escapar(x.termo)}</b>: ${escapar(x.definicao)}</p>
         <p><b>${t('Na vida real:')}</b> ${escapar(x.vidaReal)}</p>
-        <p><b>${t('Onde quebra:')}</b> ${escapar(x.limite)}</p>
-        <p><button type="button" class="botao" data-proximo>${sessao.i + 1 < cartoes.length ? `${t('Próximo cartão')} ${icone('seguir')}` : t('Terminar')}</button></p>`;
+        <p><b>${t('Onde quebra:')}</b> ${escapar(x.limite)}</p>`;
       const proximo = retorno.querySelector('[data-proximo]');
       proximo.addEventListener('click', () => {
         sessao.i++;
@@ -117,8 +122,8 @@ export function paginaRevisao(_parametro, opcoes = {}) {
         registrarDia(hoje);
         dispatchEvent(new Event('kube-learn:progresso')); // o topo conta junto: a aba Revisão e o dia de estudo
         marcar(form, c, sessao.resposta);
-        // O foco no Próximo, e as alternativas com o ✓ e o ✗ abaixo do topo (o foco sozinho centralizaria o botão).
-        focarMostrando(mostrarRetorno(retorno, escolhida.certa), form.querySelector('fieldset'));
+        // O foco no Próximo, e da primeira alternativa marcada (o ✓ ou o ✗) para baixo à vista, fora do topo.
+        focarMostrando(mostrarRetorno(retorno, escolhida.certa), form.querySelector('.alternativa.certa, .alternativa.errada'));
       });
     };
     desenhar();

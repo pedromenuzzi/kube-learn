@@ -51,7 +51,7 @@ test('o k e o $do contam como o kubectl na entrega; o 2> grava o erro e o $? diz
   await rodar('export do="--dry-run=client -o yaml"');
   await rodar('kubectl create deployment api --image=kubelearn/loja:1.0 --replicas=3 $do > api.yaml');
   await rodar('kubectl apply -f api.yaml');
-  await entregar('primeiro recorde'); // a Oficina comemora o tempo
+  await entregar('Feito em'); // a Oficina comemora o tempo (e a medalha)
 
   await page.goto('#/livre');
   await rodar('kubectl get po nope 2> erro.txt; echo "codigo $?"');

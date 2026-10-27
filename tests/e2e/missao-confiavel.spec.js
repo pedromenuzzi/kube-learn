@@ -70,12 +70,12 @@ test('Oficina: trocar o idioma no meio não zera o cronômetro (sem recorde fals
   await expect(page.locator('.chip-cronometro')).toContainText('0:03', { timeout: 10_000 });
   await page.locator('[data-idioma=en]').click();
   await expect(page.locator('.term-saida')).toContainText('Your cluster is just as you left it');
-  const [m, s] = (await page.locator('.chip-cronometro').textContent()).trim().split(':').map(Number);
+  const [m, s] = (await page.locator('.cronometro-tempo').textContent()).trim().split(':').map(Number);
   expect(m * 60 + s).toBeGreaterThanOrEqual(3);
   await digitar(page, 'kubectl rollout undo deployment/loja');
   await page.getByRole('button', { name: '+30s' }).click();
   await page.getByRole('button', { name: 'Submit' }).click();
-  await expect(page.locator('.ex-aviso')).toContainText('first record');
+  await expect(page.locator('.ex-aviso')).toContainText('Done in');
   const recorde = await page.evaluate(() => JSON.parse(localStorage.getItem('kube-learn:recordes'))['of-desfazer']);
   expect(recorde).toBeGreaterThanOrEqual(3000);
 });
