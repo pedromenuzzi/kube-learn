@@ -55,6 +55,35 @@ export const FORMAS = {
 /** O valor tem a forma do padrão: nem null, nem outro tipo, nem lista no lugar de objeto (ou o contrário). */
 const mesmaForma = (v, padrao) => v !== null && typeof v === typeof padrao && Array.isArray(v) === Array.isArray(padrao);
 
+const ehObjeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const ehData = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+const ehInteiro = (v, min, max = Infinity) => Number.isInteger(v) && v >= min && v <= max;
+const ehPlacar = (v) => ehObjeto(v) && Number.isFinite(v.ms) && v.ms >= 0 && ehInteiro(v.entregas, 0);
+/** O objeto só com as entradas que passam. */
+const filtrar = (o, ok) => Object.fromEntries(Object.entries(o).filter(([, x]) => ok(x)));
+
+/**
+ * Por dentro: o que fica de cada chave (já com a forma de fora certa). Entrada torta de objeto sai, item torto de lista
+ * sai: quem lê não encontra um NaN, uma data inválida ou um lacre sem data. Sem limpeza aqui, só as entradas null saem.
+ */
+const LIMPEZAS = {
+  // Uma data torta não leva a missão resolvida junto: sai só a data (ela é opcional).
+  progresso: (v) => Object.fromEntries(Object.entries(v).filter(([, p]) => ['resolvido', 'tentado'].includes(p?.status))
+    .map(([id, p]) => [id, ehData(p.em) ? { status: p.status, em: p.em } : { status: p.status }])),
+  conquistas: (v) => ({ ...(ehObjeto(v.lacres) && { lacres: filtrar(v.lacres, ehData) }), ...(ehData(v.navio) && { navio: v.navio }) }),
+  'arquivos:': (v) => filtrar(v, (x) => typeof x === 'string'),
+  dias: (v) => v.filter(ehData),
+  revisao: (v) => filtrar(v, (c) => ehObjeto(c) && ehInteiro(c.caixa, 1, 5) && ehData(c.proxima)),
+  recordes: (v) => filtrar(v, (ms) => Number.isFinite(ms) && ms > 0),
+  plantoes: (v) => filtrar(v, ehPlacar),
+  plantaoAberto: (v) => filtrar(v, ehPlacar),
+};
+const limpar = (chave, v) => {
+  const limpeza = LIMPEZAS[chave.startsWith(CHAVES.arquivos) ? CHAVES.arquivos : chave];
+  if (limpeza) return limpeza(v);
+  return ehObjeto(v) ? filtrar(v, (x) => x !== null) : v;
+};
+
 /** Todas as chaves do site neste navegador. */
 export function todasAsChaves() {
   try {
@@ -64,8 +93,10 @@ export function todasAsChaves() {
   }
 }
 
+/** O conteúdo do "Baixar meus dados": cada chave lida como o site lê (limpa), para o restaurar sempre aceitar o arquivo. */
 export function exportarTudo() {
-  return Object.fromEntries(todasAsChaves().map((k) => [k.slice(PREFIXO.length), ler(k.slice(PREFIXO.length))]));
+  const chaves = todasAsChaves().map((k) => k.slice(PREFIXO.length)).filter((k) => formaDa(k) !== undefined);
+  return Object.fromEntries(chaves.map((k) => [k, ler(k, formaDa(k))]));
 }
 
 export function apagarTudo() {
@@ -79,17 +110,17 @@ export function registrarDia(hoje) {
 }
 
 /**
- * O valor guardado. Com um padrão, um valor de outra forma (um 'null', um texto onde vai um objeto) volta como o padrão,
- * sem apagar o guardado; num objeto, as entradas null somem (quem lê faz p.status sem medo).
+ * O valor guardado. Um valor de outra forma (um 'null', um texto onde vai um objeto) volta como o padrão, sem apagar o
+ * guardado; por dentro, as entradas tortas somem (LIMPEZAS). A forma é a do padrão; sem padrão, a da chave (FORMAS).
  */
 export function ler(chave, padrao = null) {
   try {
     const bruto = localStorage.getItem(PREFIXO + chave);
     if (bruto === null) return padrao;
     const v = JSON.parse(bruto);
-    if (padrao === null || padrao === undefined) return v;
-    if (!mesmaForma(v, padrao)) return padrao;
-    return typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).filter(([, x]) => x !== null)) : v;
+    const forma = padrao ?? formaDa(chave);
+    if (forma === undefined) return v; // chave que o site não conhece, sem padrão: como está
+    return mesmaForma(v, forma) ? limpar(chave, v) : padrao;
   } catch {
     return padrao;
   }
@@ -146,7 +177,7 @@ export function restaurar(dados) {
   const problema = conferirDados(dados);
   if (problema) return problema;
   apagarTudo();
-  for (const [chave, valor] of Object.entries(dados)) gravar(chave, valor);
+  for (const [chave, valor] of Object.entries(dados)) gravar(chave, limpar(chave, valor)); // por dentro, como o ler()
   globalThis.dispatchEvent?.(new Event('kube-learn:progresso'));
   return null;
 }

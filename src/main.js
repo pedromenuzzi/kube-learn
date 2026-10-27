@@ -34,7 +34,7 @@ const naoEncontrada = (missao) => `
  * caminho para contar (o Feedback abre uma issue já preenchida), para o início e para os dados (lá dá para apagar tudo).
  */
 const algoQuebrou = (erro) => {
-  const relato = `${t('Endereço')}: ${location.href}\n\n\`\`\`\n${String(erro?.stack ?? erro).slice(0, 1500)}\n\`\`\``;
+  const relato = `${t('Endereço')}: ${location.href}\n\n\`\`\`\n${`${erro?.message ?? erro}\n${erro?.stack ?? ''}`.slice(0, 1500)}\n\`\`\``;
   const issue = `https://github.com/pedromenuzzi/kube-learn/issues/new?${new URLSearchParams({ template: 'feedback.yml', title: `[feedback] ${t('Algo quebrou aqui')}: ${location.hash || '#/'}`, relato })}`;
   return `
   <section class="nao-encontrada">
@@ -57,6 +57,15 @@ function recarregarUmaVez() {
     sessionStorage.setItem('kube-learn:recarregou', String(Date.now()));
   } catch { /* sem sessionStorage: recarrega mesmo assim */ }
   location.reload();
+}
+
+/** O topo que quebra não leva a página junto (a #/privacidade, com o "Apagar meus dados", sempre abre). */
+function topoComCuidado(caminho) {
+  try {
+    atualizarTopo(caminho);
+  } catch (erro) {
+    console.error(erro);
+  }
 }
 
 let paginaAtual = null;
@@ -160,7 +169,7 @@ function desenhar(opcoes = {}) {
     }
   };
   try {
-    atualizarTopo(rota?.caminho); // antes da página: se ela quebrar, o topo já marca a rota nova
+    topoComCuidado(rota?.caminho); // antes da página: se ela quebrar, o topo já marca a rota nova
     const pagina = rota ? PAGINAS[rota.caminho](rota.parametro, opcoes) : naoEncontrada(false);
     main.classList.toggle('largo', !item?.leitura && ['/ex', '/livre', '/trilha', '/'].includes(rota?.caminho));
     main.classList.toggle('medio', ['/glossario', '/troubleshooting', '/oficina', '/plantao', '/diario'].includes(rota?.caminho));
@@ -227,7 +236,7 @@ function iniciar() {
     document.getElementById('conteudo').focus();
   });
   (window.requestIdleCallback ?? setTimeout)(() => import('./ui/exercicio.js').catch(() => {})); // só adianta: se falhar, a missão tenta de novo
-  window.addEventListener('kube-learn:progresso', () => atualizarTopo(resolverRota(location.hash)?.caminho));
+  window.addEventListener('kube-learn:progresso', () => topoComCuidado(resolverRota(location.hash)?.caminho));
   desenhar();
 }
 
