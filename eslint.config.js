@@ -24,6 +24,13 @@ export default [
       'no-restricted-properties': ['error',
         { object: 'Date', property: 'now', message: 'Simulador determinístico: use o relógio do cluster.' },
         { object: 'Math', property: 'random', message: 'Simulador determinístico: use o sorteio com semente (aleatorio.js).' },
+        // Pelo objeto global (globalThis.Math.random(), new window.Date(), self.crypto): só pelo nome, que as regras vigiam.
+        ...['globalThis', 'window', 'self'].flatMap((object) => ['Math', 'Date', 'performance', 'crypto'].map((property) => (
+          { object, property, message: 'Simulador determinístico: use Math e Date pelo nome; relógio e sorteio vêm do cluster.' }))),
+      ],
+      'no-restricted-globals': ['error',
+        { name: 'performance', message: 'Simulador determinístico: use o relógio do cluster.' },
+        { name: 'crypto', message: 'Simulador determinístico: use o sorteio com semente (aleatorio.js).' },
       ],
       'no-restricted-syntax': ['error',
         { selector: 'NewExpression[callee.name="Date"][arguments.length=0]', message: 'Simulador determinístico: new Date() sem argumento lê o relógio do sistema.' },

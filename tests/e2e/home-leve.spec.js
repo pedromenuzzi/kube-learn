@@ -4,6 +4,8 @@
 import { test, expect } from './base.js';
 import { ROTAS } from '../../src/rotas.js';
 
+test.use({ errosPermitidos: [/^Failed to load resource: net::ERR_FAILED$/] }); // o route.abort() do pedaço lazy que não chega
+
 /** Os .js que a página inicial baixa antes de desenhar: o de entrada e os que o index.html já pede (modulepreload). */
 async function estaticos(request) {
   const html = await (await request.get('./')).text();
