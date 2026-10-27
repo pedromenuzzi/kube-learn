@@ -1,6 +1,38 @@
 // Nível 0: contêineres, antes do Kubernetes. Abre com um pod subindo de verdade (a vitória do primeiro minuto); depois,
-// lições e quizzes intercalados, cada lição seguida dos quizzes dela.
-import { licao, quiz, yaml } from './util.js';
+// lições e quizzes intercalados, cada lição seguida dos quizzes dela, e uma prática no cluster a cada poucos itens
+// (tests/nivel0.test.js confere que nunca passam de 6 itens seguidos sem cluster).
+import { licao, problema, quiz, yaml } from './util.js';
+
+/** A vitrine com uma tag que o nginx nunca publicou: o cluster de partida e o arquivo inicial da missão. */
+const vitrine = (tag) => yaml`
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: vitrine
+  spec:
+    containers:
+    - name: vitrine
+      image: nginx:${tag}     # nome:tag
+`;
+export const PARTIDA0 = { vitrine: vitrine('1.99') };
+
+/**
+ * O dia em que as duas práticas foram publicadas (o `desde` delas): quem fechou o nível 0 até esse dia mantém o lacre
+ * (conquistasMigradas). Na dúvida, uma data depois da publicação: errar para depois só dá um lacre de graça; para antes,
+ * tira o lacre de quem já tinha.
+ */
+export const PUBLICADO = '2026-10-27';
+
+const copia = (n) => yaml`
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: copia-${n}
+  spec:
+    containers:
+    - name: web
+      image: nginx:1.27
+`;
 
 export const NIVEL0 = [
   licao({
@@ -96,6 +128,37 @@ COPY . .                   # o seu código
 CMD ["node", "server.js"]  # o comando que roda quando o contêiner sobe</code></pre>`,
   }),
 
+  problema({
+    id: 'n0-tres-conteineres',
+    desde: PUBLICADO,
+    titulo: 'Três contêineres, uma imagem',
+    dificuldade: 'facil',
+    vidaReal: 'Três módulos iguais, saídos da mesma fôrma da fábrica, instalados lado a lado na obra.',
+    limite: 'Na obra, cada módulo gasta material novo. No node, os contêineres da mesma imagem dividem as camadas, baixadas uma vez só (cada node baixa a sua cópia).',
+    enunciado: `
+      <p>Da mesma imagem saem quantos contêineres você quiser. Prove: rode <b>3 pods</b> da imagem <code>nginx:1.27</code>.</p>
+      <ol>
+        <li>O <code>copias.yaml</code> já tem o primeiro pod, o <code>copia-1</code>. A linha <code>---</code> separa uma planta
+            da outra no mesmo arquivo: embaixo de cada <code>---</code>, copie o bloco do <code>copia-1</code> e troque só o
+            nome, para <code>copia-2</code> e <code>copia-3</code>.</li>
+        <li>Clique em <b>▶ Aplicar</b> e rode <code>kubectl get pods -o wide</code>: cada pod tem o seu nome e o seu IP.</li>
+        <li>Agora <code>kubectl describe pod copia-2</code>: a linha <code>Image:</code> é a mesma do <code>copia-1</code>.</li>
+        <li>Para concluir, clique em <b>⬆ Entregar</b>.</li>
+      </ol>`,
+    comoSaber: '<code>kubectl get pods</code> mostra os três pods em <code>Running</code>.',
+    dica: 'Três blocos iguais, separados por ---, cada um com um metadata.name diferente: copia-1, copia-2 e copia-3.',
+    inicial: {
+      'copias.yaml': `${copia(1).trimEnd()}\n---\n# o copia-2: copie o bloco de cima e troque só o nome\n---\n# o copia-3\n`,
+    },
+    solucao: { 'copias.yaml': [1, 2, 3].map(copia).join('---\n') },
+    testes: [
+      { descricao: 'kubectl apply -f .', regras: [
+        { semErros: true },
+        { pods: '', quantidade: 3, prontos: 3, imagem: 'nginx:1.27', msg: '3 pods prontos, todos da imagem nginx:1.27' },
+      ] },
+    ],
+  }),
+
   quiz({
     id: 'n0-quiz-imagem-conteiner',
     titulo: 'Quiz: imagem ou contêiner?',
@@ -164,6 +227,50 @@ registry   repositório    tag</code></pre>
       <p><code>latest</code> não quer dizer "a mais nova": é só uma tag como outra qualquer, que o dono da imagem pode
          apontar para outra versão quando quiser. Hoje <code>nginx:latest</code> é uma versão; amanhã, outra. Em produção,
          use sempre uma tag fixa (<code>nginx:1.27</code>), para saber exatamente o que está rodando.</p>`,
+  }),
+
+  problema({
+    id: 'n0-tag-que-nao-existe',
+    desde: PUBLICADO,
+    titulo: 'A tag que não existe',
+    dificuldade: 'facil',
+    cluster: 'tag-que-nao-existe',
+    vidaReal: 'O pedido saiu para a fábrica com um modelo que ela nunca fabricou: o caminhão volta vazio, e o encarregado manda de novo, esperando cada vez mais entre uma tentativa e outra.',
+    limite: 'A fábrica de verdade ligaria para avisar do engano. O Kubernetes só anota nos eventos e continua tentando: corrigir o pedido é com você.',
+    enunciado: `
+      <p>Alguém subiu a <code>vitrine</code> com a imagem <code>nginx:1.99</code>, uma versão que o nginx nunca publicou. O
+         pod já está no seu cluster, e não sai do lugar.</p>
+      <ol>
+        <li>No terminal, rode <code>kubectl get pods</code>. O STATUS é <code>ErrImagePull</code> ou
+            <code>ImagePullBackOff</code>: o Kubernetes tentou baixar a imagem, o registry não tinha essa tag, e ele espera
+            cada vez mais para tentar de novo. O <code>kubectl describe pod vitrine</code> mostra o motivo nas Events, no fim.</li>
+        <li>No editor, troque a tag do <code>vitrine.yaml</code> por uma versão fixa que exista (a das outras lições serve)
+            e clique em <b>▶ Aplicar</b>.</li>
+        <li>Rode <code>kubectl get pods</code> até ver <code>Running</code>. Com a tag nova, o kubelet tenta
+            baixar na hora, e o download leva alguns segundos: o botão <b>+30s</b> adianta o relógio.</li>
+        <li>Para concluir, clique em <b>⬆ Entregar</b>.</li>
+      </ol>`,
+    comoSaber: '<code>kubectl get pod vitrine</code> mostra <code>1/1 Running</code>.',
+    dica: 'A versão que você usou até aqui, nginx:1.27, existe. Trocar a tag e aplicar basta: o pod é o mesmo, só a imagem muda.',
+    inicial: { 'vitrine.yaml': PARTIDA0.vitrine },
+    solucao: { 'vitrine.yaml': vitrine('1.27') },
+    // a solução de referência também vai para o cluster do aluno (é ele que o teste oculto confere)
+    solucaoTerminal: ['kubectl apply -f .'],
+    testes: [
+      { descricao: 'kubectl apply -f .', regras: [
+        { semErros: true },
+        { objeto: 'pod/vitrine', campo: 'status.phase', igual: 'Running', msg: 'a vitrine fica Running' },
+      ] },
+      { oculto: true, noClusterDoAluno: true, descricao: 'a vitrine do seu cluster foi consertada, não apagada', regras: [
+        { objeto: 'pod/vitrine', msg: 'a vitrine continua no seu cluster: apagar o pod tira a vitrine do ar, não conserta a tag' },
+        { objeto: 'pod/vitrine', campo: 'spec.containers[0].image', regex: '^(docker\\.io/(library/)?)?nginx:(?!1\\.99\\b)\\d+\\.\\d+', msg: 'a imagem do pod no seu cluster tem uma versão fixa que existe, como nginx:1.27: o 1.99 nunca foi publicado, e latest (ou stable) muda de versão sem avisar' },
+      ] },
+    ],
+    armadilhas: [
+      { descricao: 'consertar o arquivo, mas apagar o pod do cluster', historico: ['kubectl delete pod vitrine'] },
+      { descricao: 'trocar para nginx:latest', mudar: () => ({ 'vitrine.yaml': vitrine('latest') }) },
+      { descricao: 'consertar só o arquivo, sem aplicar', historico: [] },
+    ],
   }),
 
   quiz({
