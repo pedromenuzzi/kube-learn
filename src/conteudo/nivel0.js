@@ -21,7 +21,7 @@ export const PARTIDA0 = { vitrine: vitrine('1.99') };
  * (conquistasMigradas). Na dúvida, uma data depois da publicação: errar para depois só dá um lacre de graça; para antes,
  * tira o lacre de quem já tinha.
  */
-export const PUBLICADO = '2026-10-27';
+export const PUBLICADO = '2026-10-28';
 
 const copia = (n) => yaml`
   apiVersion: v1
