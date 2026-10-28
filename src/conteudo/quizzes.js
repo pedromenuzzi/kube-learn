@@ -34,7 +34,7 @@ export const QUIZZES = [
     alternativas: [
       { texto: 'Não: namespaces diferentes têm redes separadas.', explicacao: 'Esse é o engano mais comum. O namespace separa os nomes (e, mais à frente, crachás e cotas), não a rede.' },
       { texto: 'Só se os dois pods tiverem a mesma label.', explicacao: 'Labels não abrem nem fecham a rede: elas só servem para escolher pods.' },
-      { texto: 'Sim: por padrão, todo pod fala com todo pod, de qualquer namespace.', certa: true, explicacao: 'Isso. Para fechar a passagem existem as catracas (NetworkPolicy), no nível 8.' },
+      { texto: 'Sim: por padrão, todo pod fala com todo pod.', certa: true, explicacao: 'Isso: de qualquer namespace. Para fechar a passagem existem as catracas (NetworkPolicy), no nível 8.' },
     ],
   }),
 
@@ -47,9 +47,9 @@ export const QUIZZES = [
     pergunta: '<p>A <code>loja</code> (um Deployment com 3 réplicas) roda a 1.0. Você troca a imagem para a 1.1 e aplica. O que acontece por baixo?</p>',
     alternativas: [
       { texto: 'O ReplicaSet que já existe troca a imagem dos pods, um por um, sem recriá-los.', explicacao: 'Não: o Deployment não reforma o ReplicaSet antigo, cria outro (com outro hash no nome). E os pods são trocados, não reformados: nome novo, IP novo.' },
-      { texto: 'O Deployment cria um ReplicaSet novo, sobe os pods dele e desce os do antigo, aos poucos. O antigo fica, com 0 pods.', certa: true, explicacao: 'Isso. O ReplicaSet antigo, vazio, é a revisão anterior: é para ele que o <code>kubectl rollout undo</code> volta.' },
-      { texto: 'O Deployment apaga os 3 pods e só depois cria os 3 novos.', explicacao: 'Esse é o jeito da estratégia <code>Recreate</code>. O padrão é o <code>RollingUpdate</code>: aos poucos, sem fechar a loja.' },
-      { texto: 'Nada: os pods só pegam a imagem nova quando forem apagados.', explicacao: 'Isso aconteceria com um ReplicaSet sozinho. O Deployment percebe o template novo e começa a troca na hora.' },
+      { texto: 'O Deployment cria um ReplicaSet novo e troca os pods aos poucos; o antigo desce até 0 e fica guardado.', certa: true, explicacao: 'Isso. O ReplicaSet antigo, vazio, é a revisão anterior: é para ele que o <code>kubectl rollout undo</code> volta.' },
+      { texto: 'O Deployment apaga os 3 pods de uma vez e só depois cria os 3 novos, já na 1.1.', explicacao: 'Esse é o jeito da estratégia <code>Recreate</code>. O padrão é o <code>RollingUpdate</code>: aos poucos, sem fechar a loja.' },
+      { texto: 'Nada por enquanto: os pods só pegam a imagem nova quando alguém os apagar.', explicacao: 'Isso aconteceria com um ReplicaSet sozinho. O Deployment percebe o template novo e começa a troca na hora.' },
     ],
   }),
   novoQuiz('kubectl-escalar', {
@@ -89,9 +89,9 @@ export const QUIZZES = [
     limite: 'Numa central de verdade, a ligação cai em quem está livre. O Service não sabe quem está ocupado: ele só sorteia.',
     pergunta: '<p>Há 3 pods atrás do Service <code>loja</code>. Um cliente abre 3 conexões, uma depois da outra. Como o ramal reparte?</p>',
     alternativas: [
-      { texto: 'Em rodízio: uma conexão para cada pod, em ordem.', explicacao: 'É o que quase todo mundo imagina, mas o kube-proxy (no modo padrão) não guarda a vez de ninguém.' },
-      { texto: 'Cada conexão vai para um pod sorteado: o mesmo pod pode atender as três.', certa: true, explicacao: 'Isso: um sorteio a cada conexão nova. Com muitas conexões a carga fica parecida; com poucas, pode ficar torta. E é por conexão: quem reaproveita a conexão (keep-alive) fala sempre com o mesmo pod.' },
-      { texto: 'Todas vão para o pod menos ocupado.', explicacao: 'O ramal não mede carga: ele não sabe se o atendente está ocupado.' },
+      { texto: 'Em rodízio: uma conexão para cada pod, na ordem, e a quarta voltaria ao primeiro.', explicacao: 'É o que quase todo mundo imagina, mas o kube-proxy (no modo padrão) não guarda a vez de ninguém.' },
+      { texto: 'Cada conexão sorteia um pod: o mesmo pode atender as três.', certa: true, explicacao: 'Isso: um sorteio a cada conexão nova. Com muitas conexões a carga fica parecida; com poucas, pode ficar torta. E é por conexão: quem reaproveita a conexão (keep-alive) fala sempre com o mesmo pod.' },
+      { texto: 'Todas vão para o pod menos ocupado no momento da conexão.', explicacao: 'O ramal não mede carga: ele não sabe se o atendente está ocupado.' },
       { texto: 'Todas vão para o primeiro pod, até ele cair.', explicacao: 'Não: o Service espalha as conexões entre todos os pods prontos.' },
     ],
   }),
@@ -144,9 +144,9 @@ export const QUIZZES = [
     limite: 'Uma mesa de verdade poderia ir junto na mudança; o emptyDir nunca vai: pod novo, mesa vazia.',
     pergunta: '<p>O contêiner <code>nginx</code> do pod <code>placa</code> caiu e o kubelet o reiniciou. O que aconteceu com o que estava no emptyDir?</p>',
     alternativas: [
-      { texto: 'Sumiu junto com o contêiner.', explicacao: 'O que some no reinício é o que foi gravado no disco do próprio contêiner, fora dos volumes. O emptyDir é do pod.' },
+      { texto: 'Sumiu junto com o contêiner: o kubelet recomeça com a pasta vazia.', explicacao: 'O que some no reinício é o que foi gravado no disco do próprio contêiner, fora dos volumes. O emptyDir é do pod.' },
       { texto: 'Continua lá: o pod é o mesmo, e o emptyDir é dele.', certa: true, explicacao: 'Isso: o emptyDir sobrevive ao reinício de contêiner. Ele só some quando o pod sai (apagado, despejado ou trocado por um Deployment).' },
-      { texto: 'Foi copiado para um PVC.', explicacao: 'Ninguém copia nada para um PVC sozinho: o PVC é um pedido seu, separado.' },
+      { texto: 'Foi copiado para um PVC, que o kubelet cria para guardar o volume.', explicacao: 'Ninguém copia nada para um PVC sozinho: o PVC é um pedido seu, separado.' },
     ],
   }),
   novoQuiz('n4-encolher', {
@@ -201,10 +201,10 @@ export const QUIZZES = [
     limite: 'Se todos dizem "agora não posso" ao mesmo tempo, o ramal fica sem ninguém e a ligação é recusada: a readiness não chama reforço.',
     pergunta: '<p>Um pod da <code>loja</code> estava pronto. Agora a readinessProbe dele falha 3 vezes seguidas, e a livenessProbe continua passando. O que acontece?</p>',
     alternativas: [
-      { texto: 'O kubelet reinicia o contêiner.', explicacao: 'Quem reinicia é a liveness, e ela está passando. A readiness só decide se o pod recebe clientes.' },
-      { texto: 'O Deployment apaga o pod e cria outro.', explicacao: 'Ninguém apaga o pod por causa da readiness: ele continua lá, esperando melhorar.' },
-      { texto: 'O pod sai dos endpoints do Service (READY 0/1), mas continua rodando, e volta quando a probe passar.', certa: true, explicacao: 'Isso: fora do ramal, sem reinício. Quando a probe volta a passar, o pod volta a receber clientes.' },
-      { texto: 'Nada muda: o pod só fica marcado como não pronto.', explicacao: 'Muda, sim: um pod não pronto deixa de receber clientes pelo Service.' },
+      { texto: 'O kubelet reinicia o contêiner até a probe voltar a passar.', explicacao: 'Quem reinicia é a liveness, e ela está passando. A readiness só decide se o pod recebe clientes.' },
+      { texto: 'O Deployment apaga o pod e cria outro no lugar, num node qualquer.', explicacao: 'Ninguém apaga o pod por causa da readiness: ele continua lá, esperando melhorar.' },
+      { texto: 'O pod sai dos endpoints do Service (READY 0/1), mas continua rodando.', certa: true, explicacao: 'Isso: fora do ramal, sem reinício. Quando a probe volta a passar, o pod volta a receber clientes.' },
+      { texto: 'Nada muda: o pod só fica marcado como não pronto, e segue atendendo.', explicacao: 'Muda, sim: um pod não pronto deixa de receber clientes pelo Service.' },
     ],
   }),
   novoQuiz('n6-potencia-demais', {
@@ -216,7 +216,7 @@ export const QUIZZES = [
     alternativas: [
       { texto: 'Não: o limit de 2 CPUs não cabe em 1.', explicacao: 'O scheduler não olha o limit, só o request. O limit pode passar do que o node tem.' },
       { texto: 'Só se o pod estiver usando menos de 1 CPU agora.', explicacao: 'O scheduler não olha o uso (o <code>kubectl top</code>): o pod nem começou. Ele soma as reservas.' },
-      { texto: 'Sim: o scheduler só soma os requests; o limit é o teto de uso.', certa: true, explicacao: 'Isso: 500m cabem na sobra de 1 CPU. O limit de 2 só diz até onde o contêiner pode puxar, se houver CPU livre.' },
+      { texto: 'Sim: o scheduler só soma os requests, não os limits.', certa: true, explicacao: 'Isso: 500m cabem na sobra de 1 CPU. O limit de 2 só diz até onde o contêiner pode puxar, se houver CPU livre.' },
     ],
   }),
   novoQuiz('n6-black-friday', {
@@ -226,8 +226,8 @@ export const QUIZZES = [
     limite: 'No RH de verdade, alguém perceberia a briga. No cluster ninguém avisa: o número sobe e desce, e os clientes sentem.',
     pergunta: '<p>O HPA levou a <code>loja</code> para 6 réplicas. No meio da promoção, alguém aplica o <code>loja.yaml</code>, que diz <code>replicas: 2</code>. O que acontece?</p>',
     alternativas: [
-      { texto: 'A loja cai para 2, e o HPA sobe de novo na próxima conta: os dois brigam.', certa: true, explicacao: 'Isso. Com HPA, deixe o <code>replicas</code> fora do YAML: quem decide o número é o gerente.' },
-      { texto: 'O apply é recusado, porque o HPA cuida das réplicas.', explicacao: 'O apply não sabe do HPA: ele escreve o que o arquivo diz.' },
+      { texto: 'Cai para 2, e o HPA sobe de novo na próxima conta: os dois brigam.', certa: true, explicacao: 'Isso. Com HPA, deixe o <code>replicas</code> fora do YAML: quem decide o número é o gerente.' },
+      { texto: 'O apply é recusado, porque quem cuida das réplicas da loja agora é o HPA.', explicacao: 'O apply não sabe do HPA: ele escreve o que o arquivo diz.' },
       { texto: 'O HPA trava o número em 6, e o apply ignora o campo.', explicacao: 'O HPA não trava nada: ele só muda o <code>replicas</code> de tempos em tempos, como qualquer um.' },
       { texto: 'O HPA é apagado.', explicacao: 'Não: o HPA é um objeto separado e continua lá (por isso a briga).' },
     ],
@@ -243,10 +243,10 @@ export const QUIZZES = [
       <p>O <code>node-2</code> tem o taint <code>dedicado=gpu:NoSchedule</code>. Um pod tem a toleration para esse taint e
          nenhum nodeSelector nem affinity. Onde ele pode cair?</p>`,
     alternativas: [
-      { texto: 'Só no <code>node-2</code>.', explicacao: 'A toleration não leva ninguém até lá: ela só tira a placa do caminho.' },
-      { texto: 'No <code>node-1</code> ou no <code>node-2</code>: a toleration permite o <code>node-2</code>, não obriga.', certa: true, explicacao: 'Isso. Para ir só para o <code>node-2</code>, junte a toleration com um nodeSelector (<code>dedicado: gpu</code>).' },
-      { texto: 'Em nenhum: fica Pending.', explicacao: 'O <code>node-1</code> não tem taint nenhum: qualquer pod entra.' },
-      { texto: 'Em qualquer node, inclusive o <code>control-plane</code>.', explicacao: 'O <code>control-plane</code> tem outro taint (<code>node-role.kubernetes.io/control-plane</code>), que essa toleration não cobre.' },
+      { texto: 'Só no <code>node-2</code>: é o node que ela tolera.', explicacao: 'A toleration não leva ninguém até lá: ela só tira a placa do caminho.' },
+      { texto: 'No <code>node-1</code> ou no <code>node-2</code>: a toleration permite, não obriga.', certa: true, explicacao: 'Isso. Para ir só para o <code>node-2</code>, junte a toleration com um nodeSelector (<code>dedicado: gpu</code>).' },
+      { texto: 'Em nenhum: fica Pending até ganhar um nodeSelector.', explicacao: 'O <code>node-1</code> não tem taint nenhum: qualquer pod entra.' },
+      { texto: 'Em qualquer node, inclusive o <code>control-plane</code>: a toleration libera todos os taints.', explicacao: 'O <code>control-plane</code> tem outro taint (<code>node-role.kubernetes.io/control-plane</code>), que essa toleration não cobre.' },
     ],
   }),
   novoQuiz('n7-esvaziar', {
@@ -362,8 +362,8 @@ export const QUIZZES = [
     limite: 'Uma folha de papel fica arquivada; o resultado do Kustomize não fica em lugar nenhum. Para ver o que foi para o cluster, rode kubectl kustomize de novo.',
     pergunta: '<p>O <code>overlays/prod</code> pede 3 réplicas e a tag 1.1. Você roda <code>kubectl apply -k overlays/prod</code>. O que acontece com o <code>base/deployment.yaml</code>?</p>',
     alternativas: [
-      { texto: 'É reescrito com <code>replicas: 3</code> e a tag 1.1.', explicacao: 'O Kustomize nunca escreve nos seus arquivos: ele só lê.' },
-      { texto: 'Nada: o Kustomize monta o resultado na hora, e só o resultado vai para o cluster.', certa: true, explicacao: 'Isso. A base fica igual, e os outros overlays (dev, homologação) continuam partindo dela.' },
+      { texto: 'É reescrito com <code>replicas: 3</code> e a tag 1.1, para guardar o que foi aplicado.', explicacao: 'O Kustomize nunca escreve nos seus arquivos: ele só lê.' },
+      { texto: 'Nada: o Kustomize junta tudo na hora e só manda o resultado.', certa: true, explicacao: 'Isso. A base fica igual, e os outros overlays (dev, homologação) continuam partindo dela.' },
       { texto: 'Continua igual, mas o overlay de dev também passa a ter 3 réplicas.', explicacao: 'Cada overlay só enxerga a base e os próprios ajustes: o de dev nem sabe que o de prod existe.' },
     ],
   }),
@@ -374,9 +374,9 @@ export const QUIZZES = [
     limite: 'Quando o especialista chega, ele lê a pilha inteira: o operador atende também os pedidos que já existiam.',
     pergunta: '<p>Num cluster com o CRD <code>backups.kube-learn.dev</code>, mas sem o operador de backup, você aplica o Backup <code>noturno</code>. O que acontece?</p>',
     alternativas: [
-      { texto: 'O apply é recusado: falta o operador.', explicacao: 'O CRD já ensinou o tipo à API: o Backup é aceito (e validado pelo esquema).' },
-      { texto: 'O Kubernetes cria o CronJob do backup sozinho.', explicacao: 'O Kubernetes não sabe o que um Backup quer dizer: quem cria o CronJob é o operador.' },
-      { texto: 'O Backup fica guardado (<code>kubectl get backups</code> mostra), mas nenhum backup é feito.', certa: true, explicacao: 'Isso: o CRD só guarda o pedido. Quem age é o operador.' },
+      { texto: 'O apply é recusado: falta o operador que entende o tipo Backup.', explicacao: 'O CRD já ensinou o tipo à API: o Backup é aceito (e validado pelo esquema).' },
+      { texto: 'O Kubernetes cria o CronJob do backup sozinho, a partir do CRD.', explicacao: 'O Kubernetes não sabe o que um Backup quer dizer: quem cria o CronJob é o operador.' },
+      { texto: 'O Backup fica guardado, mas nenhum backup é feito.', certa: true, explicacao: 'Isso: o CRD só guarda o pedido (o <code>kubectl get backups</code> mostra o <code>noturno</code>). Quem age é o operador.' },
     ],
   }),
 
@@ -388,7 +388,7 @@ export const QUIZZES = [
     limite: 'Na vida real, um combinado de "pelo menos 3" valeria para tudo. No cluster, cada regra só vale para quem a consulta.',
     pergunta: '<p>A <code>loja</code> tem 4 réplicas, o PDB com <code>minAvailable: 3</code> e o rolling update com <code>maxUnavailable: 0</code>. Durante a troca de versão, quem garante os pods prontos?</p>',
     alternativas: [
-      { texto: 'O PDB.', explicacao: 'O PDB só vale para despejos pela API de eviction (o drain). O rollout nem consulta o PDB.' },
+      { texto: 'O PDB, que segura a troca se ficarem menos de 3 prontos.', explicacao: 'O PDB só vale para despejos pela API de eviction (o drain). O rollout nem consulta o PDB.' },
       { texto: 'Os dois juntos: o mais rígido vence.', explicacao: 'Não se somam: o rollout não consulta o PDB, e o drain não olha a estratégia.' },
       { texto: 'A estratégia do Deployment (<code>maxUnavailable: 0</code>).', certa: true, explicacao: 'Isso. Cada um protege um momento: a estratégia, a troca de versão; o PDB, a manutenção dos nodes.' },
     ],
@@ -404,8 +404,8 @@ export const QUIZZES = [
     alternativas: [
       { texto: 'São despejados na hora.', explicacao: 'Os bombeiros não despejam ninguém: a norma vale na criação dos pods.' },
       { texto: 'O <code>kubectl label</code> é recusado enquanto houver pod fora da norma.', explicacao: 'A label é aceita; a resposta só vem com um aviso.' },
-      { texto: 'Continuam rodando: o <code>kubectl label</code> só avisa (Warning) quais violam a norma.', certa: true, explicacao: 'Isso. Cuidado: se um deles cair ou for trocado, o pod novo é recusado. Ajuste os pods antes de pôr a norma.' },
-      { texto: 'São reiniciados como um usuário comum.', explicacao: 'O Pod Security não muda os pods: ele só aceita ou recusa.' },
+      { texto: 'Continuam rodando; o <code>kubectl label</code> só avisa (Warning).', certa: true, explicacao: 'Isso: o aviso lista os pods que violam a norma. Cuidado: se um deles cair ou for trocado, o pod novo é recusado. Ajuste os pods antes de pôr a norma.' },
+      { texto: 'São reiniciados como um usuário comum, para cumprir a norma.', explicacao: 'O Pod Security não muda os pods: ele só aceita ou recusa.' },
     ],
   }),
 ];

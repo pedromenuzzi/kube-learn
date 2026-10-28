@@ -1,10 +1,14 @@
-// Todos os itens da trilha, na ordem dos níveis.
+// Todos os itens da trilha, na ordem dos níveis, com o texto inteiro. A página inicial, o topo e a trilha não importam
+// este módulo (ele pesa): usam o índice leve, src/conteudo/indice.js; as outras páginas o trazem por import().
 import { NIVEIS } from './niveis.js';
 import { TROUBLESHOOTING } from './troubleshooting.js';
 import { OFICINA } from './oficina.js';
+import { GLOSSARIO } from './glossario.js'; // antes de traducao.js, que o usa
+import { trocarConteudo } from './traducao.js';
 import { plantaoDoDia } from '../jogo/plantao.js';
+import { aoTrocarIdioma } from '../i18n.js';
 
-export { NIVEIS, TROUBLESHOOTING, OFICINA };
+export { NIVEIS, TROUBLESHOOTING, OFICINA, GLOSSARIO };
 export const ITENS = NIVEIS.flatMap((n) => n.itens);
 
 const POR_ID = new Map([...ITENS, ...TROUBLESHOOTING, ...OFICINA].map((i) => [i.id, i]));
@@ -49,3 +53,6 @@ spec:
   },
   testes: [],
 };
+
+// Chegou depois da troca para o inglês? Já entra traduzido (e acompanha as trocas seguintes).
+aoTrocarIdioma(trocarConteudo);

@@ -3,8 +3,8 @@
 // tela; com o último lacre, o navio apita. Nada bloqueia a tela, e com "reduzir movimento" a animação não roda (os
 // avisos ficam). O som é opcional (preferências).
 import { NIVEIS } from '../conteudo/index.js';
-import { calcularJornada, novidades, xpDoItem } from '../jogo/gamificacao.js';
-import { ler, CHAVES, registrarResultado } from '../armazenamento.js';
+import { calcularJornada, novidades, xpDoItem, hojeLocal } from '../jogo/gamificacao.js';
+import { ler, gravar, CHAVES, registrarResultado } from '../armazenamento.js';
 import { CORES, desenharNavio, pintarConteiner, pintarHelicoptero, semMovimento, tamanho } from './navio.js';
 import { svgSelo, linkCompartilhar } from './selos.js';
 import { tocar } from './sons.js';
@@ -12,15 +12,28 @@ import { escapar } from './util.js';
 import { icone } from './icones.js';
 import { t } from '../i18n.js';
 
-const jornada = () => calcularJornada(NIVEIS, ler(CHAVES.progresso, {}));
+const jornada = () => calcularJornada(NIVEIS, ler(CHAVES.progresso, {}), ler(CHAVES.conquistas, {}));
 
-/** Registra o resultado e, se o item acabou de ser resolvido pela primeira vez, comemora. → se foi a primeira vez. */
+/**
+ * Registra o resultado e, se o item acabou de ser resolvido pela primeira vez, comemora. O lacre e o navio ganhos ficam
+ * guardados (missão nova que chegar depois não tira, e a festa não repete). → se foi a primeira vez.
+ */
 export function registrarComFesta(item, resolvido) {
   const jaEra = ler(CHAVES.progresso, {})[item.id]?.status === 'resolvido';
   const antes = jornada();
   registrarResultado(item.id, resolvido);
   if (!resolvido || jaEra) return false;
-  comemorar(item, novidades(antes, jornada()));
+  const eventos = novidades(antes, jornada());
+  const ganhos = eventos.filter((e) => e.tipo !== 'desbloqueio');
+  if (ganhos.length) {
+    const c = ler(CHAVES.conquistas, {});
+    for (const e of ganhos) {
+      if (e.tipo === 'lacre') c.lacres = { ...c.lacres, [e.nivel.numero]: hojeLocal() };
+      else c.navio = hojeLocal();
+    }
+    gravar(CHAVES.conquistas, c);
+  }
+  comemorar(item, eventos);
   return true;
 }
 
@@ -99,8 +112,14 @@ function faixa(nivel) {
     <a href="#/trilha">${t('Ver na trilha')}</a><button type="button" class="aviso-fechar" aria-label="${t('Fechar')}">${icone('fechar')}</button>`;
   document.body.append(el);
   anunciar(t('Nível {n} desbloqueado: {titulo}.', { n: nivel.numero, titulo: nivel.titulo }));
-  const tirar = () => el.remove();
+  // Some ao trocar de página (não fica sobre a migalha e a pergunta da seguinte) ou depois de 9 s; o leitor de tela já
+  // ouviu o aviso. Com "reduzir movimento" ela só não desce animada (o CSS tira a animação).
+  const tirar = () => {
+    el.remove();
+    removeEventListener('hashchange', tirar);
+  };
   el.addEventListener('click', (e) => e.target.closest('a, button') && tirar());
+  addEventListener('hashchange', tirar);
   setTimeout(tirar, 9000);
 }
 

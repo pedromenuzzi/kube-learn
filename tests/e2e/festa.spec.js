@@ -1,9 +1,11 @@
 // As comemorações (o lacre, o nível que abre) e o feedback, com o axe nos diálogos abertos.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 
 // Os quizzes do nível 0 (as lições não contam na porcentagem); o primeiro tem a alternativa certa na posição 0.
 const QUIZZES = ['n0-quiz-imagem-conteiner', 'n0-quiz-quantos', 'n0-quiz-referencia', 'n0-quiz-partes', 'n0-quiz-latest', 'n0-quiz-dockerfile', 'n0-quiz-vm', 'n0-quiz-papel-k8s'];
+// As práticas do nível 0 também contam: são 10 missões.
+const PRATICAS = ['n0-tres-conteineres', 'n0-tag-que-nao-existe'];
 
 /** Começa com estes itens resolvidos e "reduzir movimento" (as comemorações aparecem na hora, sem animação). */
 const comProgresso = (page, ids) => page.addInitScript((lista) => {
@@ -25,7 +27,7 @@ const semViolacoes = async (page) => {
 };
 
 test('o último quiz do nível carimba o lacre', async ({ page }) => {
-  await comProgresso(page, QUIZZES.slice(1));
+  await comProgresso(page, [...QUIZZES.slice(1), ...PRATICAS]);
   await acertarOPrimeiroQuiz(page);
   const cartao = page.getByRole('dialog', { name: 'Nível 0 lacrado!' });
   await expect(cartao).toBeVisible();
@@ -36,7 +38,7 @@ test('o último quiz do nível carimba o lacre', async ({ page }) => {
 });
 
 test('passar de 70% abre o nível seguinte, com a faixa', async ({ page }) => {
-  await comProgresso(page, QUIZZES.slice(1, 6)); // 5 de 8: o sexto passa de 70%
+  await comProgresso(page, [...QUIZZES.slice(1, 6), PRATICAS[0]]); // 6 de 10: a sétima chega a 70%
   await acertarOPrimeiroQuiz(page);
   await expect(page.locator('.festa-faixa')).toContainText('Nível 1 desbloqueado');
   await expect(page.getByRole('dialog')).toHaveCount(0); // ainda não fechou o nível: sem lacre

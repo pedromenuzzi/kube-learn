@@ -1,6 +1,6 @@
 // O YAML pela metade e o campo com nome errado viram explicação na tela da missão (nunca "erro interno do simulador"),
 // em português e em inglês.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 
 test.beforeEach(async ({ page }) => {
   page.on('dialog', (d) => d.accept());
@@ -59,6 +59,28 @@ test('PDB com `spec:` vazio e init container sem mountPath: o relógio segue e a
   await expect(page.locator('.term-erro').last()).toContainText('spec.initContainers[0].volumeMounts[0].mountPath: Required value');
   await expect(page.locator('.term-caixa').last()).toContainText('Falta um campo obrigatório');
   await expect(page.locator('.term-saida')).not.toContainText('erro interno');
+});
+
+// Antes, o --timeout sem unidade e o describe all NOME davam "O simulador tropeçou", e o describe de um pod já agendado
+// (Status: Pending enquanto a imagem não vem) mostrava também a caixa do scheduler que não achou node.
+test('--timeout sem unidade, describe all NOME e o describe do pod agendado: o erro do kubectl e só a caixa certa', async ({ page }) => {
+  const terminal = page.locator('input.term-entrada');
+  const rodar = async (linha) => {
+    await terminal.fill(linha);
+    await terminal.press('Enter');
+  };
+  await page.goto('#/ex/n0-tag-que-nao-existe');
+  await rodar('kubectl describe pod vitrine');
+  await expect(page.locator('.term-saida')).toContainText('Successfully assigned default/vitrine');
+  const caixas = page.locator('.term-caixa');
+  await expect(caixas.last()).toContainText('A imagem não foi baixada');
+  await expect(page.locator('.term-saida')).not.toContainText('o pod ainda não tem lugar');
+
+  await rodar('kubectl wait --for=condition=Ready pod/vitrine --timeout=30');
+  await expect(page.locator('.term-erro').last()).toContainText('error: invalid argument "30" for "--timeout" flag: time: missing unit in duration "30"');
+  await rodar('kubectl describe all vitrine');
+  await expect(page.locator('.term-erro').last()).toContainText('error: you must specify only one resource');
+  await expect(page.locator('.term-saida')).not.toContainText('O simulador tropeçou');
 });
 
 test('LimitRange com `limits:` vazio: o Entregar mostra o resultado dos testes', async ({ page }) => {

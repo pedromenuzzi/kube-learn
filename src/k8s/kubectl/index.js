@@ -12,7 +12,7 @@ import { decodificar, validar, explicar, btoaUtf8, esquemaDe, aplicarPadroes } f
 import { ErroApi, VERSAO_SERVIDOR } from '../cluster.js';
 import { portaAlvo } from '../rede.js';
 import { canonico } from '../aleatorio.js';
-import { iso, parseDuracao, cpuMili as cpuMiliDe, bytes as bytesDe } from '../unidades.js';
+import { iso, cpuMili as cpuMiliDe, bytes as bytesDe } from '../unidades.js';
 import { cordon, taint, drain } from './manutencao.js';
 import { construir } from '../kustomize.js';
 import { autorizar, auth, moldeDeSeguranca, FLAGS_DE_SEGURANCA } from './seguranca.js';
@@ -313,6 +313,8 @@ function describe(cluster, a, s) {
   // describe TIPO NOME sem um objeto com esse nome: descreve todos cujo nome começa com ele (DescribeMatchingResources).
   const [tipo, prefixo] = posicionais;
   if (posicionais.length === 2 && !/[/,]/.test(tipo) && sel.erros.length) {
+    // A categoria all são vários tipos, e o DescribeMatchingResources exige um tipo só.
+    if (tipo === 'all') return s.falha('error: you must specify only one resource');
     const r = acharRecurso(tipo);
     const achados = cluster.listar(r.kind, r.namespaced ? namespaceDe(cluster, flags) : null).filter((o) => o.metadata.name.startsWith(prefixo) && temDescritor(o.kind));
     if (achados.length) {
@@ -1021,14 +1023,12 @@ function escolherConteiner(pod, nome, s) {
 
 const RFC3339NANO = (ms) => new Date(ms).toISOString().replace(/\.(\d{3})Z$/, '.$1000000Z');
 
-const DURACAO_GO = /^[-+]?(0|((\d+\.?\d*|\.\d+)(ns|us|µs|ms|s|m|h))+)$/;
 const RFC3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
 /** --since e --since-time → o instante a partir do qual as linhas valem (ou null), ou { erro }. */
 function inicioDosLogs(cluster, f) {
-  if (f.since !== undefined && !DURACAO_GO.test(f.since)) return { erro: `error: invalid argument "${f.since}" for "--since" flag: time: invalid duration "${f.since}"\nSee 'kubectl logs --help' for usage.` };
   if (f['since-time'] !== undefined && !RFC3339.test(f['since-time'])) return { erro: `error: parsing time "${f['since-time']}" as "2006-01-02T15:04:05Z07:00": cannot parse "${f['since-time']}" as "2006"` };
-  const ms = f.since === undefined || /^[-+]?0$/.test(f.since) ? 0 : parseDuracao(f.since.replace(/^[-+]/, '').replace(/(\d)(ns|us|µs)/g, '$1ms')) * (f.since.startsWith('-') ? -1 : 1);
+  const ms = f.since ?? 0; // a flag Duration já chega em milissegundos
   if (ms && f['since-time'] !== undefined) return { erro: 'error: at most one of `sinceTime` or `sinceSeconds` may be specified' };
   if (ms < 0) return { erro: 'error: --since must be greater than 0' };
   if (f['since-time'] !== undefined) return { desde: Date.parse(f['since-time']) };
@@ -1222,10 +1222,11 @@ function statusRolloutDs(ds) {
   return { msg: `daemon set "${ds.metadata.name}" successfully rolled out\n`, pronto: true };
 }
 
+const SUBS_ROLLOUT = ['history', 'pause', 'restart', 'resume', 'status', 'undo'];
+
 function rollout(cluster, a, s) {
   const [sub, ...resto] = a.posicionais;
-  const subs = ['history', 'pause', 'restart', 'resume', 'status', 'undo'];
-  if (!subs.includes(sub)) {
+  if (!SUBS_ROLLOUT.includes(sub)) {
     return s.falha(sub ? `error: unknown command "${sub}" for "kubectl rollout"` : "error: Required resource not specified.\nSee 'kubectl rollout -h' for help and examples");
   }
   const alvo = alvoUnico(cluster, { ...a, posicionais: resto }, s, `rollout ${sub}`);
@@ -1237,7 +1238,7 @@ function rollout(cluster, a, s) {
   switch (sub) {
     case 'status': {
       // Sem --timeout (ou com 0), o kubectl de verdade espera para sempre; aqui o relógio corre até 20 minutos.
-      const prazo = a.flags.timeout ? parseDuracao(a.flags.timeout) : 0;
+      const prazo = Math.max(0, a.flags.timeout ?? 0);
       const fim = cluster.agora + (prazo || 20 * 60_000);
       let rvAnterior = null;
       for (;;) {
@@ -1642,7 +1643,7 @@ function wait(cluster, a, s) {
   const valeu = ({ o }) => (para === 'delete'
     ? !cluster.porUid.has(o.metadata.uid)
     : (o.status?.conditions ?? []).some((c) => c.type.toLowerCase() === m[1].toLowerCase() && c.status.toLowerCase() === (m[2] ?? 'True').toLowerCase()));
-  cluster.avancarAte(() => alvos.every(valeu), a.flags.timeout ?? '30s');
+  cluster.avancarAte(() => alvos.every(valeu), a.flags.timeout ?? 30_000);
   for (const x of alvos) {
     if (valeu(x)) s.out(`${nomeQualificado(x.r)}/${x.o.metadata.name} condition met\n`);
     else s.falha(`error: timed out waiting for the condition on ${pluralQualificado(x.r)}/${x.o.metadata.name}`);
@@ -1929,12 +1930,12 @@ const COMANDOS = {
     rodar: delete_,
   },
   logs: {
-    flags: { container: { curto: 'c', tipo: 'string' }, previous: { curto: 'p', tipo: 'bool' }, follow: { curto: 'f', tipo: 'bool' }, tail: { tipo: 'int', padrao: -1 }, timestamps: { tipo: 'bool' }, ...SELETOR, 'all-containers': { tipo: 'bool' }, prefix: { tipo: 'bool' }, since: { tipo: 'string' }, 'since-time': { tipo: 'string' } },
+    flags: { container: { curto: 'c', tipo: 'string' }, previous: { curto: 'p', tipo: 'bool' }, follow: { curto: 'f', tipo: 'bool' }, tail: { tipo: 'int', padrao: -1 }, timestamps: { tipo: 'bool' }, ...SELETOR, 'all-containers': { tipo: 'bool' }, prefix: { tipo: 'bool' }, since: { tipo: 'duracao' }, 'since-time': { tipo: 'string' } },
     rodar: logs,
   },
   exec: { flags: { container: { curto: 'c', tipo: 'string' }, stdin: { curto: 'i', tipo: 'bool' }, tty: { curto: 't', tipo: 'bool' }, quiet: { curto: 'q', tipo: 'bool' } }, rodar: exec },
   scale: { flags: { replicas: { tipo: 'int' }, 'current-replicas': { tipo: 'int' } }, rodar: scale },
-  rollout: { flags: { revision: { tipo: 'int' }, 'to-revision': { tipo: 'int' }, timeout: { tipo: 'string' }, watch: { curto: 'w', tipo: 'bool' } }, rodar: rollout },
+  rollout: { flags: { revision: { tipo: 'int' }, 'to-revision': { tipo: 'int' }, timeout: { tipo: 'duracao' }, watch: { curto: 'w', tipo: 'bool' } }, rodar: rollout },
   set: {
     flags: {
       ...SAIDA, ...DRY, ...SELETOR, all: { tipo: 'bool' }, containers: { curto: 'c', tipo: 'string', padrao: '*' }, env: { curto: 'e', tipo: 'lista' }, from: { tipo: 'string' },
@@ -1945,7 +1946,7 @@ const COMANDOS = {
   patch: { flags: { ...SAIDA, ...DRY, patch: { curto: 'p', tipo: 'string' }, 'patch-file': { tipo: 'string' }, type: { tipo: 'string' } }, rodar: patch },
   expose: { flags: { ...SAIDA, ...DRY, port: { tipo: 'string' }, 'target-port': { tipo: 'string' }, type: { tipo: 'string' }, name: { tipo: 'string' }, protocol: { tipo: 'string' } }, rodar: expose },
   'port-forward': { flags: { address: { tipo: 'string' } }, rodar: portForward },
-  wait: { flags: { ...SELETOR, for: { tipo: 'string' }, timeout: { tipo: 'string' }, all: { tipo: 'bool' } }, rodar: wait },
+  wait: { flags: { ...SELETOR, for: { tipo: 'string' }, timeout: { tipo: 'duracao' }, all: { tipo: 'bool' } }, rodar: wait },
   autoscale: { flags: { ...SAIDA, ...DRY, cpu: { tipo: 'string' }, 'cpu-percent': { tipo: 'int' }, min: { tipo: 'int' }, max: { tipo: 'int' }, name: { tipo: 'string' } }, rodar: autoscale },
   label: { flags: { overwrite: { tipo: 'bool' }, ...SELETOR, all: { tipo: 'bool' } }, rodar: (c, a, s) => etiquetar(c, a, s, 'labels') },
   annotate: { flags: { overwrite: { tipo: 'bool' }, ...SELETOR, all: { tipo: 'bool' } }, rodar: (c, a, s) => etiquetar(c, a, s, 'annotations') },
@@ -1972,7 +1973,7 @@ const COMANDOS = {
   uncordon: { flags: {}, rodar: (c, a, s) => cordon(c, a, s, false) },
   taint: { flags: { overwrite: { tipo: 'bool' } }, rodar: taint },
   drain: {
-    flags: { 'ignore-daemonsets': { tipo: 'bool' }, force: { tipo: 'bool' }, 'delete-emptydir-data': { tipo: 'bool' }, 'pod-selector': { tipo: 'string' }, timeout: { tipo: 'string' }, 'grace-period': { tipo: 'int' } },
+    flags: { 'ignore-daemonsets': { tipo: 'bool' }, force: { tipo: 'bool' }, 'delete-emptydir-data': { tipo: 'bool' }, 'pod-selector': { tipo: 'string' }, timeout: { tipo: 'duracao' }, 'grace-period': { tipo: 'int' } },
     rodar: drain,
   },
   edit: { flags: { ...SAIDA }, rodar: edit },
@@ -2029,7 +2030,9 @@ export function kubectl(cluster, linha, { arquivos = {} } = {}) {
     lidos = lerFlags(resto, { ...GLOBAIS, ...cmd.flags });
   } catch (e) {
     if (!(e instanceof ErroFlag)) throw e;
-    s.falha(`error: ${e.message}\nSee 'kubectl ${nome} --help' for usage.`);
+    // O cobra mostra o caminho inteiro do subcomando: See 'kubectl rollout status --help'.
+    const sub = nome === 'rollout' ? resto.find((x) => SUBS_ROLLOUT.includes(x)) : null;
+    s.falha(`error: ${e.message}\nSee 'kubectl ${sub ? `${nome} ${sub}` : nome} --help' for usage.`);
     return s.resultado();
   }
   if (lidos.flags.help) {

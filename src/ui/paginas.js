@@ -1,11 +1,12 @@
 // As páginas fora do exercício: início, trilha (o navio), as seções (Troubleshooting, Oficina, Plantão do dia), o Diário de
-// bordo e o glossário.
-import { NIVEIS, OFICINA, TROUBLESHOOTING, acharItem } from '../conteudo/index.js';
-import { GLOSSARIO } from '../conteudo/glossario.js';
+// bordo e o glossário. O início e a trilha usam só o índice leve e desenham na hora; as outras trazem o texto que mostram
+// por import() (devolvem uma promessa, e o main.js mostra "Carregando…" enquanto isso).
+import { NIVEIS, GLOSSARIO } from '../conteudo/indice.js';
 import { calcularJornada, sequenciaDeDias, hojeLocal } from '../jogo/gamificacao.js';
 import { somarDias, termosVistos } from '../jogo/revisao.js';
 import { atividadePorDia, calendario, cartoesParaHoje, numerosDosDias } from '../jogo/hoje.js';
-import { plantaoDoDia, NIVEL_DO_PLANTAO } from '../jogo/plantao.js';
+import { chamadoDoDia, NIVEL_DO_PLANTAO } from '../jogo/rodizio.js';
+import { medalha, nomeDaMedalha } from '../jogo/medalhas.js';
 import { marcasDoDia, diaCumprido, lembreteIcs } from '../jogo/ritual.js';
 import { ler, CHAVES } from '../armazenamento.js';
 import { desenharNavio, CORES } from './navio.js';
@@ -15,7 +16,7 @@ import { escapar, minutosESegundos } from './util.js';
 import { icone } from './icones.js';
 import { idioma, t } from '../i18n.js';
 
-const jornadaAtual = () => calcularJornada(NIVEIS, ler(CHAVES.progresso, {}));
+const jornadaAtual = () => calcularJornada(NIVEIS, ler(CHAVES.progresso, {}), ler(CHAVES.conquistas, {}));
 const ICONE_SALA = { concluido: 'certo', proximo: 'seguir', bloqueado: 'cadeado' };
 const ROTULO = () => ({ concluido: t('resolvida'), tentado: t('tentada'), proximo: t('próxima'), disponivel: t('disponível'), bloqueado: t('bloqueada') });
 const SITUACAO = () => ({ bloqueado: t('Bloqueado'), carregando: t('Carregando'), pronto: t('Pronto'), lacrado: t('Lacrado!') });
@@ -49,7 +50,7 @@ function diaDeHoje(j, hoje) {
   const progresso = ler(CHAVES.progresso, {});
   const vistos = termosVistos(GLOSSARIO, j);
   const cartoes = cartoesParaHoje({ termos: vistos, estado: ler(CHAVES.revisao, {}), hoje });
-  const plantao = j.niveis[NIVEL_DO_PLANTAO].desbloqueado ? plantaoDoDia(hoje) : null;
+  const plantao = j.niveis[NIVEL_DO_PLANTAO].desbloqueado ? chamadoDoDia(hoje) : null;
   const marcas = marcasDoDia({ jornada: j, progresso, hoje, termos: vistos.length, cartoes, plantao: plantao?.id });
   // Sem termos vistos, a revisão espera a primeira missão da trilha que traz cartões (hoje, a lição de imagem e contêiner).
   const primeirosCartoes = vistos.length ? null : j.niveis.flatMap((n) => n.itens).find((i) => i.estado !== 'concluido' && GLOSSARIO.some((g) => g.item === i.id));
@@ -203,8 +204,10 @@ function contagem(itens) {
 // Cada nível é um cartão que abre e fecha; abertos ficam só os que estão em andamento (o resto é um resumo).
 function nivel(n) {
   const cor = n.desbloqueado && !n.concluido ? ` style="--cor-nivel: ${CORES[n.numero % CORES.length]}"` : '';
-  const aberto = n.desbloqueado && !n.concluido;
-  const status = n.emObra ? t('Em breve') : `${SITUACAO()[n.situacao]} · ${t('{n} de {total} missões ({pct}%)', { n: n.resolvidos, total: n.total, pct: n.pct })}`;
+  // Lacrado com missões que chegaram depois: o lacre fica (barra cheia), e as novas aparecem abertas, como convite.
+  const aberto = n.desbloqueado && (!n.concluido || n.novas > 0);
+  const novas = n.novas === 1 ? t('1 missão nova') : t('{n} missões novas', { n: n.novas });
+  const status = n.emObra ? t('Em breve') : `${SITUACAO()[n.situacao]} · ${n.novas ? novas : t('{n} de {total} missões ({pct}%)', { n: n.resolvidos, total: n.total, pct: n.pct })}`;
   return `
     <li class="nivel nivel-${n.emObra ? 'embreve' : n.situacao}" id="nivel-${n.numero}"${cor}>
       <details${aberto ? ' open' : ''}>
@@ -212,14 +215,14 @@ function nivel(n) {
           ${n.concluido ? svgSelo(n, { tamanho: 36 }) : `<span class="nivel-icone" aria-hidden="true">${n.icone}</span>`}
           <span class="nivel-cabeca"><span class="pixel rotulo-nivel">${t('Nível {n}', { n: n.numero })}</span><h2>${escapar(n.titulo)}</h2></span>
           <span class="nivel-situacao">${n.concluido ? `<span class="chip chip-ok">${t('Lacrado')}</span>` : n.emObra ? `<span class="chip">${t('Em breve')}</span>` : !n.desbloqueado ? `<span class="chip">${icone('cadeado')} ${t('Bloqueado')}</span>` : ''}${icone('divisa', 'icone divisa')}</span>
-          <span class="nivel-barra"><span class="nivel-status">${status}</span>${n.emObra ? '' : `<span class="barra" aria-hidden="true"><span style="width: ${n.pct}%"></span></span>`}</span>
+          <span class="nivel-barra"><span class="nivel-status">${status}</span>${n.emObra ? '' : `<span class="barra" aria-hidden="true"><span style="width: ${n.concluido ? 100 : n.pct}%"></span></span>`}</span>
         </summary>
         <div class="nivel-corpo">
           <p class="nota">${escapar(n.descricao)}</p>
           ${n.itens.length ? `<p class="nivel-conta">${contagem(n.itens)}</p>` : ''}
           ${n.emObra ? `<p class="nota">${t('As missões deste nível ainda estão sendo escritas.')}</p>` : ''}
           ${!n.emObra && !n.desbloqueado ? `<p class="nota">${t('Abre quando o nível anterior tiver 70% das missões resolvidas.')}</p>` : ''}
-          ${n.concluido ? `<div class="nivel-selo"><p>${t('<b>Lacrado!</b> Nível concluído.')} <a href="${linkCompartilhar()}" target="_blank" rel="noopener">${t('Compartilhar no LinkedIn')}</a></p></div>` : ''}
+          ${n.concluido ? `<div class="nivel-selo"><p>${n.novas ? t('<b>Lacrado!</b> O lacre é seu. Chegou conteúdo novo por aqui: {novas}, quando quiser.', { novas }) : t('<b>Lacrado!</b> Nível concluído.')} <a href="${linkCompartilhar()}" target="_blank" rel="noopener">${t('Compartilhar no LinkedIn')}</a></p></div>` : ''}
           ${n.itens.length ? `<ul class="salas">${n.itens.map((i) => (i.projeto?.etapa === 1 ? `<li class="sala-grupo" aria-hidden="true">${icone('arvore')} ${escapar(i.projeto.titulo)}</li>` : '') + sala(i)).join('')}</ul>` : ''}
         </div>
       </details>
@@ -264,7 +267,8 @@ const chamado = (i, status, extra = '') => {
     </li>`;
 };
 
-export function paginaTroubleshooting() {
+export async function paginaTroubleshooting() {
+  const { TROUBLESHOOTING } = await import('../conteudo/index.js');
   const progresso = ler(CHAVES.progresso, {});
   return `
     <p class="sobretitulo">${t('Plantão')}</p>
@@ -275,26 +279,33 @@ export function paginaTroubleshooting() {
     <p class="nota">${icone('raio')} ${t('Quer treinar os comandos em si? A <a href="#/oficina">Oficina do kubectl</a> tem exercícios curtos, contra o relógio.')}</p>`;
 }
 
-// A Oficina do kubectl: os exercícios e o seu recorde em cada um.
-export function paginaOficina() {
+// A Oficina do kubectl: os exercícios, a meta e o seu recorde em cada um, com a melhor medalha (em texto, não só cor).
+const ourosNaOficina = (oficina, recordes) => oficina.filter((i) => recordes[i.id] && medalha(recordes[i.id], i.meta) === 'ouro').length;
+const htmlMedalha = (ms, meta) => `<span class="medalha medalha-${medalha(ms, meta)}">${icone('lacre')}${nomeDaMedalha(medalha(ms, meta))}</span>`;
+
+export async function paginaOficina() {
+  const { OFICINA } = await import('../conteudo/index.js');
   const recordes = ler(CHAVES.recordes, {});
   const comRecorde = OFICINA.filter((i) => recordes[i.id]).length;
+  const ouros = ourosNaOficina(OFICINA, recordes);
   return `
     <p class="sobretitulo">${t('Fluência')}</p>
     <h1 class="pixel">${t('Oficina do kubectl')}</h1>
     <p>${t('Exercícios curtos de terminal, contra o relógio: os comandos que poupam tempo no dia a dia (e na prova CKAD). O relógio começa quando o exercício abre, e vale o seu recorde. Abre desde o começo e não vale XP.')}</p>
-    <p class="nota">${t('{n} de {total} com recorde', { n: comRecorde, total: OFICINA.length })}</p>
+    <p class="nota">${t('{n} de {total} com recorde', { n: comRecorde, total: OFICINA.length })} · ${t(ouros === 1 ? '1 ouro' : '{n} ouros', { n: ouros })}</p>
+    <p class="nota">${t('Ouro: dentro da meta. Prata: até o dobro da meta. Bronze: resolveu. A medalha sai do seu recorde, então nunca cai.')}</p>
     <ol class="oficina">${OFICINA.map((i) => `
       <li><a href="#/ex/${i.id}">
         <span class="oficina-titulo">${escapar(i.titulo)}</span>
         <span class="chip chip-${i.dificuldade}">${DIFICULDADE()[i.dificuldade]}</span>
-        <span class="oficina-recorde">${recordes[i.id] ? `${icone('raio')} ${t('Recorde: {tempo}', { tempo: minutosESegundos(recordes[i.id]) })}` : t('Sem recorde ainda')}</span>
+        <span class="oficina-recorde">${icone('alvo')} ${t('Meta: {tempo}', { tempo: minutosESegundos(i.meta) })} · ${recordes[i.id] ? `${htmlMedalha(recordes[i.id], i.meta)} · ${t('Recorde: {tempo}', { tempo: minutosESegundos(recordes[i.id]) })}` : t('Sem recorde ainda')}</span>
       </a></li>`).join('')}</ol>`;
 }
 
 // O Plantão do dia: o chamado de hoje em destaque (com o resultado, se já foi atendido) e os dos últimos dias (quem
 // perdeu um dia ainda pode atender).
-export function paginaPlantao() {
+export async function paginaPlantao() {
+  const { plantaoDoDia } = await import('../jogo/plantao.js');
   const progresso = ler(CHAVES.progresso, {});
   const placares = ler(CHAVES.plantoes, {});
   const hoje = plantaoDoDia(hojeLocal());
@@ -329,7 +340,8 @@ export function paginaPlantao() {
 const SECAO = () => ({ troubleshooting: 'Troubleshooting', oficina: t('Oficina do kubectl'), plantao: t('Plantão do dia') });
 const intensidade = (n) => (n >= 4 ? 3 : n >= 2 ? 2 : n);
 
-export function paginaDiario() {
+export async function paginaDiario() {
+  const { TROUBLESHOOTING, OFICINA, acharItem } = await import('../conteudo/index.js');
   const progresso = ler(CHAVES.progresso, {});
   const dias = ler(CHAVES.dias, []);
   const hoje = hojeLocal();
@@ -348,6 +360,7 @@ export function paginaDiario() {
     [t('Incidentes resolvidos'), t('{n} de {total}', { n: TROUBLESHOOTING.filter((i) => resolvido(progresso, i.id)).length, total: TROUBLESHOOTING.length })],
     [t('Plantões atendidos'), Object.keys(progresso).filter((id) => id.startsWith('plantao-') && resolvido(progresso, id)).length],
     [t('Recordes na Oficina'), t('{n} de {total}', { n: OFICINA.filter((i) => recordes[i.id]).length, total: OFICINA.length })],
+    [t('Ouros na Oficina'), t('{n} de {total}', { n: ourosNaOficina(OFICINA, recordes), total: OFICINA.length })],
     [t('Termos firmes na memória'), cartoes.filter((c) => c.caixa >= 4).length],
   ];
   const atividade = atividadePorDia(progresso, dias);
@@ -386,7 +399,9 @@ export function paginaDiario() {
 
 const semAcento = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
-export function paginaGlossario() {
+export async function paginaGlossario() {
+  // O glossário inteiro (definição, vida real e limite), pelo conteúdo: é ele que acompanha a troca de idioma.
+  const { GLOSSARIO } = await import('../conteudo/index.js');
   return (main) => {
     const grupos = NIVEIS.map((n) => ({ n, termos: GLOSSARIO.filter((g) => g.nivel === n.numero) })).filter((g) => g.termos.length);
     main.innerHTML = `

@@ -1,6 +1,6 @@
 // Lição e quiz com um próximo passo só, e a tela da missão usável só com o teclado (a alça das janelas, a dica do
 // editor, o recuo das linhas quebradas e o placar do topo para o leitor de tela).
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 import { ITENS, NIVEIS } from '../../src/conteudo/index.js';
 
@@ -85,7 +85,8 @@ test('no celular, acertar o quiz leva o foco à próxima sem esconder o "Certo!"
 
 // Nível 0 com 9 de 14 itens (5 dos 8 quizzes, 62%, logo abaixo dos 70%). Abre o nível 1, com a faixa embaixo do
 // topo: acertar mais um quiz do nível 0 ou ler a primeira lição do nível 1 (a trilha abre o nível em que o aluno mexeu).
-const N0_QUASE = NIVEIS[0].itens.map((i) => i.id).filter((id) => id !== 'n0-quiz-partes').slice(0, 9);
+// 6 das 10 missões do nível 0 (as lições não contam): o n0-quiz-partes leva a 70%.
+const N0_QUASE = NIVEIS[0].itens.filter((i) => i.tipo !== 'licao' && i.id !== 'n0-quiz-partes').slice(0, 6).map((i) => i.id);
 const medir = (page) => page.evaluate(() => {
   const r = (s) => document.querySelector(s)?.getBoundingClientRect();
   const nav = document.querySelector('.nav');

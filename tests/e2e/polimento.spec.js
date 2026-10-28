@@ -1,6 +1,6 @@
 // O acabamento: nada cobre o que o aluno precisa ler, o botão principal cabe no celular, a fonte pixel na grade de
 // 8 px, o navio cheio dentro do quadro e o axe também a 390 px e no diálogo do kubectl edit.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 import { NIVEIS } from '../../src/conteudo/index.js';
 import { CORES } from '../../src/ui/navio.js';
@@ -294,6 +294,7 @@ test('detalhes: todas as letras na fonte pixel, topo limpo, rádios iguais', asy
   await expect(page.locator('.pular')).toHaveCSS('box-shadow', 'none');
   await page.setViewportSize(CELULAR);
   await page.goto('#/ex/n0-quiz-latest');
+  await expect(page.locator('.alternativa input').first()).toBeVisible(); // a tela de leitura chega por import()
   const larguras = await page.locator('.alternativa input').evaluateAll((l) => l.map((i) => i.getBoundingClientRect().width));
   expect(new Set(larguras).size).toBe(1);
 });

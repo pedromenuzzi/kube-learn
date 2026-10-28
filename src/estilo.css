@@ -471,6 +471,16 @@ label.alternativa:is(.certa, .errada) > span:not(.resultado-alternativa) { flex:
 .quiz-retorno.ok > b:first-child, .quiz-retorno.ok > :first-child > b:first-child { color: var(--ok); }
 .quiz-retorno.falha > b:first-child, .quiz-retorno.falha > :first-child > b:first-child { color: var(--ruim); }
 .quiz-retorno p { color: var(--texto); margin: 0.3rem 0; }
+/* A revisão: o veredito e o Próximo na mesma linha, antes da explicação (os dois cabem com o ✓/✗ no celular). */
+.quiz-retorno .retorno-veredito { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
+/* Tela baixa (celular deitado, 200% de zoom): alternativas e retorno mais justos, para o ✓/✗ e o Próximo caberem juntos. */
+@media (max-height: 32rem) {
+  .cartao-revisao .quiz { margin-bottom: 0.5rem; }
+  .cartao-revisao .quiz fieldset { gap: 0.4rem; }
+  .cartao-revisao .alternativa { padding: 0.4rem 0.75rem; }
+  .cartao-revisao .resultado-alternativa { flex-basis: auto; padding-left: 0; margin-left: auto; } /* ao lado do texto, se couber */
+  .cartao-revisao .quiz-retorno:not(:empty) { margin: 0.5rem 0; padding: 0.5rem 0.9rem; }
+}
 .leitura-acoes { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between; margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--borda); }
 .leitura-acoes .proxima { margin-left: auto; }
 .resposta-aluno input, .form-nome input { min-width: min(18rem, 100%); }
@@ -584,6 +594,11 @@ ol.oficina .oficina-titulo { font-weight: 700; }
 ol.oficina .oficina-titulo::before { counter-increment: exercicio; content: counter(exercicio) ". "; color: var(--suave); }
 ol.oficina .oficina-recorde { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; color: var(--suave); font-variant-numeric: tabular-nums; }
 @media (max-width: 40rem) { ol.oficina a { grid-template-columns: minmax(0, 1fr) auto; } ol.oficina .oficina-recorde { grid-column: 1 / -1; } }
+/* A medalha: o nome em texto, na cor do texto; a cor do metal fica só no ícone (enfeite). */
+.medalha { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 700; color: var(--texto); }
+.medalha-ouro .icone { color: #d4a017; }
+.medalha-prata .icone { color: #8e9aa8; }
+.medalha-bronze .icone { color: #b8733a; }
 
 /* O Plantão do dia e o Diário de bordo */
 .plantao-dia { margin-right: 0.35rem; font-size: 0.85rem; font-weight: 400; color: var(--suave); }

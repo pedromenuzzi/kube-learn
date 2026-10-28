@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { calcularJornada, sequenciaDeDias, novidades, LIMITE_DESBLOQUEIO } from '../src/jogo/gamificacao.js';
+import { calcularJornada, conquistasMigradas, sequenciaDeDias, novidades, LIMITE_DESBLOQUEIO } from '../src/jogo/gamificacao.js';
 import { empilhar, VAGAS } from '../src/ui/navio.js';
 
 const p = (id, dificuldade = 'facil') => ({ id, tipo: 'problema', dificuldade });
@@ -59,6 +59,90 @@ describe('jornada', () => {
     const j = calcularJornada(niveis, { e: { status: 'tentado' } });
     expect(j.niveis[2].desbloqueado).toBe(true);
     expect(j.niveis[2].itens.find((i) => i.id === 'e').estado).toBe('tentado');
+  });
+});
+
+describe('conquistas permanentes: missão nova vira convite, nunca perda', () => {
+  // O mesmo conteúdo, depois de ganhar missões novas: uma no nível 0, quatro no nível 2.
+  const crescido = [
+    { ...niveis[0], itens: [...niveis[0].itens, p('nova0')] },
+    niveis[1],
+    { ...niveis[2], itens: [...niveis[2].itens, p('n1'), p('n2'), p('n3'), p('n4')] },
+  ];
+  const tudo = resolvido('l0', 'a', 'b', 'c', 'd', 'e');
+  const conquistas = { lacres: { 0: '2026-09-01', 2: '2026-09-01' }, navio: '2026-09-01' };
+
+  it('o nível lacrado que ganha 1 missão continua lacrado, com 1 nova; o navio continua cheio', () => {
+    const j = calcularJornada(crescido, tudo, conquistas);
+    expect(j.niveis[0]).toMatchObject({ situacao: 'lacrado', concluido: true, novas: 1, pct: 75 });
+    expect(j.niveis[2]).toMatchObject({ situacao: 'lacrado', concluido: true, novas: 4, pct: 33 });
+    expect(j.navioCheio).toBe(true);
+    expect(j.proximo.id).toBe('n1'); // as missões novas são o convite
+    // Sem as conquistas, a mesma trilha tiraria o lacre (o que o aluno via antes).
+    expect(calcularJornada(crescido, tudo).niveis[0].concluido).toBe(false);
+    // Resolver a missão nova não repete a festa.
+    expect(novidades(j, calcularJornada(crescido, { ...tudo, ...resolvido('nova0') }, conquistas))).toEqual([]);
+  });
+
+  it('lacrado passa para o desbloqueio do seguinte, mesmo abaixo de 70%; quem nunca lacrou segue a regra dos 70%', () => {
+    const niveis2 = [{ numero: 0, itens: [p('a'), p('x1'), p('x2')] }, { numero: 1, itens: [p('b')] }];
+    expect(calcularJornada(niveis2, resolvido('a'), { lacres: { 0: '2026-09-01' } }).niveis[1].desbloqueado).toBe(true);
+    expect(calcularJornada(niveis2, resolvido('a')).niveis[1].desbloqueado).toBe(false);
+  });
+
+  it('a migração lacra os níveis a 100% pela data da última missão de cada um e é idempotente', () => {
+    const progresso = {
+      l0: { status: 'resolvido', em: '2026-08-01' }, a: { status: 'resolvido', em: '2026-08-03' }, b: { status: 'resolvido', em: '2026-08-02' },
+      c: { status: 'resolvido', em: '2026-08-02' }, d: { status: 'tentado', em: '2026-08-05' },
+    };
+    const m = conquistasMigradas(niveis, progresso);
+    expect(m).toEqual({ lacres: { 0: '2026-08-03' } });
+    expect(conquistasMigradas(niveis, progresso, m)).toBeNull();
+    expect(conquistasMigradas(niveis, {})).toBeNull(); // perfil novo: nada a gravar
+  });
+
+  it('a migração data o navio pela última missão da trilha (o Plantão de hoje não conta)', () => {
+    const semObra = [niveis[0], { ...niveis[2], numero: 1 }];
+    const progresso = { ...Object.fromEntries(['l0', 'a', 'b', 'c', 'd', 'e'].map((id) => [id, { status: 'resolvido', em: '2026-09-01' }])), 'plantao-2026-10-27': { status: 'resolvido', em: '2026-10-27' } };
+    const m = conquistasMigradas(semObra, progresso);
+    expect(m).toEqual({ lacres: { 0: '2026-09-01', 1: '2026-09-01' }, navio: '2026-09-01' });
+    expect(conquistasMigradas(semObra, progresso, m)).toBeNull();
+    expect(calcularJornada([...semObra, { numero: 2, itens: [p('nova')] }], progresso, m).navioCheio).toBe(true); // um nível novo não esvazia o navio
+  });
+});
+
+describe('missão nova, perfil antigo', () => {
+  const D = '2026-10-27'; // o dia em que as missões novas chegaram
+  const velhas = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8'];
+  const trilha = [
+    { numero: 0, itens: [...velhas.map((id) => p(id)), { ...p('pr1'), desde: D }, { ...p('pr2'), desde: D }] },
+    { numero: 1, itens: [p('n1')] },
+  ];
+  const em = (dia, ...ids) => Object.fromEntries(ids.map((id) => [id, { status: 'resolvido', em: dia }]));
+
+  it('a migração dá lacres e navio numa passada só, com a data da última missão (T7)', () => {
+    const progresso = { ...em('2026-09-01', ...velhas), ...em('2026-09-02', 'n1') };
+    const m = conquistasMigradas(trilha, progresso, {}, '2026-10-30');
+    expect(m).toEqual({ lacres: { 0: '2026-09-01', 1: '2026-09-02' }, navio: '2026-09-02' });
+    expect(conquistasMigradas(trilha, progresso, m, '2026-10-30')).toBeNull();
+  });
+
+  it('quem passou dos 70% antes das missões novas não tem o nível seguinte trancado de novo (T8)', () => {
+    const antes = em('2026-09-01', 'q1', 'q2', 'q3', 'q4', 'q5', 'q6'); // 6 de 8 = 75%: o nível 1 abriu
+    const j = calcularJornada(trilha, antes);
+    expect(j.niveis[0].pct).toBe(60); // a porcentagem mostrada conta todas
+    expect(j.niveis[1].desbloqueado).toBe(true);
+    // Resolver a prática não repete a faixa de "Nível 1 desbloqueado".
+    expect(novidades(j, calcularJornada(trilha, { ...antes, ...em('2026-10-30', 'pr1') }))).toEqual([]);
+    // Nem resolver mais uma antiga hoje (7 de 10 continua aberto; nunca tranca).
+    expect(calcularJornada(trilha, { ...antes, ...em('2026-10-30', 'q7') }).niveis[1].desbloqueado).toBe(true);
+  });
+
+  it('perfil novo segue a regra dos 70% sobre todas', () => {
+    expect(calcularJornada(trilha, em('2026-10-30', 'q1', 'q2', 'q3', 'q4', 'q5', 'q6')).niveis[1].desbloqueado).toBe(false);
+    expect(calcularJornada(trilha, em('2026-10-30', 'q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'pr1')).niveis[1].desbloqueado).toBe(true);
+    // Abaixo de 70% antes das novas: elas contam.
+    expect(calcularJornada(trilha, em('2026-09-01', 'q1', 'q2', 'q3', 'q4', 'q5')).niveis[1].desbloqueado).toBe(false);
   });
 });
 

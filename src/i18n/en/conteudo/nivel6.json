@@ -32,8 +32,8 @@
   },
   "n6-loja-travada": {
     "titulo": "The frozen store",
-    "enunciado": "\n      <p>After about 40 seconds up, loja freezes: the process keeps running, the pod stays <code>Running</code>,\n         but requests go unanswered (check the logs). Make Kubernetes <b>notice and restart</b> the frozen\n         container.</p>",
-    "dica": "A livenessProbe httpGet on /healthz, port 8080.",
+    "enunciado": "\n      <p>After about 40 seconds up, loja freezes: the process keeps running, the pod stays <code>Running</code>,\n         but requests go unanswered (check the logs). Make Kubernetes <b>notice and restart</b> the frozen\n         container.</p>\n      <p>loja answers health on <code>/healthz</code> (port 8080). Ask it every <b>5 seconds</b>, at most.</p>",
+    "dica": "A livenessProbe httpGet on /healthz, port 8080, with periodSeconds: 5 (the default is 10).",
     "vidaReal": "The clerk is in the chair, eyes open, but doesn’t answer anyone. From the outside, everything looks normal.",
     "limite": "Restarting fixes the symptom, not the cause: the deadlock comes back. Liveness buys time until someone fixes the program.",
     "comoSaber": "<code>kubectl get pods -w</code>: the RESTARTS column goes up; <code>kubectl describe pod NAME</code> shows <i>Container loja failed liveness probe, will be restarted</i>.",
@@ -43,6 +43,13 @@
         "msgs": {
           "1": "the kubelet killed a container because of the liveness probe",
           "2": "the liveness probe failed loja when it froze (no answer), and not before"
+        }
+      },
+      {
+        "descricao": "the probe asks in the right place, and soon",
+        "msgs": {
+          "0": "the liveness probe asks on /healthz, loja’s health endpoint",
+          "1": "the liveness probe asks every 5 seconds or less (periodSeconds): with the default of 10, loja stays frozen for 30 seconds before restarting"
         }
       }
     ]

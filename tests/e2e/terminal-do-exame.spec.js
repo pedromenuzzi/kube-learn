@@ -1,7 +1,7 @@
 // Os reflexos de quem faz o exame, no terminal da tela: o alias e o export valem nas linhas seguintes (a tela não
 // recusa o alias como "command not found"), o > /tmp/x.yaml grava, e o Resetar cluster começa um shell novo. E a
 // entrega aceita o k e o $do como o kubectl escrito por extenso.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 
 test('alias, export e > /tmp: valem até o Resetar cluster', async ({ page }) => {
   page.on('dialog', (d) => d.accept());
@@ -51,7 +51,7 @@ test('o k e o $do contam como o kubectl na entrega; o 2> grava o erro e o $? diz
   await rodar('export do="--dry-run=client -o yaml"');
   await rodar('kubectl create deployment api --image=kubelearn/loja:1.0 --replicas=3 $do > api.yaml');
   await rodar('kubectl apply -f api.yaml');
-  await entregar('primeiro recorde'); // a Oficina comemora o tempo
+  await entregar('Feito em'); // a Oficina comemora o tempo (e a medalha)
 
   await page.goto('#/livre');
   await rodar('kubectl get po nope 2> erro.txt; echo "codigo $?"');

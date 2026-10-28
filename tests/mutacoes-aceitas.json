@@ -1,0 +1,422 @@
+[
+  {
+    "id": "n1-cofre",
+    "linha": "$ kubectl exec cofre -- ls /cofre",
+    "motivo": "comando de leitura: só mostra o estado, não muda nada; o que a missão confere é a resposta digitada"
+  },
+  {
+    "id": "n1-cofre",
+    "linha": "$ kubectl exec cofre -- cat /cofre/combinacao.txt",
+    "motivo": "comando de leitura: só mostra o estado, não muda nada; o que a missão confere é a resposta digitada"
+  },
+  {
+    "id": "n2-deployment",
+    "linha": "loja.yaml: ports:",
+    "motivo": "o containerPort é só informativo: sem ele, o contêiner continua ouvindo na mesma porta e o Service chega nele igual (como no Kubernetes real)"
+  },
+  {
+    "id": "n2-deployment",
+    "linha": "loja.yaml: - containerPort: 8080",
+    "motivo": "o containerPort é só informativo: sem ele, o contêiner continua ouvindo na mesma porta e o Service chega nele igual (como no Kubernetes real)"
+  },
+  {
+    "id": "deploy-rolling-sem-indisponibilidade",
+    "linha": "loja.yaml: maxSurge: 1",
+    "motivo": "o padrão do maxSurge é 25%, que em 3 réplicas arredonda para 1: dá no mesmo"
+  },
+  {
+    "id": "n3-loadbalancer",
+    "linha": "$ kubectl get svc loja",
+    "motivo": "comando de leitura: só mostra o EXTERNAL-IP; a resposta é digitada e o Service vem do kubectl expose"
+  },
+  {
+    "id": "n3-gateway",
+    "linha": "rota.yaml: port: 80",
+    "motivo": "lacuna do simulador, não da missão: o Gateway API real recusa backendRef de Service sem port (\"Must have port for Service reference\"), e o simulador ainda aceita, usando a porta do Service. O conserto é no esquema da HTTPRoute (src/k8s/esquema.js); aí esta mutação morre e a decisão sai daqui"
+  },
+  {
+    "id": "n3-canario",
+    "linha": "rota.yaml: port: 80",
+    "motivo": "lacuna do simulador, não da missão: o Gateway API real recusa backendRef de Service sem port (\"Must have port for Service reference\"), e o simulador ainda aceita, usando a porta do Service. O conserto é no esquema da HTTPRoute (src/k8s/esquema.js); aí esta mutação morre e a decisão sai daqui"
+  },
+  {
+    "id": "n4-mesa-compartilhada",
+    "linha": "placa.yaml: emptyDir: {}",
+    "motivo": "um volume sem fonte vira emptyDir (o padrão da API): dá no mesmo"
+  },
+  {
+    "id": "n4-classe-que-nao-existe",
+    "linha": "fotos.yaml: storageClassName: standard",
+    "motivo": "sem storageClassName, o PVC ganha a classe padrão do kind, que é a standard: dá no mesmo"
+  },
+  {
+    "id": "n4-statefulset",
+    "linha": "statefulset.yaml: ports:",
+    "motivo": "o containerPort é só informativo: sem ele, o contêiner continua ouvindo na mesma porta e o Service chega nele igual (como no Kubernetes real)"
+  },
+  {
+    "id": "n4-statefulset",
+    "linha": "statefulset.yaml: - containerPort: 6379",
+    "motivo": "o containerPort é só informativo: sem ele, o contêiner continua ouvindo na mesma porta e o Service chega nele igual (como no Kubernetes real)"
+  },
+  {
+    "id": "n4-encolher",
+    "linha": "$ kubectl get pvc",
+    "motivo": "comando de leitura: só mostra o estado, não muda nada; o que a missão confere é a resposta digitada"
+  },
+  {
+    "id": "n5-coleta-agora",
+    "linha": "$ kubectl wait --for=condition=complete job/teste",
+    "motivo": "comando de leitura (esperar e ler o log): não muda nada; a missão confere o Job criado e a resposta digitada"
+  },
+  {
+    "id": "n5-coleta-agora",
+    "linha": "$ kubectl logs job/teste",
+    "motivo": "comando de leitura (esperar e ler o log): não muda nada; a missão confere o Job criado e a resposta digitada"
+  },
+  {
+    "id": "n5-extintor-na-administracao",
+    "linha": "extintor.yaml: operator: Exists",
+    "motivo": "sem operator, vale Equal com value vazio, e o taint do control-plane não tem valor: tolera do mesmo jeito"
+  },
+  {
+    "id": "n5-extintor-na-administracao",
+    "linha": "extintor.yaml: effect: NoSchedule",
+    "motivo": "sem effect, a toleration vale para todos os efeitos daquela chave, o NoSchedule incluído (o Kubernetes aceita as duas formas)"
+  },
+  {
+    "id": "n6-pronto-para-atender",
+    "linha": "loja.yaml: path: /healthz",
+    "motivo": "sem path, a sonda pergunta em / (o padrão), e a imagem da loja responde em / exatamente quando responde em /healthz: dá no mesmo"
+  },
+  {
+    "id": "n6-pronto-para-atender",
+    "linha": "loja.yaml: periodSeconds: 2",
+    "motivo": "sem periodSeconds, a readiness pergunta a cada 10 segundos: o pod novo demora mais para entrar no Service, mas nenhum cliente recebe erro (a troca só fica mais lenta)"
+  },
+  {
+    "id": "n6-subida-lenta",
+    "linha": "loja.yaml: path: /healthz",
+    "motivo": "sem path, a sonda pergunta em / (o padrão), e a imagem da loja responde em / exatamente quando responde em /healthz: dá no mesmo"
+  },
+  {
+    "id": "n6-subida-lenta",
+    "linha": "loja.yaml: periodSeconds: 5",
+    "motivo": "sem periodSeconds, a startupProbe pergunta a cada 10 segundos: 20 x 10 = 200 segundos de folga, ainda mais que os 45 da migração, e a liveness continua como estava"
+  },
+  {
+    "id": "n6-garantido",
+    "linha": "caixa-forte.yaml: requests:",
+    "motivo": "sem o requests (ou sem um dos valores), o Kubernetes copia o valor do limits: o pod continua Guaranteed"
+  },
+  {
+    "id": "n6-garantido",
+    "linha": "caixa-forte.yaml: cpu: 250m",
+    "motivo": "sem o requests (ou sem um dos valores), o Kubernetes copia o valor do limits: o pod continua Guaranteed"
+  },
+  {
+    "id": "n6-garantido",
+    "linha": "caixa-forte.yaml: memory: 128Mi",
+    "motivo": "sem o requests (ou sem um dos valores), o Kubernetes copia o valor do limits: o pod continua Guaranteed"
+  },
+  {
+    "id": "n6-teto",
+    "linha": "loja.yaml: memory: 512Mi",
+    "motivo": "sem limits.memory, o LimitRange do namespace põe o max (512Mi) como limit padrão: a loja fica com o mesmo teto"
+  },
+  {
+    "id": "n7-backups-separados",
+    "linha": "backup.yaml: app: backup",
+    "motivo": "sem a label, o labelSelector fica vazio e escolhe todos os pods do namespace; no default só mora o backup, então a antiafinidade separa as mesmas réplicas (num namespace cheio, ela ficaria mais rígida, nunca mais frouxa)"
+  },
+  {
+    "id": "n7-zonas",
+    "linha": "site.yaml: app: site",
+    "motivo": "sem a label, o labelSelector fica vazio e conta todos os pods do namespace; no default só mora o site, então o espalhamento conta as mesmas réplicas"
+  },
+  {
+    "id": "n7-predio-restrito",
+    "linha": "treino.yaml: operator: Equal",
+    "motivo": "Equal é o operator padrão da toleration: dá no mesmo"
+  },
+  {
+    "id": "n7-predio-restrito",
+    "linha": "treino.yaml: effect: NoSchedule",
+    "motivo": "sem effect, a toleration vale para todos os efeitos de dedicado=gpu, o NoSchedule incluído; a loja continua fora (o teste oculto confere)"
+  },
+  {
+    "id": "n7-prioridade",
+    "linha": "pagamento.yaml: description: \"Pagamentos: passam na frente quando falta espaço.\"",
+    "motivo": "a description da PriorityClass é só texto para quem lê: não muda a prioridade"
+  },
+  {
+    "id": "n7-predio-caiu",
+    "linha": "$ kubectl get nodes",
+    "motivo": "comando de leitura: o kubectl get pods -o wide que sobra basta para achar a resposta (e é ele que a missão confere)"
+  },
+  {
+    "id": "n8-quem-apaga",
+    "linha": "$ kubectl auth can-i delete pods --as=ana -n loja",
+    "motivo": "comando de leitura: o outro kubectl auth can-i que sobra já cumpre a regra do comando, e a resposta é digitada"
+  },
+  {
+    "id": "n8-quem-apaga",
+    "linha": "$ kubectl auth can-i delete pods --as=bruno -n loja",
+    "motivo": "comando de leitura: o outro kubectl auth can-i que sobra já cumpre a regra do comando, e a resposta é digitada"
+  },
+  {
+    "id": "n8-cracha-de-leitura",
+    "linha": "ana.yaml: apiGroup: rbac.authorization.k8s.io",
+    "motivo": "o apiGroup do roleRef e dos subjects User/Group tem padrão rbac.authorization.k8s.io (a API preenche): dá no mesmo"
+  },
+  {
+    "id": "n8-cracha-de-leitura",
+    "linha": "ana.yaml: apiGroup: rbac.authorization.k8s.io #2",
+    "motivo": "o apiGroup do roleRef e dos subjects User/Group tem padrão rbac.authorization.k8s.io (a API preenche): dá no mesmo"
+  },
+  {
+    "id": "n8-conta-do-painel",
+    "linha": "painel.yaml: namespace: default",
+    "motivo": "num RoleBinding, a ServiceAccount sem namespace é a do namespace do próprio RoleBinding (o default): dá no mesmo"
+  },
+  {
+    "id": "n8-conta-do-painel",
+    "linha": "painel.yaml: apiGroup: rbac.authorization.k8s.io",
+    "motivo": "o apiGroup do roleRef e dos subjects User/Group tem padrão rbac.authorization.k8s.io (a API preenche): dá no mesmo"
+  },
+  {
+    "id": "n8-dns",
+    "linha": "saida-da-vitrine.yaml: podSelector:",
+    "motivo": "sem o podSelector (ou com ele vazio), a regra libera a porta 53 para o namespace kube-system inteiro: um pouco mais largo que o pedido, mas ainda só o kube-system e só a 53/UDP e 53/TCP, onde só o DNS ouve. A trava de menor privilégio (egressMinimo) pega o que abre de verdade: sem to, sem ports, namespaceSelector vazio"
+  },
+  {
+    "id": "n8-dns",
+    "linha": "saida-da-vitrine.yaml: matchLabels: #2",
+    "motivo": "sem o podSelector (ou com ele vazio), a regra libera a porta 53 para o namespace kube-system inteiro: um pouco mais largo que o pedido, mas ainda só o kube-system e só a 53/UDP e 53/TCP, onde só o DNS ouve. A trava de menor privilégio (egressMinimo) pega o que abre de verdade: sem to, sem ports, namespaceSelector vazio"
+  },
+  {
+    "id": "n8-dns",
+    "linha": "saida-da-vitrine.yaml: k8s-app: kube-dns",
+    "motivo": "sem o podSelector (ou com ele vazio), a regra libera a porta 53 para o namespace kube-system inteiro: um pouco mais largo que o pedido, mas ainda só o kube-system e só a 53/UDP e 53/TCP, onde só o DNS ouve. A trava de menor privilégio (egressMinimo) pega o que abre de verdade: sem to, sem ports, namespaceSelector vazio"
+  },
+  {
+    "id": "n8-dns",
+    "linha": "saida-da-vitrine.yaml: kubernetes.io/metadata.name: kube-system",
+    "motivo": "sem a label do kube-system, o namespaceSelector fica vazio (qualquer namespace), mas o podSelector k8s-app=kube-dns no mesmo par ainda fixa os pods: é o padrão da documentação do Kubernetes, só o kube-dns na 53/UDP e 53/TCP. A trava de menor privilégio (egressMinimo) pega o par que não fixa nem o namespace nem os pods"
+  },
+  {
+    "id": "n8-somente-leitura",
+    "linha": "vitrine.yaml: emptyDir: {}",
+    "motivo": "um volume sem fonte vira emptyDir (o padrão da API): dá no mesmo"
+  },
+  {
+    "id": "n8-somente-leitura",
+    "linha": "vitrine.yaml: emptyDir: {} #2",
+    "motivo": "um volume sem fonte vira emptyDir (o padrão da API): dá no mesmo"
+  },
+  {
+    "id": "n9-nunca-pronto",
+    "linha": "loja.yaml: initialDelaySeconds: 2",
+    "motivo": "o initialDelaySeconds só atrasa a primeira pergunta da readiness: sem ele, o pod fica pronto do mesmo jeito"
+  },
+  {
+    "id": "n9-job-que-falha",
+    "linha": "migracao.yaml: activeDeadlineSeconds: 120",
+    "motivo": "sem activeDeadlineSeconds, o Job não tem prazo (o padrão do Kubernetes) e espera a migração acabar: é outro conserto válido para o prazo curto demais"
+  },
+  {
+    "id": "n9-limpeza-suspensa",
+    "linha": "limpeza.yaml: suspend: false",
+    "motivo": "suspend: false é o padrão do CronJob: dá no mesmo"
+  },
+  {
+    "id": "n11-loja-5",
+    "linha": "api.yaml: path: /healthz",
+    "motivo": "sem path, a sonda pergunta em / (o padrão), e a imagem da loja responde em / exatamente quando responde em /healthz: dá no mesmo"
+  },
+  {
+    "id": "n11-loja-5",
+    "linha": "vitrine.yaml: path: /",
+    "motivo": "path: / é o padrão do httpGet (o apiserver preenche quando falta ou vem vazio): dá no mesmo"
+  },
+  {
+    "id": "n11-blog-2",
+    "linha": "banco.yaml: targetPort: 5432",
+    "motivo": "sem targetPort, o Service usa o mesmo número do port (5432), que é a porta do postgres: dá no mesmo"
+  },
+  {
+    "id": "n11-zero-2",
+    "linha": "loja.yaml: type: RollingUpdate",
+    "motivo": "RollingUpdate é o type padrão da strategy do Deployment: dá no mesmo"
+  },
+  {
+    "id": "n11-zero-2",
+    "linha": "loja.yaml: maxSurge: 1",
+    "motivo": "o padrão do maxSurge é 25%, que em 4 réplicas dá 1: dá no mesmo"
+  },
+  {
+    "id": "n11-zero-5",
+    "linha": "loja.yaml: path: /healthz",
+    "motivo": "sem path, a sonda pergunta em / (o padrão), e a imagem da loja responde em / exatamente quando responde em /healthz: dá no mesmo"
+  },
+  {
+    "id": "n11-zero-5",
+    "linha": "loja.yaml: path: /healthz #2",
+    "motivo": "sem path, a sonda pergunta em / (o padrão), e a imagem da loja responde em / exatamente quando responde em /healthz: dá no mesmo"
+  },
+  {
+    "id": "n11-zero-5",
+    "linha": "loja.yaml: periodSeconds: 5",
+    "motivo": "sem periodSeconds, a startupProbe pergunta a cada 10 segundos: 30 x 10 = 300 segundos de folga para a versão lenta, mais que os 5 minutos do teste precisam"
+  },
+  {
+    "id": "n11-canario-1",
+    "linha": "v1.yaml: app: loja",
+    "motivo": "só com versao: v1 no seletor, o ramal já escolhe só os pods da v1 (nenhum outro pod tem essa label): dá no mesmo"
+  },
+  {
+    "id": "n11-canario-3",
+    "linha": "rota.yaml: port: 80",
+    "motivo": "lacuna do simulador, não da missão: o Gateway API real recusa backendRef de Service sem port (\"Must have port for Service reference\"), e o simulador ainda aceita, usando a porta do Service. O conserto é no esquema da HTTPRoute (src/k8s/esquema.js); aí esta mutação morre e a decisão sai daqui"
+  },
+  {
+    "id": "n11-canario-5",
+    "linha": "rota.yaml: weight: 100",
+    "motivo": "com um destino só, a rota manda tudo para ele: o weight padrão é 1, que é 100% de 1"
+  },
+  {
+    "id": "n11-canario-5",
+    "linha": "pdb.yaml: app: loja",
+    "motivo": "só com versao: v2, o PDB escolhe os mesmos pods da v2"
+  },
+  {
+    "id": "n11-canario-5",
+    "linha": "pdb.yaml: versao: v2",
+    "motivo": "a v1 já saiu do cluster (o teste confere): só com app: loja, o PDB escolhe os mesmos pods da v2"
+  },
+  {
+    "id": "n11-bf-3",
+    "linha": "trafego.yaml: memory: 16Mi",
+    "motivo": "os valores são livres (o enunciado deixa escolher, desde que caibam no teto): sem esse campo, o request copia o limit, ou fica sem limit de CPU, e o pod continua cabendo"
+  },
+  {
+    "id": "n11-bf-3",
+    "linha": "trafego.yaml: cpu: 100m",
+    "motivo": "os valores são livres (o enunciado deixa escolher, desde que caibam no teto): sem esse campo, o request copia o limit, ou fica sem limit de CPU, e o pod continua cabendo"
+  },
+  {
+    "id": "n11-equipes-2",
+    "linha": "crachas.yaml: apiGroup: rbac.authorization.k8s.io",
+    "motivo": "o apiGroup do roleRef e dos subjects User/Group tem padrão rbac.authorization.k8s.io (a API preenche): dá no mesmo"
+  },
+  {
+    "id": "n11-equipes-2",
+    "linha": "crachas.yaml: apiGroup: rbac.authorization.k8s.io #2",
+    "motivo": "o apiGroup do roleRef e dos subjects User/Group tem padrão rbac.authorization.k8s.io (a API preenche): dá no mesmo"
+  },
+  {
+    "id": "n11-equipes-3",
+    "linha": "crachas.yaml: apiGroup: rbac.authorization.k8s.io",
+    "motivo": "o apiGroup do roleRef e dos subjects User/Group tem padrão rbac.authorization.k8s.io (a API preenche): dá no mesmo"
+  },
+  {
+    "id": "n11-equipes-3",
+    "linha": "crachas.yaml: apiGroup: rbac.authorization.k8s.io #2",
+    "motivo": "o apiGroup do roleRef e dos subjects User/Group tem padrão rbac.authorization.k8s.io (a API preenche): dá no mesmo"
+  },
+  {
+    "id": "n11-equipes-3",
+    "linha": "crachas.yaml: apiGroup: rbac.authorization.k8s.io #3",
+    "motivo": "o apiGroup do roleRef e dos subjects User/Group tem padrão rbac.authorization.k8s.io (a API preenche): dá no mesmo"
+  },
+  {
+    "id": "n11-equipes-3",
+    "linha": "crachas.yaml: apiGroup: rbac.authorization.k8s.io #4",
+    "motivo": "o apiGroup do roleRef e dos subjects User/Group tem padrão rbac.authorization.k8s.io (a API preenche): dá no mesmo"
+  },
+  {
+    "id": "n11-cofre-3",
+    "linha": "cofre.yaml: emptyDir: {}",
+    "motivo": "um volume sem fonte vira emptyDir (o padrão da API): dá no mesmo"
+  },
+  {
+    "id": "n11-cofre-4",
+    "linha": "robo.yaml: namespace: cofre #4",
+    "motivo": "num RoleBinding, a ServiceAccount sem namespace é a do namespace do próprio RoleBinding (o cofre): dá no mesmo"
+  },
+  {
+    "id": "n11-cofre-4",
+    "linha": "robo.yaml: apiGroup: rbac.authorization.k8s.io",
+    "motivo": "o apiGroup do roleRef e dos subjects User/Group tem padrão rbac.authorization.k8s.io (a API preenche): dá no mesmo"
+  },
+  {
+    "id": "n11-cofre-5",
+    "linha": "isola.yaml: podSelector:",
+    "motivo": "sem o podSelector do spec (ou com ele vazio), a política vale para todos os pods do namespace cofre, onde só mora o cofre: fecha o mesmo (e fecharia também quem chegasse depois)"
+  },
+  {
+    "id": "n11-cofre-5",
+    "linha": "isola.yaml: matchLabels:",
+    "motivo": "sem o podSelector do spec (ou com ele vazio), a política vale para todos os pods do namespace cofre, onde só mora o cofre: fecha o mesmo (e fecharia também quem chegasse depois)"
+  },
+  {
+    "id": "n11-cofre-5",
+    "linha": "isola.yaml: app: cofre",
+    "motivo": "sem o podSelector do spec (ou com ele vazio), a política vale para todos os pods do namespace cofre, onde só mora o cofre: fecha o mesmo (e fecharia também quem chegasse depois)"
+  },
+  {
+    "id": "n11-cofre-5",
+    "linha": "isola.yaml: policyTypes:",
+    "motivo": "sem policyTypes, a API deduz Ingress (sempre) e Egress (porque há regras de egress): as mesmas duas portas fechadas"
+  },
+  {
+    "id": "n11-cofre-5",
+    "linha": "isola.yaml: podSelector: #2",
+    "motivo": "sem o podSelector (ou com ele vazio), a regra libera a porta 53 para o namespace kube-system inteiro: um pouco mais largo que o pedido, mas ainda só o kube-system e só a 53/UDP e 53/TCP, onde só o DNS ouve. A trava de menor privilégio (egressMinimo) pega o que abre de verdade: sem to, sem ports, namespaceSelector vazio"
+  },
+  {
+    "id": "n11-cofre-5",
+    "linha": "isola.yaml: matchLabels: #3",
+    "motivo": "sem o podSelector (ou com ele vazio), a regra libera a porta 53 para o namespace kube-system inteiro: um pouco mais largo que o pedido, mas ainda só o kube-system e só a 53/UDP e 53/TCP, onde só o DNS ouve. A trava de menor privilégio (egressMinimo) pega o que abre de verdade: sem to, sem ports, namespaceSelector vazio"
+  },
+  {
+    "id": "n11-cofre-5",
+    "linha": "isola.yaml: k8s-app: kube-dns",
+    "motivo": "sem o podSelector (ou com ele vazio), a regra libera a porta 53 para o namespace kube-system inteiro: um pouco mais largo que o pedido, mas ainda só o kube-system e só a 53/UDP e 53/TCP, onde só o DNS ouve. A trava de menor privilégio (egressMinimo) pega o que abre de verdade: sem to, sem ports, namespaceSelector vazio"
+  },
+  {
+    "id": "n11-cofre-5",
+    "linha": "isola.yaml: kubernetes.io/metadata.name: kube-system",
+    "motivo": "sem a label do kube-system, o namespaceSelector fica vazio (qualquer namespace), mas o podSelector k8s-app=kube-dns no mesmo par ainda fixa os pods: é o padrão da documentação do Kubernetes, só o kube-dns na 53/UDP e 53/TCP. A trava de menor privilégio (egressMinimo) pega o par que não fixa nem o namespace nem os pods"
+  },
+  {
+    "id": "n11-ambientes-5",
+    "linha": "overlays/prod/reserva.yaml: apiVersion: apps/v1",
+    "motivo": "lacuna do simulador, não da missão: o kustomize real recusa o patch sem apiVersion (\"no resource matches strategic merge patch\"), e o do simulador ainda acha o alvo só pelo kind e pelo nome. O conserto é em src/k8s/kustomize.js; aí esta mutação morre e a decisão sai daqui"
+  },
+  {
+    "id": "ts-ninguem-se-acha",
+    "linha": "catraca.yaml: podSelector:",
+    "motivo": "sem o podSelector (ou com ele vazio), a regra libera a porta 53 para o namespace kube-system inteiro: um pouco mais largo que o pedido, mas ainda só o kube-system e só a 53/UDP e 53/TCP, onde só o DNS ouve. A trava de menor privilégio (egressMinimo) pega o que abre de verdade: sem to, sem ports, namespaceSelector vazio"
+  },
+  {
+    "id": "ts-ninguem-se-acha",
+    "linha": "catraca.yaml: matchLabels: #2",
+    "motivo": "sem o podSelector (ou com ele vazio), a regra libera a porta 53 para o namespace kube-system inteiro: um pouco mais largo que o pedido, mas ainda só o kube-system e só a 53/UDP e 53/TCP, onde só o DNS ouve. A trava de menor privilégio (egressMinimo) pega o que abre de verdade: sem to, sem ports, namespaceSelector vazio"
+  },
+  {
+    "id": "ts-ninguem-se-acha",
+    "linha": "catraca.yaml: k8s-app: kube-dns",
+    "motivo": "sem o podSelector (ou com ele vazio), a regra libera a porta 53 para o namespace kube-system inteiro: um pouco mais largo que o pedido, mas ainda só o kube-system e só a 53/UDP e 53/TCP, onde só o DNS ouve. A trava de menor privilégio (egressMinimo) pega o que abre de verdade: sem to, sem ports, namespaceSelector vazio"
+  },
+  {
+    "id": "ts-ninguem-se-acha",
+    "linha": "catraca.yaml: kubernetes.io/metadata.name: kube-system",
+    "motivo": "sem a label do kube-system, o namespaceSelector fica vazio (qualquer namespace), mas o podSelector k8s-app=kube-dns no mesmo par ainda fixa os pods: é o padrão da documentação do Kubernetes, só o kube-dns na 53/UDP e 53/TCP. A trava de menor privilégio (egressMinimo) pega o par que não fixa nem o namespace nem os pods"
+  },
+  {
+    "id": "ts-fila-parada",
+    "linha": "relatorio.yaml: memory: 300Mi",
+    "motivo": "sem o request de memória, o relatório também cabe: tirar o pedido exagerado é um conserto válido, e o incidente pede que as réplicas rodem, não um valor"
+  }
+]

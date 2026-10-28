@@ -1,7 +1,7 @@
 // O placar do Plantão do dia: o relógio e as entregas, o resultado guardado (vale a primeira vez), o Compartilhar (pelo
 // menu do sistema ou pela área de transferência, só com o clique), a página com o chamado de hoje em destaque, a
 // recomendação do Nível 6 e a data impossível.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 import { NIVEIS } from '../../src/conteudo/index.js';
 import { NIVEL_DO_PLANTAO } from '../../src/jogo/plantao.js';
@@ -41,7 +41,7 @@ test('com o menu do sistema: o aviso mostra o tempo e as entregas, a primeira ve
   expect(resultado).toEqual({ ms: expect.any(Number), entregas: 2 });
   expect(resultado.ms).toBeGreaterThan(0);
   // O cronômetro parou no tempo do resultado.
-  await expect(page.locator('.chip-cronometro')).toHaveText(await page.locator('.ex-aviso').textContent().then((t) => t.match(/em (\d+:\d\d)/)[1]));
+  await expect(page.locator('.cronometro-tempo')).toHaveText(await page.locator('.ex-aviso').textContent().then((t) => t.match(/em (\d+:\d\d)/)[1]));
 
   expect(await page.evaluate(() => window.compartilhado)).toBeUndefined(); // nada sai sem o clique
   await page.locator('.ex-aviso').getByRole('button', { name: 'Compartilhar resultado' }).click();
@@ -69,17 +69,18 @@ test('com o menu do sistema: o aviso mostra o tempo e as entregas, a primeira ve
 });
 
 // Sair no meio do plantão (o Glossário, a troca de idioma) e voltar não zera o relógio nem as entregas: o tempo conta
-// da primeira abertura até a entrega certa.
-test('ir ao Glossário no meio do plantão e voltar: o tempo conta desde a primeira abertura e a entrega errada continua contando', async ({ page }) => {
+// enquanto a tela da missão está aberta (fora dela, o relógio para; tests/e2e/melhora-visivel.spec.js).
+test('ir ao Glossário no meio do plantão e voltar: o tempo continua de onde estava e a entrega errada continua contando', async ({ page }) => {
   page.on('dialog', (d) => d.accept());
   await page.goto('#/plantao');
   await page.locator('.plantao-hoje').getByRole('link', { name: 'Atender agora' }).click();
   await expect(page.locator('input.term-entrada')).toBeVisible();
-  const abriu = Date.now(); // a tela já estava aberta: o relógio dela começou antes
   await page.getByRole('button', { name: 'Entregar' }).click();
   await expect(page.locator('.ex-aviso.falha')).toBeVisible();
   const relogio = page.locator('.chip-cronometro');
   await expect(relogio).toHaveText(/0:0[2-9]/);
+  const [m, s] = (await page.locator('.cronometro-tempo').textContent()).split(':').map(Number);
+  const antes = (m * 60 + s) * 1000;
 
   await page.goto('#/glossario');
   await expect(page.locator('h1')).toBeVisible();
@@ -88,12 +89,11 @@ test('ir ao Glossário no meio do plantão e voltar: o tempo conta desde a prime
   expect(await relogio.textContent()).toMatch(/0:0[2-9]|0:[1-5]\d/); // continuou, não voltou a 0:00
 
   await consertar(page);
-  const entregou = Date.now(); // antes do clique: a entrega certa vem depois
   await page.getByRole('button', { name: 'Entregar' }).click();
   await expect(page.locator('.ex-aviso')).toContainText(/Incidente resolvido em \d+:\d\d · 2 entregas/);
   const [[, resultado]] = Object.entries(await guardado(page));
   expect(resultado.entregas).toBe(2);
-  expect(resultado.ms).toBeGreaterThanOrEqual(entregou - abriu);
+  expect(resultado.ms).toBeGreaterThanOrEqual(antes - 500); // o relógio mostra o segundo arredondado
 });
 
 test('sem o menu do sistema (celular estreito): o texto vai para a área de transferência e o aviso diz "Copiado"', async ({ page }) => {

@@ -1,5 +1,5 @@
 // O idioma: o botão PT | EN troca na hora, em qualquer tela, e fica salvo; a missão aberta continua com o mesmo cluster.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import AxeBuilder from '@axe-core/playwright';
 
 const nav = (page) => page.getByRole('navigation').first();

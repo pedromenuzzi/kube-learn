@@ -9,11 +9,14 @@ export const xpDoItem = (item) => (item.tipo === 'licao' || item.tipo === 'quiz'
 const contaNaPorcentagem = (item) => item.tipo !== 'licao';
 
 /**
- * O estado da trilha. `progresso`: { [id]: { status: 'resolvido' | 'tentado', em } }.
- * Cada nível ganha: total, resolvidos, pct, emObra (sem itens), desbloqueado, passou (≥ 70%), concluido (100%)
- * e a situação do nível ('bloqueado' | 'carregando' | 'pronto' | 'lacrado'); cada item: estado e xp.
+ * O estado da trilha. `progresso`: { [id]: { status: 'resolvido' | 'tentado', em } }; `conquistas`: { lacres: { [nivel]:
+ * 'AAAA-MM-DD' }, navio: 'AAAA-MM-DD' }, o que o aluno já ganhou (missão nova não tira: vira convite).
+ * Cada nível ganha: total, resolvidos, pct, emObra (sem itens), desbloqueado, passou (≥ 70%, lacrado ou
+ * ≥ 70% sem as missões que chegaram depois dele passar), concluido (100%
+ * ou lacrado), novas (as missões que chegaram depois do lacre e ainda não foram resolvidas) e a situação do nível
+ * ('bloqueado' | 'carregando' | 'pronto' | 'lacrado'); cada item: estado e xp.
  */
-export function calcularJornada(niveis, progresso = {}) {
+export function calcularJornada(niveis, progresso = {}, conquistas = {}) {
   let xp = 0;
   let anteriorPassou = true;
   const resultado = niveis.map((n) => {
@@ -21,10 +24,11 @@ export function calcularJornada(niveis, progresso = {}) {
     const resolvidos = conta.filter((i) => progresso[i.id]?.status === 'resolvido').length;
     const pct = conta.length ? Math.round((resolvidos / conta.length) * 100) : 0;
     const emObra = n.itens.length === 0;
+    const lacrado = !emObra && !!conquistas?.lacres?.[n.numero];
     const comProgresso = n.itens.some((i) => progresso[i.id]);
-    const desbloqueado = !emObra && (anteriorPassou || comProgresso);
-    const passou = emObra || pct >= LIMITE_DESBLOQUEIO;
-    const concluido = !emObra && pct === 100;
+    const desbloqueado = !emObra && (anteriorPassou || comProgresso || lacrado);
+    const passou = emObra || lacrado || pct >= LIMITE_DESBLOQUEIO || passouAntesDasNovas(conta, progresso);
+    const concluido = !emObra && (lacrado || pct === 100);
     if (!emObra) anteriorPassou = passou;
     const itens = n.itens.map((i) => {
       const status = progresso[i.id]?.status;
@@ -33,7 +37,8 @@ export function calcularJornada(niveis, progresso = {}) {
       return { ...i, estado, xp: xpDoItem(i) };
     });
     const situacao = emObra || !desbloqueado ? 'bloqueado' : concluido ? 'lacrado' : passou ? 'pronto' : 'carregando';
-    return { ...n, itens, total: conta.length, resolvidos, pct, emObra, desbloqueado, passou: !emObra && passou, concluido, situacao };
+    const novas = concluido ? conta.length - resolvidos : 0;
+    return { ...n, itens, total: conta.length, resolvidos, pct, emObra, desbloqueado, passou: !emObra && passou, concluido, novas, situacao };
   });
 
   // O próximo: o primeiro em aberto depois do último resolvido (quem deixou uma missão para trás lá no começo segue em
@@ -49,8 +54,51 @@ export function calcularJornada(niveis, progresso = {}) {
     niveis: resultado,
     proximo,
     niveisProntos: resultado.filter((n) => n.passou).length,
-    navioCheio: comConteudo.length === resultado.length && comConteudo.every((n) => n.concluido),
+    navioCheio: !!conquistas?.navio || (comConteudo.length === resultado.length && comConteudo.every((n) => n.concluido)),
   };
+}
+
+const resolvidoAte = (p, dia) => p?.status === 'resolvido' && !!p.em && p.em <= dia;
+const passouEm = (conta, progresso, dia) => {
+  const existiam = conta.filter((i) => !(i.desde >= dia));
+  return existiam.length > 0 && existiam.filter((i) => resolvidoAte(progresso[i.id], dia)).length * 100 >= LIMITE_DESBLOQUEIO * existiam.length;
+};
+/**
+ * A missão nova não tranca o que já estava aberto: a missão publicada (`desde`) quando o nível já tinha passado dos 70%
+ * (contando só o que existia e estava resolvido até aquele dia) e ainda não resolvida fica de fora da conta do desbloqueio
+ * (a porcentagem mostrada continua sobre todas). Perfil novo não muda: sem nada resolvido antes, nada sai da conta.
+ */
+function passouAntesDasNovas(conta, progresso) {
+  const novas = conta.filter((i) => i.desde && progresso[i.id]?.status !== 'resolvido' && passouEm(conta, progresso, i.desde));
+  if (!novas.length) return false;
+  const restam = conta.filter((i) => !novas.includes(i));
+  return restam.filter((i) => progresso[i.id]?.status === 'resolvido').length * 100 >= LIMITE_DESBLOQUEIO * restam.length;
+}
+
+const maiorData = (itens, progresso, hoje) => itens.map((i) => progresso[i.id]).filter((p) => p?.status === 'resolvido').map((p) => p.em ?? hoje).sort().at(-1) ?? hoje;
+
+/**
+ * As conquistas de quem chegou antes delas existirem: cada nível a 100% sem lacre guardado ganha o lacre, datado pela
+ * última missão resolvida dele; o navio cheio, pela última missão resolvida da trilha. A missão publicada (`desde`)
+ * nesse mesmo dia ou depois não conta (o lado generoso): quem fechou o nível antes dela chegar ganha o lacre, e ela
+ * vira convite. Idempotente: sem nada a acrescentar, devolve null (nada a gravar).
+ */
+export function conquistasMigradas(niveis, progresso = {}, conquistas = {}, hoje = hojeLocal()) {
+  const lacres = { ...conquistas?.lacres };
+  let mudou = false;
+  for (const n of niveis) {
+    if (lacres[n.numero]) continue;
+    const data = maiorData(n.itens, progresso, hoje);
+    const conta = n.itens.filter((i) => contaNaPorcentagem(i) && !(i.desde >= data));
+    if (!conta.length || conta.some((i) => progresso[i.id]?.status !== 'resolvido')) continue;
+    lacres[n.numero] = data;
+    mudou = true;
+  }
+  // O navio vem da jornada com os lacres que acabaram de entrar (senão só chegaria no boot seguinte).
+  const cheio = calcularJornada(niveis, progresso, { ...conquistas, lacres }).navioCheio;
+  const navio = conquistas?.navio ?? (cheio ? maiorData(niveis.flatMap((n) => n.itens), progresso, hoje) : undefined);
+  if (!mudou && navio === conquistas?.navio) return null;
+  return { ...conquistas, lacres, ...(navio && { navio }) };
 }
 
 /**

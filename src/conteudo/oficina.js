@@ -104,6 +104,10 @@ PARTIDA_OF['of-bairro'] = {
 PARTIDA_OF['of-vizinhanca'] = { manifestos: vizinhanca };
 PARTIDA_OF['of-loja-quebrada'] = { manifestos: loja(), comandos: ['kubectl set image deployment/loja loja=kubelearn/loja:2.0-bugada'] };
 
+// A `meta` de cada exercício (ms) é o tempo de quem já domina: ler o enunciado (15 s) e digitar a solucaoTerminal a
+// 4 caracteres por segundo (com o Tab completando), mais 3 s entre um comando e outro e o tempo de digitar a resposta,
+// arredondado para cima de 5 em 5 s. No kubectl edit, o comando mais a troca no editor. Ouro até a meta, prata até 2x
+// (src/jogo/medalhas.js).
 const noCluster = (descricao, regras) => [{ noClusterDoAluno: true, descricao, regras }];
 const exercicio = (dados) => problema({ terminal: true, secao: 'oficina', ...dados });
 
@@ -112,6 +116,7 @@ export const OFICINA = [
     id: 'of-gerar-yaml',
     titulo: 'YAML sem digitar YAML',
     dificuldade: 'facil',
+    meta: 55_000,
     cluster: 'vazio',
     enunciado: `<p>Crie o Deployment <code>api</code> (imagem <code>kubelearn/loja:1.0</code>, <b>3 réplicas</b>) sem escrever o
                 YAML do zero: gere com o kubectl, grave em <code>api.yaml</code> e aplique.</p>`,
@@ -129,6 +134,7 @@ export const OFICINA = [
     id: 'of-expor',
     titulo: 'Um ramal num comando',
     dificuldade: 'facil',
+    meta: 35_000,
     cluster: 'of-loja',
     enunciado: '<p>Dê à <code>loja</code> um Service do tipo <b>NodePort</b> na porta <code>80</code>, entregando na <code>8080</code> dos pods, com um comando só.</p>',
     dica: 'kubectl expose deployment loja --type=NodePort --port=80 --target-port=8080',
@@ -146,6 +152,7 @@ export const OFICINA = [
     id: 'of-trocar-versao',
     titulo: 'Versão nova, sem abrir arquivo',
     dificuldade: 'medio',
+    meta: 45_000,
     cluster: 'of-loja',
     enunciado: '<p>Troque a imagem da <code>loja</code> para <code>kubelearn/loja:1.1</code> pelo terminal e acompanhe a troca até o fim.</p>',
     dica: 'kubectl set image deployment/loja loja=kubelearn/loja:1.1 e depois kubectl rollout status deployment/loja',
@@ -162,6 +169,7 @@ export const OFICINA = [
     id: 'of-desfazer',
     titulo: 'Volta, volta!',
     dificuldade: 'facil',
+    meta: 25_000,
     cluster: 'of-loja-quebrada',
     enunciado: '<p>Alguém subiu uma versão da <code>loja</code> que cai assim que liga. Volte para a versão anterior com <b>um comando</b>.</p>',
     dica: 'kubectl rollout undo deployment/loja',
@@ -177,6 +185,7 @@ export const OFICINA = [
     id: 'of-rotulos',
     titulo: 'Etiqueta e filtro',
     dificuldade: 'facil',
+    meta: 40_000,
     cluster: 'of-vizinhanca',
     enunciado: '<p>Ponha a label <code>tier=frontend</code> em todos os pods da <code>vitrine</code> (de uma vez, pelo seletor) e liste só os pods com essa label.</p>',
     dica: 'kubectl label pods -l app=vitrine tier=frontend e depois kubectl get pods -l tier=frontend',
@@ -193,6 +202,7 @@ export const OFICINA = [
     id: 'of-jsonpath',
     titulo: 'Só o que interessa',
     dificuldade: 'medio',
+    meta: 40_000,
     cluster: 'of-vizinhanca',
     enunciado: '<p>Qual imagem o Deployment <code>cofre</code> usa? Descubra com <code>-o jsonpath</code> (só a imagem na saída) e responda abaixo.</p>',
     rotuloResposta: 'A imagem do cofre',
@@ -210,6 +220,7 @@ export const OFICINA = [
     id: 'of-autoscale',
     titulo: 'O gerente num comando',
     dificuldade: 'medio',
+    meta: 30_000,
     cluster: 'of-loja',
     enunciado: '<p>Crie para a <code>loja</code> um HPA de <b>2 a 6</b> réplicas, com alvo de <b>60%</b> de CPU, com um comando só.</p>',
     dica: 'kubectl autoscale deployment loja --min=2 --max=6 --cpu=60%',
@@ -227,6 +238,7 @@ export const OFICINA = [
     id: 'of-colunas',
     titulo: 'A tabela do seu jeito',
     dificuldade: 'medio',
+    meta: 45_000,
     cluster: 'of-bairro',
     enunciado: `<p>Monte uma tabela dos Deployments com só duas colunas, <code>NOME</code> e <code>IMAGEM</code>, usando
                 <code>-o custom-columns</code>. Qual Deployment usa a imagem <code>nginx:1.28</code>?</p>`,
@@ -245,6 +257,7 @@ export const OFICINA = [
     id: 'of-ordenar',
     titulo: 'Quem chegou por último?',
     dificuldade: 'facil',
+    meta: 35_000,
     cluster: 'of-bairro',
     enunciado: `<p>Liste os pods em ordem de criação, com <code>--sort-by</code> (o mais novo fica no fim). De qual Deployment
                 são os pods mais novos?</p>`,
@@ -263,6 +276,7 @@ export const OFICINA = [
     id: 'of-eventos',
     titulo: 'Só as más notícias',
     dificuldade: 'facil',
+    meta: 30_000,
     cluster: 'of-bairro',
     enunciado: `<p>Algum Deployment do bairro não está subindo. Sem abrir pod por pod, liste só os avisos do namespace com
                 <code>kubectl events --types=Warning</code>. Qual Deployment está com problema?</p>`,
@@ -281,6 +295,7 @@ export const OFICINA = [
     id: 'of-patch',
     titulo: 'Um remendo cirúrgico',
     dificuldade: 'medio',
+    meta: 40_000,
     cluster: 'of-loja',
     enunciado: `<p>Na próxima troca de versão, a <code>loja</code> não pode tirar nenhum pod do ar antes do substituto ficar pronto:
                 ponha <code>maxUnavailable: 0</code> na estratégia dela com <code>kubectl patch</code>, sem abrir arquivo.</p>`,
@@ -297,6 +312,7 @@ export const OFICINA = [
     id: 'of-set-env',
     titulo: 'Variável sem YAML',
     dificuldade: 'facil',
+    meta: 30_000,
     cluster: 'of-loja',
     enunciado: '<p>Ponha a variável de ambiente <code>MODO=manutencao</code> na <code>loja</code> com <code>kubectl set env</code>.</p>',
     dica: 'kubectl set env deployment/loja MODO=manutencao',
@@ -313,6 +329,7 @@ export const OFICINA = [
     id: 'of-editar',
     titulo: 'Mexendo no objeto vivo',
     dificuldade: 'facil',
+    meta: 40_000,
     cluster: 'of-loja',
     enunciado: `<p>A <code>loja</code> guarda as 10 últimas versões para o <code>rollout undo</code>. Com <code>kubectl edit</code>, mude
                 para guardar só as <b>3</b> últimas (<code>revisionHistoryLimit</code>), direto no objeto do cluster.</p>`,
@@ -329,6 +346,7 @@ export const OFICINA = [
     id: 'of-depurar',
     titulo: 'O pod descartável',
     dificuldade: 'medio',
+    meta: 40_000,
     cluster: 'of-loja-ramal',
     enunciado: `<p>Teste o Service <code>loja</code> de dentro do cluster com um pod que se apaga sozinho no fim: <code>kubectl run</code>
                 com <code>--rm -i</code>, a imagem <code>busybox:1.36</code> e um <code>wget -qO- http://loja</code>. Qual versão a loja responde?</p>`,
@@ -347,6 +365,7 @@ export const OFICINA = [
     id: 'of-contar',
     titulo: 'Conta pra mim',
     dificuldade: 'facil',
+    meta: 30_000,
     cluster: 'vazio',
     enunciado: `<p>Quantos pods o kind roda no namespace <code>kube-system</code>? Conte no terminal, sem contar de cabeça:
                 <code>--no-headers</code> tira o cabeçalho, e <code>| wc -l</code> conta as linhas.</p>`,

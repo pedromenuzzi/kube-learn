@@ -232,19 +232,26 @@ export const NIVEL6 = [
     enunciado: `
       <p>Depois de uns 40 segundos no ar, a loja trava: o processo continua rodando, o pod continua <code>Running</code>,
          mas as requisições ficam sem resposta (veja os logs). Faça o Kubernetes <b>perceber e reiniciar</b> o contêiner
-         travado.</p>`,
+         travado.</p>
+      <p>A loja responde saúde em <code>/healthz</code> (porta 8080). Pergunte a cada <b>5 segundos</b>, no máximo.</p>`,
     comoSaber: '<code>kubectl get pods -w</code>: a coluna RESTARTS sobe; <code>kubectl describe pod NOME</code> mostra <i>Container loja failed liveness probe, will be restarted</i>.',
-    dica: 'Uma livenessProbe httpGet em /healthz, porta 8080.',
+    dica: 'Uma livenessProbe httpGet em /healthz, porta 8080, com periodSeconds: 5 (o padrão é 10).',
     manual: ['pod.spec.containers.livenessProbe'],
     inicial: { 'loja.yaml': PARTIDA6.trava },
     solucao: { 'loja.yaml': travada(sonda('livenessProbe', { extra: '            periodSeconds: 5\n' })) },
-    testes: [depois('o kubelet reinicia a loja travada', [
-      { semErros: true },
-      // o Killing sozinho não basta: a troca de versão também mata os contêineres antigos (Stopping container)
-      { evento: { motivo: 'Killing', mensagem: 'failed liveness probe, will be restarted' }, msg: 'o kubelet matou um contêiner pela liveness' },
-      { evento: { motivo: 'Unhealthy', mensagem: 'Liveness probe failed: .*deadline exceeded' }, msg: 'a liveness reprovou a loja quando ela travou (sem resposta), e não antes' },
-      { objeto: 'deployment/loja', campo: 'spec.template.spec.containers[0].livenessProbe', existe: true },
-    ], { esperar: '2m' })],
+    testes: [
+      depois('o kubelet reinicia a loja travada', [
+        { semErros: true },
+        // o Killing sozinho não basta: a troca de versão também mata os contêineres antigos (Stopping container)
+        { evento: { motivo: 'Killing', mensagem: 'failed liveness probe, will be restarted' }, msg: 'o kubelet matou um contêiner pela liveness' },
+        { evento: { motivo: 'Unhealthy', mensagem: 'Liveness probe failed: .*deadline exceeded' }, msg: 'a liveness reprovou a loja quando ela travou (sem resposta), e não antes' },
+        { objeto: 'deployment/loja', campo: 'spec.template.spec.containers[0].livenessProbe', existe: true },
+      ], { esperar: '2m' }),
+      depois('a sonda pergunta no lugar certo, e logo', [
+        { objeto: 'deployment/loja', campo: 'spec.template.spec.containers[0].livenessProbe.httpGet.path', igual: '/healthz', msg: 'a liveness pergunta em /healthz, o endereço de saúde da loja' },
+        { objeto: 'deployment/loja', campo: 'spec.template.spec.containers[0].livenessProbe.periodSeconds', regex: '^[1-5]$', msg: 'a liveness pergunta a cada 5 segundos ou menos (periodSeconds): no padrão de 10, a loja fica 30 segundos travada antes de reiniciar' },
+      ], { oculto: true, esperar: '10s' }),
+    ],
     armadilhas: [
       // a loja travada ainda aceita a conexão: só a pergunta HTTP percebe que ninguém responde
       { descricao: 'liveness tcpSocket na 8080', arquivos: { 'loja.yaml': travada('          livenessProbe:\n            tcpSocket:\n              port: 8080\n') } },
@@ -493,7 +500,11 @@ export const NIVEL6 = [
       `,
     },
     solucao: { 'limites.yaml': limiteDoNamespace },
-    testes: [depois('a loja de compras sobe com as regras padrão', [{ semErros: true }, { pods: 'app=loja', ns: 'compras', prontos: 2 }], { esperar: '2m' })],
+    testes: [depois('a loja de compras sobe com as regras padrão', [
+      { semErros: true },
+      { pods: 'app=loja', ns: 'compras', prontos: 2 },
+      { objeto: 'limitrange/padrao', ns: 'compras', campo: 'spec.limits[0].defaultRequest', igual: { cpu: '100m', memory: '64Mi' } },
+    ], { esperar: '2m' })],
   }),
 
   problema({

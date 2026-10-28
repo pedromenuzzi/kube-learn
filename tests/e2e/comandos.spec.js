@@ -1,6 +1,6 @@
 // As missões resolvidas com helm e git, pelo terminal de verdade da tela (o teste da trilha chama o simulador direto e
 // não pega um terminal que recusa o comando).
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base.js';
 import { ITENS } from '../../src/conteudo/index.js';
 
 const MISSOES = ITENS.filter((i) => (i.solucaoTerminal ?? []).some((l) => /^(helm|git)\b/.test(l)));

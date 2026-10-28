@@ -1,8 +1,7 @@
 // O topo do site: a marca, a navegação (que no celular vira uma barra de abas embaixo), o placar do aluno (XP e
 // dias seguidos), o idioma (PT | EN) e o botão de acessibilidade. O placar e a aba ativa são atualizados a cada troca
 // de página; o topo e o rodapé são montados de novo quando o idioma muda.
-import { NIVEIS } from '../conteudo/index.js';
-import { GLOSSARIO } from '../conteudo/glossario.js';
+import { NIVEIS, GLOSSARIO } from '../conteudo/indice.js';
 import { calcularJornada, sequenciaDeDias, hojeLocal } from '../jogo/gamificacao.js';
 import { termosVistos } from '../jogo/revisao.js';
 import { cartoesParaHoje } from '../jogo/hoje.js';
@@ -55,7 +54,7 @@ export function atualizarTopo(caminho) {
     if (a.getAttribute('href') === `#${caminho}`) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   }
-  const jornada = calcularJornada(NIVEIS, ler(CHAVES.progresso, {}));
+  const jornada = calcularJornada(NIVEIS, ler(CHAVES.progresso, {}), ler(CHAVES.conquistas, {}));
   const { xp } = jornada;
   const dias = sequenciaDeDias(ler(CHAVES.dias, []), hojeLocal());
   // Na aba Revisão, quantos cartões esperam hoje (some quando a revisão do dia foi feita).

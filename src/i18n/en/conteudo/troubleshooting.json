@@ -36,6 +36,12 @@
           "0": "CoreDNS is back",
           "3": "the store’s turnstile still blocks everything else"
         }
+      },
+      {
+        "descricao": "the safety locks are still there",
+        "msgs": {
+          "0": "the egress allows only what is needed: every egress rule that applies to these pods (from every NetworkPolicy that selects them: they add up) says to whom (to) and on which port (ports, each with a port); without that, it applies to everything. DNS only needs 53/UDP and 53/TCP, to the k8s-app=kube-dns pods"
+        }
       }
     ]
   },
